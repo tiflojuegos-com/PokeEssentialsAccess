@@ -160,6 +160,27 @@ module PokeAccess
       :bt_target_ally
     end
 
+    # Speaks the move under the fight-menu cursor, once per real change. An empty/absent slot passes key
+    # nil, which Cursor treats as unchanged: it neither speaks nor records, so the last real move stays as
+    # the dedup key and the next real move still reads. (The menu itself refuses to move onto an empty slot,
+    # so this is the defensive path, not the normal one.)
+    # @param interrupt false for the opening read, so it queues behind the hp/turn lines instead of cutting
+    #   them; true for navigation, which should cut the previous move
+    def self.read_fight_move(disp, interrupt = true)
+      b = PokeAccess.ivar(disp, :@battler)
+      idx = PokeAccess.ivar(disp, :@index)
+      ok = b && b.moves[idx] && b.moves[idx].id != 0
+      PokeAccess::Cursor.on_change(disp, :fight_move, ok ? idx : nil) do
+        m = b.moves[idx]
+        t = m.name.to_s
+        t += ". " + PokeAccess::I18n.t(:mv_pp, :pp => m.pp, :tot => m.totalpp) if m.respond_to?(:pp)
+        PokeAccess.speak_clean(t, interrupt)
+        PokeAccess::Info.set_info(:move, m)
+      end
+    rescue StandardError
+      nil
+    end
+
     # Announces the battler under the target cursor while choosing a move's target in doubles (gen-6
     # pbChooseTarget highlights via pbUpdateSelected). param index the highlighted battler index, or
     # negative to clear (so re-entering selection reads again)
@@ -235,12 +256,15 @@ module PokeAccess
 
     # The seconds left in a Bug Contest, computed from whichever clock the engine stores: modern keeps a
     # System.uptime start against TIME_ALLOWED; gen-6 a Graphics.frame_count start against TimerSeconds.
-    # nil when there is no time limit or it cannot be read.
+    # nil when there is no time limit or it cannot be read. Both stamps come from the ENGINE, so the elapsed
+    # figure is in the engine's own units and has to be scaled: Infinite Fusion's mkxp-z counts uptime in
+    # microseconds, which made every contest read "0:00" from the first second.
     def self.contest_time_left(s)
       if defined?(System) && System.respond_to?(:uptime) && s.respond_to?(:timer_start)
         total = (BugContestState::TIME_ALLOWED rescue 0)
         return nil if total <= 0
-        return [total - (System.uptime - s.timer_start), 0].max.to_i
+        scale = (PokeAccess.uptime_scale || 1.0)
+        return [total - (System.uptime - s.timer_start) / scale, 0].max.to_i
       end
       tmr = (s.timer rescue nil)
       return nil if tmr.nil?

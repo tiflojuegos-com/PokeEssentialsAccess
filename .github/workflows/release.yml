@@ -18,22 +18,50 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: build zip
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.3'
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      # The launcher decides whether an update exists by comparing the release tag with the version.json it
+      # downloads, so a mismatch between the two ships a build that announces the wrong version. Checked
+      # before anything is built, so the run fails early and publishes nothing.
+      - name: version matches tag
         run: |
           TAG="${{ github.event.inputs.version || github.ref_name }}"
           echo "TAG=$TAG" >> "$GITHUB_ENV"
+          FILE=$(ruby -rjson -e 'print JSON.parse(File.read("version.json"))["version"]')
+          if [ "${TAG#v}" != "$FILE" ]; then
+            echo "::error::tag $TAG does not match version.json ($FILE)"
+            exit 1
+          fi
+          echo "tag $TAG matches version.json ($FILE)"
+
+      # The same suite CI runs, on the exact tree about to be packaged: pushing a tag must never publish a
+      # build that does not pass its own tests.
+      - name: tests
+        run: ruby test/run_all.rb
+
+      - name: build zip
+        run: |
           mkdir -p stage
           cp -r assets core lang loader installer version.json stage/
-          [ -f README.md ] && cp README.md stage/ || true
           cp -r games stage/games
+          cp LICENSE stage/
+          [ -f README.md ] && cp README.md stage/ || true
           (cd stage && zip -rq "../PokeEssentialsAccess_${TAG}.zip" .)
+          sha256sum "PokeEssentialsAccess_${TAG}.zip" > "PokeEssentialsAccess_${TAG}.zip.sha256"
+
       - name: publish release
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           ZIP="PokeEssentialsAccess_${TAG}.zip"
+          SUM="$ZIP.sha256"
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$ZIP" --clobber
+            gh release upload "$TAG" "$ZIP" "$SUM" --clobber
           else
-            gh release create "$TAG" "$ZIP" --title "${TAG#v}" --notes ""
+            gh release create "$TAG" "$ZIP" "$SUM" --title "${TAG#v}" --notes ""
           fi

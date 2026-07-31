@@ -128,6 +128,20 @@ module PokeAccess
       nil
     end
 
+    # Duel (PokemonDuel): a command duel whose narration already goes through pbMessage, so only the two
+    # HUD windows are silent -- each DuelWindow redraws "name / HP: n" into its own bitmap on every change.
+    # Voice the duelist and its new HP whenever the value actually changes.
+    def self.duel_hp(win)
+      hp = (win.hp rescue nil)
+      return if hp.nil?
+      return if win.instance_variable_get(:@pa_duel_hp) == hp
+      win.instance_variable_set(:@pa_duel_hp, hp)
+      name = (win.name rescue nil).to_s
+      PokeAccess.speak(PokeAccess::I18n.t(:mg_duel_hp, :who => name, :hp => hp), false)
+    rescue StandardError
+      nil
+    end
+
     # Tile Puzzle: an NxN board of picture tiles the player rearranges. @tiles maps board position -> tile id
     # (the solved state is tile id == position, angle 0); the cursor position is @sprites["cursor"].position.
     # The tile is identified by its 1-based id so a blind player can track pieces; games 1/2 have a second
@@ -194,3 +208,7 @@ PokeAccess::Hooks.after_hook("SlotMachineScene", :pbPayout) { |scene, _r, _a| Po
 # Tile Puzzle (TilePuzzleScene): the cursor cell as it moves and the win when solved, polled on the scene's
 # per-frame update. The cursor and board live in the scene's ivars, so no around-hook is needed.
 PokeAccess::Hooks.after_hook("TilePuzzleScene", :update) { |scene, _r, _a| PokeAccess::Minigames.tile_puzzle(scene) }
+
+# Duel (DuelWindow): only the HP readout is silent; duel_refresh runs on every change, including the initial
+# draw, so hooking it covers both windows without a poller.
+PokeAccess::Hooks.after_hook("DuelWindow", :duel_refresh) { |win, _r, _a| PokeAccess::Minigames.duel_hp(win) }

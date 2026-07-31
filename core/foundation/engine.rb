@@ -29,12 +29,16 @@ module PokeAccess
     end
 
     # Running Essentials version as a comparable Float; gen-6 v16 has no constant, so it floors to 16.0.
+    # A GameData engine with no version constant is told apart structurally, never by a runtime global
+    # (the player object does not exist yet at the title screen, and the result is memoised): v19 renamed
+    # the battle scene to Battle::Scene, so its absence means the v18 transitional era -- GameData already
+    # in, but still PokeBattle_Scene and $Trainer (Infinite Fusion).
     def self.version
       return @version if defined?(@version) && @version
       ev = (defined?(Essentials) && (Essentials::VERSION rescue nil)) ||
            (defined?(ESSENTIALS_VERSION) && (ESSENTIALS_VERSION rescue nil))
       @version = if ev then ev.to_s[/\d+(\.\d+)?/].to_f
-                 elsif gamedata? then 19.0
+                 elsif gamedata? then (PokeAccess.const_at("Battle::Scene") ? 19.0 : 18.0)
                  elsif defined?(ESSENTIALSVERSION) then (v = ESSENTIALSVERSION.to_s[/\d+(\.\d+)?/].to_f; v < 1 ? 17.0 : v)
                  else 16.0
                  end

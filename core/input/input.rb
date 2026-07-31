@@ -127,8 +127,43 @@ module PokeAccess
       PokeAccess::Perf.reset
     end
 
+    # Which Essentials the mod believes it is running on, plus the capabilities the readers actually gate on.
+    # Readers bind by capability, never by version, so this line is for diagnosis: on an unknown fangame it
+    # says at a glance whether it is the gen-6 or the GameData era, which battle/UI generation it exposes and
+    # whether the player global is the old or the new one -- the facts that decide which readers can bind.
+    def self.diag_engine(o)
+      e = PokeAccess::Engine
+      caps = []
+      caps.push("battle_scene") if dv { e.has?(:battle_scene) }
+      caps.push("ui_rework") if dv { e.has?(:ui_rework) }
+      caps.push("PokeBattle_Scene") if dv { !PokeAccess.const_at("PokeBattle_Scene").nil? }
+      caps.push("$player") if defined?($player) && $player
+      caps.push("$Trainer") if defined?($Trainer) && $Trainer
+      o.push("engine: kind=#{dv { e.kind }} version=#{dv { e.version }} fork=#{dv { e.fork.inspect }} caps=[#{caps.join(', ')}]")
+      diag_timing(o)
+    end
+
+    # The cue-pacing clock next to the engine clocks it is NOT built on, so "everything fires at once" or
+    # "nothing ever fires" can be told apart at a glance. uptime_scale is how many System.uptime units make
+    # one real second (1 where it counts seconds, 1000000 on Infinite Fusion's mkxp-z, which is what sent
+    # the whole soundscape to frame rate before clock moved to wall time); render_fps is measured between
+    # two consecutive diags and should sit at frame_rate.
+    def self.diag_timing(o)
+      now = PokeAccess.clock
+      fc = dv { Graphics.frame_count }
+      scale = dv { PokeAccess.uptime_scale }
+      fps = "n/a"
+      if @diag_t0 && fc.is_a?(Numeric) && @diag_fc && (now - @diag_t0) > 0.5
+        fps = sprintf("%.1f", (fc - @diag_fc) / (now - @diag_t0))
+      end
+      o.push("timing: clock=#{sprintf('%.1f', now)}s uptime_scale=#{scale.inspect} render_fps=#{fps} frame_rate=#{dv { Graphics.frame_rate }}")
+      @diag_t0 = now
+      @diag_fc = fc if fc.is_a?(Numeric)
+    end
+
     # Focus, scene state and the audio/pathfinder config flags.
     def self.diag_focus(o)
+      diag_engine(o)
       o.push("enabled=#{@enabled} focused?=#{dv { focused? }} game_hwnd=#{@game_hwnd.inspect} typing_ttl=#{@typing_ttl}")
       o.push("focus: GFW=#{dv { GFW.call }} GAW=#{dv { GAW.call }} pid=#{dv { GCPID.call }}")
       o.push("scene=#{dv { $scene.class }} in_menu=#{dv { $game_temp.in_menu }} msg=#{dv { $game_temp.message_window_showing }} interp=#{dv { $game_system.map_interpreter.running? }} surfing=#{dv { $PokemonGlobal.surfing }}")
@@ -150,13 +185,23 @@ module PokeAccess
       end
     end
 
+    # A player attribute by name, or nil where this engine does not have it -- the trainer type is
+    # trainertype in gen-6 and trainer_type in the GameData era, and asking for the wrong one used to print
+    # ERR(NoMethodError) in the diag, which reads like a fault when it is just the other engine.
+    def self.pl_attr(name)
+      p = PokeAccess::Engine.player
+      (p && p.respond_to?(name)) ? p.send(name) : nil
+    rescue StandardError
+      nil
+    end
+
     # The locator's category, target list and selected target.
     def self.diag_locator(o)
       l = PokeAccess::Locator
       cats = dv { PokeAccess::Config.categories }
       ci = dv { l.instance_variable_get(:@cat) }
       o.push("categories(#{dv { cats.size }})=#{cats.inspect}")
-      o.push("locator: cat=#{ci} (#{dv { cats[ci] }}) ti=#{dv { l.instance_variable_get(:@ti) }} targets=#{dv { l.instance_variable_get(:@targets).size }} target=#{dv { l.instance_variable_get(:@target).name }} guide=#{dv { l.instance_variable_get(:@guide) }}")
+      o.push("locator: cat=#{ci} (#{dv { cats[ci] }}) ti=#{dv { l.instance_variable_get(:@ti) }} targets=#{dv { l.instance_variable_get(:@targets).size }} target=#{dv { (t = l.instance_variable_get(:@target)) ? t.name : 'none' }} guide=#{dv { l.instance_variable_get(:@guide) }}")
       o.push("targetlist=#{dv { l.instance_variable_get(:@targets)[0, 10].map { |t| "#{t.name rescue '?'}@#{t.x},#{t.y}" } }.inspect[0, 300]}")
     end
 
@@ -208,6 +253,7 @@ module PokeAccess
       o.push("audio3d vols: npc=#{dv { c.audio3d_npc }} object=#{dv { c.audio3d_object }} door=#{dv { c.audio3d_door }} water=#{dv { c.audio3d_water }}")
       o.push("audio3d chans=#{dv { a3.instance_variable_get(:@ch).inspect }}")
       o.push("audio3d state: scan_pos=#{dv { a3.instance_variable_get(:@scan_pos).inspect }} walls=#{dv { a3.instance_variable_get(:@wall).inspect }} near=#{dv { a3.instance_variable_get(:@near).inspect }}")
+      o.push("audio3d gate: now=#{dv { PokeAccess::Spatial.busy_reason.inspect }} #{dv { a3.gate_report }}")
       o.push("audio3d emitters=#{dv { a3.instance_variable_get(:@emitters).inspect }[0, 300]}")
       o.push("audio3d movers: has=#{dv { PokeAccess::Puzzles.has_movers? }} cached=#{dv { (a3.instance_variable_get(:@emitters)[:trap]).inspect }} last_scan=#{dv { a3.instance_variable_get(:@mover_time) }} now=#{dv { PokeAccess.clock }}")
       o.push("paths: data=#{dv { PokeAccess::Paths::DATA }} cwd=#{dv { Dir.pwd }} lib=#{dv { PokeAccess::Paths::LIB }}")
@@ -228,9 +274,9 @@ module PokeAccess
     # Battle/trainer state, player-sprite selection, on-screen pictures, choices and live command windows.
     def self.diag_scene(o)
       o.push("battle_ref=#{dv { PokeAccess::Battle.instance_variable_get(:@battle_ref) ? 'present' : 'nil' }} trainer=#{dv { p = PokeAccess::Engine.player; p ? p.name : 'nil' }}")
-      o.push("player_sel: playerID=#{dv { $PokemonGlobal.playerID }} charset='#{dv { $game_player.character_name }}' tt=#{dv { (p = PokeAccess::Engine.player) ? p.trainertype : 'nil' }} outfit=#{dv { (p = PokeAccess::Engine.player) ? p.outfit : 'nil' }} gender=#{dv { (p = PokeAccess::Engine.player) ? p.gender : 'nil' }}")
+      o.push("player_sel: playerID=#{dv { $PokemonGlobal.playerID }} charset='#{dv { $game_player.character_name }}' tt=#{dv { pl_attr(:trainertype) || pl_attr(:trainer_type) }} outfit=#{dv { pl_attr(:outfit) }} gender=#{dv { pl_attr(:gender) }}")
       o.push("pictures=" + dv { (1..50).map { |i| n = ($game_screen.pictures[i].name rescue nil); (n && !n.to_s.empty?) ? "#{i}:#{n}" : nil }.compact.join(",") }.to_s)
-      o.push("choice=#{dv { $game_temp.choice_max }} choices=#{dv { $game_temp.choices.inspect }}")
+      o.push("choice=#{dv { $game_temp.respond_to?(:choice_max) ? $game_temp.choice_max : 'n/a' }} choices=#{dv { $game_temp.respond_to?(:choices) ? $game_temp.choices.inspect : 'n/a' }}")
       o.push("scene=#{dv { $scene.class }}")
       o.push("live_cmd_windows=" + dv {
         out = []
@@ -331,9 +377,9 @@ module PokeAccess
     def self.diag_polls(o)
       lg = (PokeAccess::LogrosIndexed.instance_variable_get(:@scene) rescue :none)
       o.push("scene_polls: logros=#{lg.nil? ? 'idle' : (lg == :none ? 'absent' : 'ACTIVE')}")
-      t0 = (System.uptime rescue Time.now.to_f)
+      t0 = PokeAccess.clock
       5000.times { (PokeAccess::LogrosIndexed.poll rescue nil) }
-      o.push("poll_bench: 5000x LogrosIndexed.poll = #{sprintf('%.2f', ((System.uptime rescue Time.now.to_f) - t0) * 1000)}ms (idle should be ~0)")
+      o.push("poll_bench: 5000x LogrosIndexed.poll = #{sprintf('%.2f', (PokeAccess.clock - t0) * 1000)}ms (idle should be ~0)")
       aliases = ((class << Input; self; end).instance_methods(false).select { |m| m.to_s =~ /update__access/ } rescue [])
       o.push("input_update_layers: #{aliases.inspect} frame_pollers=#{(@frame_pollers || []).length}")
     rescue Exception => e

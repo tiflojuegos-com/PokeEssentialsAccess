@@ -9,6 +9,32 @@ module PokeAccess
       [s / 3600, (s % 3600) / 60]
     end
 
+    # Whether the player has seen (or owns) a species, tolerant of how each engine exposes the Pokedex:
+    # gen-6 keeps plain seen/owned arrays on the trainer, while v18+ replaced them with seen?/owned?
+    # predicates (on the player itself, or on a nested pokedex object -- Infinite Fusion's Player::Pokedex
+    # routes fusions through them). Reading only the gen-6 arrays left the dex list silent on v18 games.
+    # Returns true/false, or nil when nothing resolves, so a caller can tell "not seen" from "unknown".
+    def self.dex_seen?(sp);  dex_flag(sp, :seen?, :seen);   end
+    def self.dex_owned?(sp); dex_flag(sp, :owned?, :owned); end
+
+    # Shared probe for dex_seen?/dex_owned?: the predicate first (player, then its pokedex), the array last.
+    def self.dex_flag(sp, pred, arr)
+      who = PokeAccess::Engine.player
+      return nil if who.nil? || sp.nil?
+      v = (who.send(pred, sp) rescue nil)
+      return (v ? true : false) unless v.nil?
+      dex = (who.pokedex rescue nil)
+      if dex
+        v = (dex.send(pred, sp) rescue nil)
+        return (v ? true : false) unless v.nil?
+      end
+      a = (who.send(arr) rescue nil)
+      return (a[sp] ? true : false) unless a.nil?
+      nil
+    rescue StandardError
+      nil
+    end
+
     # The number of badges a player/trainer holds, tolerant of how the engine exposes it: numbadges or
     # badge_count when present, else counting the truthy entries of the badges array. nil when none resolves.
     def self.badge_count(who)

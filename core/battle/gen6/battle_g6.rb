@@ -15,11 +15,24 @@ PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbDisplayPausedMessage) do |_
   PokeAccess.speak_clean(args[0], false)
 end
 
-# Move-target selection in doubles: pbChooseTarget highlights the focused battler each frame via
-# pbUpdateSelected(index); read whoever is under the cursor as it moves. hook_container because its original
-# drives the command/fight display's own hooked index setters internally; guarding it would mute those readers.
-PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbUpdateSelected, :hook_container => true) do |scene, _r, args|
-  PokeAccess::Battle.announce_target(scene, args[0])
+# Move-target selection in doubles: read whoever is under the cursor as it moves. hook_container because the
+# original drives the command/fight display's own hooked index setters internally; guarding it would mute
+# those readers.
+#
+# Stock gen-6 has pbUpdateSelected(index), which exists for exactly this. The Infinite Fusion games dropped
+# it and their pbChooseTarget highlights through pbSelectBattler(index, 2) instead -- the same call the
+# command phase uses with the default mode, so the mode argument is what separates "choosing a target" from
+# "this battler's turn began" and keeps the second from being announced. A bare -1 still passes: that is
+# pbChooseTarget deselecting on the way out, which is what lets re-entering selection read again.
+if PokeAccess::Engine.has?("PokeBattle_Scene#pbUpdateSelected")
+  PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbUpdateSelected, :hook_container => true) do |scene, _r, args|
+    PokeAccess::Battle.announce_target(scene, args[0])
+  end
+else
+  PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbSelectBattler, :hook_container => true) do |scene, _r, args|
+    choosing = args[0].is_a?(Integer) && (args[1] == 2 || args[0] < 0)
+    PokeAccess::Battle.announce_target(scene, args[0]) if choosing
+  end
 end
 
 # Battle prompts with options (yes/no like "give a nickname?", fainted-pokemon choices): the question
@@ -50,16 +63,27 @@ end
 # Move selection: read only when the focused move actually changes, so pressing a direction toward an empty
 # slot (the move does not move) is not mistaken for a re-read. An empty/absent slot passes key nil, which
 # Cursor treats as unchanged, so it neither speaks nor records -- returning to the same real move still reads.
-PokeAccess::Hooks.after_hook("FightMenuDisplay", :setIndex) do |disp, _r, _a|
-  b = disp.instance_variable_get(:@battler)
-  idx = disp.instance_variable_get(:@index)
-  ok = b && b.moves[idx] && b.moves[idx].id != 0
-  PokeAccess::Cursor.on_change(disp, :fight_move, ok ? idx : nil) do
-    m = b.moves[idx]
-    t = m.name.to_s
-    t += ". " + PokeAccess::I18n.t(:mv_pp, :pp => m.pp, :tot => m.totalpp) if m.respond_to?(:pp)
-    PokeAccess.speak_clean(t, true)
-    PokeAccess::Info.set_info(:move, m)
+#
+# Which method to hang this on is not the same in every fork. Stock gen-6 declares FightMenuDisplay as a
+# standalone class with setIndex. The Infinite Fusion games instead give it a BattleMenuBase parent whose
+# cursor setter is index=, and no setIndex at all -- so the move list was silent there while the command
+# menu (CommandMenuDisplay#index=, which they do inherit) read fine. Gated on the capability rather than
+# hooked twice: where setIndex exists nothing changes, so the games that already work are untouched.
+PokeAccess::Hooks.after_hook("FightMenuDisplay",
+                             (PokeAccess::Engine.has?("FightMenuDisplay#setIndex") ? :setIndex : :index=)) do |disp, _r, _a|
+  PokeAccess::Battle.read_fight_move(disp)
+end
+
+# Opening the fight menu on the fork: setIndexAndMode places the initial cursor by assigning @index and
+# @mode DIRECTLY, bypassing both setters, so neither hook above fires and pressing Fight would land on a
+# move nobody read. Queued (interrupt false) so it does not cut the hp/turn lines, and it primes @access_mega
+# with the opening mode so the first real available->registered toggle still gets announced rather than being
+# swallowed as if it were the open. Stock gen-6 opens through setIndex, which is already covered.
+if !PokeAccess::Engine.has?("FightMenuDisplay#setIndex") && PokeAccess::Engine.has?("FightMenuDisplay#setIndexAndMode")
+  PokeAccess::Hooks.after_hook("FightMenuDisplay", :setIndexAndMode) do |disp, _r, args|
+    m = args[1]
+    disp.instance_variable_set(:@access_mega, m) if m == 1 || m == 2
+    PokeAccess::Battle.read_fight_move(disp, false)
   end
 end
 
@@ -68,12 +92,20 @@ PokeAccess::Hooks.after_hook("FightMenuDisplay", :battler=) do |disp, _r, _a|
   PokeAccess::Cursor.reset(disp, :fight_move)
 end
 
-# Mega button (gen-6, one-way): announce when it flips to registered.
-PokeAccess::Hooks.after_hook("FightMenuDisplay", :megaButton=) do |disp, _r, args|
-  v = args[0]
-  k = PokeAccess::Battle.mega_key(disp.instance_variable_get(:@access_mega), v)
-  disp.instance_variable_set(:@access_mega, v) if v == 1 || v == 2
-  PokeAccess.speak(PokeAccess::I18n.t(k), true) if k
+# Mega button (gen-6, one-way): announce when it flips to registered. Stock gen-6 exposes it as
+# attr_accessor :megaButton; the Infinite Fusion fork keeps the same 0=hidden/1=shown/2=pressed state in
+# @mode on BattleMenuBase (its own code reads @mode to draw that very button) and offers no megaButton=.
+# Same three values either way, so the reader just binds whichever setter the fork has, and neither where
+# there is no mega button at all.
+mega_setter = ["megaButton=", "mode="].detect { |m| PokeAccess::Engine.has?("FightMenuDisplay##{m}") }
+
+if mega_setter
+  PokeAccess::Hooks.after_hook("FightMenuDisplay", mega_setter.to_sym) do |disp, _r, args|
+    v = args[0]
+    k = PokeAccess::Battle.mega_key(disp.instance_variable_get(:@access_mega), v)
+    disp.instance_variable_set(:@access_mega, v) if v == 1 || v == 2
+    PokeAccess.speak(PokeAccess::I18n.t(k), true) if k
+  end
 end
 
 # Level-up stat gains (gen-6): the panel is graphic-only. Old-stat arg order here is hp,atk,def,speed,

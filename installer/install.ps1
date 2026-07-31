@@ -64,23 +64,37 @@ $mainexe = if (Test-Path (Join-Path $GameDir "Game.exe")) { Join-Path $GameDir "
 $json = Join-Path $GameDir "mkxp.json"
 if (-not $mainexe) { Fail "No hay ningun .exe en esa carpeta. Elige la carpeta del juego." }
 
-# compatibilidad: el mod se carga via preloadScript de mkxp-z. Comprobamos que el juego tenga
-# mkxp.json y que su .exe acepte preloadScript. Con -Check solo informa (no instala); en una
-# instalacion normal, si no se detecta soporte se puede forzar bajo el propio riesgo del tester.
+# compatibilidad: el mod se carga via preloadScript de mkxp-z. El ejecutable se escanea SIEMPRE, tenga o no
+# el juego un mkxp.json: la ausencia del archivo no dice nada sobre el motor (es opcional para mkxp-z), y
+# atarla al escaneo hacia que un juego sin config quedase marcado como incompatible sin haberlo mirado.
+# Con -Check solo informa; en una instalacion normal, si no se detecta soporte se puede forzar.
 $hasJson = Test-Path $json
-$compat  = if ($hasJson) { Test-Mkxp $GameDir } else { [pscustomobject]@{ Preload = $false; Mkxp = $false; Exe = $null } }
+$compat  = Test-Mkxp $GameDir
 $engine  = if ($compat.Mkxp) { "mkxp-z" } else { "desconocido" }
 
+# Which profile this folder would get, for the compatibility report: knowing it up front is what makes a
+# user's problem report actionable ("detecta Opalo" vs "no detecta nada").
+function Detected-Profile($dir, $exe) {
+    $cat = @()
+    $f = Join-Path $root "games\catalog.json"
+    if (Test-Path $f) { try { $cat = @((Get-Content $f -Raw -Encoding UTF8 | ConvertFrom-Json).profiles) } catch { $cat = @() } }
+    $hay = ("$dir " + $(if ($exe) { Split-Path $exe -Leaf } else { "" })).ToLower()
+    foreach ($p in $cat) { if ($p.detect -and $hay -match $p.detect) { return $p } }
+    return $null
+}
+
 if ($Check) {
+    $det = Detected-Profile $GameDir $mainexe
     Write-Host "`n=== Comprobacion de compatibilidad ===" -ForegroundColor Cyan
     Write-Host ("  Carpeta: " + $GameDir)
-    Write-Host ("  mkxp.json: " + $(if ($hasJson) { "SI" } else { "NO" }))
+    Write-Host ("  mkxp.json: " + $(if ($hasJson) { "SI" } else { "NO (se creara al instalar)" }))
     Write-Host ("  Motor: " + $engine)
     Write-Host ("  preloadScript: " + $(if ($compat.Preload) { "SI (en $($compat.Exe))" } else { "NO detectado" }))
-    if ($hasJson -and $compat.Preload) {
+    Write-Host ("  Perfil detectado: " + $(if ($det) { "$($det.display)  [$($det.key)]" } else { "ninguno (se elige a mano)" }))
+    if ($compat.Preload) {
         Write-Host "`n[COMPATIBLE] Este fangame acepta el cargador. Instala con 'Instalar mod'." -ForegroundColor Green
     } elseif (-not $hasJson) {
-        Write-Host "`n[NO COMPATIBLE] Sin mkxp.json no usa mkxp-z; el cargador no puede engancharse." -ForegroundColor Red
+        Write-Host "`n[NO COMPATIBLE] Ni mkxp.json ni 'preloadScript' en el ejecutable: no usa mkxp-z." -ForegroundColor Red
     } else {
         Write-Host "`n[DUDOSO] No veo 'preloadScript' en el ejecutable; este build podria tenerlo desactivado." -ForegroundColor Yellow
         Write-Host "Puedes intentarlo igualmente: 'Instalar mod' y responde si al aviso de forzar."
@@ -88,7 +102,18 @@ if ($Check) {
     Pause-Exit; exit 0
 }
 
-if (-not $hasJson) { Fail "No hay mkxp.json: este juego no usa mkxp-z, no es compatible con este instalador." }
+# A game can be a perfectly good mkxp-z build and still ship no mkxp.json (Infinite Fusion does): the config
+# file is optional for the engine, but the mod needs it because preloadScript is declared there. So the
+# absence of the file only blocks when the executable ALSO lacks preloadScript support -- otherwise the file
+# is created with just the loader in it, which is what the register step below would have added anyway.
+if (-not $hasJson) {
+    if (-not $compat.Preload) {
+        Fail "Ni mkxp.json ni soporte de 'preloadScript' en el ejecutable: este juego no usa mkxp-z."
+    }
+    # No accents here on purpose: mkxp-z has a known bug parsing non-ASCII in this file.
+    [System.IO.File]::WriteAllText($json, "{}", (New-Object System.Text.UTF8Encoding($false)))
+    Write-Host "[OK] Creado mkxp.json (el juego no traia; su ejecutable si acepta preloadScript)." -ForegroundColor Green
+}
 if (-not $compat.Preload -and -not $Force) {
     Write-Host "`n[AVISO] No detecto soporte de 'preloadScript' en el ejecutable de este juego." -ForegroundColor Yellow
     Write-Host "El mod se carga por esa via; sin ella podria no funcionar. Puedes forzar y probarlo en el juego."

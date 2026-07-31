@@ -7,4 +7,10 @@
   crafting
   outfits
   gender
+  compendium
+  teleport
+  extras
+  fates_screens
+  cmoon
+  fates_extra
 ]

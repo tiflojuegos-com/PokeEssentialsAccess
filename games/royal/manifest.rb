@@ -17,5 +17,6 @@
   album_fotos
   hall_viewer
   granja
-  bp_shop
+  decorating
+  rhythm
 ]

@@ -158,23 +158,31 @@ module PokeAccess
       end
     end
 
-    # Dual-shape: gen-6 entries are arrays ([species, name, .., displayname]) read against $Trainer; the
-    # modern Window_Pokedex stores hashes ({:species, :name}) read against $player. One extractor covers both.
+    # Dual-shape: gen-6 entries are arrays ([species, name, .., displayname]); the modern Window_Pokedex
+    # stores hashes ({:species, :name}). One extractor covers both. The seen/owned state goes through
+    # Util.dex_seen?/dex_owned?, which probe the predicate API before the gen-6 arrays -- v18-era games
+    # (Infinite Fusion) keep the array row shape but expose only seen?/owned?, so reading the arrays
+    # directly raised and left the whole dex list silent. A row already carrying its name (c[1]) is spoken
+    # as-is, which is also what resolves a fusion's combined name without rebuilding the species.
     def_extractor("Window_Pokedex") do |win, i|
       c = win.instance_variable_get(:@commands)[i]
+      cap = PokeAccess::I18n.t(:dex_caught)
+      sn = PokeAccess::I18n.t(:dex_seen)
+      unk = PokeAccess::I18n.t(:dex_unknown)
       if c.is_a?(Hash)
         sp = c[:species]
         nm = c[:name]
         nm = (PokeAccess::Data.species_name(sp) || "?") if nm.nil? || nm.to_s.empty?
-        seen = ($player.seen?(sp) rescue false)
-        owned = ($player.owned?(sp) rescue false)
-        cap = PokeAccess::I18n.t(:dex_caught); sn = PokeAccess::I18n.t(:dex_seen)
-        seen ? "#{nm}, #{owned ? cap : sn}" : "#{nm}, #{PokeAccess::I18n.t(:dex_unknown)}"
-      elsif c
-        if $Trainer && $Trainer.seen[c[0]]
-          "#{c[4]}, #{c[1]}, #{$Trainer.owned[c[0]] ? PokeAccess::I18n.t(:dex_caught) : PokeAccess::I18n.t(:dex_seen)}"
+        if PokeAccess::Util.dex_seen?(sp)
+          "#{nm}, #{PokeAccess::Util.dex_owned?(sp) ? cap : sn}"
         else
-          "#{c[4]}, #{PokeAccess::I18n.t(:dex_unknown)}"
+          "#{nm}, #{unk}"
+        end
+      elsif c
+        if PokeAccess::Util.dex_seen?(c[0])
+          "#{c[4]}, #{c[1]}, #{PokeAccess::Util.dex_owned?(c[0]) ? cap : sn}"
+        else
+          "#{c[4]}, #{unk}"
         end
       else
         ""

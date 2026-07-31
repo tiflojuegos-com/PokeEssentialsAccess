@@ -10,4 +10,5 @@
   move_relearner
   datingsim_place
   itemget
+  extras
 ]

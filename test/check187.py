@@ -4,10 +4,12 @@ import re, glob, sys
 # or skyflyer/ subfolder (and games/anil/) load ONLY in the modern engine (Ruby 3.1+), so 1.9+
 # syntax/APIs are fine there: skipped.
 # Modern (Ruby 3.x) profiles are exempt; gen-6 (Ruby 1.8.7) games are NOT (their game code must stay
-# 1.8.7-safe). MODERN: anil/royal/relict run on Ruby 3.x with the GameData API. GEN-6 (linted): pokemon_z,
+# 1.8.7-safe). MODERN: anil/royal/relict run on Ruby 3.x with the GameData API, and so does
+# infinitefusion_hoenn (Essentials v18 on an mkxp-z built against Ruby 3.1). GEN-6 (linted): pokemon_z,
 # opalo, armonia (Essentials 16.3), realidea, africanus, reminiscencia (PScreen_*/PB* pre-GameData), and
 # generic/unknown (conservative).
-MODERN = ("/v21/", "/v22/", "/skyflyer/", "games/anil/", "games/royal/", "games/relict/")
+MODERN = ("/v21/", "/v22/", "/skyflyer/", "games/anil/", "games/royal/", "games/relict/",
+          "games/infinitefusion_hoenn/", "games/infinitefusion/")
 def is_modern(path):
     p = path.replace("\\", "/")
     return any(m in p for m in MODERN)

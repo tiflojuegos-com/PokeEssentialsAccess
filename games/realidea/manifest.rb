@@ -6,4 +6,6 @@
   system_scene
   album
   textlog
+  minigames
+  story_minigames
 ]

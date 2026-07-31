@@ -20,8 +20,14 @@ jobs:
           for f in $(find core games loader test -name '*.rb'); do ruby -c "$f" >/dev/null || exit 1; done
       - name: tests
         run: ruby test/run_all.rb
+      # Every profile on disk, never a hand-written list: the previous one had drifted and silently stopped
+      # covering three profiles (awakening and both Infinite Fusion) even though they were shipping. Deriving
+      # it means a new profile is smoke-loaded from the moment its folder exists.
       - name: profiles
         run: |
-          for p in africanus anil armonia generic opalo pokemon_z realidea relict reminiscencia royal; do
+          for d in games/*/; do
+            p=$(basename "$d")
+            [ -f "$d/manifest.rb" ] || continue
+            echo "-- $p"
             ruby -e "require './test/support/harness'; e = Harness.load_all('$p'); abort('FAIL '+ARGV[0]+': '+e.inspect) unless e.empty?" "$p" || exit 1
           done

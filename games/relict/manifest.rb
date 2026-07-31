@@ -3,7 +3,7 @@
 %w[
   pausemenu
   difficulty
-  bp_shop
   plates
   itemget
+  arcy
 ]

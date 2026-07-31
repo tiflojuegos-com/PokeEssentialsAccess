@@ -11,6 +11,8 @@
     { "key": "anil",          "display": "Pokemon Añil",           "detect": "añil|anil",                   "engine": "gamedata" },
     { "key": "royal",         "display": "Pokemon Royal",          "detect": "royal",                       "engine": "gamedata" },
     { "key": "relict",        "display": "Pokemon Relict",         "detect": "relict",                      "engine": "gamedata" },
+    { "key": "infinitefusion_hoenn", "display": "Pokemon Infinite Fusion 2 Hoenn", "detect": "infinite ?fusion ?2|infinitefusion2|fusion.*hoenn", "engine": "gamedata" },
+    { "key": "infinitefusion",       "display": "Pokemon Infinite Fusion",         "detect": "infinite ?fusion",                                  "engine": "gamedata" },
     { "key": "generic",       "display": "Perfil generico",        "detect": null,                          "engine": "any" }
   ]
 }

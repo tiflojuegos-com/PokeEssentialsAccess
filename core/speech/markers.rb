@@ -31,15 +31,36 @@ module PokeAccess
     nil
   end
 
-  # Monotonic time in seconds, the source for all cue pacing: System.uptime on modern mkxp-z (which
-  # advances by wall time even when the renderer runs above the nominal frame rate), else frame_count
-  # over 40 on gen-6 (one game tick per frame), so cues stay paced to game time, not render rate.
+  # Seconds since the mod loaded, the source for all cue pacing. Plain wall time, because a cue cadence is
+  # something a human hears: "a ping every 0.4 s" has to mean 0.4 real seconds in every game.
+  #
+  # It used to prefer System.uptime and fall back to Graphics.frame_count / 40, and both branches proved
+  # unsafe. Infinite Fusion ships an mkxp-z whose System.uptime does NOT return seconds, so every interval
+  # was met on the very next frame and the whole soundscape fired at frame rate (its performance exe, which
+  # has no System.uptime, sounded correct -- that split is what pinned the bug down). The frame_count branch
+  # is only right while the game truly holds its nominal rate, and it jumps whenever loading a save rewrites
+  # frame_count. Time.now has neither failure mode and matches, to the millisecond, what the games that
+  # already sounded right were doing. FPS survives as the frames-to-seconds constant the tunables are
+  # expressed in (see freq_to_seconds), not as a clock.
   def self.clock
-    t = (System.uptime rescue nil)
-    return t.to_f if t
-    fc = (Graphics.frame_count rescue nil)
-    return 0.0 if fc.nil?
-    fc.to_f / FPS
+    if @epoch.nil?
+      @epoch = Time.now
+      @uptime0 = (System.uptime rescue nil)
+    end
+    (Time.now - @epoch).to_f
+  end
+
+  # How many System.uptime units make one real second: 1.0 where it counts seconds, 1_000_000.0 on the
+  # Infinite Fusion build (its own scripts give it away -- 001_MKXP_Compatibility.rb defines
+  # Graphics.delta_s as Graphics.delta / 1_000_000). nil while there is no uptime to read, or before
+  # enough time has passed to measure it. Anything comparing two of the ENGINE's own uptime stamps has to
+  # divide by this; the mod's own pacing never touches uptime at all (see clock).
+  def self.uptime_scale
+    return @uptime_scale if @uptime_scale
+    now = clock
+    u = (System.uptime rescue nil)
+    return nil if u.nil? || @uptime0.nil? || now < 1.0
+    @uptime_scale = (u - @uptime0) / now
   end
 
   # Seconds between cues for a 0-100 frequency setting (higher = more frequent), paced in real game time:

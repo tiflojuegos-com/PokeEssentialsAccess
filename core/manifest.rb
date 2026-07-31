@@ -45,6 +45,7 @@
   audio/spatial
   audio/audio3d
   field/contextual
+  field/hud_text
   field/minigames
   puzzles/puzzles
   field/incubator
@@ -59,6 +60,7 @@
   menus/screen_messages
   menus/command_help
   menus/battle_point_shop
+  menus/character_creator
   menus/sprite_button_menu
   menus/options
   menus/option_help
@@ -89,6 +91,7 @@
   field/v21/fieldmoves_v21
   menus/v21/ui_v21
   menus/v21/bag_party_v21
+  menus/pokedex_search
   menus/v21/move_relearner_v21
   menus/gen6/move_relearner_g6
   field/achievements

@@ -3,11 +3,14 @@
 # lines (whose turn, card flips, win/lose) were silent. This reads them; the board navigation is read
 # separately below. Triple Triad ships in every game (TriadScene, same ivars across gen-6 and modern).
 
-# Triple Triad voices its help-window lines. gen-6 uses TriadScene; modern has both TriadScene and
-# TriadScreen, so both are hooked. say_dialogue dedups (one voicing within half a second) and remembers
-# the line for the repeat key. No-op where a class is absent.
+# Triple Triad voices its help-window lines. Which of the two classes carries them varies by game, so both
+# names are offered and each is bound only where the method is really there -- otherwise the games that
+# split the work (TriadScreen present but every method on TriadScene, which is most of them) report a pile
+# of missing hooks that look like a fault and are not. say_dialogue dedups (one voicing within half a
+# second) and remembers the line for the repeat key.
 ["TriadScene", "TriadScreen"].each do |cn|
   ["pbDisplay", "pbDisplayPaused"].each do |m|
+    next unless PokeAccess::Engine.has?("#{cn}##{m}")
     PokeAccess::Hooks.before_hook(cn, m) do |_s, args|
       PokeAccess.say_dialogue(args[0])
     end
@@ -133,13 +136,17 @@ module PokeAccess
 end
 
 ["TriadScene", "TriadScreen"].each do |cn|
-  PokeAccess::Hooks.around_hook(cn, :pbPlayerChooseCard) do |scene, call_next, _a|
-    PokeAccess::TripleTriad.start_hand(scene)
-    begin; call_next.call; ensure; PokeAccess::TripleTriad.stop; end
+  if PokeAccess::Engine.has?("#{cn}#pbPlayerChooseCard")
+    PokeAccess::Hooks.around_hook(cn, :pbPlayerChooseCard) do |scene, call_next, _a|
+      PokeAccess::TripleTriad.start_hand(scene)
+      begin; call_next.call; ensure; PokeAccess::TripleTriad.stop; end
+    end
   end
-  PokeAccess::Hooks.around_hook(cn, :pbPlayerPlaceCard) do |scene, call_next, _a|
-    PokeAccess::TripleTriad.start_board(scene)
-    begin; call_next.call; ensure; PokeAccess::TripleTriad.stop; end
+  if PokeAccess::Engine.has?("#{cn}#pbPlayerPlaceCard")
+    PokeAccess::Hooks.around_hook(cn, :pbPlayerPlaceCard) do |scene, call_next, _a|
+      PokeAccess::TripleTriad.start_board(scene)
+      begin; call_next.call; ensure; PokeAccess::TripleTriad.stop; end
+    end
   end
 end
 PokeAccess::Keys.on_frame { PokeAccess::TripleTriad.poll }

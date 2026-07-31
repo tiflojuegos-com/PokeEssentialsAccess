@@ -23,7 +23,12 @@ PokeAccess.log_once(key, error)
 # Registra error una sola vez (evita spam)
 
 PokeAccess.clock
-# Retorna tiempo en segundos (para throttling)
+# Segundos de reloj de pared desde que cargó el mod. Única fuente del ritmo de las señales (pings del
+# sonar, chime de guía, cooldown de choque, perfilador). NO usa System.uptime ni Graphics.frame_count:
+# el mkxp-z de Infinite Fusion devuelve un System.uptime que no son segundos (todo el sonar disparado a
+# ritmo de frame) y frame_count sólo mide tiempo mientras el juego mantenga su tasa nominal, además de
+# saltar al cargar partida. Los pasos NO pasan por aquí: suenan al cambiar de casilla, así que siguen
+# al jugador aunque acelere con el turbo.
 
 PokeAccess.const_at("A::B::C")
 # Resuelve una constante anidada por nombre, 1.8.7-safe (o nil). La usan Hooks/Input/Menus/Engine.has?

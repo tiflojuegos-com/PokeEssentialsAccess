@@ -2,4 +2,5 @@
 %w[
   constants
   pausemenu
+  minigames
 ]

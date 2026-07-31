@@ -28,21 +28,28 @@ module PokeAccess
     # locator KEYS use keys_locked? instead, which ignores the interpreter so the npc list stays usable
     # during a walkable cutscene.
     def self.busy?
-      return true if (defined?(::Scene_Map) && $scene && !$scene.is_a?(::Scene_Map))
-      return true if (PokeAccess::Battle.in_battle? rescue false)
-      return true if ((defined?(PokeAccess::ReminMenu) && PokeAccess::ReminMenu.active?) rescue false)
-      return true if (PokeAccess::Appearance.selecting? rescue false)
-      return true if (PokeAccess::PictureCues.menu_showing? rescue false)
+      !busy_reason.nil?
+    end
+
+    # WHICH condition is holding the player out of free control, or nil when none is. Same order and same
+    # tests as busy? (which is just this, as a boolean) -- split out so a soundscape that keeps cutting out
+    # can name its cause in the diagnostic instead of leaving "busy" as an opaque true.
+    def self.busy_reason
+      return :other_scene if (defined?(::Scene_Map) && $scene && !$scene.is_a?(::Scene_Map))
+      return :battle if (PokeAccess::Battle.in_battle? rescue false)
+      return :remin_menu if ((defined?(PokeAccess::ReminMenu) && PokeAccess::ReminMenu.active?) rescue false)
+      return :appearance if (PokeAccess::Appearance.selecting? rescue false)
+      return :picture_menu if (PokeAccess::PictureCues.menu_showing? rescue false)
       if $game_temp
-        return true if $game_temp.message_window_showing
-        return true if ($game_temp.in_menu rescue false)
-        return true if ($game_temp.in_battle rescue false)
+        return :message if $game_temp.message_window_showing
+        return :in_menu if ($game_temp.in_menu rescue false)
+        return :in_battle if ($game_temp.in_battle rescue false)
       end
-      return true if ($game_player && $game_player.move_route_forcing rescue false)
-      return true if ($game_system && $game_system.map_interpreter && $game_system.map_interpreter.running? rescue false)
-      false
+      return :move_route if ($game_player && $game_player.move_route_forcing rescue false)
+      return :interpreter if ($game_system && $game_system.map_interpreter && $game_system.map_interpreter.running? rescue false)
+      nil
     rescue StandardError
-      false
+      nil
     end
 
     # True only while another screen genuinely owns the arrows/action keys (character selection, a picture

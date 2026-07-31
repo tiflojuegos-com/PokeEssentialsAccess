@@ -142,6 +142,25 @@ module PokeAccess
       false
     end
 
+    # Tallies why each tick either played or fell silent. The soundscape is built of LOOPS that only get
+    # (re)positioned on a tile change, so a gate that is shut most frames leaves them muted and they are
+    # only heard for the instant a step reopens it -- "it sounds when I walk and goes quiet when I stand
+    # still". A count per reason turns that into a number the diagnostic can name.
+    def self.gate(reason)
+      @gates ||= {}
+      @gates[reason] = (@gates[reason] || 0) + 1
+    end
+
+    # The tally as "played/total by=reason:n ..." (most frequent first), then clears the window.
+    def self.gate_report
+      g = (@gates || {})
+      total = g[:total] || 0
+      return "(sin datos)" if total == 0
+      by = g.reject { |k, _| k == :total || k == :playing }.sort_by { |_, v| -v }
+      @gates = {}
+      "#{g[:playing] || 0}/#{total} playing" + (by.empty? ? "" : " by=" + by.map { |k, v| "#{k}:#{v}" }.join(" "))
+    end
+
     # Stops every channel (when the feature is off, or during messages/menus).
     def self.silence_all
       @ch.each_value { |c| SET.call(c, 0, 0, 0, 0) if c && c >= 0 }
@@ -229,11 +248,14 @@ module PokeAccess
     # Opening the audio device at boot mutes the game's BGM until the next map change, so the first frame
     # after a successful boot re-plays the map BGM (autoplay) to bring the music straight back.
     def self.tick
+      gate(:total)
       unless $game_map && $game_player
+        gate(:no_map)
         silence_all if @active
         return
       end
       if (nav_off? rescue false)
+        gate(:nav_off)
         silence_all if @active
         return
       end
@@ -242,17 +264,21 @@ module PokeAccess
         @bgm_restored = true
         ($game_map.autoplay rescue nil)
       end
-      if (PokeAccess::Spatial.busy? rescue false)
+      busy = (PokeAccess::Spatial.busy_reason rescue nil)
+      if busy
+        gate(busy)
         silence_all if @active
         return
       end
       if (($game_temp && $game_temp.in_menu) rescue false)
+        gate(:in_menu)
         if @active
           silence_all
           @scan_pos = nil
         end
         return
       end
+      gate(:playing)
       @active = true
       v = (PokeAccess::Config.audio3d_volume rescue 80).to_i
       if v != @master_sent

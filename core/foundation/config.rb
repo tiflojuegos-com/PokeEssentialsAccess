@@ -1,7 +1,8 @@
 module PokeAccess
-  # gen-6 game tick rate (fps): converts frame_count to seconds where System.uptime is absent. mkxp-z runs
-  # the gen-6 loop at 40 fps. Shared by the clock/cue pacing (speech/markers), the spatial pings (audio) and
-  # the contest timer (battle).
+  # gen-6 game tick rate (fps). The unit the frame-shaped tunables are written in: a cooldown of "16" means
+  # 16 gen-6 frames, and dividing by this turns it into the seconds PokeAccess.clock speaks (freq_to_seconds,
+  # the bump cooldown). It is a fixed design constant, not a reading of the running game -- the clock itself
+  # is wall time, so a game at another frame rate keeps the same real-world cadence.
   FPS = 40.0
 
   # Engine defaults, overridden per game in games/<game>/constants.rb. User-facing settings live in
