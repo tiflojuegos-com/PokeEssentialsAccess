@@ -301,13 +301,22 @@ end
 
 ```ruby
 # games/royal/manifest.rb -- misma mecánica que el manifest del core: lista ordenada, sin .rb
-%w[
-  constants       # PokeAccess::Game.define("royal") { ... }: config, hooks, secciones de diag
-  selectors       # lectores de las pantallas propias del juego
-  curry_select
-  hall_viewer
-]
+{
+  :modules => %w[
+    constants     # PokeAccess::Game.define("royal") { ... }: config, hooks, secciones de diag
+    selectors     # lectores de las pantallas propias del juego
+    curry_select
+    rhythm
+  ],
+  :plugins => %w[berrydex hall_of_fame_bw photo_album secret_bases]
+}
 ```
+
+Un manifest de perfil puede ser una **lista plana** (la forma antigua, solo módulos de `games/<perfil>/`)
+o un **Hash** con `:modules` y `:plugins`. Lo segundo es lo que hay que usar cuando una pantalla del juego
+la trae en realidad un **plugin de terceros** que otros fangames también instalan: su lector vive una sola
+vez en `plugins/` y el perfil lo declara, en vez de copiarlo en cada juego que lo lleve. La tabla de
+detección está en `plugins/manifest.rb`.
 
 `Game.define` es el DSL del perfil: `config`, `screen_reader`, `before`/`after`/`around`/`read_on_open`,
 `override`, `kernel`, `diag_section`, `poll_each_frame`, `puzzle`, `hazard`, `remap_extra`... Un perfil
