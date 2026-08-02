@@ -49,6 +49,13 @@ jobs:
           mkdir -p stage
           cp -r assets core lang loader installer version.json stage/
           cp -r games stage/games
+          # plugins/ is not optional. install.ps1 copies it behind a Test-Path, so a zip missing it
+          # installs SILENTLY without the third-party plugin readers -- no error, just a dozen screens
+          # that stopped talking. The loop below is the guard: the packaging step fails instead.
+          cp -r plugins stage/plugins
+          for d in assets core games plugins lang loader installer; do
+            [ -d "stage/$d" ] || { echo "::error::stage/$d missing from the zip"; exit 1; }
+          done
           cp LICENSE stage/
           [ -f README.md ] && cp README.md stage/ || true
           (cd stage && zip -rq "../PokeEssentialsAccess_${TAG}.zip" .)
