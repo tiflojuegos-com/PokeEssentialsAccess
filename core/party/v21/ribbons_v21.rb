@@ -8,7 +8,7 @@ module PokeAccess
       return nil unless id
       r = (GameData::Ribbon.get(id) rescue nil)
       return nil unless r
-      [(r.name rescue nil), (r.description rescue nil)].compact.reject { |s| s.to_s.empty? }.join(". ")
+      PokeAccess::Util.join_parts([(r.name rescue nil), (r.description rescue nil)])
     end
   end
 end

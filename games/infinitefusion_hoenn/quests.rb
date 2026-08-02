@@ -55,7 +55,7 @@ module PokeAccess
       [(q.desc rescue nil), (q.npc rescue nil), (q.location rescue nil)].each do |v|
         parts.push(PokeAccess.clean(v.to_s)) if v && !v.to_s.strip.empty?
       end
-      t = parts.compact.reject { |s| s.to_s.empty? }.join(". ")
+      t = PokeAccess::Util.join_parts(parts)
       PokeAccess.speak(t, true) unless t.empty?
     rescue StandardError
       nil

@@ -63,13 +63,11 @@ module PokeAccess
       prune(mid, eid); save
     end
 
-    # Removes an object's whole record.
-    def self.remove(mid, eid)
-      store[mid].delete(eid) if store[mid]
-      save
-    end
-
-    # Drops a record that no longer carries a name, a category or the hidden flag.
+    # Drops a record that no longer carries a name, a category or the hidden flag. This is the ONLY way a
+    # record disappears, and that is deliberate: there used to be a remove() that deleted the whole record
+    # in one go, which nobody called and nobody should have. Clearing the name is not the same as
+    # forgetting the object -- the player may also have given it a category or hidden it, and a "remove"
+    # reached for by its friendly name would have thrown both away without saying so.
     def self.prune(mid, eid)
       r = store[mid] && store[mid][eid]
       return unless r

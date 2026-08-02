@@ -39,7 +39,7 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:pk_glance, :name => pk.name, :level => pk.level, :hp => pk.hp, :tot => pk.totalhp)) if with_pkmn
       parts.push(page_name(page))
       parts.push(body_for(pk, page))
-      t = parts.compact.reject { |s| s.to_s.empty? }.join(". ")
+      t = PokeAccess::Util.join_parts(parts)
       PokeAccess.speak(t, true) unless t.empty?
     rescue StandardError
       nil

@@ -45,7 +45,7 @@ if PokeAccess::Engine.has?("UI::LoadVisuals")
       hash = (sd && slot && sd[slot] ? sd[slot][1] : nil)
       parts.push(PokeAccess::LoadSaveV22.slot_summary(hash)) if hash
     end
-    t = parts.compact.reject { |s| s.to_s.empty? }.join(". ")
+    t = PokeAccess::Util.join_parts(parts)
     PokeAccess.speak(t, true) unless t.empty?
   end
 

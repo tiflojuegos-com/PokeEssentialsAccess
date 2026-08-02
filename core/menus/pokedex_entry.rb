@@ -19,7 +19,7 @@ module PokeAccess
         e = (pk.dexEntry rescue nil)
         parts.push(PokeAccess.clean(e)) if e && !e.to_s.empty?
       end
-      PokeAccess.speak(parts.compact.join(". "), true)
+      PokeAccess.speak(PokeAccess::Util.join_parts(parts), true)
     rescue StandardError
       nil
     end
@@ -37,7 +37,7 @@ module PokeAccess
       mb = PokeAccess.sprite(scene, "mapbottom")
       return unless mb
       loc = (mb.maplocation rescue nil); det = (mb.mapdetails rescue nil)
-      t = [loc, det].compact.reject { |s| s.to_s.empty? }.join(". ")
+      t = PokeAccess::Util.join_parts([loc, det])
       PokeAccess.speak(t, true) unless t.empty?
     rescue StandardError
       nil
