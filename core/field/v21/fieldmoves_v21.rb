@@ -5,19 +5,15 @@ module PokeAccess
   # each cursor move and pbShowCommands wraps the loop, so the focused option's name is read on
   # open and on navigation, deduped. The name is already a display string (the move/item name).
   module FieldMovesV21
-    @last = nil
-
-    def self.reset; @last = nil; end
-
-    # Speaks the focused option's name when it changes.
+    # Speaks the focused option's name when it changes (deduped per scene via Cursor; pbShowCommands
+    # resets the slot so reopening on the same option still reads).
     def self.read(scene)
       cmds = PokeAccess.ivar(scene, :@commands)
       idx  = PokeAccess.ivar(scene, :@index)
       return unless cmds.is_a?(Array) && idx && cmds[idx]
       name = (cmds[idx][1] rescue nil).to_s
-      return if name.empty? || name == @last
-      @last = name
-      PokeAccess.speak_clean(name, true)
+      return if name.empty?
+      PokeAccess::Cursor.announce(scene, :fieldmoves_v21, name) { name }
     rescue StandardError
       nil
     end
@@ -25,7 +21,7 @@ module PokeAccess
 end
 
 PokeAccess::Hooks.before_hook("SelectMoveMenu_Scene", :pbShowCommands) do |scene, _a|
-  PokeAccess::FieldMovesV21.reset
+  PokeAccess::Cursor.reset(scene, :fieldmoves_v21)
   PokeAccess::FieldMovesV21.read(scene)
 end
 

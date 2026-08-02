@@ -52,6 +52,7 @@ module PokeAccess
       @hpa_sig = nil
       @surf_key = nil
       @surf_route = nil
+      @slide_key = nil
     end
 
     # The farthest a target can be (manhattan tiles) for find_path and the flood to consider it,
@@ -149,7 +150,7 @@ module PokeAccess
       list.each do |c|
         code = (c.code rescue 0)
         facing = (c.parameters[2] rescue nil) if code == 111 && (c.parameters[0] rescue nil) == 6 && (c.parameters[1] rescue nil) == -1
-        mr = c if code == 209 && (c.parameters[0].to_i rescue 9) == -1
+        mr = c if code == 209 && (c.parameters[0].to_i rescue nil) == -1
       end
       return nil unless mr && facing
       steps = (mr.parameters[1].list.map { |mc| mc.code } rescue [])
@@ -185,8 +186,7 @@ module PokeAccess
         px = ($game_player.x rescue 0); py = ($game_player.y rescue 0)
         far = (px - tx).abs + (py - ty).abs > FLOOD_MIN
         next nil if far && blocked_target?(tx, ty)
-        p = find_path_to(tx, ty, false)
-        p.nil? ? find_path_to(tx, ty, true) : p
+        find_path_to(tx, ty, false) || find_path_to(tx, ty, true)
       end
     end
 
@@ -234,6 +234,8 @@ module PokeAccess
 
     # The [g-weight, h-weight] of a heap algorithm's priority f = gw*g + hw*h: astar weights both equally,
     # weighted leans on the heuristic, greedy drops g, dijkstra drops h. Unused for bfs/dfs (queue-ordered).
+    # The weights are DOUBLED ([2,2] rather than [1,1]) so weighted's [2,3] expresses 1.5x the heuristic in
+    # pure integers -- do not "simplify" to [1,1]/[1,1.5]: a float weight would break the integer ordering.
     def self.algo_weights(algo)
       case algo
       when :weighted then [2, 3]
@@ -448,9 +450,7 @@ module PokeAccess
         end
         return [nx, ny] if target_reached?(nx, ny, @jps_tx, @jps_ty)
         perps = (dx != 0) ? [8, 2] : [4, 6]
-        perps.each do |p|
-          return [nx, ny] if !passable_at?(x, y, p) && passable_at?(nx, ny, p)
-        end
+        return [nx, ny] if perps.any? { |p| !passable_at?(x, y, p) && passable_at?(nx, ny, p) }
         if dx != 0
           return [nx, ny] if !jps_jump(nx, ny, 0, -1, 8, depth + 1).nil? || !jps_jump(nx, ny, 0, 1, 2, depth + 1).nil?
         else
@@ -520,14 +520,15 @@ module PokeAccess
       w = ($game_map.width rescue 0); h = ($game_map.height rescue 0)
       return nil if w < 2 || h < 2
       c = HPA_CLUSTER
-      adj = Hash.new { |hh, k| hh[k] = [] }
-      byc = Hash.new { |hh, k| hh[k] = [] }
+      adj = {}
+      byc = {}
       addnode = lambda do |x, y|
         k = pkey(x, y); cid = (x / c) * PKEY_STRIDE + (y / c)
-        byc[cid] << k unless byc[cid].include?(k)
+        lst = (byc[cid] ||= [])
+        lst << k unless lst.include?(k)
         k
       end
-      link = lambda { |a, b, cost| adj[a] << [b, cost]; adj[b] << [a, cost] }
+      link = lambda { |a, b, cost| (adj[a] ||= []) << [b, cost]; (adj[b] ||= []) << [a, cost] }
       bx = c - 1
       while bx < w - 1
         cr = 0
@@ -616,8 +617,8 @@ module PokeAccess
     # each real abstract hop back into tile steps with a live local A*. Because every hop is re-solved against
     # current passability, a stale cached graph can only cause :fallback, never a wrong route. Returns the
     # route, nil (out of reach), :fallback (use plain A*), or [] (already adjacent). Neighbour lists are merged
-    # with dup.concat, never Array#+: Pokemon Z's MTS redefines + as an in-place array mutator that would leak
-    # the temporary edges into the cached graph.
+    # with dup.concat, never Array#+: a fangame script patch redefines Array#+ as an in-place mutator (seen
+    # in the wild) that would leak the temporary edges into the cached graph.
     def self.hpa_search(tx, ty)
       px = $game_player.x; py = $game_player.y
       return nil if (px - tx).abs + (py - ty).abs > reach
@@ -631,7 +632,7 @@ module PokeAccess
       temp = Hash.new { |hh, k| hh[k] = [] }
       connect = lambda do |sx, sy, sk|
         box = [(sx / c) * c, (sy / c) * c, [(sx / c) * c + c - 1, w - 1].min, [(sy / c) * c + c - 1, h - 1].min]
-        byc[(sx / c) * PKEY_STRIDE + (sy / c)].each do |nk|
+        (byc[(sx / c) * PKEY_STRIDE + (sy / c)] || []).each do |nk|
           r = hpa_low(sx, sy, nk / PKEY_STRIDE, nk % PKEY_STRIDE, c * c * 2, box[0], box[1], box[2], box[3])
           (temp[sk] << [nk, r[1]]; temp[nk] << [sk, r[1]]) if r
         end
@@ -658,7 +659,7 @@ module PokeAccess
         next if cl[n]
         cl[n] = true
         if n == HPA_SINK; found = true; break; end
-        adj[n].dup.concat(temp[n]).each do |e|
+        (adj[n] || []).dup.concat(temp[n]).each do |e|
           m = e[0]; ng = gg[n] + e[1]
           if gg[m].nil? || ng < gg[m]
             gg[m] = ng; cf[m] = n

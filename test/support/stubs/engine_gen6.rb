@@ -2,6 +2,14 @@
 # toolkit loads and runs under a desktop Ruby without the game. Only what the mod touches is stubbed;
 # everything returns harmless defaults. This is the gen-6 engine (PB*/PScreen_*); the GameData era has its
 # own stub file.
+#
+# Known divergences from the real engine (a spec relying on these tests the stub, not the game):
+#   - PBTerrain.isSurfable? only accepts Water (7); the real gen-6 engine also surfs the waterfall tags
+#     (8-9), so waterfall-adjacent surf behaviour is NOT exercised here.
+#   - Input.trigger?/press? always return false: nothing input-driven ever fires on its own; specs must
+#     call the handler they want to exercise directly.
+#   - pbLoadRxData's MapInfos table holds only the FIXED ids below; an unknown id yields nil, which is what
+#     lets Locator.map_name's no-entry fallback be tested (a default_proc used to fabricate every id).
 
 class Win32API
   def initialize(*a); end
@@ -10,6 +18,7 @@ end
 
 module Audio
   def self.se_play(*a); end
+  def self.se_stop(*a); end
   def self.bgs_play(*a); end
   def self.bgm_play(*a); end
 end
@@ -17,6 +26,8 @@ end
 module Graphics
   def self.update; end
   def self.frame_rate; 40; end
+  def self.width; 512; end
+  def self.height; 384; end
   def self.transition(*a); end
   def self.freeze; end
 end
@@ -47,9 +58,15 @@ module MessageTypes; Kinds = 0; Entries = 1; Items = 2; end
 def pbGetMessage(type, id); "msg#{id}"; end
 def pbGetMessageFromHash(type, id); "place#{id}"; end
 def pbGetMapNameFromId(id); "Mapa #{id}"; end
-# MapInfos table for Locator.map_name: a hash of id => object responding to .name.
+# MapInfos table for Locator.map_name: a hash of id => object responding to .name, populated ONLY for the
+# ids the specs visit -- an unknown id has no entry (like a real MapInfos), so map_name's fallback stays
+# testable instead of a default_proc fabricating a name for anything.
 class TestMapInfo; attr_reader :name; def initialize(id); @name = "Mapa #{id}"; end; end
-def pbLoadRxData(path); path =~ /MapInfos/ ? Hash.new { |h, k| h[k] = TestMapInfo.new(k) } : nil; end
+MAPINFO_IDS = [1, 35, 40, 999]
+def pbLoadRxData(path)
+  return nil unless path =~ /MapInfos/
+  MAPINFO_IDS.inject({}) { |h, id| h[id] = TestMapInfo.new(id); h }
+end
 def pbHiddenPower(iv); [0, 60]; end
 def getID(mod, sym); (mod.const_get(sym) rescue 0); end
 
@@ -235,6 +252,18 @@ end
 # hooks wrap real methods at load; specs set @pokemon and call the method to drive the wiring. pbStartScene
 # mirrors the engine: it draws the first page synchronously during the open (drawPage -> drawPageOne), the
 # chain that the before-hook (reset_reorder) must not silence, so the sheet is read on open.
+# The Options scene EXACTLY as the seven gen-6 games have it: pbUpdate and no selection-change method
+# (they write each description inline into @sprites["textbox"] from inside pbOptions). Stubbing it with a
+# pbChangeSelection it does not have would let the reader pass here and stay mute in every real game.
+class PokemonOptionScene
+  attr_accessor :sprites
+  def initialize; @sprites = {}; end
+  # pbUpdate drives the option window from inside itself, exactly like the real scene: that is what makes
+  # it a container, and a spec whose pbUpdate did nothing would never catch a hook that guards it.
+  def pbUpdate(*a); refresh_option; end
+  def refresh_option; end
+end
+
 class PokemonSummaryScene
   attr_accessor :pokemon
   def initialize(pk = nil); @pokemon = pk; end
@@ -269,7 +298,22 @@ $game_temp   = Game_Temp.new
 $game_system = Game_System.new
 $game_switches = Hash.new(false)
 $game_variables = Hash.new(0)
-$Trainer = nil
+# A trainer EXISTS by default, and that is not decoration: Appearance.selecting? reads "no trainer yet"
+# as "the player is on the new-game character picker", which makes Spatial.busy? permanently true --
+# and busy? gates the guide and the whole soundscape (footsteps, wall cues, radar, surfaces). With
+# $Trainer nil, every gen-6 spec of those subsystems passed VACUOUSLY: nothing spoke, nothing raised,
+# green. A spec that wants the picker instead sets $Trainer = nil for its duration.
+class TestTrainer
+  attr_accessor :name, :money, :badges, :publicID
+  def initialize
+    @name = "Ayoub"; @money = 3000; @badges = [false] * 8; @publicID = 12345
+  end
+  def public_ID; @publicID; end
+  def pokedexOwned; 12; end
+  def pokedexSeen; 30; end
+  def numbadges; @badges.select { |b| b }.length; end
+end
+$Trainer = TestTrainer.new
 $scene = Scene_Map.new
 $stats = nil
 $PokemonGlobal = Object.new

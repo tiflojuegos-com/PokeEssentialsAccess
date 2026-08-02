@@ -16,17 +16,15 @@ module PokeAccess
       candidates = ["accessibility/data"]
       base = (System.data_directory rescue nil)
       candidates << "#{base}/accessibility" if base && !base.to_s.empty?
-      pick = nil
-      candidates.each do |d|
+      pick = candidates.detect do |d|
         begin
           Dir.mkdir(d) unless (File.directory?(d) rescue false)
           probe = "#{d}/.wtest"
           File.open(probe, "w") { |f| f.write("1") }
           (File.delete(probe) rescue nil)
-          pick = d
-          break
+          true
         rescue StandardError
-          next
+          false
         end
       end
       pick || "accessibility/data"

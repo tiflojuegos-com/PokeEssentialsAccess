@@ -64,4 +64,4 @@ end
 # Registered only where the class exists, so the "::"-qualified name can't break gen-6's const handling.
 PokeAccess::Hooks.after_hook("UI::OptionsVisualsList", :update) do |win, _r, _a|
   PokeAccess::OptionsV22.poll(win)
-end if defined?(UI::OptionsVisualsList)
+end if PokeAccess::Engine.has?("UI::OptionsVisualsList")

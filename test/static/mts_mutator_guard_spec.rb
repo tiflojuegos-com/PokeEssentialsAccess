@@ -11,7 +11,8 @@ module MtsGuard
 
   # Path fragments whose files load ONLY under the modern engine (Ruby 3.x, no MTS): the mutator redefinition
   # never applies there, so they are out of scope. Kept in step with test/check187.py's MODERN list.
-  MODERN = ["/v21/", "/v22/", "/skyflyer/", "games/anil/", "games/royal/", "games/relict/"]
+  MODERN = ["/v21/", "/v22/", "/skyflyer/", "games/anil/", "games/royal/", "games/relict/",
+            "games/infinitefusion_hoenn/", "games/infinitefusion/"]
 
   # An uppercase constant of 3+ chars: the array constants that get corrupted (BUTTONS, TEXT_CODES, NUMERIC).
   CONST = '[A-Z][A-Z0-9_]{2,}'

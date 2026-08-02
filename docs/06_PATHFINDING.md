@@ -2,390 +2,262 @@
 
 ## Concepto: Navegación Asistida
 
-**Pathfinding** es encontrar el camino más corto entre dos puntos en un mapa. En PokeEssentialsAccess:
+Essentials no expone un buscador de rutas. `core/nav/pathfinder.rb` implementa el suyo sobre las casillas
+transitables del mapa: A* con montículo binario y heurística Manhattan, variantes JPS y HPA*, saltos de
+ledge, deslizamientos de hielo y un flood de alcanzables.
 
-1. **Jugador** presiona tecla para ir a destino
-2. **Pathfinder** calcula ruta desde jugador hasta NPCs/objetos
-3. **Auto-walker** sigue la ruta automáticamente
-4. **Audios 3D** indican progreso
+El flujo de usuario es: el Locator lista objetivos (`rebuild_targets` → `step`/`cycle_category`), el jugador
+fija uno con `select_current`, y la guía por frame (el chime direccional, `core/nav/guide.rb`) consume la
+ruta que devuelve el pathfinder.
 
-## El Desafío
-
-Essentials no expone un pathfinder publico. Solución: Implementar **A* Search** + **HPA*** + **flood reachability**
-
-## Algoritmo Principal: A* Search
-
-### ¿Qué es A*?
-
-Algoritmo de búsqueda de caminos que encuentra la ruta óptima rápidamente:
-
-```
-Inicio (player)
-  ├─ Explora vecinos cercanos
-  ├─ Calcula: costo_actual + distancia_heurística_al_destino
-  ├─ Expande nodos con menor costo primero
-  └─ Llega a destino con ruta óptima
-
-Ventaja sobre Dijkstra: La heurística lo acelera 100x
-```
-
-### Implementación en Ruby
-
-**Ubicación**: `core/nav/pathfinder.rb`
+## Piezas base
 
 ```ruby
 module PokeAccess::Pathfinder
-  # Empaquetador de coordenadas: (x,y) → único entero
+  # (x,y) -> un único Integer, clave de hash O(1). Para deshacerlo se divide, inline (no hay unpack):
+  # x = k / PKEY_STRIDE ; y = k % PKEY_STRIDE
   PKEY_STRIDE = 100000
-  
-  def self.pkey(x, y)
-    x * PKEY_STRIDE + y
-  end
-  
-  # Para recuperar (x,y) de una clave se divide entre PKEY_STRIDE (inline en el código real;
-  # no hay un método unpack_key): x = k / PKEY_STRIDE ; y = k % PKEY_STRIDE
-  
-  # Cuatro direcciones ortogonales: [dx, dy, código_RPG_direction]
-  DIRS = [
-    [0, -1, 8],  # Arriba
-    [0, 1, 2],   # Abajo
-    [-1, 0, 4],  # Izquierda
-    [1, 0, 6]    # Derecha
-  ]
+  def self.pkey(x, y); x * PKEY_STRIDE + y; end
+
+  DIRS = [[0, -1, 8], [0, 1, 2], [-1, 0, 4], [1, 0, 6]]   # [dx, dy, código de dirección RPG]
+
+  # Distancia (manhattan) a partir de la cual find_path usa el flood cacheado como rechazo rápido;
+  # más cerca, un A* directo sale más barato que floodear.
+  FLOOD_MIN = 24
 end
 ```
 
-**¿Por qué empaquetador?**
-- Hash con keys (x,y) sería lento
-- Hash con key=entero es O(1) muy rápido
-- Un único entero por coordenada: `x * 100000 + y`
-
-### A* en Pseudocódigo
-
-> Esto es **pseudocódigo ilustrativo** del algoritmo, no la firma real. La API pública es
-> `Pathfinder.find_path(tx, ty)` — toma SOLO el destino; el origen es `$game_player`. Aquí se muestran
-> start/goal explícitos solo para explicar A*.
+## API pública
 
 ```ruby
-def find_path(start_x, start_y, goal_x, goal_y)   # (pseudocódigo; la firma real es find_path(tx, ty))
-  open_set = BinaryHeap.new    # Nodos por explorar (ordenados por costo)
-  g_score = {}                 # Costo desde inicio
-  f_score = {}                 # Costo total (g + heurística)
-  
-  # Manhattan distance heurística
-  h = lambda { |x, y| (x - goal_x).abs + (y - goal_y).abs }
-  
-  # Inicio
-  start_key = pkey(start_x, start_y)
-  open_set.push(start_key, 0)
-  g_score[start_key] = 0
-  f_score[start_key] = h.call(start_x, start_y)
-  
-  while !open_set.empty?
-    current = open_set.pop
-    x, y = current / PKEY_STRIDE, current % PKEY_STRIDE
-    
-    return reconstruct_path(current) if x == goal_x && y == goal_y
-    
-    DIRS.each do |dx, dy, direction|
-      nx, ny = x + dx, y + dy
-      next unless passable_at?(nx, ny, direction)
-      
-      tentative_g = g_score[current] + 1
-      neighbor_key = pkey(nx, ny)
-      
-      if tentative_g < (g_score[neighbor_key] || Float::INFINITY)
-        g_score[neighbor_key] = tentative_g
-        f_score[neighbor_key] = tentative_g + h.call(nx, ny)
-        open_set.push(neighbor_key, f_score[neighbor_key])
-      end
-    end
-  end
-  
-  nil  # No hay camino
-end
+# La ruta hasta una casilla ADYACENTE al destino, como lista de direcciones, o nil si no hay.
+# Toma SOLO el destino: el origen es siempre $game_player.
+path = PokeAccess::Pathfinder.find_path(target_x, target_y)
+
+PokeAccess::Pathfinder.path_to_text(path)   # "3 arriba, 2 izquierda" / "no hay ruta" / "al lado"
+PokeAccess::Pathfinder.reachable_set        # { pkey => true } alcanzables, cacheado por casilla
+PokeAccess::Pathfinder.surf_launch(tx, ty)  # ruta a la orilla desde la que surfear, o nil
+PokeAccess::Pathfinder.reach                # el tope de distancia configurado (route_reach)
 ```
 
-## Complicaciones: Ledges
+`find_path` hace tres cosas antes de buscar:
 
-En Pokémon, el jugador puede **saltar ledges** (acantilados):
+1. Corre dentro de `with_bridges`, que fuerza la pasabilidad de los puentes para poder cruzar uno al que el
+   jugador está a punto de subir (fuera de él, el motor declara sus casillas impasables). Los bits de paso
+   del propio puente siguen bloqueando los lados de agua, así que nunca rutea al agua.
+2. Si el destino está a más de `FLOOD_MIN`, lo descarta con `blocked_target?` (consulta el flood cacheado);
+   así la guía no lanza un A* completo cada refresco apuntando a algo inalcanzable.
+3. Intenta primero una ruta **solo andando** (`find_path_to(tx, ty, false)`) y solo si no existe permite
+   saltos de ledge (`find_path_to(tx, ty, true)`): un salto es incómodo y a menudo de ida sin vuelta.
 
-```
-┌─────┐
-│ end │     <- Tierra alta
-└─────┘
-  (fall)    <- El jugador salta aquí automáticamente
-┌─────┐
-│start│     <- Tierra baja
-└─────┘
-```
+Toda búsqueda termina con el mismo criterio, `target_reached?`: basta con estar **encima o ortogonalmente
+adyacente** al destino, porque el objetivo típico (un NPC, un cartel, un objeto) ocupa una casilla en la que
+no se puede entrar.
 
-### Detección de Ledges
+## Algoritmos
+
+`path_algorithm` elige el frontier; la expansión de vecinos y el desempate por menos giros son comunes.
 
 ```ruby
-# El bit de "saltable hacia" depende de la dirección. El código real usa un mapa dirección->bit
-# (no una sola constante LEDGE_BIT):
+ALGORITHMS = [:astar, :weighted, :greedy, :dijkstra, :bfs, :dfs, :jps, :hpa]
+```
+
+| Valor | Frontier | Nota |
+|---|---|---|
+| `:astar` (defecto) | montículo, `f = 2g + 2h` | ruta óptima |
+| `:weighted` | montículo, `f = 2g + 3h` | explora menos, la ruta puede no ser la más corta |
+| `:greedy` | montículo, `f = 2h` | directo al objetivo, propenso a rodeos |
+| `:dijkstra` | montículo, `f = 2g` | óptimo sin heurística, explora más |
+| `:bfs` / `:dfs` | cola / pila | sin montículo; DFS solo para experimentar |
+| `:jps` | Jump Point Search | ver abajo |
+| `:hpa` | jerárquico por clusters | ver abajo |
+
+Los pesos van **doblados** (`[2,2]` en vez de `[1,1]`) para que `:weighted` exprese 1,5x la heurística en
+enteros puros; un peso float rompería el orden entero del montículo. Un valor desconocido cae a `:astar`.
+
+`straight_routes` suma +1 al coste de cada giro, así la ruta prefiere tramos rectos.
+
+## Vecinos especiales
+
+`step_target` resuelve a qué casilla puede entrar la búsqueda desde una dirección, y es donde viven las
+reglas del terreno:
+
+- **Ledges**: una casilla de ledge NUNCA es un nodo pisable. Cruzarla es siempre el salto de dos casillas
+  (`ledge_jump`, solo con `allow_ledge`), que exige un aterrizaje real y respeta la dirección:
+  `ledge_dir_ok?` lee el byte de paso del tileset y solo salta si el lado opuesto está abierto. Con
+  `ledge_directions` en false, o si la tabla no se puede leer, es permisivo (nunca bloquea de más).
+- **Hielo**: al entrar en hielo el jugador sigue deslizándose en la misma dirección hasta salir de él o
+  chocar (`ice_slide`), así que el nodo vecino es **donde acaba el deslizamiento**, no la casilla contigua.
+- **Deslizadores ("minihuecos")**: eventos sin gráfico que, al pisarlos mirando en cierta dirección, mueven
+  al jugador por una ruta forzada. `slide_index` los indexa por mapa (`pkey => { dirección => destino }`) y
+  la búsqueda "los monta" en vez de detenerse en el hueco que cruzan.
+- **Borde del mapa**: con `edge_relax`, una casilla del borde pasable cuenta como vecino aunque el paso
+  direccional falle (ahí viven las conexiones entre mapas).
+
+```ruby
+# Dirección del salto => bit de paso del lado OPUESTO, el que ledge_dir_ok? exige abierto.
 LEDGE_OPP_BIT = { 2 => 0x08, 8 => 0x01, 4 => 0x04, 6 => 0x02 }
+```
 
-def self.ledge_jump(cx, cy, dx, dy, d)
-  nx = cx + dx
-  ny = cy + dy
-  return nil unless PokeAccess::Terrain.ledge_at?(nx, ny)   # ledge vive en Terrain
-  return nil unless ledge_dir_ok?(nx, ny, d)                # ¿saltable en esa dirección?
+## Caché de pasabilidad
 
-  # Landing dos tiles más allá: válido y pisable. El código real prueba las cuatro direcciones
-  # (passable? real del juego), no una sola:
-  lx = cx + 2 * dx
-  ly = cy + 2 * dy
-  return nil unless $game_map.valid?(lx, ly)
-  return nil unless [2, 4, 6, 8].any? { |dd| $game_player.passable?(lx, ly, dd) }
+`$game_player.passable?` es caro y la búsqueda lo llama miles de veces. Con `route_cache` (por defecto ON)
+se memoiza por `[map_id, surfing, diving]`:
 
-  [lx, ly]
+```ruby
+def self.passable_at?(cx, cy, d)
+  return ($game_player.passable?(cx, cy, d) rescue false) unless Config.route_cache
+  st = [$game_map.map_id, $PokemonGlobal.surfing, $PokemonGlobal.diving]
+  if @pcache_state != st; @pcache_state = st; @pcache = {}; end   # cambió el estado: tirar la caché
+  k = pkey(cx, cy) * 16 + d                                       # una clave por casilla y dirección
+  v = @pcache[k]
+  v.nil? ? (@pcache[k] = ($game_player.passable?(cx, cy, d) rescue false)) : v
 end
 ```
 
-## Optimizaciones: Caché de Rutas
+La caché **no** sigue los eventos que se mueven; por eso es un ajuste que el jugador puede apagar.
 
-### Problema: Passability es Lento
-
-```ruby
-# En gen-6, $game_player.passable? es LENTO
-# Recalcula en cada frame si queremos re-routear
-
-# Si hay 100 eventos:
-# 100 pathfinds × 10000 tiles explorados × passable? = MILLONES de llamadas
-```
-
-### Solución: Memoización
-
-```ruby
-module PokeAccess::Pathfinder
-  @pcache = {}        # Caché
-  @pcache_state = nil # Estado actual del mapa
-  
-  def self.passable_at?(cx, cy, d)
-    # Si route_cache está OFF, usa pasable directo
-    return passable_no_cache?(cx, cy, d) unless config.route_cache
-    
-    # Construir estado actual
-    st = [
-      $game_map.map_id,
-      $PokemonGlobal.surfing,
-      $PokemonGlobal.diving
-    ]
-    
-    # ¿Cambió el estado? Limpiar caché
-    if @pcache_state != st
-      @pcache = {}
-      @pcache_state = st
-    end
-    
-    # Buscar en caché
-    k = pkey(cx, cy) * 16 + d
-    v = @pcache[k]
-    return v unless v.nil?
-    
-    # No en caché: calcular y guardar
-    @pcache[k] = passable_no_cache?(cx, cy, d)
-  end
-end
-```
-
-**Impacto**: 100x más rápido si route_cache ON
-
-## Optimizaciones: HPA* (Hierarchical Pathfinding)
-
-**Para mapas muy grandes** (100x100+ tiles):
-
-La idea (esquema conceptual, NO son los nombres reales):
-
-```ruby
-# En lugar de explorar 10000 tiles:
-# 1. Dividir mapa en clusters (HPA_CLUSTER = 10 -> 10x10 tiles)
-# 2. Buscar entre clusters primero (mucho más rápido)
-# 3. Luego detalle local
-```
-
-Los métodos reales viven en `core/nav/pathfinder.rb`:
-
-- `HPA_CLUSTER = 10` — lado del cluster en tiles.
-- `Pathfinder.hpa_graph` — construye (y cachea por `[map, surfing, diving]`) el grafo abstracto de portales.
-- `Pathfinder.hpa_search(tx, ty)` — A* sobre el grafo abstracto; refina cada salto real con un A* local
-  (`hpa_low`). Devuelve la ruta, `nil` (fuera de alcance), `:fallback` (usar A* normal) o `[]` (ya adyacente).
-- `Pathfinder.hpa_low(sx, sy, gx, gy, maxnodes, x0, y0, x1, y1)` — A* de bajo nivel acotado entre dos tiles.
-
-## Detección de Reachability
-
-**Problema**: ¿Es realmente alcanzable el objetivo?
-
-```ruby
-# Esquema. Métodos reales: el flood de alcanzables es Pathfinder.reachable_tiles (sin args, desde el
-# jugador); Pathfinder.reachable_set lo cachea por tile del jugador (lo comparten el filtro
-# hide-unreachable del Locator y el test de línea de vista del audio posicional). Pathfinder.reach NO es
-# esto: es solo el getter de la DISTANCIA máxima (Config.route_reach) que acota el flood.
-# find_path(tx, ty) decide solo por dentro: para un destino cercano (< FLOOD_MIN) un A* directo es más
-# barato que un flood completo.
-FLOOD_MIN = 24  # Distancia bajo la cual find_path prefiere A* directo en vez de flood
-
-def self.reachable_tiles
-  px = $game_player.x
-  py = $game_player.y
-
-  # Flood fill (BFS) desde el jugador, acotado por reach (route_reach) y un tope de nodos.
-  reachable = { pkey(px, py) => true }
-  queue = [[px, py]]; head = 0
-
-  while head < queue.length
-    x, y = queue[head]; head += 1
-
-    DIRS.each do |dx, dy, d|
-      nx, ny = x + dx, y + dy
-      nk = pkey(nx, ny)
-      next if reachable[nk]
-      next unless passable_at?(nx, ny, d)
-      next if (nx - px).abs + (ny - py).abs > reach   # acotado por la distancia configurada
-      reachable[nk] = true; queue.push([nx, ny])
-    end
-  end
-
-  reachable
-end
-```
-
-## Invalidación de Caché
+### Invalidación
 
 ```ruby
 def self.invalidate_cache(force = false)
-  now = PokeAccess.clock
-  
-  # Throttle: máximo una invalidación cada 2 segundos
-  # (Muchos eventos pueden cambiar passability rapidamente)
+  now = (PokeAccess.clock rescue 0)
+  # Throttle: una escena dispara muchos fines de evento seguidos y cada re-flood en frío cuesta.
   return if !force && @last_invalidate && (now - @last_invalidate) < 2.0
-  
   @last_invalidate = now
-  @pcache = {}           # Limpiar caché de passability
-  @pcache_state = nil
-  @rs_key = nil          # Invalidar clave del conjunto reachable (se re-floodea)
-  @hpa = nil             # Limpiar gráfico HPA*
-  @hpa_sig = nil
-  @surf_key = nil        # Invalidar ruta de surf cacheada
-  @surf_route = nil
-end
-
-# Llamado cuando:
-# - Evento cierra puerta (switch flip)
-# - Mapa cambia
-# - Surfing/Diving inicia/termina
-```
-
-## Configuración de Usuario
-
-```ruby
-# core/foundation/config.rb
-[:route_reach,         128,   :reach, :pathfinder_adv, :lbl_reach,      :help_reach],
-# Distancia máxima a considerar (diamond radius)
-
-[:astar_max,           2500,  :astar, :pathfinder_adv, :lbl_astar,      :help_astar],
-# Máximo de nodos a explorar (tope por nodos, usado cuando route_auto está apagado)
-
-[:route_auto,          false, :flag,  :debug, :lbl_route_auto,  :help_route_auto],
-# Esfuerzo automático: en vez de cortar por nodos (astar_max), corta por TIEMPO (route_budget_ms).
-# Garantiza un frame estable en mapas grandes; el alcance encontrado se adapta al PC. Vive en el menú de
-# Depuración (no en pathfinder avanzado): puede cortar una ruta larga real antes de hallarla, así que por
-# defecto está apagado para conservar el alcance máximo.
-
-[:route_budget_ms,     8,     :ms,    :debug, :lbl_route_budget, :help_route_budget],
-# Tiempo máximo (ms) de una búsqueda cuando route_auto está activo. El reloj se comprueba cada
-# 256 nodos (Pathfinder::BUDGET_CHECK) para no pagar la llamada al reloj en cada iteración.
-
-[:path_algorithm,      :astar, :algo,  :pathfinder_adv, :lbl_path_algorithm, :help_path_algorithm],
-# :astar, :jps (Jump Point Search), :hpa (Hierarchical)
-
-[:edge_relax,          false, :flag,  :pathfinder_adv, :lbl_edge_relax,  :help_edge_relax],
-# Relajación de bordes (permite rutas no óptimas pero más rápidas)
-
-[:ledge_directions,    true,  :flag,  :pathfinder_adv, :lbl_ledge_dir,   :help_ledge_dir],
-# Respetar dirección de ledges (true = one-way, false = ignorar)
-
-[:route_cache,         true,  :flag,  :pathfinder_adv, :lbl_route_cache, :help_route_cache],
-# Cachear passability (mucho más rápido pero menos responsive a cambios)
-```
-
-## Uso en Práctica
-
-### Trazar ruta a un tile
-
-`find_path` toma el tile DESTINO (parte siempre de la posición del jugador) y devuelve la lista de
-pasos, o `nil` si no hay ruta:
-
-```ruby
-path = PokeAccess::Pathfinder.find_path(target_x, target_y)
-if path.nil?
-  PokeAccess.speak("Sin ruta", true)
+  @pcache = {}; @pcache_state = nil   # pasabilidad
+  @rs_key = nil                       # conjunto de alcanzables (se re-floodea)
+  @hpa = nil; @hpa_sig = nil          # grafo abstracto de HPA*
+  @surf_key = nil; @surf_route = nil  # ruta de surf cacheada
+  @slide_key = nil                    # índice de deslizadores
 end
 ```
 
-El Locator es quien orquesta la navegación a objetos: `select_current` fija el objetivo enfocado y
-activa la guía; la guía por frame (el chime direccional) vive en `core/nav/guide.rb`, no en un
-`$game_variable`. El flujo de usuario es rebuild_targets → step/cycle_category → select_current.
+Se llama al terminar un evento del mapa (un interruptor pudo abrir o cerrar un paso). `Caches` la registra
+con `force = true` para el cambio de mapa y la carga de partida, saltándose el throttle.
 
-### Cadencia del chime de guía (evitar el "galope")
+## JPS (Jump Point Search)
 
-El chime de guía suena cada `guide_interval(dist)` (`guide.rb`): parte de `guide_freq` y **se espacia con la
-distancia** (mismo intervalo sobre el objetivo, hasta 2x a `GUIDE_FALLOFF_TILES` o más lejos), para que un
-objetivo lejano no machaque el oído. Tres salvaguardas más viven en `guide_tick`:
+Un A* cuyos sucesores son "puntos de salto": el siguiente giro o el objetivo en esa dirección, así que un
+pasillo recto cuesta una sola expansión. Óptimo en una rejilla uniforme de 4 vecinos. Hielo y deslizadores
+rompen esa uniformidad, y también un presupuesto de pasos agotado o una recursión de más de 80 niveles:
+cualquiera de los tres levanta `@jps_fallback` y el llamante cae a A* normal. Los ledges son impasables
+aquí (de ellos se ocupa la segunda pasada de A*). Devuelve la ruta, `nil` (fuera de alcance) o `:fallback`.
+
+## HPA* (jerárquico)
+
+Para mapas grandes: el mapa se divide en cuadrados de `HPA_CLUSTER` (10) casillas de lado, se abren portales
+en las aberturas entre clusters vecinos y se rutea de cluster en cluster.
+
+- `HPA_CLUSTER = 10` — lado del cluster en casillas.
+- `Pathfinder.hpa_graph` — construye (y cachea por `[map, surfing, diving]`) el grafo abstracto: nodos
+  portal, aristas entre clusters (coste 1) y aristas internas resueltas con un A* local acotado por cluster.
+- `Pathfinder.hpa_arrivals(tx, ty)` — las casillas a las que la ruta puede LLEGAR: el destino y sus vecinos
+  ortogonales, quedándose solo con las pisables. Es la forma "en grafo" de `target_reached?`.
+- `Pathfinder.hpa_search(tx, ty)` — conecta origen y llegadas a los portales de su cluster, corre A* sobre
+  el grafo abstracto hasta un sumidero sintético (`HPA_SINK`) enlazado desde cada llegada, y refina cada
+  salto abstracto en pasos reales con un A* local **vivo**: por eso un grafo cacheado obsoleto solo puede
+  producir `:fallback`, nunca una ruta errónea. Devuelve la ruta, `nil`, `:fallback` o `[]` (ya adyacente).
+- `Pathfinder.hpa_low(sx, sy, gx, gy, maxnodes, x0, y0, x1, y1)` — A* de bajo nivel entre dos casillas
+  exactas, acotado por caja y por nodos. Trata hielo y deslizadores como muro, de ahí el fallback.
+
+## Alcanzables (flood)
+
+`reachable_tiles` es un BFS desde el jugador que devuelve `{ pkey => true }`, con la **misma expansión que
+la búsqueda** (`step_target`, con saltos de ledge permitidos y deslizadores montados), acotado por `reach`,
+por un tope duro de 10.000 nodos y por el mismo presupuesto temporal. Si se corta deja `@rs_full` en false,
+y `blocked_target?` solo rechaza un destino cuando el flood está **completo**.
+
+`reachable_set` lo cachea por `[x, y, map_id]` del jugador, así el flood corre una vez por movimiento y lo
+comparten el filtro `hide_unreachable` del Locator y la línea de vista del audio posicional (en vez de un
+A* por objetivo, que hacía tardar segundos en cambiar de categoría en un mapa grande).
+
+Si `find_path` no llega andando (el objetivo puede estar al otro lado del agua), `surf_launch` busca en ese
+mismo conjunto la casilla de orilla más cercana al destino y rutea hasta ella: dónde empezar a surfear.
+
+## Corte por nodos vs corte por tiempo
+
+Por defecto la búsqueda corta por **número de nodos** (`astar_max`, 2500), que en un mapa muy grande o con
+un `passable?` lento puede convertirse en un pico de varios frames. Con **`route_auto` activado** corta por
+**tiempo** (`route_budget_ms`, 8 ms): fija una hora límite al empezar y para en cuanto se supera,
+devolviendo la mejor ruta encontrada. El tiempo es constante; lo que varía es cuán lejos llega (más en un
+PC rápido, menos en uno lento).
+
+```ruby
+BUDGET_CHECK = 256   # cada cuántos nodos se mira el reloj
+
+def self.over_budget?(iter, deadline)
+  return iter > PokeAccess::Config.astar_max unless deadline
+  (iter & (BUDGET_CHECK - 1)) == 0 && (PokeAccess.clock rescue 0.0) > deadline
+end
+```
+
+El mismo corte temporal se aplica a A*/las variantes de montículo, a JPS, al A* sobre el grafo abstracto de
+HPA* y al flood de alcanzables. `astar_max` y `route_reach` siguen siendo topes duros, pero en modo tiempo
+casi siempre corta antes el reloj. El A* LOCAL que refina cada portal de HPA* (`hpa_low`) no se limita por
+tiempo: está acotado por cluster (10x10) y es barato, y el corte temporal del grafo que lo invoca ya acota
+el total.
+
+Cuando la búsqueda se agota sin llegar, todavía devuelve una **ruta parcial** si el mejor nodo visitado
+quedó a 2 casillas o menos del destino.
+
+## Configuración de usuario
+
+```ruby
+# core/foundation/config.rb -- [clave, defecto, tipo, categoría, lbl, help]
+[:route_reach,      128,    :reach, :pathfinder_adv, ...]  # alcance máximo (diamante manhattan)
+[:astar_max,        2500,   :astar, :pathfinder_adv, ...]  # tope por nodos (corte por defecto)
+[:path_algorithm,   :astar, :algo,  :pathfinder_adv, ...]  # uno de ALGORITHMS
+[:straight_routes,  false,  :flag,  :pathfinder_adv, ...]  # penaliza los giros
+[:edge_relax,       false,  :flag,  :pathfinder_adv, ...]  # tolera el borde del mapa
+[:ledge_directions, true,   :flag,  :pathfinder_adv, ...]  # respetar la dirección de los ledges
+[:route_cache,      true,   :flag,  :pathfinder_adv, ...]  # memoizar pasabilidad
+[:guide_refresh,    4,      :sec,   :pathfinder_adv, ...]  # frescura de la ruta cacheada de la guía
+[:guide_distance,   3,      :gdist, :pathfinder,     ...]  # a cuántas casillas se coloca el chime
+[:hide_unreachable, false,  :flag,  :pathfinder,     ...]  # ocultar objetivos sin ruta
+[:route_auto,       false,  :flag,  :debug,          ...]  # cortar por TIEMPO en vez de por nodos
+[:route_budget_ms,  8,      :ms,    :debug,          ...]  # ese tiempo, en ms
+```
+
+`route_auto` y `route_budget_ms` viven en el menú de Depuración: pueden cortar una ruta larga real antes de
+hallarla, así que por defecto están apagados para conservar el alcance máximo.
+
+## La guía: cadencia y salvaguardas
+
+El chime de guía suena cada `guide_interval(dist)` (`core/nav/guide.rb`): parte de `guide_freq` y **se
+espacia con la distancia** (el intervalo configurado sobre el objetivo, hasta 2x a `GUIDE_FALLOFF_TILES`
+(24) o más lejos), para que un objetivo lejano no machaque el oído. Tres salvaguardas más:
 
 - **Objetivo sin ruta**: `find_path` devuelve `nil`, pero el chime sigue sonando en línea recta hacia el
-  objetivo (`noroute_cue`) para acercarte lo máximo; ese resultado "no hay ruta" se memoiza por
-  `[posición, objetivo]` (`@noroute_key`), así NO se re-ejecuta el A* completo cada frame. Se descarta al
-  moverte, cambiar de objetivo, o cuando un evento termina (un interruptor que abre paso →
-  `Locator.forget_noroute` junto a `invalidate_cache`).
+  objetivo (`noroute_cue`) para acercarte lo máximo; ese resultado se memoiza por `[posición, objetivo]`
+  (`@noroute_key`), así NO se re-ejecuta el A* completo cada frame. Se descarta al moverte, al cambiar de
+  objetivo, o cuando un evento termina (`Locator.forget_noroute`, junto a `invalidate_cache`).
 - **Esquinas**: al girar, el jugador está a mitad de paso con `path[0]` apuntando un instante a la pared del
-  giro; el recálculo forzado de "siguiente paso bloqueado" se throttlea (`RECHECK_BLOCKED_SEC`) para no
-  correr un doble A* por frame en cada esquina (era lo que aceleraba el sonido de pasos del propio juego).
-- La precisión de la ruta no se ve afectada: el refresh normal por tick y el rescan de `follow_cached_path`
-  siguen corrigiendo obstáculos reales.
+  giro; el recálculo forzado de "siguiente paso bloqueado" se throttlea (`RECHECK_BLOCKED_SEC`, 0,5 s) para
+  no correr un doble A* por frame en cada esquina.
+- **Ruta cacheada**: `follow_cached_path` la reutiliza mientras el jugador siga sobre ella; pasada la
+  ventana de frescura (`guide_refresh`) la revalida con un barrido lineal, no con un A* completo.
 
-### Diagnóstico
+## Diagnóstico
 
-```ruby
-# Ctrl+Alt+F9 → accessibility/data/diag.txt (bloque de Input.diag_pathfinder)
+```
+# Ctrl+Alt+F9 -> accessibility/data/diag.txt (bloque de Input.diag_pathfinder)
 pathfinder: reach=128 astar=2500 algo=:astar cache=true edge_relax=false
 reachable: 892 tiles, x 12..40, y 5..33
 target_route: to 30,18 manhattan=14 over_reach=false find_path=17steps surf_launch=nil
   walk_only=ok target_reachable=true
   route=3 arriba, 2 izquierda
-# Con route_auto activo, el tope por nodos (astar) deja de ser el corte efectivo: la búsqueda
-# para por tiempo (route_budget_ms) y devuelve la mejor ruta encontrada en ese plazo.
 ```
 
-## Rendimiento Esperado
-
-| Configuración | Tamaño Mapa | Tiempo Path | Nota |
-|---|---|---|---|
-| A* sin caché | 50x50 | 5-15ms | Lento si se repite |
-| A* con caché | 50x50 | <1ms | Rápido 2do intento |
-| HPA* | 100x100 | 2-5ms | Para mapas grandes |
-| Flood | Cualquiera | 10-50ms | Para determinar reachability |
-
-### Corte por nodos vs por tiempo (route_auto)
-
-Por defecto la búsqueda corta por **número de nodos** (`astar_max`): "explora hasta N casillas y para". En un mapa
-muy grande o con `passable?` lento eso puede convertirse en un pico de varios frames.
-
-Con **`route_auto` activado** corta por **tiempo** (`route_budget_ms`, 8 ms por defecto): fija una hora límite al
-empezar y, comprobando el reloj cada `BUDGET_CHECK` (256) nodos, para en cuanto se supera —devolviendo la mejor
-ruta encontrada hasta ahí. El tiempo es constante; lo que varía es cuán lejos llega (más en un PC rápido, menos en
-uno lento). El mismo corte temporal se aplica a A*, JPS, al A* sobre el grafo abstracto de HPA* y al flood de
-alcanzables (`reachable_tiles`). `astar_max` y `route_reach` siguen siendo topes duros, pero en modo tiempo casi
-siempre corta antes el reloj. El A* LOCAL que refina cada portal de HPA* (`hpa_low`) no se limita por tiempo: es
-acotado por cluster (10×10) y barato, y el corte temporal del grafo abstracto que lo invoca ya acota el total.
+Con `route_auto` activo, el tope por nodos deja de ser el corte efectivo: la búsqueda para por tiempo y
+devuelve la mejor ruta encontrada en ese plazo.
 
 ## Referencias
 
-- [Pathfinder Module](core/nav/pathfinder.rb)
-- [Locator Naming](core/nav/locator_naming.rb) - Usa pathfinder
-- [Guide & Navigation](core/nav/guide.rb) - Auto-walk
+- [Pathfinder](../core/nav/pathfinder.rb)
+- [Guide](../core/nav/guide.rb) - la guía (Locator, parte 4 de 4)
+- [Locator](../core/nav/locator.rb) - quién elige el objetivo
+- [Terrain](../core/nav/terrain.rb) - ledges, hielo, agua surfeable
 
 ## Próximo
 

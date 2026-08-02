@@ -5,10 +5,14 @@
 module PokeAccessBoot
   ROOT = "accessibility"
 
-  # Loads core (by its manifest), then the bundled game (by its manifest), then applies user settings on
-  # top so they override the per-game defaults.
+  # Loads core (by its manifest), then the third-party plugin readers this game DECLARES, then the bundled
+  # game (by its manifest), then applies user settings on top so they override the per-game defaults.
+  #
+  # Plugins sit between core and the profile on purpose: they may use core, and the profile loads after so
+  # it can override a plugin reader that does not fit its own copy of that plugin.
   def self.run
     load_manifest("#{ROOT}/core")
+    load_plugins(declared_plugins("#{ROOT}/game"))
     load_manifest("#{ROOT}/game")
     (PokeAccess::Settings.apply rescue nil) if defined?(PokeAccess) && PokeAccess.const_defined?(:Settings)
     miss = (PokeAccess::Hooks.missing rescue [])
@@ -29,12 +33,67 @@ module PokeAccessBoot
       log("#{dir}: sin manifest.rb")
       return
     end
-    list = (eval(File.read(mf), TOPLEVEL_BINDING, mf) rescue nil)
-    unless list.is_a?(Array)
-      log("#{mf}: no devolvio una lista de modulos")
-      return
-    end
+    list = modules_of(read_manifest(mf), mf)
+    return if list.nil?
     list.each { |entry| load_module("#{dir}/#{entry}.rb") }
+  end
+
+  # The manifest's value, or nil. Two shapes are accepted, and BOTH are current: an Array is the plain
+  # module list every profile has always had, and a Hash ({:modules => [...], :plugins => [...]}) is the
+  # extended form a profile uses only when it declares third-party plugin readers. Tolerating both is what
+  # keeps twelve untouched profiles out of a change that, done wrong here, does not mute a screen: it stops
+  # the mod from booting at all.
+  #
+  # eval, as everywhere in this loader (see the file header): the manifest is a Ruby literal shipped inside
+  # the mod's own folder, not user input, and RGSS has no JSON parser to read it with instead.
+  def self.read_manifest(mf)
+    eval(File.read(mf), TOPLEVEL_BINDING, mf)
+  rescue Exception => e
+    raise if e.is_a?(SystemExit)
+    log("#{mf}: #{e.class}: #{e.message}")
+    nil
+  end
+
+  # The module list out of either manifest shape, or nil (logged) when it is neither.
+  def self.modules_of(value, mf)
+    return value if value.is_a?(Array)
+    if value.is_a?(Hash)
+      mods = value[:modules]
+      return mods if mods.is_a?(Array)
+      log("#{mf}: la clave :modules no es una lista")
+      return nil
+    end
+    log("#{mf}: no devolvio una lista de modulos ni un hash con :modules")
+    nil
+  end
+
+  # The plugin readers a profile declares, or an empty list. Read from the profile's own manifest, never
+  # inferred: a plugin reader must only run where someone decided it fits, because two games can ship the
+  # same plugin CLASS with different internals.
+  def self.declared_plugins(dir)
+    mf = "#{dir}/manifest.rb"
+    return [] unless File.exist?(mf)
+    value = read_manifest(mf)
+    return [] unless value.is_a?(Hash)
+    list = value[:plugins]
+    list.is_a?(Array) ? list : []
+  end
+
+  # Loads the declared plugin readers. A declared file that is NOT there is logged and skipped, never
+  # fatal: an interrupted install, or a mod newer than the launcher that copied it, must cost the player
+  # one silent screen -- not the whole mod.
+  def self.load_plugins(names)
+    table = read_manifest("#{ROOT}/plugins/manifest.rb") if File.exist?("#{ROOT}/plugins/manifest.rb")
+    (PokeAccess::Plugins.table = table rescue nil) if table
+    names.each do |name|
+      path = "#{ROOT}/plugins/#{name}.rb"
+      if File.exist?(path)
+        load_module(path)
+        (PokeAccess::Plugins.note_loaded(name) rescue nil)
+      else
+        log("plugin declarado pero ausente: #{path}")
+      end
+    end
   end
 
   # Evaluates one module file, recording any error to the log instead of aborting the rest.

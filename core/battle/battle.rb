@@ -93,7 +93,7 @@ module PokeAccess
     # are the player's side, odd are the opponents'. param foe true reads the opponents (hp as percentage)
     def self.announce_hp(foe)
       return unless @battle_ref
-      bs = (@battle_ref.battlers rescue nil)
+      bs = PokeAccess.expect!("battle.battlers", (@battle_ref.battlers rescue nil))
       return unless bs.respond_to?(:each_with_index)
       parts = []
       bs.each_with_index do |b, i|
@@ -119,7 +119,7 @@ module PokeAccess
     # Describes EVERY opponent (command menu / info key): name, level and type, so doubles/triples
     # are covered.
     def self.foe_info
-      bs = (@battle_ref && @battle_ref.battlers) ? @battle_ref.battlers : nil
+      bs = @battle_ref && @battle_ref.battlers
       return nil unless bs.respond_to?(:each_with_index)
       parts = []
       bs.each_with_index do |b, i|
@@ -257,8 +257,8 @@ module PokeAccess
     # The seconds left in a Bug Contest, computed from whichever clock the engine stores: modern keeps a
     # System.uptime start against TIME_ALLOWED; gen-6 a Graphics.frame_count start against TimerSeconds.
     # nil when there is no time limit or it cannot be read. Both stamps come from the ENGINE, so the elapsed
-    # figure is in the engine's own units and has to be scaled: Infinite Fusion's mkxp-z counts uptime in
-    # microseconds, which made every contest read "0:00" from the first second.
+    # figure is in the engine's own units and has to be scaled: some forks ship an mkxp-z that counts uptime
+    # in microseconds, which made every contest read "0:00" from the first second.
     def self.contest_time_left(s)
       if defined?(System) && System.respond_to?(:uptime) && s.respond_to?(:timer_start)
         total = (BugContestState::TIME_ALLOWED rescue 0)

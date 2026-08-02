@@ -14,7 +14,7 @@ module PokeAccess
 end
 
 # Summary ribbons page: drawSelectedRibbon is called once per cursor move with the focused ribbon id.
-PokeAccess::Hooks.after_hook("PokemonSummary_Scene", :drawSelectedRibbon) do |_s, _r, args|
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :drawSelectedRibbon) do |_s, _r, args|
   t = PokeAccess::RibbonsV21.ribbon_text(args[0])
   PokeAccess.speak(t, true) if t && !t.empty?
 end

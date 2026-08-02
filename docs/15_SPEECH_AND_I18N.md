@@ -9,65 +9,79 @@ y se traduzcan sin romper nada.
 
 ---
 
-## 1. Hablar: `speak`, `speak_clean` y `say_dialogue`
+## 1. El puente de voz: prism
 
-Hay tres puntos de entrada. Para etiquetas del mod ya limpias usas `speak`; para texto que viene del
-juego usas `speak_clean`; para diálogo de `pbMessage` usas `say_dialogue`.
-
-### `PokeAccess.speak(text, interrupt = true)`
-
-Manda texto al lector de pantalla activo (SRAL → NVDA/JAWS/SAPI/Narrator/ZDSR). Es la API que usan todos
-los lectores de menús/pantallas.
-
-- `interrupt = true` (por defecto): **corta** lo que se esté diciendo y dice esto ya. Para navegación de
-  cursor (el usuario se movió, quiere oír la opción nueva inmediatamente).
-- `interrupt = false`: **encola** detrás de lo que haya. Para líneas que no deben pisarse entre sí (varias
-  líneas de combate seguidas, una lectura "al abrir" que no debe cortar el título recién dicho).
+La voz sale por **prism**, que habla con NVDA, JAWS, SAPI, UIA, ZDSR y más, en UTF-8 directo.
+`core/speech/speech.rb` no enlaza `prism.dll` a pelo: enlaza **`prism_pea.dll`**, el puente propio del
+proyecto (fuente en `bridge/prism_pea.c`). Motivo: la API de prism es de *handles*, y devolver punteros a
+Ruby los truncaría en x64; el puente los guarda como estáticos dentro de la dll y expone funciones cdecl
+planas que solo toman enteros y cadenas, la forma que `Win32API` de mkxp-z maneja bien en x86 y x64. Las
+dos dll viven, por arquitectura, en `accessibility/lib`, que `SetDllDirectoryA` añade a la ruta de búsqueda
+para que el puente encuentre su motor.
 
 ```ruby
-PokeAccess.speak(PokeAccess.clean(label), true)   # opción enfocada (navegación)
-PokeAccess.speak(linea_de_combate, false)         # mensaje de batalla (no cortar el anterior)
+PEA_INIT  = (Win32API.new("prism_pea.dll", "PeaInitialize", [],         "i") rescue nil)
+PEA_SPEAK = (Win32API.new("prism_pea.dll", "PeaSpeak",      ["p", "i"], "i") rescue nil)
+# ... stop, pause, resume, is_speaking, braille, backend_name
 ```
 
-`speak` normaliza espacios, ignora texto vacío, y si algo falla escribe un marcador en
-`accessibility/data/hook_loaded.txt` en vez de petar (nunca tumba el frame).
+**Arranque**: `init_speech!` se ejecuta **una sola vez** y honra el valor de retorno. Un fallo total (ningún
+backend pudo arrancar) se registra una vez y **se queda fallado**: no hay reintento en segundo plano (un
+barrido de init por cada `speak` sería trabajo constante en balde). El gesto del jugador para "la voz no
+está, reconecta" es apagar y encender el mod con **Ctrl+Alt+F8**, que llama a `retry_init!`. Un lector
+arrancado DESPUÉS de un init correcto no necesita nada de esto: el puente vuelve a elegir el mejor backend
+en cualquier `Speak` que falle.
 
-### `PokeAccess.speak_clean(text, interrupt = true)`
+### Primitivas
 
-Atajo para el caso más habitual: **texto que viene del juego**. Es literalmente `speak(clean(text), interrupt)` —
-pasa `text` por `clean` (§2) para quitarle los códigos de control de RPG Maker (`\PN`, `\v[n]`, `\c[n]`...) y
-luego lo habla. Es la forma canónica de leer nombres de objeto, líneas de combate, etiquetas de menú del motor,
-etc. Reserva `speak` a secas para strings que ya tienes limpios (una clave i18n ya resuelta).
+| Primitiva | Qué hace |
+|---|---|
+| `speak(text, interrupt = true)` | Habla por el lector activo. `true` **corta** lo que se esté diciendo; `false` lo **encola**. Normaliza espacios e ignora texto vacío. |
+| `speak_clean(text, interrupt = true)` | `speak(clean(text), interrupt)`: la forma canónica para texto que viene del juego (§2). |
+| `say_dialogue(message)` | Diálogo de `pbMessage`: limpia, lo guarda para la tecla de repetir, deduplica la misma línea durante 0,5 s y lo habla **encolado**. |
+| `stop_speech` | Calla al lector ya, sin decir nada nuevo. `true` si el backend obedeció. |
+| `pause_speech` / `resume_speech` | Pausa y reanuda. Depende del backend (SAPI y UIA lo respetan; NVDA no): `false` significa "no soportado o nada que hacer", nunca un error que merezca reportarse. |
+| `speaking?` | `true`, `false`, o **`nil` cuando el lector no sabe decirlo**. Trata `nil` como "desconocido", **nunca** como silencio. |
+| `braille(text)` | Manda texto a la pantalla braille activa; `false` si no hay. UTF-8, igual que `speak`. |
+| `braille_codepoints(cps)` | Igual, desde codepoints unicode (p. ej. celdas U+28xx). BMP; fuera de rango se salta. |
+| `speech_backend` | Nombre del backend activo ("NVDA", "JAWS", "SAPI 5"...), o `""` si está caído. |
+| `speech_ready?` / `last_spoken` | Si el puente está en pie, y la última línea dicha. Los usa el diagnóstico. |
 
 ```ruby
-PokeAccess.speak_clean(cmds[v], !opening)   # opción de combate que da el motor (limpia + habla)
-PokeAccess.speak(PokeAccess::I18n.t(:qu_none), true)  # string del mod ya limpio: speak directo
+PokeAccess.speak_clean(cmds[v], !opening)   # opción que da el motor: limpia y habla
+PokeAccess.speak(linea_de_combate, false)   # línea del mod ya limpia, encolada
 ```
 
-### `PokeAccess.say_dialogue(message)`
+Regla práctica del `interrupt`: `true` para navegación de cursor (el usuario se movió y quiere oír la
+opción nueva **ya**); `false` para líneas que no deben pisarse entre sí (varias líneas de combate seguidas,
+una lectura "al abrir" que no debe cortar el título recién dicho).
 
-Para **diálogo del juego** (mensajes de `pbMessage`/`pbDisplayMessage`). Hace tres cosas que `speak` no:
+`speak` nunca tumba el frame: si algo falla, escribe un marcador en `accessibility/data/hook_loaded.txt`.
+`speaking?` se compara por valor exacto (`== 1` / `== 0`), no por signo: el `Win32API` de mkxp-z devuelve
+el `-1` del puente como 4294967295 sin signo, y una prueba `< 0` no lo vería.
 
-1. **Limpia** el texto con `clean` (ver §2).
-2. Lo guarda como "último diálogo" para la **tecla de repetir**.
-3. **Deduplica** la misma línea durante 0.5 s — clave porque Essentials a menudo muestra el mismo mensaje
-   en su versión "pausada" y "no pausada", y sin dedup se oiría dos veces.
+### El observador `on_speak`
 
-Úsalo solo para diálogo; para opciones de menú usa `speak`.
+Un único punto de extensión para observar TODO lo que se habla, sin un solo hook dentro de los lectores.
+Es `nil` por defecto, así que no tener oyente cuesta una comprobación de nil por línea. Un observador que
+lance se traga la excepción: un instrumento jamás puede enmudecer al mod.
+
+```ruby
+PokeAccess.on_speak = lambda { |text, interrupt| ... }
+PokeAccess.on_speak = nil   # desengancharse
+```
+
+Lo usa el grabador de sesión (`core/util/recorder.rb`) para transcribir una partida entera; ver
+[16_CONFIG_MENU.md §7](16_CONFIG_MENU.md).
 
 ---
 
 ## 2. Limpiar texto: `PokeAccess.clean`
 
 Los strings de Essentials llevan códigos de control (`\PN` = nombre del jugador, `\v[3]` = variable,
-`\c[2]` = color, `\1`/`\2` = esperar input) y a veces etiquetas tipo HTML. **Habla siempre texto
-limpio**: pasa por `clean` cualquier cosa que venga del juego antes de `speak`.
-
-```ruby
-PokeAccess.speak(PokeAccess.clean(raw_label), true)  # equivalente a speak_clean(raw_label, true)
-```
-
-En la práctica casi nunca escribes `speak(clean(...))` a mano: usa `speak_clean` (§1), que hace exactamente eso.
+`\c[2]` = color, `\1`/`\2` = esperar input) y a veces etiquetas tipo HTML. **Habla siempre texto limpio**:
+pasa por `clean` cualquier cosa que venga del juego antes de `speak`. En la práctica casi nunca escribes
+`speak(clean(...))` a mano: usa `speak_clean`, que hace exactamente eso.
 
 `clean` sustituye `\PN`/`\v[n]`, elimina los `\X`/`\X[..]`, las etiquetas `<...>`, y los bytes de control
 `\x00-\x1f` (si no se quitan, la línea "pausada" difiere de la normal y se escapa del dedup de
@@ -95,16 +109,7 @@ dbk_ball=%{name}, %{n}
 
 ```ruby
 PokeAccess::I18n.t(:bt_shift)                                   # sin variables
-PokeAccess::I18n.t(:dbk_ball, :name => item.name, :n => count) # con %{name} y %{n}
-```
-
-Ejemplo real (lector de misiones, `core/field/quests.rb`): todas sus líneas salen de claves `qu_*`
-(`:qu_line`, `:qu_status_done`/`:qu_status_pending`, `:qu_ongoing`, `:qu_completed`, `:qu_none`,
-`:qu_location`, `:qu_detail`), interpolando el dato dinámico del juego (`%{name}`, `%{status}`, `%{loc}`...):
-
-```ruby
-st = PokeAccess::I18n.t((q.completed rescue false) ? :qu_status_done : :qu_status_pending)
-PokeAccess::I18n.t(:qu_line, :name => nm, :status => st)
+PokeAccess::I18n.t(:dbk_ball, :name => item.name, :n => count)  # con %{name} y %{n}
 ```
 
 `t` busca la clave en el idioma activo, cae al idioma de referencia (`:en`) y, si tampoco está, devuelve
@@ -113,17 +118,30 @@ el **nombre de la clave** — así un hueco se ve pero **nunca peta**. El idioma
 
 ### Paridad es/en OBLIGATORIA
 
-Cada clave nueva debe existir **en `lang/es.txt` Y en `lang/en.txt`** con el mismo nombre. Comprobación
-rápida (debe decir "ninguna huérfana"):
+Cada clave nueva debe existir **en `lang/es.txt` Y en `lang/en.txt`** con el mismo nombre.
+`PokeAccess::I18n.parity_issues` devuelve `[]` cuando todo está en sync, o la lista de problemas:
 
-```bash
-python -c "es=set(l.split('=',1)[0] for l in open('lang/es.txt',encoding='utf-8') if '=' in l and l[0] not in '#_'); en=set(l.split('=',1)[0] for l in open('lang/en.txt',encoding='utf-8') if '=' in l and l[0] not in '#_'); print('solo es:',es-en,'| solo en:',en-es)"
-```
+- `code:key: missing` — la clave está en un idioma y no en otro (la causa habitual de una línea en inglés
+  dentro de una partida en español).
+- `code:key: duplicated` — la clave aparece dos veces en el mismo archivo (gana la última, en silencio).
+- `key: placeholders differ` — los `%{var}` no coinciden entre idiomas (la interpolación se rompe en uno).
 
-El propio motor hace esta comprobación: `PokeAccess::I18n.parity_issues` devuelve `[]` cuando todo está en
-sync, o una lista de problemas (`code:key: missing`, `code:key: duplicated`, o placeholders `%{var}` que
-difieren entre idiomas). La corre el arranque y la suite de tests; el one-liner de arriba es la versión
-manual rápida.
+Las claves `__meta__` (las que empiezan por `__`) se ignoran.
+
+El arranque corre la comprobación y la registra como aviso; quien la convierte en error son los **dos tests
+estáticos**:
+
+| Test | Qué garantiza |
+|---|---|
+| `test/static/i18n_parity_spec.rb` | Que `parity_issues` esté **vacío**. Una release con una cadena descuadrada falla CI. |
+| `test/static/i18n_refs_spec.rb` | Que **toda clave que el código referencia exista en `lang/en.txt`**. Sin él, una clave usada en código pero ausente de ambos idiomas le habla al jugador el nombre crudo de la clave y nada falla. |
+
+El segundo escanea las llamadas literales `I18n.t(:clave)` en `core/` y `games/`, más las tablas cuyos
+símbolos llegan a `I18n.t` de forma indirecta (etiquetas y ayudas del `SCHEMA`, unidades de `KIND_BOUNDS`,
+categorías, tablas de estado/clima/terreno, `CMD_SYMS` de combate, botones del remapeador y entradas del
+glosario de sonidos). Las claves construidas dinámicamente (`:"chr_#{kind}"`) no se pueden escanear: sus
+familias se declaran como prefijos permitidos en el propio test, así que **al introducir una familia
+dinámica nueva hay que añadir su prefijo ahí**.
 
 ---
 
@@ -142,11 +160,17 @@ dice tal cual — eso respeta el idioma del proyecto y no tiene sentido re-tradu
 clave es todo lo que el mod añade de su cosecha, para que tenga paridad es/en.
 
 > Excepción documentada: en algunos juegos gen-6 hay strings que solo existen en español; pueden quedarse
-> literales, pero préfierase la clave i18n siempre que sea una etiqueta fija del mod.
+> literales, pero prefiérase la clave i18n siempre que sea una etiqueta fija del mod.
 
 ---
 
 ## 5. Diagnóstico
+
+El bloque de voz del diagnóstico (Ctrl+Alt+F9) resume el estado del puente:
+
+```
+voice: prism=true ready=true backend="NVDA" speaking=false
+```
 
 Si un lector no se oye, los fallos de su cuerpo se registran (deduplicados) en
 `accessibility/data/hook_loaded.txt` vía `PokeAccess.log_once(clave, e)` / el `run_body` del motor de

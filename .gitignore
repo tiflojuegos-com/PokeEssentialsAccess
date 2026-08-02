@@ -34,3 +34,13 @@ games_src/
 # debug folder. for store diagnostics files, on the fly scripts, and whatever what you use during a debugging process.
 debug/
 
+
+# Test-runner sandbox (Paths::DATA resolves here when the suite runs from the repo root)
+accessibility/
+
+# Local builds of the prism bridge (distributables go to assets/ when the swap lands)
+bridge/out/
+
+
+# Config local de Claude Code: privada, no se comparte.
+.claude/

@@ -1,4 +1,4 @@
-import re, glob, sys
+import os, re, glob, subprocess, sys
 # 1.8.7 compatibility checks. core/ loads in BOTH engines (gen-6 Ruby 1.8.7 and modern 3.1) and the
 # gen-6 game adapters run on 1.8.7, so their code must be 1.8.7-safe. Files under a module's v21/, v22/
 # or skyflyer/ subfolder (and games/anil/) load ONLY in the modern engine (Ruby 3.1+), so 1.9+
@@ -26,6 +26,11 @@ def is_opener_safe(line):
     s = line.strip()
     return bool(re.match(r"(begin|def |class |module |ensure\b)", s)) or s == "begin"
 
+# (1b) leading-dot method chaining: valid in 1.9+, SYNTAX ERROR in 1.8.7 (the dot must trail the
+# previous line). Caught in the wild: a chained SCAN_CODES literal killed config_menu.rb, and with the
+# module missing map_poll raised every frame -- muting footsteps, guide and locator keys in gen-6.
+LEADING_DOT = re.compile(r"^\s*&?\.[A-Za-z_]")
+
 # (2) runtime APIs that exist in Ruby 1.9+ but NOT 1.8.7 -> a missing-method / ArgumentError at
 # runtime in gen-6 (e.g. Float#round(2) crashed the diag). curated and conservative to avoid noise.
 RUNTIME = [
@@ -46,7 +51,7 @@ RUNTIME = [
 
 flagged = []
 # Lint the files passed as arguments, or the whole dual/gen-6 tree when none are given.
-paths = sys.argv[1:] or (glob.glob("core/**/*.rb", recursive=True) + glob.glob("games/**/*.rb", recursive=True) + glob.glob("loader/*.rb"))
+paths = sys.argv[1:] or (glob.glob("core/**/*.rb", recursive=True) + glob.glob("games/**/*.rb", recursive=True) + glob.glob("plugins/**/*.rb", recursive=True) + glob.glob("loader/*.rb"))
 for f in paths:
     if is_modern(f): continue
     try:
@@ -68,6 +73,9 @@ for f in paths:
                 opener = ""
             if is_opener_block(opener) and not is_opener_safe(opener):
                 flagged.append("%s:%d  block-rescue (1.8.7 syntax error) -> %r" % (f, i + 1, opener.strip()))
+        # (1b) leading-dot chain
+        if LEADING_DOT.match(ln):
+            flagged.append("%s:%d  leading-dot chain (1.8.7 syntax error) -> %r" % (f, i + 1, s[:72]))
         # (2) 1.9+ runtime APIs
         for rx, label in RUNTIME:
             if rx.search(ln):
@@ -77,5 +85,20 @@ if flagged:
     print("POTENTIAL 1.8.7 INCOMPATIBILITIES:")
     for x in flagged: print("  " + x)
     sys.exit(1)
+
+# When a REAL 1.8.7 interpreter is around (RUBY187 env var, or the tools/ checkout next to the repo),
+# parse every dual/gen-6 file with it via check187_real.rb -- the parser knows ALL the syntax, the
+# pattern list above only what it was taught. Absent interpreter (e.g. GitHub CI) just notes it.
+here = os.path.dirname(os.path.abspath(__file__))
+ruby187 = os.environ.get("RUBY187") or next(
+    iter(glob.glob(os.path.join(here, "..", "..", "tools", "ruby-1.8.7-*", "bin", "ruby.exe"))), None)
+if ruby187 and os.path.isfile(ruby187):
+    real = subprocess.run([ruby187, os.path.join(here, "check187_real.rb"), os.path.join(here, "..")],
+                          capture_output=True, text=True)
+    print(real.stdout.strip())
+    if real.returncode != 0:
+        sys.exit(1)
 else:
-    print("OK: 1.8.7-safe (no block-rescue, no 1.9+ runtime APIs in dual/gen-6 code).")
+    print("OK: 1.8.7-safe by patterns (real 1.8.7 interpreter not found; set RUBY187 to add it).")
+    sys.exit(0)
+print("OK: 1.8.7-safe (patterns + real interpreter parse).")

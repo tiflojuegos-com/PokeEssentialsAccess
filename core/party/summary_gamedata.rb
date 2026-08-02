@@ -12,7 +12,7 @@ module PokeAccess
     # orders pages dynamically, so a fixed 1..5 numbering would read the wrong page). Falls back to the
     # classic numbering for a base summary with no @page_id. param page the numeric page argument (fallback).
     def self.page_text(scene, page)
-      pk = PokeAccess.ivar(scene, :@pokemon)
+      pk = PokeAccess.expect!("summary.pokemon", PokeAccess.ivar(scene, :@pokemon))
       return nil unless pk
       pid = PokeAccess.ivar(scene, :@page_id)
       return legacy_page_text(pk, page) if pid.nil?
@@ -59,7 +59,7 @@ module PokeAccess
     def self.memo_text(pk)
       nat = (pk.nature ? pk.nature.name : nil rescue nil)
       memo = PokeAccess::I18n.t(:sm_memo)
-      (nat && !nat.to_s.empty?) ? (memo + ". " + PokeAccess::I18n.t(:sm_nature, :n => nat) + ".") : (memo + ".")
+      (nat && !nat.to_s.empty?) ? "#{memo}. #{PokeAccess::I18n.t(:sm_nature, :n => nat)}." : "#{memo}."
     rescue StandardError
       nil
     end
@@ -72,19 +72,11 @@ module PokeAccess
       nil
     end
 
-    # Page four: the four moves with pp, as an overview (detail is read on navigation).
+    # Page four: the four moves with pp, as an overview (detail is read on navigation). Same walk and
+    # assembly as the agnostic page, so it simply delegates (the shared each_real_move already resolves
+    # names via the Data adapter, which is GameData here).
     def self.moves_text(pk)
-      out = []
-      (pk.moves rescue []).each do |m|
-        next unless m && (m.id rescue nil)
-        nm = (m.name rescue nil); nm = (GameData::Move.get(m.id).name rescue PokeAccess::I18n.t(:info_move)) if nm.nil? || nm.to_s.empty?
-        pp = (m.pp rescue nil); tot = (m.total_pp rescue nil)
-        s = nm.to_s; s += ". " + PokeAccess::I18n.t(:mv_pp, :pp => pp, :tot => tot) if pp && tot
-        out.push(s)
-      end
-      out.empty? ? PokeAccess::I18n.t(:sm_no_moves) : PokeAccess::I18n.t(:sm_moves, :list => out.join(", "))
-    rescue StandardError
-      nil
+      PokeAccess::Summary.moves_text(pk)
     end
 
     # The IV/EV page (Lin's plugin, page_allstats): individual and effort values per stat, from the modern

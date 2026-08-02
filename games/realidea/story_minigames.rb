@@ -15,7 +15,6 @@
 # cannot tell how close the duel is to ending.
 module PokeAccess
   module RealideaStory
-    TICK = "pa_mg_tick"
     PERFECT_FRAME = 11
 
     # Ticks once per frame step, pitch peaking on the perfect frame so the timing is audible.
@@ -25,7 +24,7 @@ module PokeAccess
         scene.instance_variable_set(:@pa_frame, f)
         closeness = 1.0 - ((f.to_i - PERFECT_FRAME).abs / 6.0)
         closeness = 0.0 if closeness < 0
-        PokeAccess::Spatial.cue(TICK, 60, 80 + (closeness * 100).to_i)
+        PokeAccess::Spatial.earcon(:minigame_tick, 60, 80 + (closeness * 100).to_i)
       end
       hp = PokeAccess.ivar(scene, :@protahp)
       ehp = PokeAccess.ivar(scene, :@enemhp)

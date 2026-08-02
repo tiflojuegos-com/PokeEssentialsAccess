@@ -1,7 +1,9 @@
 module PokeAccess
   # Binaural soundscape: drives PA3D_steam.dll (Steam Audio HRTF + miniaudio) for true 3D audio. It is
-  # the single audio engine, always running so footsteps and wall bumps go through it; Config.sound_nav
-  # :full adds the rest (npc/object/door pings, a water loop, a wind loop per wall), :off keeps only steps/bumps.
+  # the single audio engine, so footsteps and wall bumps also go through it. Config.sound_nav :full is
+  # the whole soundscape (npc/object/door pings, a water loop, a wind loop per wall); :basic keeps only
+  # the footsteps and wall bumps; :off silences everything, this engine included -- tick returns before
+  # boot, so nothing is even started.
   module Audio3D
     DIR = PokeAccess::Paths::SOUNDS
     RANGE = 12
@@ -101,6 +103,21 @@ module PokeAccess
       (CHAN.call("#{wav(name)}\0", loop) rescue -1)
     end
 
+    # Every positional channel: [symbol, sound file, 1 when it loops]. A table rather than a run of
+    # load_ch calls because it is also the ANSWER to "which file does this cue play?" -- the sound
+    # glossary previews these same sounds, and a spec cross-checks it against this list, so renaming a
+    # wav here can never leave the glossary teaching a sound the engine no longer plays.
+    CHANNEL_FILES = [
+      [:npc, "pa3d_npc.wav", 0], [:object, "pa3d_object.wav", 0], [:door, "pa3d_door.wav", 0],
+      [:teleporter, "pa3d_teleporter.wav", 0], [:hazard, "pa3d_hazard.wav", 0],
+      [:wall, "pa3d_wall.wav", 0], [:interact, "pa3d_interact.wav", 0],
+      [:control, "pa3d_control.wav", 0], [:trap, "pa3d_boop.wav", 0], [:push, "pa3d_boing.wav", 0],
+      [:water, "pa3d_water.wav", 1], [:wind_w, "pa3d_wind_w.wav", 1], [:wind_e, "pa3d_wind_e.wav", 1],
+      [:wind_n, "pa3d_wind_n.wav", 1], [:wind_s, "pa3d_wind_s.wav", 1],
+      [:step, "pa_step.wav", 0], [:grass, "pa_grass.wav", 0], [:fstep_water, "pa_water.wav", 0],
+      [:guide, "pa_guide_c.wav", 0]
+    ]
+
     # Initialises the engine and its channels once (a missing dll/wav must not re-init every frame).
     # Returns whether it is ready.
     def self.boot
@@ -117,25 +134,7 @@ module PokeAccess
       end
       @rate    = (RATE_FN.call rescue nil); @rate = nil if @rate && @rate <= 0
       @latency = (LAT_FN.call rescue nil)
-      @ch[:npc]        = load_ch("pa3d_npc.wav",        0)
-      @ch[:object]     = load_ch("pa3d_object.wav",     0)
-      @ch[:door]       = load_ch("pa3d_door.wav",       0)
-      @ch[:teleporter] = load_ch("pa3d_teleporter.wav", 0)
-      @ch[:hazard]     = load_ch("pa3d_hazard.wav",     0)
-      @ch[:wall]       = load_ch("pa3d_wall.wav",       0)
-      @ch[:interact]   = load_ch("pa3d_interact.wav",   0)
-      @ch[:control]    = load_ch("pa3d_control.wav",    0)
-      @ch[:water]      = load_ch("pa3d_water.wav",      1)
-      @ch[:wind_w]     = load_ch("pa3d_wind_w.wav",     1)
-      @ch[:wind_e]     = load_ch("pa3d_wind_e.wav",     1)
-      @ch[:wind_n]     = load_ch("pa3d_wind_n.wav",     1)
-      @ch[:wind_s]     = load_ch("pa3d_wind_s.wav",     1)
-      @ch[:trap]       = load_ch("pa3d_boop.wav",       0)
-      @ch[:push]       = load_ch("pa3d_boing.wav",      0)
-      @ch[:step]        = load_ch("pa_step.wav",  0)
-      @ch[:grass]       = load_ch("pa_grass.wav", 0)
-      @ch[:fstep_water] = load_ch("pa_water.wav", 0)
-      @ch[:guide]       = load_ch("pa_guide_c.wav", 0)
+      CHANNEL_FILES.each { |sym, file, looping| @ch[sym] = load_ch(file, looping) }
       @ready = true
     rescue StandardError => e
       log3d(:boot, e)
@@ -231,8 +230,9 @@ module PokeAccess
     # True when sound navigation is fully off: nothing plays and the engine is never even booted.
     def self.nav_off?; (PokeAccess::Config.sound_nav rescue :full) == :off; end
 
-    # Stops the looping and discrete emitters while keeping the engine active, so footsteps and wall
-    # bumps still play when sound navigation is off.
+    # Stops the looping and discrete emitters while keeping the engine active, which is what :basic
+    # means: no pings, no ambience, but footsteps and wall bumps still play (and still panned). In :off
+    # the engine never boots at all, so nothing reaches here.
     def self.silence_emitters
       [:npc, :object, :door, :teleporter, :hazard, :trap, :control, :push,
        :water, :wind_w, :wind_e, :wind_n, :wind_s].each do |k|
@@ -267,13 +267,14 @@ module PokeAccess
       busy = (PokeAccess::Spatial.busy_reason rescue nil)
       if busy
         gate(busy)
-        silence_all if @active
-        return
-      end
-      if (($game_temp && $game_temp.in_menu) rescue false)
-        gate(:in_menu)
         if @active
           silence_all
+          # Forget WHERE the soundscape was built. silence_all stopped the looping emitters (the winds,
+          # the water) and only the "the player moved to a new tile" branch below ever starts them
+          # again -- so without this, closing a message or a menu while standing still left the ambience
+          # muted until the next step, which is exactly the "it goes quiet and only comes back when I
+          # walk" the gate tally was added to chase. This used to live in a dedicated in_menu branch
+          # that was unreachable: busy_reason reports :in_menu itself, so this branch always won first.
           @scan_pos = nil
         end
         return
@@ -514,14 +515,10 @@ module PokeAccess
       info = WIND_SIDES[side]
       dx = info[1]; dy = info[2]
       dir = SIDE_DIR[side]
-      wr = wall_range
-      i = 1
-      while i <= wr
+      (1..wall_range).detect do |i|
         cx = px + dx * (i - 1); cy = py + dy * (i - 1)
-        return i unless ($game_player.passable?(cx, cy, dir) rescue true)
-        i += 1
+        !($game_player.passable?(cx, cy, dir) rescue true)
       end
-      nil
     end
 
     # Positions and plays/stops the four wind loops at their walls. Volume falls off with distance so a

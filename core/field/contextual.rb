@@ -31,49 +31,59 @@ module PokeAccess
 
     #builders
 
-    # Describes a move: type, power, accuracy, pp and description. Reads each field from the move object
-    # and, when absent, from PokeAccess::Data; a missing field never silences the line, and the name is
-    # always spoken at minimum.
+    # Describes a move: type, power, accuracy, pp and description. This method only RESOLVES the fields
+    # (from the move object, falling back to PokeAccess::Data per field); the spoken assembly and the
+    # power/accuracy wording are MoveInfo.line's, the single assembler -- this was the divergent copy that
+    # treated accuracy 0 differently and skipped the no-power phrasing. Total pp answers to either
+    # engine's name (totalpp gen-6, total_pp modern).
     def self.move_info(m)
       return nil unless m
       mid  = (m.id rescue nil)
       bd   = (m.basedamage rescue nil); bd  = PokeAccess::Data.move_power(mid) if bd.nil?
       acc  = (m.accuracy rescue nil);   acc = PokeAccess::Data.move_accuracy(mid) if acc.nil?
       name = (m.name rescue nil); name = (PokeAccess::Data.move_name(mid) || PokeAccess::I18n.t(:info_move)) if name.nil? || name.to_s.empty?
-      pp   = (m.pp rescue nil); tot = (m.totalpp rescue nil)
+      pp   = (m.pp rescue nil)
+      tot  = (m.totalpp rescue nil); tot = (m.total_pp rescue nil) if tot.nil?
       desc = PokeAccess::Data.move_description(mid)
       ty   = (m.type rescue nil)
       tipo = ty ? (PokeAccess::Data.type_name(ty) rescue nil) : nil
       tipo = PokeAccess::Data.move_type_name(mid) if tipo.nil? || tipo.to_s.empty?
-      pot  = (bd.nil? ? nil : PokeAccess::MoveInfo.power_phrase(bd))
-      prec = (acc.nil? ? nil : (acc.to_i == 0 ? PokeAccess::I18n.t(:mv_acc_perfect) : acc.to_s))
-      s = name.to_s
-      s += ". " + PokeAccess::I18n.t(:mv_type, :t => tipo) if tipo && !tipo.to_s.empty?
-      s += ". " + PokeAccess::I18n.t(:mv_power, :p => pot) if pot
-      s += ". " + PokeAccess::I18n.t(:mv_acc, :a => prec) if prec
-      s += ". " + PokeAccess::I18n.t(:mv_pp, :pp => pp, :tot => tot) if pp && tot
-      s += ". #{desc}" if desc && !desc.to_s.empty?
-      s
+      PokeAccess::MoveInfo.line(name.to_s, tipo, bd, acc, :pp => pp, :total_pp => tot, :desc => desc)
     rescue StandardError
       (PokeAccess::Data.move_name((m.id rescue 0)) || PokeAccess::I18n.t(:info_move))
     end
 
     # Describes an item: name and description. A screen (the bag) can supply the exact text via
     # note_item_desc, else it is resolved through PokeAccess::Data (which some games leave empty -> only
-    # the name). A TM/HM also reads the move it teaches.
+    # the name). A TM/HM also reads the move it teaches -- the datum a blind player most needs from a
+    # machine -- resolved per era: gen-6 through $ItemData, GameData through GameData::Item#move (v19+).
     def self.item_info(itemid)
       name = item_name_for(itemid)
       desc = noted_item_desc(itemid) || item_desc_for(itemid)
       parts = [name, desc].reject { |x| x.nil? || x.to_s.strip.empty? }
-      if (pbIsMachine?(itemid) rescue false)
-        mv = ($ItemData[itemid][ITEMMACHINE] rescue 0)
-        if mv && mv > 0
-          mname = PokeAccess::Data.move_name(mv)
-          mdesc = PokeAccess::Data.move_description(mv)
-          parts.push(PokeAccess::I18n.t(:it_teaches, :move => mname) + ". #{mdesc}") if mname
-        end
+      mv = machine_move(itemid)
+      if mv
+        mname = PokeAccess::Data.move_name(mv)
+        mdesc = PokeAccess::Data.move_description(mv)
+        parts.push(PokeAccess::I18n.t(:it_teaches, :move => mname) + ". #{mdesc}") if mname
       end
       parts.join(". ")
+    end
+
+    # The move a TM/HM/TR teaches, or nil for a normal item, on either era.
+    def self.machine_move(itemid)
+      if (pbIsMachine?(itemid) rescue false)
+        mv = ($ItemData[itemid][ITEMMACHINE] rescue 0)
+        return mv if mv && (!mv.respond_to?(:>) || mv > 0)
+      end
+      if defined?(GameData) && defined?(GameData::Item)
+        it = (GameData::Item.get(itemid) rescue nil)
+        mv = (it && it.respond_to?(:move) ? it.move : nil)
+        return mv if mv
+      end
+      nil
+    rescue StandardError
+      nil
     end
 
     # The item name, via the engine's data provider.
@@ -98,16 +108,16 @@ module PokeAccess
     def self.pokemon_info(pk)
       return nil unless pk
       t = PokeAccess::I18n.t(:pk_glance, :name => pk.name, :level => pk.level, :hp => pk.hp, :tot => pk.totalhp)
-      w = PokeAccess::Party.gender_word(pk); t += " " + w + "." if w
+      w = PokeAccess::Party.gender_word(pk); t += " #{w}." if w
       itm = (pk.item rescue nil)
       if itm && itm != 0
         it = itm.respond_to?(:name) ? (itm.name rescue nil) : PokeAccess::Data.item_name(itm)
-        t += " " + PokeAccess::I18n.t(:pk_holds, :item => it) + "." if it && !it.to_s.empty?
+        t += " #{PokeAccess::I18n.t(:pk_holds, :item => it)}." if it && !it.to_s.empty?
       end
       st = (pk.status rescue nil)
       unless st.nil? || st == 0 || st == :NONE
         sn = PokeAccess::Data.status_name(st)
-        t += " " + PokeAccess::I18n.t(sn) + "." if sn && !sn.to_s.empty?
+        t += " #{PokeAccess::I18n.t(sn)}." if sn && !sn.to_s.empty?
       end
       t
     end

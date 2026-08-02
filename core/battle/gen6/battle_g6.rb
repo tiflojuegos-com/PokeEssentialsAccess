@@ -19,8 +19,8 @@ end
 # original drives the command/fight display's own hooked index setters internally; guarding it would mute
 # those readers.
 #
-# Stock gen-6 has pbUpdateSelected(index), which exists for exactly this. The Infinite Fusion games dropped
-# it and their pbChooseTarget highlights through pbSelectBattler(index, 2) instead -- the same call the
+# Stock gen-6 has pbUpdateSelected(index), which exists for exactly this. Some forks dropped it and
+# their pbChooseTarget highlights through pbSelectBattler(index, 2) instead -- the same call the
 # command phase uses with the default mode, so the mode argument is what separates "choosing a target" from
 # "this battler's turn began" and keeps the second from being announced. A bare -1 still passes: that is
 # pbChooseTarget deselecting on the way out, which is what lets re-entering selection read again.
@@ -65,7 +65,7 @@ end
 # Cursor treats as unchanged, so it neither speaks nor records -- returning to the same real move still reads.
 #
 # Which method to hang this on is not the same in every fork. Stock gen-6 declares FightMenuDisplay as a
-# standalone class with setIndex. The Infinite Fusion games instead give it a BattleMenuBase parent whose
+# standalone class with setIndex. Some forks instead give it a BattleMenuBase parent whose
 # cursor setter is index=, and no setIndex at all -- so the move list was silent there while the command
 # menu (CommandMenuDisplay#index=, which they do inherit) read fine. Gated on the capability rather than
 # hooked twice: where setIndex exists nothing changes, so the games that already work are untouched.
@@ -93,7 +93,7 @@ PokeAccess::Hooks.after_hook("FightMenuDisplay", :battler=) do |disp, _r, _a|
 end
 
 # Mega button (gen-6, one-way): announce when it flips to registered. Stock gen-6 exposes it as
-# attr_accessor :megaButton; the Infinite Fusion fork keeps the same 0=hidden/1=shown/2=pressed state in
+# attr_accessor :megaButton; a forked variant keeps the same 0=hidden/1=shown/2=pressed state in
 # @mode on BattleMenuBase (its own code reads @mode to draw that very button) and offers no megaButton=.
 # Same three values either way, so the reader just binds whichever setter the fork has, and neither where
 # there is no mega button at all.

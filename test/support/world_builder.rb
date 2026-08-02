@@ -60,11 +60,13 @@ class TestGameEvent
     @active = opts.fetch(:active_page, pages[0])
     @character_name = @active.graphic.character_name
     @list = @active.list
+    @trigger = (@active.trigger rescue 0)
   end
   def instance_variable_get(sym)
     return @event if sym == :@event
     return @active if sym == :@page
     return @list if sym == :@list
+    return @trigger if sym == :@trigger
     super
   end
 end
@@ -111,5 +113,18 @@ module World
   # pbUpdate to drive the per-frame reader.
   def self.summary_scene(opts = {})
     PokemonSummaryScene.new(opts.fetch(:pokemon, Poke.build))
+  end
+
+  # A bare scene stub carrying the given ivars, for readers that only inspect instance variables
+  # (the SceneWatcher/read_on_open shape). Keys may be :@page or :page -- the @ is added if missing.
+  #   scene = World.stub_scene(:@select => 2, :@commands => ["A", "B"])
+  def self.stub_scene(ivars = {})
+    s = Object.new
+    ivars.each do |k, v|
+      name = k.to_s
+      name = "@#{name}" unless name[0, 1] == "@"
+      s.instance_variable_set(name.to_sym, v)
+    end
+    s
   end
 end

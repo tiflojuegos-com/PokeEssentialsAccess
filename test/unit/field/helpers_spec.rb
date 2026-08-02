@@ -5,7 +5,7 @@ Suite.define("field: mail and money overlays") do
   mailobj = Struct.new(:message, :sender)
   eq "mail body and sender",
      PokeAccess.mail_text(mailobj.new("Hola", "Rojo")),
-     "Hola. " + PokeAccess::I18n.t(:mail_from, :name => "Rojo")
+     "Hola. #{PokeAccess::I18n.t(:mail_from, :name => 'Rojo')}"
   truthy "empty mail is nil", PokeAccess.mail_text(mailobj.new("", "")).nil?
 
   winobj = Struct.new(:text)
@@ -46,9 +46,9 @@ Suite.define("field: berry plant state normalization") do
   eq "nil is empty soil", PokeAccess::Berry.read(nil), [nil, nil, nil, false]
   eq "empty soil has no suffix",
      PokeAccess::Berry.state_suffix(fakeev.new([0, 0, 0, 0, 0, 0, 0, 0])), ""
+  suffix = PokeAccess::Berry.state_suffix(fakeev.new([4, 0, 1000, 1, 60, 0, 0, 0]))
   truthy "suffix starts with the stage",
-         PokeAccess::Berry.state_suffix(fakeev.new([4, 0, 1000, 1, 60, 0, 0, 0]))
-           .start_with?(", " + PokeAccess::I18n.t(:berry_flowering))
+         suffix.start_with?(", #{PokeAccess::I18n.t(:berry_flowering)}")
 end
 
 # Spoken cues that have no live engine in the harness: the reflex wrap, the phone rematch and the fishing
@@ -61,11 +61,21 @@ Suite.define("field: guarded cues resolve real localized strings") do
          PokeAccess::I18n.t(:phone_rematch) != "phone_rematch" && !PokeAccess::I18n.t(:phone_rematch).empty?
 end
 
-# Pokedex / ribbon formatting helpers: one-decimal formatting is locale-neutral; a nil ribbon id is guarded
-# (modern-only; no GameData::Ribbon in the gen-6 harness).
+# Pokedex / ribbon formatting helpers: one-decimal formatting follows the active language's decimal_sep
+# (comma in Spanish, point in English) on both fmt_float (real units) and fmt_dec (tenth units); a nil
+# ribbon id is guarded (modern-only; no GameData::Ribbon in the gen-6 harness).
 Suite.define("field: dex one-decimal and ribbon guard") do
-  truthy "one-decimal format",
-         PokeAccess::DexEntry.fmt1(60.5) == "60.5" && PokeAccess::DexEntry.fmt1(4) == "4.0"
+  prev = PokeAccess::Config.language
+  begin
+    PokeAccess::Config.language = :es
+    truthy "Spanish speaks a comma",
+           PokeAccess::Pokedex.fmt_float(60.5) == "60,5" && PokeAccess::Pokedex.fmt_dec(15) == "1,5"
+    PokeAccess::Config.language = :en
+    truthy "English speaks a point",
+           PokeAccess::Pokedex.fmt_float(60.5) == "60.5" && PokeAccess::Pokedex.fmt_dec(15) == "1.5"
+  ensure
+    PokeAccess::Config.language = prev
+  end
   truthy "nil ribbon id is guarded", PokeAccess::RibbonsV21.ribbon_text(nil).nil?
 end
 

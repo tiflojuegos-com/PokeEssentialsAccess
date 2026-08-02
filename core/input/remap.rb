@@ -23,7 +23,47 @@ module PokeAccess
       [:r,     :R,     :btn_r]
     ]
     DIR_CODE = { :up => 8, :down => 2, :left => 4, :right => 6 }
+
+    # The mod's OWN hotkeys, offered in the same remap list as the game's buttons but living in a different
+    # table (Config.keys) with different semantics -- see conflict? and the menu's clear step. Order is the
+    # one a player thinks in: the locator cluster first, then the readers, then the modifiers.
+    MOD_KEYS = [
+      [:prev,   :rmk_prev],   [:next,  :rmk_next],  [:where,  :rmk_where],
+      [:route,  :rmk_route],  [:info,  :rmk_info],  [:hp,     :rmk_hp],
+      [:field,  :rmk_field],  [:coords, :rmk_coords], [:config, :rmk_config],
+      [:shift,  :rmk_shift],  [:ctrl,  :rmk_ctrl]
+    ]
+
+    # Virtual-keys the engine itself answers to. They are not ours to give away: bound to a mod action, the
+    # player would confirm a message and read the screen with the same press, and in a yes/no box that is
+    # unrecoverable. Enter/Space/Escape, the four arrows, and F8-F10 (the mod's fixed Ctrl+Alt gestures,
+    # which are deliberately NOT remappable so there is always a way back from a bad binding).
+    RESERVED = {
+      0x0D => :rmp_key_enter, 0x1B => :rmp_key_escape, 0x20 => :rmp_key_space,
+      0x25 => :rmp_key_left,  0x26 => :rmp_key_up,     0x27 => :rmp_key_right, 0x28 => :rmp_key_down,
+      0x77 => :rmp_key_f8,    0x78 => :rmp_key_f9,     0x79 => :rmp_key_f10
+    }
     @held = {}
+
+    # True when sym is one of the mod's own hotkeys rather than a game button or a game extra.
+    def self.mod_action?(sym)
+      MOD_KEYS.assoc(sym) ? true : false
+    end
+
+    # What already uses this virtual-key, as an i18n key or an action symbol, or nil when it is free.
+    #
+    # ONE check for BOTH assignment paths, because the tables can collide with each other: before this, the
+    # menu compared game buttons only against other game buttons, so binding the game's A to T silently
+    # made T do two things at once -- the mod key kept working and nothing warned. Excludes the action
+    # being assigned, so rebinding a key to itself is not a conflict.
+    def self.conflict(code, action)
+      return nil if code.nil?
+      return RESERVED[code] if RESERVED.has_key?(code)
+      hit = nil
+      (PokeAccess::Config.rebinds rescue {}).each { |s, c| hit ||= s if c == code && s != action }
+      (PokeAccess::Config.keys rescue {}).each { |s, c| hit ||= s if c == code && s != action }
+      hit
+    end
 
     # The registry of game extras: action symbol => [default virtual-key, label].
     def self.extras; @extras ||= {}; end
@@ -34,11 +74,12 @@ module PokeAccess
     end
 
     # The full remap-menu action list: base buttons, game extras, and a final reset-all entry.
-    # Built on a duped array with concat/push, never BUTTONS + [...]: Pokemon Z's MTS library
+    # Built on a duped array with concat/push, never BUTTONS + [...]: a fangame script patch
     # redefines Array#+ as an in-place mutator, so the literal `+` would corrupt the constant.
     def self.buttons
       list = BUTTONS.dup
       list.concat(extras.map { |sym, info| [sym, nil, info[1]] })
+      list.concat(MOD_KEYS.map { |sym, label| [sym, nil, label] })
       list.push([:__reset__, nil, :btn_reset_all])
       list
     end
@@ -62,11 +103,13 @@ module PokeAccess
     end
 
     # Spoken label for an action (a per-game override wins); resolved through I18n, where an unknown
-    # key returns itself.
+    # key returns itself. Looked up in `buttons`, the SAME list the remap menu shows, rather than in
+    # BUTTONS plus extras separately: the reset-all row lives only in that assembled list, so the split
+    # lookup missed it and the menu would have said "underscore underscore reset" while its perfectly
+    # good btn_reset_all string sat unused in both languages.
     def self.label(sym)
-      raw = (PokeAccess::Config.rebind_labels[sym] rescue nil) ||
-            (BUTTONS.assoc(sym)[2] rescue nil) ||
-            (extras[sym] && extras[sym][1]) || sym.to_s
+      row = buttons.assoc(sym)
+      raw = (PokeAccess::Config.rebind_labels[sym] rescue nil) || (row ? row[2] : nil) || sym.to_s
       PokeAccess::I18n.t(raw)
     end
 
@@ -75,16 +118,15 @@ module PokeAccess
 
     # The extra action whose default key is this raw virtual-key, if any.
     def self.sym_for_extra(vk)
-      extras.each { |sym, info| return sym if info[0] == vk }
-      nil
+      hit = extras.detect { |_sym, info| info[0] == vk }
+      hit ? hit[0] : nil
     end
 
     #per-frame polling
 
     # Updates how long each bound key has been held; call once per frame.
     def self.update
-      g = PokeAccess::Keys::GAKS
-      return unless g
+      return unless PokeAccess::Keys::GAKS
       unless (PokeAccess::Keys.enabled rescue true) && (PokeAccess::Keys.focused? rescue true)
         @held = {}
         return
@@ -97,7 +139,7 @@ module PokeAccess
       @held.each_key { |s| @held[s] = 0 unless binds.key?(s) }
       binds.each do |sym, code|
         next unless code
-        down = (g.call(code) & 0x8000) != 0
+        down = PokeAccess::Keyboard.raw_down?(code)
         @held[sym] = down ? (@held[sym].to_i + 1) : 0
       end
     end
@@ -131,8 +173,8 @@ module PokeAccess
 
     # The 4-direction code from bound movement keys, or 0 if none held.
     def self.dir
-      DIR_CODE.each_key { |sym| return DIR_CODE[sym] if pressed_sym?(sym) }
-      0
+      hit = DIR_CODE.detect { |sym, _code| pressed_sym?(sym) }
+      hit ? hit[1] : 0
     end
 
     #extra queries (by raw virtual-key)
@@ -153,31 +195,22 @@ end
 # Input hooks: feed our bindings into the engine's, rescued so they can never break input. Each wrapper
 # forwards *args/*rest to the original so it matches whatever signature the base uses -- La Base de Sky's
 # dir4/dir8 take an argument while vanilla Essentials' take none, so a fixed arity here crashed Sky games.
+# The five query hooks share one pattern (remapped -> only ours; else engine OR ours), so they are
+# generated from a table -- one source for a body that must never diverge between them. dir4/dir8 keep
+# their own (different) shape.
 begin
   class << Input
     unless method_defined?(:trigger__access_orig)
-      alias_method :trigger__access_orig, :trigger?
-      def trigger?(n, *rest)
-        if (PokeAccess::Remap.remapped_button?(n) rescue false)
-          (PokeAccess::Remap.triggered?(n) rescue false)
-        else
-          trigger__access_orig(n, *rest) || (PokeAccess::Remap.triggered?(n) rescue false)
-        end
-      end
-      alias_method :press__access_orig, :press?
-      def press?(n, *rest)
-        if (PokeAccess::Remap.remapped_button?(n) rescue false)
-          (PokeAccess::Remap.pressed?(n) rescue false)
-        else
-          press__access_orig(n, *rest) || (PokeAccess::Remap.pressed?(n) rescue false)
-        end
-      end
-      alias_method :repeat__access_orig, :repeat?
-      def repeat?(n, *rest)
-        if (PokeAccess::Remap.remapped_button?(n) rescue false)
-          (PokeAccess::Remap.repeated?(n) rescue false)
-        else
-          repeat__access_orig(n, *rest) || (PokeAccess::Remap.repeated?(n) rescue false)
+      [[:trigger?, :trigger__access_orig, :triggered?],
+       [:press?,   :press__access_orig,   :pressed?],
+       [:repeat?,  :repeat__access_orig,  :repeated?]].each do |meth, ali, query|
+        alias_method ali, meth
+        define_method(meth) do |n, *rest|
+          if (PokeAccess::Remap.remapped_button?(n) rescue false)
+            (PokeAccess::Remap.send(query, n) rescue false)
+          else
+            send(ali, n, *rest) || (PokeAccess::Remap.send(query, n) rescue false)
+          end
         end
       end
       alias_method :dir4__access_orig, :dir4
@@ -187,23 +220,16 @@ begin
     end
 
     #raw-key hooks for game extras, only if the engine exposes them.
-    if method_defined?(:triggerex?) && !method_defined?(:triggerex__access_orig)
-      alias_method :triggerex__access_orig, :triggerex?
-      def triggerex?(k, *rest)
+    [[:triggerex?, :triggerex__access_orig, :extra_triggered?],
+     [:pressex?,   :pressex__access_orig,   :extra_pressed?]].each do |meth, ali, query|
+      next unless method_defined?(meth)
+      next if method_defined?(ali)
+      alias_method ali, meth
+      define_method(meth) do |k, *rest|
         if (PokeAccess::Remap.extra_remapped?(k) rescue false)
-          (PokeAccess::Remap.extra_triggered?(k) rescue false)
+          (PokeAccess::Remap.send(query, k) rescue false)
         else
-          triggerex__access_orig(k, *rest) || (PokeAccess::Remap.extra_triggered?(k) rescue false)
-        end
-      end
-    end
-    if method_defined?(:pressex?) && !method_defined?(:pressex__access_orig)
-      alias_method :pressex__access_orig, :pressex?
-      def pressex?(k, *rest)
-        if (PokeAccess::Remap.extra_remapped?(k) rescue false)
-          (PokeAccess::Remap.extra_pressed?(k) rescue false)
-        else
-          pressex__access_orig(k, *rest) || (PokeAccess::Remap.extra_pressed?(k) rescue false)
+          send(ali, k, *rest) || (PokeAccess::Remap.send(query, k) rescue false)
         end
       end
     end

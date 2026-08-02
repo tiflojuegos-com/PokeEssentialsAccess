@@ -15,6 +15,12 @@ $ErrorActionPreference = "Stop"
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 $root = Split-Path -Parent $here
 $marker = "accessibility/preload_access.rb"
+# UTF-8 SIN BOM en todo lo que escribe el instalador: mkxp-z y el launcher leen estos ficheros
+# en crudo y el BOM les estorba (Set-Content -Encoding UTF8 lo mete siempre en PowerShell 5.1).
+$utf8 = New-Object System.Text.UTF8Encoding($false)
+# Las carpetas de juego llevan corchetes a menudo ("Pokemon X [v2.0]") y con -Path los cmdlets
+# los tratan como comodin: no encuentran nada y borran/copian de menos. Por eso todo argumento
+# de ruta sin comodin real va con -LiteralPath.
 
 function Pause-Exit { Write-Host "`nPulsa una tecla para salir..."; try { [void][System.Console]::ReadKey($true) } catch {} }
 function Fail($msg) { Write-Host "`n[ERROR] $msg" -ForegroundColor Red; Pause-Exit; exit 1 }
@@ -38,241 +44,394 @@ function Pick-Folder {
 # in which case the string is absent and the loader would never run. returns whether preloadScript
 # and an mkxp engine were found, and the exe that matched, so the tester knows before installing.
 function Test-Mkxp($dir) {
-    $preload = $false; $mkxp = $false; $hit = $null
-    foreach ($e in (Get-ChildItem $dir -Filter *.exe -File -ErrorAction SilentlyContinue)) {
+    $preload = $false; $mkxp = $false; $hit = $null; $hitLen = -1
+    foreach ($e in (Get-ChildItem -LiteralPath $dir -Filter *.exe -File -ErrorAction SilentlyContinue)) {
         try {
             $txt = [System.Text.Encoding]::ASCII.GetString([System.IO.File]::ReadAllBytes($e.FullName))
-            if ($txt.Contains("preloadScript")) { $preload = $true; if (-not $hit) { $hit = $e.Name } }
+            # de los que traen la cadena se queda el MAS GRANDE, igual que el launcher: algunos
+            # fangames dejan al lado un lanzador pequeno que tambien la contiene.
+            if ($txt.Contains("preloadScript")) {
+                $preload = $true
+                if ($e.Length -gt $hitLen) { $hit = $e.Name; $hitLen = $e.Length }
+            }
             if ($txt -match "mkxp") { $mkxp = $true }
         } catch {}
     }
     [pscustomobject]@{ Preload = $preload; Mkxp = $mkxp; Exe = $hit }
 }
 
-$core   = Join-Path $root "core"
-$loader = Join-Path $root "loader"
-$assets = Join-Path $root "assets"
-foreach ($p in @($core, $loader, $assets)) {
-    if (-not (Test-Path $p)) { Fail "Falta '$p' en el toolkit. La carpeta del instalador esta incompleta." }
+# git blob sha1 of a file: sha1 over "blob <bytes>\0" + the raw content, which is the id git (and
+# the GitHub tree api) publishes for it. The launcher compares installed.json against those ids,
+# so a plain sha1 here would never match and it would re-download everything.
+function Get-GitBlobSha1($path) {
+    $bytes  = [System.IO.File]::ReadAllBytes($path)
+    $header = [System.Text.Encoding]::ASCII.GetBytes("blob " + $bytes.Length + [char]0)
+    $buf    = New-Object byte[] ($header.Length + $bytes.Length)
+    [Array]::Copy($header, 0, $buf, 0, $header.Length)
+    [Array]::Copy($bytes, 0, $buf, $header.Length, $bytes.Length)
+    $sha = [System.Security.Cryptography.SHA1]::Create()
+    try { return ([BitConverter]::ToString($sha.ComputeHash($buf)) -replace "-", "").ToLower() }
+    finally { $sha.Dispose() }
 }
 
-# 1) carpeta del juego: argumento (arrastrar), o selector de carpetas, o ruta escrita.
-if (-not $GameDir) { $GameDir = Pick-Folder }
-if (-not $GameDir -or -not (Test-Path $GameDir)) { Fail "No se eligio una carpeta valida." }
-$mainexe = if (Test-Path (Join-Path $GameDir "Game.exe")) { Join-Path $GameDir "Game.exe" }
-           else { (Get-ChildItem $GameDir -Filter *.exe -ErrorAction SilentlyContinue | Sort-Object Length -Descending | Select-Object -First 1).FullName }
-$json = Join-Path $GameDir "mkxp.json"
-if (-not $mainexe) { Fail "No hay ningun .exe en esa carpeta. Elige la carpeta del juego." }
-
-# compatibilidad: el mod se carga via preloadScript de mkxp-z. El ejecutable se escanea SIEMPRE, tenga o no
-# el juego un mkxp.json: la ausencia del archivo no dice nada sobre el motor (es opcional para mkxp-z), y
-# atarla al escaneo hacia que un juego sin config quedase marcado como incompatible sin haberlo mirado.
-# Con -Check solo informa; en una instalacion normal, si no se detecta soporte se puede forzar.
-$hasJson = Test-Path $json
-$compat  = Test-Mkxp $GameDir
-$engine  = if ($compat.Mkxp) { "mkxp-z" } else { "desconocido" }
-
-# Which profile this folder would get, for the compatibility report: knowing it up front is what makes a
-# user's problem report actionable ("detecta Opalo" vs "no detecta nada").
-function Detected-Profile($dir, $exe) {
-    $cat = @()
-    $f = Join-Path $root "games\catalog.json"
-    if (Test-Path $f) { try { $cat = @((Get-Content $f -Raw -Encoding UTF8 | ConvertFrom-Json).profiles) } catch { $cat = @() } }
-    $hay = ("$dir " + $(if ($exe) { Split-Path $exe -Leaf } else { "" })).ToLower()
-    foreach ($p in $cat) { if ($p.detect -and $hay -match $p.detect) { return $p } }
-    return $null
-}
-
-if ($Check) {
-    $det = Detected-Profile $GameDir $mainexe
-    Write-Host "`n=== Comprobacion de compatibilidad ===" -ForegroundColor Cyan
-    Write-Host ("  Carpeta: " + $GameDir)
-    Write-Host ("  mkxp.json: " + $(if ($hasJson) { "SI" } else { "NO (se creara al instalar)" }))
-    Write-Host ("  Motor: " + $engine)
-    Write-Host ("  preloadScript: " + $(if ($compat.Preload) { "SI (en $($compat.Exe))" } else { "NO detectado" }))
-    Write-Host ("  Perfil detectado: " + $(if ($det) { "$($det.display)  [$($det.key)]" } else { "ninguno (se elige a mano)" }))
-    if ($compat.Preload) {
-        Write-Host "`n[COMPATIBLE] Este fangame acepta el cargador. Instala con 'Instalar mod'." -ForegroundColor Green
-    } elseif (-not $hasJson) {
-        Write-Host "`n[NO COMPATIBLE] Ni mkxp.json ni 'preloadScript' en el ejecutable: no usa mkxp-z." -ForegroundColor Red
-    } else {
-        Write-Host "`n[DUDOSO] No veo 'preloadScript' en el ejecutable; este build podria tenerlo desactivado." -ForegroundColor Yellow
-        Write-Host "Puedes intentarlo igualmente: 'Instalar mod' y responde si al aviso de forzar."
+# index of the first LIVE line matching a pattern, or -1. mkxp.json admits // comments and the
+# engine ignores those lines: a commented key must not count as present (it would leave the mod
+# unregistered) nor be written into (the entry would stay commented out).
+# $parts comes from [regex]::Split($text, '(\r?\n)'), so the original line breaks survive a rejoin.
+function Find-LiveLine($parts, $pattern) {
+    for ($i = 0; $i -lt $parts.Count; $i++) {
+        if ($parts[$i].TrimStart().StartsWith("//")) { continue }
+        if ($parts[$i] -match $pattern) { return $i }
     }
-    Pause-Exit; exit 0
+    return -1
 }
 
-# A game can be a perfectly good mkxp-z build and still ship no mkxp.json (Infinite Fusion does): the config
-# file is optional for the engine, but the mod needs it because preloadScript is declared there. So the
-# absence of the file only blocks when the executable ALSO lacks preloadScript support -- otherwise the file
-# is created with just the loader in it, which is what the register step below would have added anyway.
-if (-not $hasJson) {
-    if (-not $compat.Preload) {
-        Fail "Ni mkxp.json ni soporte de 'preloadScript' en el ejecutable: este juego no usa mkxp-z."
-    }
-    # No accents here on purpose: mkxp-z has a known bug parsing non-ASCII in this file.
-    [System.IO.File]::WriteAllText($json, "{}", (New-Object System.Text.UTF8Encoding($false)))
-    Write-Host "[OK] Creado mkxp.json (el juego no traia; su ejecutable si acepta preloadScript)." -ForegroundColor Green
-}
-if (-not $compat.Preload -and -not $Force) {
-    Write-Host "`n[AVISO] No detecto soporte de 'preloadScript' en el ejecutable de este juego." -ForegroundColor Yellow
-    Write-Host "El mod se carga por esa via; sin ella podria no funcionar. Puedes forzar y probarlo en el juego."
-    $ans = (Read-Host "Forzar instalacion de todos modos? (s/N)").Trim().ToLower()
-    if ($ans -ne "s" -and $ans -ne "si") { Fail "Instalacion cancelada. Usa 'Comprobar compatibilidad' para revisar el juego." }
-    Write-Host "[!] Forzando instalacion: compatibilidad no garantizada." -ForegroundColor Yellow
-} else {
-    Write-Host ("[OK] Compatibilidad: el juego acepta preloadScript (motor $engine).") -ForegroundColor Green
-}
-
-# refuse to (re)install while the game is open: its dlls would be locked and the wipe could
-# leave a half-installed folder.
-$exeName = [IO.Path]::GetFileNameWithoutExtension($mainexe)
-$running = @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $mainexe })
-if ($running.Count -gt 0) { Fail "El juego esta abierto. Cierralo del todo y vuelve a ejecutar el instalador." }
-
-# 2) que perfil de juego instalar: autodetecta por nombre, si no pregunta con un menu.
-$available = @(Get-ChildItem (Join-Path $root "games") -Directory | Select-Object -ExpandProperty Name)
-# El catalogo (games\catalog.json) es la fuente unica de perfiles: patron de autodeteccion + nombre
-# hablado, compartido con el actualizador. Si falta, se cae a la lista de carpetas sin nombres bonitos.
-$catalog = @()
-$catFile = Join-Path $root "games\catalog.json"
-if (Test-Path $catFile) {
-    try { $catalog = @((Get-Content $catFile -Raw -Encoding UTF8 | ConvertFrom-Json).profiles) } catch { $catalog = @() }
-}
-function Display-Name($key) {
-    $e = $catalog | Where-Object { $_.key -eq $key } | Select-Object -First 1
-    if ($e -and $e.display) { $e.display } else { $key }
-}
-# Autodeteccion por el patron del catalogo sobre 'carpeta + exe'. La deteccion siempre es best-effort:
-# si la carpeta tiene un nombre raro (p. ej. renombrada) no acierta y se elige el perfil a mano abajo.
-if (-not $Game) {
-    $hay = ("$GameDir " + (Split-Path $mainexe -Leaf)).ToLower()
-    foreach ($p in $catalog) {
-        if ($p.detect -and $hay -match $p.detect) { $Game = $p.key; break }
-    }
-}
-# Fallback manual: elegir el perfil de la lista (con su nombre hablado). Cubre carpetas no detectadas y
-# el caso de forzar a mano un perfil distinto (p. ej. usar el generico en una version del juego no soportada).
-if (-not $Game -or -not ($available -contains $Game)) {
-    Write-Host "`n¿Que juego es? Escribe el numero y pulsa Enter:"
-    for ($i = 0; $i -lt $available.Count; $i++) {
-        Write-Host ("  {0}) {1}" -f ($i + 1), (Display-Name $available[$i]))
-    }
-    $idx = 0; [void][int]::TryParse((Read-Host "Numero"), [ref]$idx)
-    if ($idx -lt 1 -or $idx -gt $available.Count) { Fail "Opcion no valida." }
-    $Game = $available[$idx - 1]
-}
-$gaming = Join-Path $root "games\$Game"
-if (-not (Test-Path $gaming)) { Fail "No existe el perfil de juego '$Game' en el toolkit." }
-Write-Host "[OK] Juego detectado: $Game" -ForegroundColor Green
-
-# 1) Ensamblar accessibility\ (core + game + loader + assets)
-# Al actualizar (reinstalar encima) se conservan los datos del usuario: su configuracion
-# y sus etiquetas de objetos, que no son parte del mod y se perderian al recopiar.
-$dst = Join-Path $GameDir "accessibility"
-$dataDir = Join-Path $dst "data"
-$preserve = @("settings.ini", "tags.txt", "tags_export.txt", "tags_import.txt")
+# Todo el cuerpo va dentro de un try: con $ErrorActionPreference = Stop, cualquier fallo no
+# previsto (permisos, disco lleno, un archivo bloqueado) cerraria el script sin la pausa final
+# y la ventana desapareceria sin decir nada, que para quien no ve la pantalla es silencio total.
 $tmpSave = $null
-if (Test-Path $dst) {
-    $tmpSave = Join-Path ([IO.Path]::GetTempPath()) ("pokeaccess_" + [guid]::NewGuid().ToString("N"))
-    New-Item -ItemType Directory -Force $tmpSave | Out-Null
-    foreach ($f in $preserve) {
-        # new layout keeps these in data\; also check the old flat root for upgrades.
-        $old = @((Join-Path $dataDir $f), (Join-Path $dst $f)) | Where-Object { Test-Path $_ } | Select-Object -First 1
-        if ($old) { Copy-Item $old (Join-Path $tmpSave $f) -Force }
-    }
-    Remove-Item $dst -Recurse -Force
-}
-foreach ($sub in @("core", "game", "sounds", "lib", "data", "lang")) {
-    New-Item -ItemType Directory -Force (Join-Path $dst $sub) | Out-Null
-}
-Copy-Item (Join-Path $core "*")   (Join-Path $dst "core") -Recurse -Force
-Copy-Item (Join-Path $gaming "*") (Join-Path $dst "game") -Recurse -Force
-$lang = Join-Path $root "lang"
-if (Test-Path $lang) { Copy-Item (Join-Path $lang "*") (Join-Path $dst "lang") -Force }
-Copy-Item (Join-Path $loader "boot.rb")           $dst -Force
-Copy-Item (Join-Path $loader "preload_access.rb") $dst -Force
-
-# detect the game's architecture from its executable and copy the matching voice dlls.
-$arch = "x86"
+$dataDir = $null
 try {
-    $fs = [IO.File]::OpenRead($mainexe); $br = New-Object IO.BinaryReader($fs)
-    $fs.Seek(0x3C, 0) | Out-Null; $pe = $br.ReadInt32(); $fs.Seek($pe + 4, 0) | Out-Null
-    $m = $br.ReadUInt16(); $fs.Close()
-    if ($m -eq 0x8664) { $arch = "x64" }
-} catch {}
-# sounds and libraries each go to their own subfolder (the mod reads them from there). Recurse so the
-# per-rate subfolder (sounds\48000) and its contents are copied, not just the top-level 44100 files.
-Copy-Item (Join-Path $assets "sounds\*")  (Join-Path $dst "sounds") -Recurse -Force
-Copy-Item (Join-Path $assets "$arch\*")   (Join-Path $dst "lib") -Force
-Write-Host "[OK] Mod '$Game' copiado a $dst (voz $arch)" -ForegroundColor Green
 
-# restaura los datos del usuario conservados (config y etiquetas) en data\ tras actualizar.
-if ($tmpSave) {
-    $restored = 0
-    foreach ($f in $preserve) {
-        $sv = Join-Path $tmpSave $f
-        if (Test-Path $sv) { Copy-Item $sv (Join-Path $dataDir $f) -Force; $restored++ }
+    $core   = Join-Path $root "core"
+    $loader = Join-Path $root "loader"
+    $assets = Join-Path $root "assets"
+    foreach ($p in @($core, $loader, $assets)) {
+        if (-not (Test-Path -LiteralPath $p)) { Fail "Falta '$p' en el toolkit. La carpeta del instalador esta incompleta." }
     }
-    Remove-Item $tmpSave -Recurse -Force
-    if ($restored -gt 0) { Write-Host "[OK] Conservada tu configuracion y etiquetas ($restored archivos)." -ForegroundColor Green }
-}
 
-# 1b) Sellar installed.json en data\: qué versión del mod y qué perfil quedó instalado, más el hash
-# de cada archivo desplegado. El actualizador (launcher) lo compara con el repo para bajar SOLO lo
-# que cambió y para recordar si se instaló el perfil específico o el genérico (p. ej. un juego cuya
-# version difiere de la soportada va mejor con el genérico).
-$modVersion = "0.0.0"
-$verFile = Join-Path $root "version.json"
-if (Test-Path $verFile) {
-    try { $modVersion = (Get-Content $verFile -Raw | ConvertFrom-Json).version } catch {}
-}
-$profileMode = if ($Game -eq "generic") { "generic" } else { "specific" }
-$hashes = @{}
-Get-ChildItem $dst -Recurse -File | Where-Object {
-    # los datos del usuario (data\) no forman parte del mod; no se versionan ni se comparan.
-    $_.FullName -notlike (Join-Path $dataDir "*")
-} | ForEach-Object {
-    $rel = $_.FullName.Substring($dst.Length + 1) -replace "\\", "/"
-    $hashes[$rel] = (Get-FileHash $_.FullName -Algorithm SHA1).Hash.ToLower()
-}
-$installed = [ordered]@{
-    mod_version  = $modVersion
-    profile      = $Game
-    profile_mode = $profileMode
-    voice_arch   = $arch
-    installed_at = (Get-Date).ToString("o")
-    files        = $hashes
-}
-New-Item -ItemType Directory -Force $dataDir | Out-Null
-$installed | ConvertTo-Json -Depth 5 | Set-Content (Join-Path $dataDir "installed.json") -Encoding UTF8
-Write-Host "[OK] Sellado installed.json (mod $modVersion, perfil $Game, $($hashes.Count) archivos)" -ForegroundColor Green
+    # 1) carpeta del juego: argumento (arrastrar), o selector de carpetas, o ruta escrita.
+    if (-not $GameDir) { $GameDir = Pick-Folder }
+    if (-not $GameDir -or -not (Test-Path -LiteralPath $GameDir)) { Fail "No se eligio una carpeta valida." }
 
-# 2) Registrar el cargador en mkxp.json (con copia de seguridad del original)
-$bak = "$json.access.bak"
-if (-not (Test-Path $bak)) { Copy-Item $json $bak -Force }
-$content = Get-Content $json -Raw
-if ($content -match [regex]::Escape($marker)) {
-    Write-Host "[OK] El cargador ya estaba registrado en mkxp.json." -ForegroundColor Green
-}
-elseif ($content -match '(?m)^\s*"preloadScript"\s*:\s*\[') {
-    $content = $content -replace '("preloadScript"\s*:\s*\[)', "`$1`"$marker`", "
-    [System.IO.File]::WriteAllText($json, $content, (New-Object System.Text.UTF8Encoding($false)))
-    Write-Host "[OK] Cargador anadido al preloadScript existente." -ForegroundColor Green
-}
-else {
-    $block = @"
+    # compatibilidad: el mod se carga via preloadScript de mkxp-z. El ejecutable se escanea SIEMPRE, tenga o no
+    # el juego un mkxp.json: la ausencia del archivo no dice nada sobre el motor (es opcional para mkxp-z), y
+    # atarla al escaneo hacia que un juego sin config quedase marcado como incompatible sin haberlo mirado.
+    # Con -Check solo informa; en una instalacion normal, si no se detecta soporte se puede forzar.
+    $compat = Test-Mkxp $GameDir
+    $engine = if ($compat.Mkxp) { "mkxp-z" } else { "desconocido" }
+
+    # Ejecutable principal (criterio compartido con el launcher, decidido 2026-08-01): el que CONTIENE
+    # la cadena "preloadScript", porque ese es el binario de mkxp-z que carga el mod y no siempre se
+    # llama Game.exe; si ninguno la trae, Game.exe; y si tampoco existe, el .exe mas grande.
+    $mainexe = if ($compat.Exe) { Join-Path $GameDir $compat.Exe }
+               elseif (Test-Path -LiteralPath (Join-Path $GameDir "Game.exe")) { Join-Path $GameDir "Game.exe" }
+               else { (Get-ChildItem -LiteralPath $GameDir -Filter *.exe -File -ErrorAction SilentlyContinue | Sort-Object Length -Descending | Select-Object -First 1).FullName }
+    $json    = Join-Path $GameDir "mkxp.json"
+    $hasJson = Test-Path -LiteralPath $json
+    if (-not $mainexe) { Fail "No hay ningun .exe en esa carpeta. Elige la carpeta del juego." }
+
+    # The game's declared title: mkxp.json "title" first, then Game.ini Title= -- the signal a player never
+    # renames, unlike the folder. Cada uno con SU codificacion, no la misma: mkxp.json es UTF-8 (el instalador
+    # lo reescribe como UTF-8 al registrar el cargador, y leerlo como ANSI dejaria los acentos hechos mojibake
+    # al persistirlo), pero los Game.ini reales de fangames viejos suelen ser ANSI, asi que se decodifica
+    # probando UTF-8 ESTRICTO y cayendo a cp1252. Es el mismo par de intentos que hace el launcher: si uno de
+    # los dos leyera "Pokemon Opalo" con los acentos rotos, los dos instaladores elegirian perfiles distintos
+    # para el mismo juego, que es justo la deriva que el catalogo compartido existe para evitar.
+    function Get-GameTitle($dir) {
+        $mj = Join-Path $dir "mkxp.json"
+        if (Test-Path -LiteralPath $mj) {
+            try {
+                $raw = Get-Content -LiteralPath $mj -Raw -Encoding UTF8 -ErrorAction Stop
+                if ($raw -match '"title"\s*:\s*"([^"]+)"') { $t = $Matches[1].Trim(); if ($t) { return $t } }
+            } catch {}
+        }
+        $ini = Join-Path $dir "Game.ini"
+        if (Test-Path -LiteralPath $ini) {
+            try {
+                $bytes = [IO.File]::ReadAllBytes($ini)
+                $text = $null
+                try { $text = (New-Object System.Text.UTF8Encoding($false, $true)).GetString($bytes) }
+                catch { $text = [System.Text.Encoding]::GetEncoding(1252).GetString($bytes) }
+                $line = ($text -split "`r?`n" | Where-Object { $_.Trim() -like "Title=*" } | Select-Object -First 1)
+                if ($line) { $t = $line.Trim().Substring(6).Trim(); if ($t) { return $t } }
+            } catch {}
+        }
+        return $null
+    }
+
+    # Which profile this folder would get, for the compatibility report: knowing it up front is what makes a
+    # user's problem report actionable ("detecta Opalo" vs "no detecta nada"). LAYERED detection, mirroring
+    # the launcher (order decided 2026-08-01): 1) declared titles against the game's own title (longest
+    # declared match wins), 2) detect regex over folder+exe (LONGEST match wins, not first -- kills the
+    # list-order dependency), 3) a distinctive exe name (Game.exe never identifies), 4) nothing -> ask.
+    function Detected-Profile($dir, $exe) {
+        $cat = @()
+        $f = Join-Path $root "games\catalog.json"
+        if (Test-Path -LiteralPath $f) { try { $cat = @((Get-Content -LiteralPath $f -Raw -Encoding UTF8 | ConvertFrom-Json).profiles) } catch { $cat = @() } }
+        if (-not $cat) { return $null }
+
+        $title = Get-GameTitle $dir
+        if ($title) {
+            $tl = $title.ToLower()
+            $best = $null; $bestLen = -1
+            foreach ($p in $cat) {
+                foreach ($cand in @($p.titles)) {
+                    if ($cand -and $tl.Contains($cand.ToLower()) -and $cand.Length -gt $bestLen) {
+                        $best = $p; $bestLen = $cand.Length
+                    }
+                }
+            }
+            if ($best) { return $best }
+        }
+
+        $hay = ("$dir " + $(if ($exe) { Split-Path $exe -Leaf } else { "" })).ToLower()
+        $best = $null; $bestLen = -1
+        foreach ($p in $cat) {
+            if ($p.detect -and $hay -match $p.detect -and $Matches[0].Length -gt $bestLen) {
+                $best = $p; $bestLen = $Matches[0].Length
+            }
+        }
+        if ($best) { return $best }
+
+        if ($exe) {
+            $en = (Split-Path $exe -Leaf).ToLower()
+            foreach ($p in $cat) {
+                foreach ($x in @($p.exes)) {
+                    if ($x -and $x.ToLower() -eq $en) { return $p }
+                }
+            }
+        }
+        return $null
+    }
+
+    if ($Check) {
+        $det = Detected-Profile $GameDir $mainexe
+        Write-Host "`n=== Comprobacion de compatibilidad ===" -ForegroundColor Cyan
+        Write-Host ("  Carpeta: " + $GameDir)
+        Write-Host ("  mkxp.json: " + $(if ($hasJson) { "SI" } else { "NO (se creara al instalar)" }))
+        Write-Host ("  Motor: " + $engine)
+        Write-Host ("  preloadScript: " + $(if ($compat.Preload) { "SI (en $($compat.Exe))" } else { "NO detectado" }))
+        Write-Host ("  Perfil detectado: " + $(if ($det) { "$($det.display)  [$($det.key)]" } else { "ninguno (se elige a mano)" }))
+        if ($compat.Preload) {
+            Write-Host "`n[COMPATIBLE] Este fangame acepta el cargador. Instala con 'Instalar mod'." -ForegroundColor Green
+        } elseif (-not $hasJson) {
+            Write-Host "`n[NO COMPATIBLE] Ni mkxp.json ni 'preloadScript' en el ejecutable: no usa mkxp-z." -ForegroundColor Red
+        } else {
+            Write-Host "`n[DUDOSO] No veo 'preloadScript' en el ejecutable; este build podria tenerlo desactivado." -ForegroundColor Yellow
+            Write-Host "Puedes intentarlo igualmente: 'Instalar mod' y responde si al aviso de forzar."
+        }
+        Pause-Exit; exit 0
+    }
+
+    # A game can be a perfectly good mkxp-z build and still ship no mkxp.json (Infinite Fusion does): the config
+    # file is optional for the engine, but the mod needs it because preloadScript is declared there. So the
+    # absence of the file only blocks when the executable ALSO lacks preloadScript support -- otherwise the file
+    # is created with just the loader in it, which is what the register step below would have added anyway.
+    if (-not $hasJson) {
+        if (-not $compat.Preload) {
+            Fail "Ni mkxp.json ni soporte de 'preloadScript' en el ejecutable: este juego no usa mkxp-z."
+        }
+        # No accents here on purpose: mkxp-z has a known bug parsing non-ASCII in this file.
+        [System.IO.File]::WriteAllText($json, "{}", $utf8)
+        Write-Host "[OK] Creado mkxp.json (el juego no traia; su ejecutable si acepta preloadScript)." -ForegroundColor Green
+    }
+    if (-not $compat.Preload -and -not $Force) {
+        Write-Host "`n[AVISO] No detecto soporte de 'preloadScript' en el ejecutable de este juego." -ForegroundColor Yellow
+        Write-Host "El mod se carga por esa via; sin ella podria no funcionar. Puedes forzar y probarlo en el juego."
+        $ans = (Read-Host "Forzar instalacion de todos modos? (s/N)").Trim().ToLower()
+        if ($ans -ne "s" -and $ans -ne "si") { Fail "Instalacion cancelada. Usa 'Comprobar compatibilidad' para revisar el juego." }
+        Write-Host "[!] Forzando instalacion: compatibilidad no garantizada." -ForegroundColor Yellow
+    } else {
+        Write-Host ("[OK] Compatibilidad: el juego acepta preloadScript (motor $engine).") -ForegroundColor Green
+    }
+
+    # refuse to (re)install while the game is open: its dlls would be locked and the wipe could
+    # leave a half-installed folder.
+    $exeName = [IO.Path]::GetFileNameWithoutExtension($mainexe)
+    $running = @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $mainexe })
+    if ($running.Count -gt 0) { Fail "El juego esta abierto. Cierralo del todo y vuelve a ejecutar el instalador." }
+
+    # 2) que perfil de juego instalar: autodetecta por nombre, si no pregunta con un menu.
+    $available = @(Get-ChildItem -LiteralPath (Join-Path $root "games") -Directory | Select-Object -ExpandProperty Name)
+    # El catalogo (games\catalog.json) es la fuente unica de perfiles: patron de autodeteccion + nombre
+    # hablado, compartido con el actualizador. Si falta, se cae a la lista de carpetas sin nombres bonitos.
+    $catalog = @()
+    $catFile = Join-Path $root "games\catalog.json"
+    if (Test-Path -LiteralPath $catFile) {
+        try { $catalog = @((Get-Content -LiteralPath $catFile -Raw -Encoding UTF8 | ConvertFrom-Json).profiles) } catch { $catalog = @() }
+    }
+    function Display-Name($key) {
+        $e = $catalog | Where-Object { $_.key -eq $key } | Select-Object -First 1
+        if ($e -and $e.display) { $e.display } else { $key }
+    }
+    # Autodeteccion por capas (titulo declarado -> regex mas largo -> exe distintivo), la MISMA ruta que
+    # 'Comprobar compatibilidad', para que comprobar e instalar nunca diverjan. Best-effort: si ninguna capa
+    # identifica el juego (carpeta renombrada y sin titulo), se elige el perfil a mano abajo.
+    if (-not $Game) {
+        $det = Detected-Profile $GameDir $mainexe
+        if ($det) { $Game = $det.key }
+    }
+    # Fallback manual: elegir el perfil de la lista (con su nombre hablado). Cubre carpetas no detectadas y
+    # el caso de forzar a mano un perfil distinto (p. ej. usar el generico en una version del juego no soportada).
+    if (-not $Game -or -not ($available -contains $Game)) {
+        Write-Host "`nQue juego es? Escribe el numero y pulsa Enter:"
+        for ($i = 0; $i -lt $available.Count; $i++) {
+            Write-Host ("  {0}) {1}" -f ($i + 1), (Display-Name $available[$i]))
+        }
+        $idx = 0; [void][int]::TryParse((Read-Host "Numero"), [ref]$idx)
+        if ($idx -lt 1 -or $idx -gt $available.Count) { Fail "Opcion no valida." }
+        $Game = $available[$idx - 1]
+    }
+    $gaming = Join-Path $root "games\$Game"
+    if (-not (Test-Path -LiteralPath $gaming)) { Fail "No existe el perfil de juego '$Game' en el toolkit." }
+    Write-Host "[OK] Juego detectado: $Game" -ForegroundColor Green
+
+    # 1) Ensamblar accessibility\ (core + game + loader + assets)
+    # Al actualizar (reinstalar encima) se conservan los datos del usuario: su configuracion
+    # y sus etiquetas de objetos, que no son parte del mod y se perderian al recopiar.
+    $dst = Join-Path $GameDir "accessibility"
+    $dataDir = Join-Path $dst "data"
+    $preserve = @("settings.ini", "tags.txt", "tags_export.txt", "tags_import.txt")
+    if (Test-Path -LiteralPath $dst) {
+        $tmpSave = Join-Path ([IO.Path]::GetTempPath()) ("pokeaccess_" + [guid]::NewGuid().ToString("N"))
+        New-Item -ItemType Directory -Force $tmpSave | Out-Null
+        foreach ($f in $preserve) {
+            # new layout keeps these in data\; also check the old flat root for upgrades.
+            $old = @((Join-Path $dataDir $f), (Join-Path $dst $f)) | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+            if ($old) { Copy-Item -LiteralPath $old -Destination (Join-Path $tmpSave $f) -Force }
+        }
+        Remove-Item -LiteralPath $dst -Recurse -Force
+    }
+    foreach ($sub in @("core", "game", "plugins", "sounds", "lib", "data", "lang")) {
+        New-Item -ItemType Directory -Force (Join-Path $dst $sub) | Out-Null
+    }
+    Copy-Item (Join-Path $core "*")   -Destination (Join-Path $dst "core") -Recurse -Force
+    Copy-Item (Join-Path $gaming "*") -Destination (Join-Path $dst "game") -Recurse -Force
+    # Los lectores de plugins de terceros: se copia la carpeta ENTERA y el manifiesto del perfil decide
+    # cuales se cargan. Que el instalador resolviera esa lista pondria la misma logica en dos instaladores
+    # y volveria por perfil la contabilidad de la desinstalacion, para ahorrar unos KB de Ruby sin evaluar.
+    $plug = Join-Path $root "plugins"
+    if (Test-Path -LiteralPath $plug) { Copy-Item (Join-Path $plug "*") -Destination (Join-Path $dst "plugins") -Recurse -Force }
+    $lang = Join-Path $root "lang"
+    if (Test-Path -LiteralPath $lang) { Copy-Item (Join-Path $lang "*") -Destination (Join-Path $dst "lang") -Force }
+    Copy-Item -LiteralPath (Join-Path $loader "boot.rb")           -Destination $dst -Force
+    Copy-Item -LiteralPath (Join-Path $loader "preload_access.rb") -Destination $dst -Force
+
+    # detect the game's architecture from its executable and copy the matching voice dlls.
+    $arch = "x86"
+    try {
+        $fs = [IO.File]::OpenRead($mainexe); $br = New-Object IO.BinaryReader($fs)
+        $fs.Seek(0x3C, 0) | Out-Null; $pe = $br.ReadInt32(); $fs.Seek($pe + 4, 0) | Out-Null
+        $m = $br.ReadUInt16(); $fs.Close()
+        if ($m -eq 0x8664) { $arch = "x64" }
+    } catch {}
+    # sounds and libraries each go to their own subfolder (the mod reads them from there). Recurse so the
+    # per-rate subfolder (sounds\48000) and its contents are copied, not just the top-level 44100 files.
+    Copy-Item (Join-Path $assets "sounds\*")  -Destination (Join-Path $dst "sounds") -Recurse -Force
+    Copy-Item (Join-Path $assets "$arch\*")   -Destination (Join-Path $dst "lib") -Force
+    Write-Host "[OK] Mod '$Game' copiado a $dst (voz $arch)" -ForegroundColor Green
+
+    # restaura los datos del usuario conservados (config y etiquetas) en data\ tras actualizar.
+    if ($tmpSave) {
+        $restored = 0
+        foreach ($f in $preserve) {
+            $sv = Join-Path $tmpSave $f
+            if (Test-Path -LiteralPath $sv) { Copy-Item -LiteralPath $sv -Destination (Join-Path $dataDir $f) -Force; $restored++ }
+        }
+        Remove-Item -LiteralPath $tmpSave -Recurse -Force
+        $tmpSave = $null
+        if ($restored -gt 0) { Write-Host "[OK] Conservada tu configuracion y etiquetas ($restored archivos)." -ForegroundColor Green }
+    }
+
+    # 1b) Sellar installed.json en data\: que version del mod y que perfil quedo instalado, mas el hash
+    # de cada archivo desplegado. El actualizador (launcher) lo compara con el repo para bajar SOLO lo
+    # que cambio y para recordar si se instalo el perfil especifico o el generico (p. ej. un juego cuya
+    # version difiere de la soportada va mejor con el generico).
+    $modVersion = "0.0.0"
+    $verFile = Join-Path $root "version.json"
+    if (Test-Path -LiteralPath $verFile) {
+        try { $modVersion = (Get-Content -LiteralPath $verFile -Raw -Encoding UTF8 | ConvertFrom-Json).version } catch {}
+    }
+    $profileMode = if ($Game -eq "generic") { "generic" } else { "specific" }
+    $dataPrefix = $dataDir + "\"
+    $hashes = @{}
+    Get-ChildItem -LiteralPath $dst -Recurse -File | Where-Object {
+        # los datos del usuario (data\) no forman parte del mod; no se versionan ni se comparan.
+        # Comparacion literal, no -like: un corchete en la ruta del juego romperia el patron.
+        -not $_.FullName.StartsWith($dataPrefix, [StringComparison]::OrdinalIgnoreCase)
+    } | ForEach-Object {
+        $rel = $_.FullName.Substring($dst.Length + 1) -replace "\\", "/"
+        $hashes[$rel] = Get-GitBlobSha1 $_.FullName
+    }
+    $installed = [ordered]@{
+        mod_version  = $modVersion
+        profile      = $Game
+        profile_mode = $profileMode
+        voice_arch   = $arch
+        installed_at = (Get-Date).ToString("o")
+        files        = $hashes
+    }
+    New-Item -ItemType Directory -Force $dataDir | Out-Null
+    [System.IO.File]::WriteAllText((Join-Path $dataDir "installed.json"), ($installed | ConvertTo-Json -Depth 5), $utf8)
+    Write-Host "[OK] Sellado installed.json (mod $modVersion, perfil $Game, $($hashes.Count) archivos)" -ForegroundColor Green
+
+    # 2) Registrar el cargador en mkxp.json (con copia de seguridad del original)
+    $bak = "$json.access.bak"
+    if (-not (Test-Path -LiteralPath $bak)) { Copy-Item -LiteralPath $json -Destination $bak -Force }
+    $parts = [regex]::Split((Get-Content -LiteralPath $json -Raw -Encoding UTF8), '(\r?\n)')
+    if ((Find-LiveLine $parts ([regex]::Escape($marker))) -ge 0) {
+        Write-Host "[OK] El cargador ya estaba registrado en mkxp.json." -ForegroundColor Green
+    }
+    else {
+        # sin ancla de principio de linea: hay mkxp.json escritos en UNA sola linea, y no verlos
+        # llevaba a meter una SEGUNDA clave "preloadScript" que el motor ignora.
+        $i = Find-LiveLine $parts '"preloadScript"\s*:\s*\['
+        if ($i -ge 0) {
+            $parts[$i] = ([regex]'("preloadScript"\s*:\s*\[)').Replace($parts[$i], "`$1`"$marker`", ", 1)
+            [System.IO.File]::WriteAllText($json, ($parts -join ""), $utf8)
+            Write-Host "[OK] Cargador anadido al preloadScript existente." -ForegroundColor Green
+        }
+        else {
+            $block = @"
 {
     // === MOD DE ACCESIBILIDAD (anadido por el instalador) ===
     "preloadScript": ["$marker"],
 "@
-    # insert right after the FIRST opening brace (the JSON root), which may sit below a block
-    # of // comments (e.g. Anil's mkxp.json); anchoring to ^ would miss it then.
-    $content = ([regex]'\{').Replace($content, $block, 1)
-    [System.IO.File]::WriteAllText($json, $content, (New-Object System.Text.UTF8Encoding($false)))
-    Write-Host "[OK] preloadScript creado en mkxp.json." -ForegroundColor Green
-}
+            # insert right after the FIRST opening brace (the JSON root), which may sit below a block
+            # of // comments (e.g. Anil's mkxp.json); anchoring to ^ would miss it then.
+            $i = Find-LiveLine $parts '\{'
+            if ($i -lt 0) { Fail "mkxp.json no parece un JSON valido: no encuentro la llave de apertura." }
+            $parts[$i] = ([regex]'\{').Replace($parts[$i], $block, 1)
+            [System.IO.File]::WriteAllText($json, ($parts -join ""), $utf8)
+            Write-Host "[OK] preloadScript creado en mkxp.json." -ForegroundColor Green
+        }
+        # releer y comprobar de verdad: si el cargador no acabo en una linea viva, el juego arrancaria
+        # sin mod y el instalador habria cantado un [OK] falso.
+        $written = [regex]::Split((Get-Content -LiteralPath $json -Raw -Encoding UTF8), '(\r?\n)')
+        if ((Find-LiveLine $written ([regex]::Escape($marker))) -lt 0) {
+            Fail "No he podido registrar el cargador en mkxp.json. Tienes el original en '$bak': copialo encima de mkxp.json y avisa del fallo."
+        }
+    }
 
-Write-Host "`nInstalacion completada. Abre el juego con un lector de pantalla activo (NVDA)." -ForegroundColor Cyan
-Write-Host "Para desinstalar usa 'Desinstalar mod.bat'."
-Pause-Exit
+    Write-Host "`nInstalacion completada. Abre el juego con un lector de pantalla activo (NVDA)." -ForegroundColor Cyan
+    Write-Host "Para desinstalar usa 'Desinstalar mod.bat'."
+    Pause-Exit
+}
+catch {
+    $err  = $_.Exception.Message
+    $line = $_.InvocationInfo.ScriptLineNumber
+    # Si el fallo cae despues del borrado de accessibility\, la configuracion y las etiquetas del
+    # jugador estan en %TEMP%: se devuelven a su sitio si aun existe, y si no se dice donde quedaron.
+    if ($tmpSave -and (Test-Path -LiteralPath $tmpSave)) {
+        $kept = @(Get-ChildItem -LiteralPath $tmpSave -File -ErrorAction SilentlyContinue)
+        if ($kept.Count -gt 0) {
+            $back = $false
+            if ($dataDir -and (Test-Path -LiteralPath $dataDir)) {
+                try {
+                    foreach ($k in $kept) { Copy-Item -LiteralPath $k.FullName -Destination (Join-Path $dataDir $k.Name) -Force }
+                    Remove-Item -LiteralPath $tmpSave -Recurse -Force
+                    $back = $true
+                } catch {}
+            }
+            if ($back) {
+                Write-Host "`n[!] Tu configuracion y tus etiquetas se han devuelto a $dataDir." -ForegroundColor Yellow
+            } else {
+                Write-Host "`n[!] Tu configuracion y tus etiquetas NO se han perdido, estan guardadas en:" -ForegroundColor Yellow
+                Write-Host "    $tmpSave"
+                Write-Host "    Copia esos archivos a accessibility\data del juego cuando la instalacion funcione."
+            }
+        }
+    }
+    Fail "$err (linea $line)"
+}

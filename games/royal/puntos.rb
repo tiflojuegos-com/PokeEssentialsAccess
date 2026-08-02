@@ -24,9 +24,8 @@ PokeAccess::Game.define("royal") do
   # Left/right value edits keep the index, so the generic reader (which dedups by index) never re-fires for
   # them; read here when the window flags value_changed (true only on the edited frame, so no spam).
   after("Window_PokemonOption_Sky", :update) do |win, _r, _a|
-    if (win.value_changed rescue false)
-      t = PokeAccess::RoyalPoints.line(win, (win.index rescue nil))
-      PokeAccess.speak(t, true) if t && !t.to_s.empty?
-    end
+    next unless (win.value_changed rescue false)
+    t = PokeAccess::RoyalPoints.line(win, (win.index rescue nil))
+    PokeAccess.speak(t, true) if t && !t.to_s.empty?
   end
 end

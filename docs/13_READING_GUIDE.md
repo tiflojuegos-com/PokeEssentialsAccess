@@ -1,447 +1,94 @@
-# Guía de Lectura - Mapa Personalizado
-
-Esta guía te ayuda a encontrar exactamente qué leer según tu objetivo.
+# Guía de lectura
 
-## 🎯 ¿Cuál es tu rol?
+Qué leer según lo que quieras hacer. Si buscas algo concreto (un módulo, un método, un término), ve al [12_INDEX](12_INDEX.md).
 
-### 👤 Yo soy: **Usuario que juega con PokeEssentialsAccess**
+## Según tu papel
 
-**Objetivo**: Usar PokeEssentialsAccess correctamente, entender opciones de accesibilidad
+### Juego con el mod
 
-**Ruta de Lectura**:
-```
-1. [Introducción](01_INTRODUCTION.md)          [5 min]
-   └─ ¿Qué es PokeAccess?
-   
-2. [Menú de Configuración](16_CONFIG_MENU.md)  [10 min]
-   └─ Explicación de cada opción
-   
-3. [API Reference](10_API_REFERENCE.md)       [5 min]
-   └─ Comandos rápidos de teclado
-```
+Lo tuyo está fuera de `docs/`: el [README](../README.md) tiene la instalación, los juegos soportados y las teclas. Luego, [16_CONFIG_MENU](16_CONFIG_MENU.md) explica cada opción del menú del mod (tecla `O`), incluido el glosario de sonidos.
 
-**Tiempo total**: 20 minutos
+### Hago un fangame y quiero que sea accesible
 
----
+1. [01_INTRODUCTION](01_INTRODUCTION.md) — qué hace el mod y sobre qué se apoya.
+2. [02_ARCHITECTURE](02_ARCHITECTURE.md) — dónde encaja lo tuyo.
+3. [08_RUBY_FUNDAMENTALS](08_RUBY_FUNDAMENTALS.md) §1 — si tu juego es gen-6, esto no es opcional.
+4. [14_EXTENDING](14_EXTENDING.md) — crear `games/<tujuego>/` y escribir lectores.
+5. [15_SPEECH_AND_I18N](15_SPEECH_AND_I18N.md) — hablar y traducir bien.
 
-### 🛠️ Yo soy: **Desarrollador de Juego que usa PokeEssentialsAccess**
+### Quiero contribuir al mod
 
-**Objetivo**: Integrar PokeEssentialsAccess en tu juego, personalizarlo
+**Primero:**
 
-**Ruta de Lectura**:
-```
-1. [Introducción](01_INTRODUCTION.md)              [10 min]
-   └─ Contexto general
-   
-2. [Arquitectura](02_ARCHITECTURE.md) - Capas    [20 min]
-   └─ Ver dónde va tu personalización
-   
-3. [Engine Detection](03_ENGINE_DETECTION.md)     [15 min]
-   └─ Entender qué versión de Essentials
-   
-4. [Extender](14_EXTENDING.md)                    [20 min]
-   └─ Cómo crear games/<tuJuego>/ con Game.define
-   
-5. [API Reference](10_API_REFERENCE.md)           [10 min]
-   └─ Qué métodos están disponibles
-```
+1. [01_INTRODUCTION](01_INTRODUCTION.md)
+2. [08_RUBY_FUNDAMENTALS](08_RUBY_FUNDAMENTALS.md) — entero, y con calma la §1
+3. [09_LOADING_SYSTEM](09_LOADING_SYSTEM.md)
+4. [02_ARCHITECTURE](02_ARCHITECTURE.md)
 
-**Tiempo total**: 75 minutos (1.5 horas)
+**Después, según a qué le vayas a meter mano:**
 
----
+5. [03_ENGINE_DETECTION](03_ENGINE_DETECTION.md) y [04_PATCHING_AND_HOOKS](04_PATCHING_AND_HOOKS.md) — para cualquier lector.
+6. [05_DATA_API](05_DATA_API.md) — si tocas datos del juego.
+7. [06_PATHFINDING](06_PATHFINDING.md) y [07_AUDIO3D](07_AUDIO3D.md) — navegación y sonido.
+8. [15_SPEECH_AND_I18N](15_SPEECH_AND_I18N.md) — voz y traducción.
+9. [10_API_REFERENCE](10_API_REFERENCE.md) y [11_DEPENDENCIES_TREE](11_DEPENDENCIES_TREE.md) — como referencia, cuando hagan falta.
 
-### 👨‍💻 Yo soy: **Contributor/Desarrollador de PokeEssentialsAccess**
+## Según la tarea
 
-**Objetivo**: Entender completamente la arquitectura, agregar features, corregir bugs
+### Dar voz a una pantalla que está muda
 
-**Ruta de Lectura COMPLETA**:
+1. [14_EXTENDING](14_EXTENDING.md) §0 y §2 — el flujo completo y el caso más común.
+2. [14_EXTENDING](14_EXTENDING.md) §8 — cómo averiguar qué clase y qué método hay detrás de esa pantalla (`Ctrl`+`Alt`+`F9`).
+3. [15_SPEECH_AND_I18N](15_SPEECH_AND_I18N.md) — decidir entre una clave i18n y un texto del juego.
+4. Si la DSL no basta: [04_PATCHING_AND_HOOKS](04_PATCHING_AND_HOOKS.md).
 
-```
-NIVEL 1: Foundation (1.5 horas)
-─────────────────────────────
-1. [Introducción](01_INTRODUCTION.md)              [10 min]
-   └─ Contexto del proyecto
+### Añadir un perfil de juego nuevo
 
-2. [Ruby Fundamentals](08_RUBY_FUNDAMENTALS.md)   [1 hora]
-   └─ Módulos, bloques, metaprogramming
-   
-3. [Loading System](09_LOADING_SYSTEM.md)         [30 min]
-   └─ Cómo se carga todo
+1. [14_EXTENDING](14_EXTENDING.md) §5.
+2. [03_ENGINE_DETECTION](03_ENGINE_DETECTION.md) — saber en qué era corre.
+3. `games/catalog.json` — declarar cómo se reconoce el juego.
+4. [08_RUBY_FUNDAMENTALS](08_RUBY_FUNDAMENTALS.md) §1 — si es gen-6, el perfil entero es código 1.8.7.
 
-NIVEL 2: Architecture (1.5 horas)
-──────────────────────────────────
-4. [Arquitectura](02_ARCHITECTURE.md)             [1 hora]
-   └─ Capas y estructura
+### Accesibilizar un puzzle
 
-5. [Engine Detection](03_ENGINE_DETECTION.md)     [30 min]
-   └─ Versiones de Essentials
+1. [14_EXTENDING](14_EXTENDING.md) §4.
+2. `core/puzzles/puzzles.rb` y, como ejemplos completos, `games/pokemon_z/puzzles.rb` y `games/opalo/puzzles.rb`.
 
-NIVEL 3: Core Systems (2 horas)
-────────────────────────────────
-6. [Patching & Hooks](04_PATCHING_AND_HOOKS.md)   [1 hora]
-   └─ Sistema de extensión
+### Añadir una opción al menú del mod
 
-7. [Data API](05_DATA_API.md)                      [1 hora]
-   └─ Provider pattern
+1. [16_CONFIG_MENU](16_CONFIG_MENU.md) §2 — una opción es una fila en `Config::SCHEMA`.
+2. Las etiquetas y la ayuda son claves i18n: [15_SPEECH_AND_I18N](15_SPEECH_AND_I18N.md).
 
-NIVEL 4: Navigation & Audio (2.5 horas)
-─────────────────────────────────────────
-8. [Pathfinding](06_PATHFINDING.md)               [1.5 horas]
-   └─ Algoritmos A* y HPA*
+### Soportar una versión de Essentials nueva
 
-9. [Audio3D](07_AUDIO3D.md)                        [1 hora]
-   └─ Steam Audio y HRTF
+1. [03_ENGINE_DETECTION](03_ENGINE_DETECTION.md) — y sobre todo: se activa por capacidad, no por número de versión.
+2. [02_ARCHITECTURE](02_ARCHITECTURE.md) — dónde va una carpeta por era.
+3. [09_LOADING_SYSTEM](09_LOADING_SYSTEM.md) — añadirla al manifest.
+4. Si la carpeta solo la cargan juegos modernos, métela en la lista `MODERN` de `test/check187.py` **y** de `test/check187_real.rb`.
 
-NIVEL 5: Reference (1 hora)
-─────────────────────────────
-10. [API Reference](10_API_REFERENCE.md)          [30 min]
-    └─ Quick lookup
+### Diagnosticar que el mod se ha quedado callado
 
-11. [Dependencies Tree](11_DEPENDENCIES_TREE.md)  [30 min]
-    └─ Cómo todo se conecta
+1. En el juego: `Ctrl`+`Alt`+`F10` (diagnóstico hablado) y `Ctrl`+`Alt`+`F9` (volcado completo).
+2. En `accessibility/data/`: `preload_started.txt`, `loader_error.txt` y `diag.txt`.
+3. [09_LOADING_SYSTEM](09_LOADING_SYSTEM.md) — si falló la carga.
+4. [08_RUBY_FUNDAMENTALS](08_RUBY_FUNDAMENTALS.md) §1 — si el juego es gen-6 y el módulo mudo desapareció entero, sospecha de sintaxis moderna en un archivo dual.
+5. Para reproducirlo con alguien: activa el grabador de sesiones desde el menú del mod y comparte el archivo.
 
-TOTAL: 9.5 horas
-```
+## Según el tiempo que tengas
 
-**Recomendación**: Leer en 2-3 sesiones, experimentar en el código entre sesiones
+- **5 minutos** → [00_QUICK_START](00_QUICK_START.md).
+- **Media hora** → [00_QUICK_START](00_QUICK_START.md) + [01_INTRODUCTION](01_INTRODUCTION.md).
+- **Una tarde** → añade [08_RUBY_FUNDAMENTALS](08_RUBY_FUNDAMENTALS.md), [02_ARCHITECTURE](02_ARCHITECTURE.md) y [14_EXTENDING](14_EXTENDING.md): con eso ya puedes escribir un lector.
+- **Todo** → la ruta de contributor de arriba, en dos o tres sesiones, con el editor abierto al lado.
 
----
+## Comprobaciones antes de mandar un cambio
 
-## 📍 ¿Necesitas entender un SUBSISTEMA específico?
+- `ruby test/run_all.rb` pasa (incluye las comprobaciones de Ruby 1.8.7, los manifests y la paridad de idiomas).
+- Si has añadido texto hablado, está en `lang/es.txt` **y** en `lang/en.txt`.
+- Si has añadido un módulo, está en el `manifest.rb` de su carpeta, en su sitio del orden de dependencias.
+- Si has tocado código dual, no has metido sintaxis de Ruby 1.9+.
 
-### 🗺️ Subsistema: **Navegación por Rutas**
+## Volver
 
-**Documentos necesarios**:
-```
-[Pathfinding](06_PATHFINDING.md)
-  ├─ Algoritmo A*
-  ├─ Detección de ledges
-  ├─ Caching y performance
-  └─ Configuración
-
-[Architecture](02_ARCHITECTURE.md) - Capa 4 (Navigation)
-  └─ Cómo se integra
-
-[API Reference](10_API_REFERENCE.md) - PokeAccess::Pathfinder
-  └─ Métodos disponibles
-
-[Dependencies Tree](11_DEPENDENCIES_TREE.md) - "Sistema de Pathfinding"
-  └─ Qué depende de qué
-```
-
-**Tiempo**: 1.5 horas
-
----
-
-### 🎵 Subsistema: **Audio 3D**
-
-**Documentos necesarios**:
-```
-[Audio3D](07_AUDIO3D.md)
-  ├─ HRTF Binaural
-  ├─ Steam Audio
-  ├─ Emitters y oclusión
-  └─ Integración
-
-[Architecture](02_ARCHITECTURE.md) - Capas Audio
-  └─ Cómo se integra
-
-[API Reference](10_API_REFERENCE.md) - PokeAccess::Audio3D
-  └─ Métodos
-
-[Dependencies Tree](11_DEPENDENCIES_TREE.md) - "Sistema de Audio 3D"
-  └─ Qué usa Audio3D
-```
-
-**Tiempo**: 1.5 horas
-
----
-
-### 🔄 Subsistema: **Versiones de Essentials**
-
-**Documentos necesarios**:
-```
-[Engine Detection](03_ENGINE_DETECTION.md)
-  ├─ Gen-6 vs era GameData
-  ├─ v22 UI rework
-  ├─ Sky fork
-  └─ Árbol de decisión
-
-[Architecture](02_ARCHITECTURE.md)
-  ├─ Capas versión-específicas
-  └─ Patrones para múltiples versiones
-
-[Patching & Hooks](04_PATCHING_AND_HOOKS.md)
-  └─ Cómo cada versión tiene hooks propios
-
-[Data API](05_DATA_API.md)
-  └─ Provider pattern para datos
-
-[Dependencies Tree](11_DEPENDENCIES_TREE.md)
-  └─ gen6/ vs v21/ vs v22/
-```
-
-**Tiempo**: 2 horas
-
----
-
-### 🔊 Subsistema: **Voz e i18n**
-
-**Documentos necesarios**:
-```
-[Voz e i18n](15_SPEECH_AND_I18N.md)
-  ├─ Cómo hablar (core/speech/)
-  ├─ Localización (core/foundation/i18n.rb + lang/*.txt)
-  └─ Escribir lectores que se traduzcan
-
-[API Reference](10_API_REFERENCE.md) - PokeAccess.speak, PokeAccess::I18n
-  └─ Métodos
-```
-
-**Tiempo**: 45 minutos
-
----
-
-### 🎮 Subsistema: **Sistema de Datos**
-
-**Documentos necesarios**:
-```
-[Data API](05_DATA_API.md)
-  ├─ Provider pattern
-  ├─ Gen-6 vs era GameData
-  ├─ Fallback
-  └─ Caching
-
-[Engine Detection](03_ENGINE_DETECTION.md)
-  └─ Cómo elige provider
-
-[API Reference](10_API_REFERENCE.md) - PokeAccess::Data
-  └─ Métodos: species_name(), move_power(), etc.
-
-[Dependencies Tree](11_DEPENDENCIES_TREE.md) - "Sistema de Datos"
-  └─ Qué usa Data
-```
-
-**Tiempo**: 1 hora
-
----
-
-## 🔧 ¿Quieres HACER algo específico?
-
-### 🎯 Tarea: Agregar nueva opción de configuración
-
-**Pasos**:
-1. Lee [Menú de Configuración](16_CONFIG_MENU.md) - Cómo se define una opción
-2. Edita `core/foundation/config.rb` (tabla `SCHEMA`)
-3. Lee [Patching & Hooks](04_PATCHING_AND_HOOKS.md) para entender cómo usarla
-4. Lee [API Reference](10_API_REFERENCE.md) - PokeAccess::Config
-
-**Tiempo**: 30 minutos
-
----
-
-### 🎯 Tarea: Soportar nueva versión de Essentials
-
-**Pasos**:
-1. Lee [Engine Detection](03_ENGINE_DETECTION.md) - Completo
-2. Lee [Architecture](02_ARCHITECTURE.md) - Capas versión-específicas
-3. Agrega nueva carpeta: `core/battle/v23/`
-4. Lee [Patching & Hooks](04_PATCHING_AND_HOOKS.md) - Implementar hooks
-5. Lee [Loading System](09_LOADING_SYSTEM.md) - Agregar a manifest
-6. Lee [Dependencies Tree](11_DEPENDENCIES_TREE.md) - Validar orden
-
-**Tiempo**: 2-3 horas
-
----
-
-### 🎯 Tarea: Crear adaptador para sistema de batalla personalizado
-
-**Pasos**:
-1. Lee [Patching & Hooks](04_PATCHING_AND_HOOKS.md) - Completo
-2. Lee [Engine Detection](03_ENGINE_DETECTION.md) - Detectar tu sistema
-3. Lee `core/battle/battle.rb` - Lógica compartida
-4. Lee `core/battle/v21/battle_v21.rb` - Ejemplo
-5. Crea tu archivo de hooks
-6. Lee [Loading System](09_LOADING_SYSTEM.md) - Agregar a manifest
-
-**Tiempo**: 2 horas
-
----
-
-### 🎯 Tarea: Dar voz a una pantalla nueva (sin tocar el core)
-
-**Pasos**:
-1. Lee [Extender](14_EXTENDING.md) - DSL `PokeAccess::Game.define`
-2. Lee [Voz e i18n](15_SPEECH_AND_I18N.md) - Cómo hablar y localizar
-3. Crea o edita `games/<tuJuego>/` con tus lectores
-
-**Tiempo**: 1 hora
-
----
-
-### 🎯 Tarea: Debuguear error en carga
-
-**Pasos**:
-1. Lee [Loading System](09_LOADING_SYSTEM.md) - Diagnóstico
-2. Revisa `accessibility/data/loader_error.txt`
-3. Lee [Dependencies Tree](11_DEPENDENCIES_TREE.md) - Validar orden
-4. Lee [Ruby Fundamentals](08_RUBY_FUNDAMENTALS.md) - Si no entiendes error
-
-**Tiempo**: 30 minutos
-
----
-
-## ⏱️ Ruta Rápida por Tiempo Disponible
-
-### ⚡ Tengo 30 minutos
-```
-1. [Introducción](01_INTRODUCTION.md)
-2. [API Reference](10_API_REFERENCE.md)
-
-Resultado: Entendimiento básico + referencia rápida
-```
-
-### ⚡ Tengo 1 hora
-```
-1. [Introducción](01_INTRODUCTION.md)
-2. [Engine Detection](03_ENGINE_DETECTION.md)
-3. [API Reference](10_API_REFERENCE.md)
-
-Resultado: Entender versiones + referencia de métodos
-```
-
-### ⚡ Tengo 2 horas
-```
-1. [Introducción](01_INTRODUCTION.md)
-2. [Arquitectura](02_ARCHITECTURE.md)
-3. [Engine Detection](03_ENGINE_DETECTION.md)
-4. [API Reference](10_API_REFERENCE.md)
-
-Resultado: Estructura completa + métodos
-```
-
-### ⚡ Tengo 4 horas
-```
-1. [Introducción](01_INTRODUCTION.md)
-2. [Ruby Fundamentals](08_RUBY_FUNDAMENTALS.md)
-3. [Arquitectura](02_ARCHITECTURE.md)
-4. [Engine Detection](03_ENGINE_DETECTION.md)
-5. [Data API](05_DATA_API.md)
-6. [API Reference](10_API_REFERENCE.md)
-
-Resultado: Arquitectura profunda + subsistemas clave
-```
-
-### ⚡ Tengo 8+ horas
-```
-Lee TODO (ruta de contributor completa arriba)
-Resultado: Experto en PokeAccess
-```
-
----
-
-## 🎓 Plan de Estudio Recomendado
-
-### Semana 1: Fundamentos
-```
-Día 1: Introducción + Ruby (2 horas)
-Día 2: Loading System + Architecture (2 horas)
-Día 3: Engine Detection (1.5 horas)
-Día 4: Descanso / Experimentación
-Día 5: Repaso + API Reference (1 hora)
-
-Total: 6.5 horas
-```
-
-### Semana 2: Sistemas
-```
-Día 1: Patching & Hooks (1 hora)
-Día 2: Data API (1 hora)
-Día 3: Pathfinding (1.5 horas)
-Día 4: Audio3D (1.5 horas)
-Día 5: Dependencies Tree (1 hora)
-
-Total: 6 horas
-```
-
-### Semana 3: Práctica
-```
-Día 1-5: Experimenta en el código
-- Agregar opción de config
-- Crear un hook personalizado
-- Extender para nueva versión
-
-Total: Según progreso
-```
-
----
-
-## ✅ Checklist: ¿Qué has Entendido?
-
-Después de leer esta documentación, deberías poder:
-
-**Después de [Introducción](01_INTRODUCTION.md)**:
-- [ ] Explicar qué es PokeEssentialsAccess
-- [ ] Describir por qué MKXP-Z es importante
-- [ ] Listar los 3 objetivos principales del proyecto
-
-**Después de [Ruby Fundamentals](08_RUBY_FUNDAMENTALS.md)**:
-- [ ] Explicar módulos vs clases
-- [ ] Usar bloques con { |x| ... }
-- [ ] Entender alias_method
-- [ ] Usar instance_variable_get/set
-
-**Después de [Arquitectura](02_ARCHITECTURE.md)**:
-- [ ] Dibujar las 7 capas
-- [ ] Explicar qué hace cada capa
-- [ ] Saber dónde agregar nuevo código
-
-**Después de [Engine Detection](03_ENGINE_DETECTION.md)**:
-- [ ] Saber diferenciar Gen-6 vs era GameData
-- [ ] Explicar cómo Engine.kind se detecta
-- [ ] Saber cuándo se usan hooks de gen6 vs v21
-
-**Después de [Data API](05_DATA_API.md)**:
-- [ ] Explicar provider pattern
-- [ ] Saber cómo obtener nombre de Pokémon
-- [ ] Entender prioridades de providers
-
-**Después de [Pathfinding](06_PATHFINDING.md)**:
-- [ ] Explicar A* en 3 frases
-- [ ] Saber por qué hay caché
-- [ ] Entender detección de ledges
-
-**Después de [Audio3D](07_AUDIO3D.md)**:
-- [ ] Explicar HRTF Binaural
-- [ ] Saber qué es un emitter
-- [ ] Entender oclusión
-
-**Después de [Loading System](09_LOADING_SYSTEM.md)**:
-- [ ] Explicar diferencia preload vs boot
-- [ ] Saber dónde van los módulos
-- [ ] Entender por qué el orden importa
-
----
-
-## 📞 Preguntas Frecuentes de Lectura
-
-**P: Tengo que leer TODO?**
-R: No. Depende de tu rol (arriba hay rutas personalizadas)
-
-**P: ¿Está incompleta la documentación?**
-R: No. Extender el mod está en [Extender](14_EXTENDING.md), las opciones en
-[Menú de Configuración](16_CONFIG_MENU.md) y la voz/localización en
-[Voz e i18n](15_SPEECH_AND_I18N.md).
-
-**P: ¿En qué orden leo si no sé Ruby?**
-R: 1. Ruby Fundamentals 2. Introducción 3. Lo demás
-
-**P: ¿Es necesario entender Steam Audio para contribuir?**
-R: No, solo si trabajas en audio 3D. Para batalla/menús, no necesitas.
-
-**P: ¿Debo tener VS Code abierto mientras leo?**
-R: Recomendado. Te ayuda a ver ejemplos reales mientras estudias.
-
----
-
-Volver a [Índice](12_INDEX.md)
+- [_index](_index.md) — el catálogo de la documentación.
+- [12_INDEX](12_INDEX.md) — búsqueda por tema, módulo o término.

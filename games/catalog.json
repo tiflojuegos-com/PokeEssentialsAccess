@@ -1,18 +1,146 @@
 {
-  "_comment": "Catalogo de perfiles de juego. Fuente unica para el instalador y el actualizador (launcher). key = carpeta en games/. display = nombre hablado. detect = patron (regex, ci) sobre 'carpeta + exe' para autodeteccion; null = no autodetectable (elegir a mano). engine = gen6 (Ruby 1.8.7) o gamedata (Ruby 3.x, GameData). generic = perfil de reserva para cualquier juego mkxp-z compatible.",
+  "_comment": "Catalogo de perfiles. Fuente unica para install.ps1 y el launcher. key = carpeta en games/. display = nombre hablado. Deteccion POR CAPAS (orden decidido 2026-08-01): 1) titles contra el title de mkxp.json o el Title= de Game.ini (gana el match mas largo; es lo que el jugador no renombra), 2) detect (regex ci sobre carpeta+exe; gana el MATCH mas largo, no el primero), 3) exes (nombre exacto de exe distintivo; Game.exe generico no identifica), 4) nada -> preguntar. El orden de la lista se conserva por compatibilidad con launchers antiguos (first-match); los campos nuevos son aditivos.",
   "profiles": [
-    { "key": "pokemon_z",     "display": "Pokemon Z",              "detect": "pokemon ?z\\b",               "engine": "gen6" },
-    { "key": "opalo",         "display": "Pokemon Ópalo",          "detect": "opalo|ópalo",                 "engine": "gen6" },
-    { "key": "reminiscencia", "display": "Pokemon Reminiscencia",  "detect": "reminisc",                    "engine": "gen6" },
-    { "key": "armonia",       "display": "Pokemon Armonia",        "detect": "armon",                       "engine": "gen6" },
-    { "key": "realidea",      "display": "Pokemon Realidea",       "detect": "realidea",                    "engine": "gen6" },
-    { "key": "africanus",     "display": "Pokemon Africanus",      "detect": "african",                     "engine": "gen6" },
-    { "key": "awakening",     "display": "Pokemon Awakening",      "detect": "awakening",                   "engine": "gen6" },
-    { "key": "anil",          "display": "Pokemon Añil",           "detect": "añil|anil",                   "engine": "gamedata" },
-    { "key": "royal",         "display": "Pokemon Royal",          "detect": "royal",                       "engine": "gamedata" },
-    { "key": "relict",        "display": "Pokemon Relict",         "detect": "relict",                      "engine": "gamedata" },
-    { "key": "infinitefusion_hoenn", "display": "Pokemon Infinite Fusion 2 Hoenn", "detect": "infinite ?fusion ?2|infinitefusion2|fusion.*hoenn", "engine": "gamedata" },
-    { "key": "infinitefusion",       "display": "Pokemon Infinite Fusion",         "detect": "infinite ?fusion",                                  "engine": "gamedata" },
-    { "key": "generic",       "display": "Perfil generico",        "detect": null,                          "engine": "any" }
+    {
+      "key": "pokemon_z",
+      "display": "Pokemon Z",
+      "titles": [
+        "pokemon z"
+      ],
+      "detect": "pokemon ?z\\b",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "opalo",
+      "display": "Pokemon Ópalo",
+      "titles": [
+        "pokemon opalo",
+        "pokemon ópalo"
+      ],
+      "detect": "opalo|ópalo",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "reminiscencia",
+      "display": "Pokemon Reminiscencia",
+      "titles": [
+        "reminiscencia"
+      ],
+      "detect": "reminisc",
+      "exes": [
+        "Reminiscencia.exe"
+      ],
+      "engine": "gen6"
+    },
+    {
+      "key": "armonia",
+      "display": "Pokemon Armonia",
+      "titles": [
+        "pokemon_armonia",
+        "pokemon armonia"
+      ],
+      "detect": "armon",
+      "exes": [
+        "Armonia_Juego.exe"
+      ],
+      "engine": "gen6"
+    },
+    {
+      "key": "realidea",
+      "display": "Pokemon Realidea",
+      "titles": [
+        "realidea system",
+        "realidea"
+      ],
+      "detect": "realidea",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "africanus",
+      "display": "Pokemon Africanus",
+      "titles": [
+        "pokemon africanvs",
+        "pokemon africanus"
+      ],
+      "detect": "african",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "awakening",
+      "display": "Pokemon Awakening",
+      "titles": [
+        "pokemon awakening"
+      ],
+      "detect": "awakening",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "anil",
+      "display": "Pokemon Añil",
+      "titles": [
+        "pokemon anil",
+        "pokemon añil"
+      ],
+      "detect": "añil|anil",
+      "exes": [],
+      "engine": "gamedata"
+    },
+    {
+      "key": "royal",
+      "display": "Pokemon Royal",
+      "titles": [
+        "pokemon royal"
+      ],
+      "detect": "royal",
+      "exes": [],
+      "engine": "gamedata"
+    },
+    {
+      "key": "relict",
+      "display": "Pokemon Relict",
+      "titles": [
+        "relict"
+      ],
+      "detect": "relict",
+      "exes": [],
+      "engine": "gamedata"
+    },
+    {
+      "key": "infinitefusion_hoenn",
+      "display": "Pokemon Infinite Fusion 2 Hoenn",
+      "titles": [
+        "infinitefusion-hoenn",
+        "infinitefusion hoenn"
+      ],
+      "detect": "infinite ?fusion ?2|infinitefusion2|fusion.*hoenn",
+      "exes": [
+        "InfiniteFusion2.exe"
+      ],
+      "engine": "gamedata"
+    },
+    {
+      "key": "infinitefusion",
+      "display": "Pokemon Infinite Fusion",
+      "titles": [
+        "infinitefusion",
+        "infinite fusion"
+      ],
+      "detect": "infinite ?fusion",
+      "exes": [],
+      "engine": "gamedata"
+    },
+    {
+      "key": "generic",
+      "display": "Perfil generico",
+      "titles": [],
+      "detect": null,
+      "exes": [],
+      "engine": "any"
+    }
   ]
 }

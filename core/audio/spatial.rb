@@ -15,11 +15,44 @@ module PokeAccess
     @surf_here = nil
     @surf_front = nil
     @surf_pos = nil
+    @lens_key = nil
+
+    # Drops everything tied to the map the player just left. Every ivar here is a "already said this" memo,
+    # and each one keyed on coordinates or on a terrain label -- neither of which means anything across a
+    # map change. Its twin Audio3D puts the map id inside its keys instead; this module cannot, because
+    # @surf_here holds a terrain LABEL and not a position, so walking through a door onto water would find
+    # the same label it had on the far side and say nothing. Registered below, like Audio3D's.
+    def self.reset_map_state
+      @radar_key = nil; @radar_pos = nil
+      @surf_here = nil; @surf_front = nil; @surf_pos = nil
+      @lens_key = nil
+      @was_blocked = false
+    rescue StandardError
+      nil
+    end
 
     # Plays a cue file at a 0-100 volume (skips silence), with an optional playback pitch.
     def self.cue(name, volume, pitch = 100)
       return if volume.nil? || volume <= 0
       Audio.se_play("#{DIR}/#{name}", volume, pitch) rescue nil
+    end
+
+    # The named NON-positional earcons: symbol => [file, default pitch]. One vocabulary so a sound keeps a
+    # single meaning across readers -- the 3D/panned cues (walls, guide cane, puzzle tones) already mean
+    # "wall", "npc" or "control" and stay out of this table on purpose: reusing one here would read as the
+    # sonar firing in the middle of a minigame. pa_mg_tick is a short 60 ms percussive blip made to repeat
+    # every frame without smearing when pitch-shifted.
+    EARCONS = {
+      :minigame_tick => ["pa_mg_tick", 100],
+      :radar_blip    => ["pa_guide_c", 150]
+    }
+
+    # Plays a named earcon at a 0-100 volume; pitch overrides the table's default (the minigame tick maps
+    # closeness to pitch at its call sites).
+    def self.earcon(name, volume, pitch = nil)
+      e = EARCONS[name]
+      return unless e
+      cue(e[0], volume, pitch || e[1])
     end
 
     # True while the player is NOT under free control (message, menu, battle, selection/picture screen, a
@@ -92,8 +125,7 @@ module PokeAccess
     # The map event occupying a tile, if any.
     def self.event_at(x, y)
       return nil unless $game_map
-      $game_map.events.each_value { |ev| return ev if ev.x == x && ev.y == y }
-      nil
+      $game_map.events.values.detect { |ev| ev.x == x && ev.y == y }
     end
 
     # Optional proximity radar: a discreet tick when an interactable event lines up directly in front of
@@ -112,7 +144,7 @@ module PokeAccess
       key = hit ? [fx, fy] : nil
       if key && key != @radar_key
         v = PokeAccess::Config.event_volume
-        cue("pa_guide_c", (v * 0.45).to_i, 150) if v && v > 0
+        earcon(:radar_blip, (v * 0.45).to_i) if v && v > 0
       end
       @radar_key = key
     end
@@ -216,3 +248,7 @@ module PokeAccess
     end
   end
 end
+
+# Drop the previous map's "already said this" memos on map change or load (Caches.reset_all), the same way
+# Audio3D does. Without it a terrain label or a cursor coordinate carried across the door.
+PokeAccess::Caches.register(:spatial) { PokeAccess::Spatial.reset_map_state }

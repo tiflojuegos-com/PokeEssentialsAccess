@@ -2,283 +2,89 @@
 
 ## Concepto Fundamental
 
-**Hooking** es el acto de insertar código personalizado en métodos existentes sin modificar los archivos originales. Es como "interceptar" una llamada a método para:
+**Hooking** es insertar código propio en métodos que ya existen, sin modificar los archivos del juego.
+Interceptas la llamada para ejecutar lógica antes, después o en lugar del método original.
 
-1. Ejecutar lógica ANTES (before hook)
-2. Ejecutar lógica DESPUÉS (after hook)
-3. Reemplazar el método completamente (override)
-
-## ¿Por Qué es Crítico?
-
-PokeEssentialsAccess **NO MODIFICA** los archivos de Essentials. En su lugar:
+PokeEssentialsAccess **NO MODIFICA** los scripts de Essentials:
 
 ```
 Essentials original          PokeAccess
-└─ class PokeBattle_Scene    ├─ Define antes_hooks en memoria
-   └─ def pbDisplayMessage   ├─ Ejecuta: PokeAccess.speak()
-      └─ Mostrar ventana     ├─ Llama método original
-                             └─ Actualiza UI
+└─ class PokeBattle_Scene    ├─ registra un middleware en memoria
+   └─ def pbDisplayMessage   ├─ ejecuta PokeAccess.speak_clean(...)
+      └─ mostrar ventana     └─ llama al método original
 ```
 
-**Ventajas**:
-- Juego original intacto
-- Múltiples patches pueden coexistir
-- Fácil remover PokeEssentialsAccess (solo delete carpeta)
-- Funciona con cualquier versión de Essentials
+**Ventajas**: el juego queda intacto, varios enganches conviven sobre el mismo método, desinstalar es
+borrar una carpeta, y el mismo código sirve para versiones distintas de Essentials.
 
-## Sistema de Hooks de PokeEssentialsAccess
+---
 
-**Ubicación**: `core/input/hooks.rb`
+## Los registradores
 
-### Arquitectura
+**Ubicación**: `core/input/hooks.rb`. Todo el módulo es 1.8.7-safe (los juegos gen-6 corren un Ruby
+antiguo). `cname` es siempre un **string** con el nombre de la clase (`"Battle::Scene"`, resuelto
+1.8.7-safe por `PokeAccess.const_at`) y `meth` un **símbolo**.
 
-El motor encadena los hooks de un mismo método como una **cebolla (onion) de middlewares**: cada
-registro envuelve al anterior alrededor del método original, así una función nueva nunca desactiva en
-silencio un hook existente.
+| Registrador | Firma | Yield | Para qué |
+|---|---|---|---|
+| `before_hook` | `(cname, meth, opts = {})` | `(instancia, args)` | Hablar ANTES de que el original bloquee |
+| `after_hook` | `(cname, meth, opts = {})` | `(instancia, resultado, args)` | Leer el estado ya actualizado |
+| `around_hook` | `(cname, meth, opts = {})` | `(instancia, call_next, args)` | Decidir si el original corre, o envolver un bucle |
+| `frame_hook` | `(cname, meth)` | `(instancia, args)` | Driver por-frame (poller) |
+| `read_on_open` | `(cname, meth = :pbStartScene, opts = {})` | `(escena) -> texto` | Resumen hablado al abrir una pantalla |
+| `override` | `(target, meth, opts = {})` | `(receptor, original, args)` | REEMPLAZO declarado de un método |
+| `wrap_global` | `(name, tag, timing = :after)` | `(args, x)` | Función top-level (de `Object`) |
+| `wrap_kernel` | `(name, tag, timing = :before)` | `(args, x)` | Función que puede ser singleton de `Kernel` o top-level |
+| `wrap` | `(cname, meth, opts = {})` | `(instancia, call_next, args)` | El motor: middleware crudo (los demás lo usan) |
+
+**Gate por existencia, siempre.** `wrap` resuelve la clase antes de atar nada:
+
+- **Clase ausente** → no-op silencioso (es variación normal entre juegos).
+- **Método ausente sobre clase presente** → se anota en `Hooks.missing` (casi siempre un typo), salvo
+  con `:optional`.
+- Un método **privado** también se puede enganchar: `wrap` lo detecta y lo vuelve a privatizar tras
+  redefinirlo.
+
+No hace falta reimplementar esa comprobación en cada hook.
+
+### Opciones (`opts`)
+
+| Opción | Vale para | Efecto |
+|---|---|---|
+| `:optional => true` | `wrap`, `before_hook`, `after_hook`, `around_hook`, `read_on_open`, `override` | El método **falta legítimamente** en algunos juegos (una variante del plugin, un fork que lo renombró): el enganche se salta **en silencio** en vez de contar como typo en `Hooks.missing`. Así `missing` conserva su significado exacto: "este método DEBERÍA existir aquí y no está". |
+| `:hook_container => true` | `after_hook` (y `read_on_open`, que lo pasa) | El método es un **contenedor**: un bucle modal o un abridor de escena que **delega el anuncio** en métodos hookeados que él mismo conduce. Su original corre **SIN la guarda de reentrancia**. |
+| `:timing => :before` | `read_on_open` | Habla antes del abridor, para abridores que **bloquean** en su propio bucle. |
+| `:tag => "..."` | `override` | Nombra al dueño del reemplazo en el listado del diagnóstico. |
 
 ```ruby
-module PokeAccess::Hooks
-  @chains = {}   # { "Clase#metodo" => [middleware1, middleware2, ...] }
-  @missing = []  # "Clase#metodo" cuya clase existe pero el método no (típicamente un typo)
-
-  # Núcleo: registra un middleware alrededor de un método y encadena con los demás.
-  def self.wrap(cname, meth, &mw); ...; end
-
-  def self.before_hook(cname, meth, &body)         # yield (instancia, args)
-  def self.after_hook(cname, meth, opts = {}, &body) # yield (instancia, resultado, args); opts[:hook_container]
-  def self.frame_hook(cname, meth, &body)          # yield (instancia, args); driver por-frame (sin guarda)
-  def self.around_hook(cname, meth, &body)         # yield (instancia, call_next, args)
-  def self.wrap_global(name, tag, timing = :after, &body)  # método top-level (Object)
-  def self.wrap_kernel(name, tag, timing = :before, &body) # Kernel.foo O top-level; :before/:after/:around
+# core/battle/skyflyer/dbk_battlerinfo.rb -- solo existe con el Deluxe Battle Kit; en un juego sin DBK
+# la clase Battle::Scene sí existe pero el método no, y eso NO es un typo.
+PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBattlerInfo, :optional => true) do |scene, _ret, args|
+  # ...
 end
 ```
 
-Todos los métodos son 1.8.7-safe (los juegos gen-6 corren un Ruby antiguo).
+---
 
-### Uso Básico
+## Uso básico
 
-#### Before Hook (Interceptar Entrada)
-
-```ruby
-# Cuando PokeBattle_Scene.pbDisplayMessage se llama:
-# 1. Ejecuta nuestro código
-# 2. Luego ejecuta el método original
-
-PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbDisplayMessage) do |scene, args|
-  # scene = instancia de PokeBattle_Scene
-  # args = argumentos pasados a pbDisplayMessage ([mensaje])
-  
-  # Hablar el mensaje ANTES de mostrarlo gráficamente
-  PokeAccess.speak(args[0], false)
-end
-```
-
-#### After Hook (Reaccionar a Resultado)
+### `before_hook` — hablar antes de que el original bloquee
 
 ```ruby
-# Cuando FightMenuDisplay.setIndex se llama:
-# 1. Se ejecuta el método original
-# 2. Ejecuta nuestro código
-
-PokeAccess::Hooks.after_hook("FightMenuDisplay", :setIndex) do |disp, result, args|
-  # disp = instancia de FightMenuDisplay
-  # result = lo que devolvió setIndex
-  # args = argumentos originales
-  
-  # Leer el movimiento que ahora está seleccionado
-  move = disp.instance_variable_get(:@battler).moves[disp.index]
-  PokeAccess.speak(move.name)
-end
-```
-
-## Implementación Interna
-
-### Ruby Method Aliasing
-
-La técnica base es **alias_method**: se guarda el método original bajo un alias y se redefine el
-método con `define_method`, llamando al alias por dentro.
-
-```ruby
-class MiClase
-  def metodo_original
-    "resultado"
-  end
-end
-
-# Guardar el original bajo un alias
-MiClase.send(:alias_method, :metodo_original__orig, :metodo_original)
-
-# Redefinir llamando al alias
-MiClase.send(:define_method, :metodo_original) do |*args, &blk|
-  puts "ANTES"
-  result = send(:metodo_original__orig, *args, &blk)
-  puts "DESPUÉS: #{result}"
-  result
-end
-```
-
-### Cómo lo Implementa PokeEssentialsAccess
-
-`wrap` no redefine de cero cada vez: la PRIMERA vez crea el alias (con nombre por-clase, p.ej.
-`update__pa_orig_Battle__Scene`) y un `define_method` que recorre la **cadena de middlewares**; cada
-hook posterior solo añade su middleware a la cadena. Simplificado:
-
-```ruby
-module PokeAccess::Hooks
-  def self.wrap(cname, meth, &mw)
-    k = PokeAccess.const_at(cname)   # resolución 1.8.7-safe (no Object.const_defined? con "::")
-    return if k.nil?
-    unless k.method_defined?(meth)
-      @missing << "#{cname}##{meth}"   # clase existe, método no => probable typo
-      return
-    end
-    key = "#{cname}##{meth}"
-    fresh = !@chains.has_key?(key)
-    (@chains[key] ||= []).push(mw)
-    return unless fresh               # ya envuelto: basta con añadir a la cadena
-    orig = "#{meth}__pa_orig_#{cname.gsub(/[^a-zA-Z0-9]/, '_')}".to_sym
-    k.send(:alias_method, orig, meth)
-    chains = @chains
-    k.send(:define_method, meth) do |*args, &blk|
-      call = lambda { send(orig, *args, &blk) }      # el original, al fondo de la cebolla
-      chains[key].reverse_each do |w|                # envolver cada middleware alrededor
-        nxt = call
-        call = lambda { w.call(self, nxt, args) }
-      end
-      call.call
-    end
-  end
-end
-```
-
-`before_hook`/`after_hook` son middlewares finos sobre `wrap`: el "before" corre el cuerpo y luego
-`nxt.call`; el "after" hace `r = nxt.call`, corre el cuerpo con `r`, y devuelve `r`. El cuerpo va
-envuelto en `run_body`, que **traga la excepción** (un lector que peta no rompe el juego) pero **loguea
-el primer fallo** por método al marker, para que un método mal escrito no quede mudo sin diagnóstico.
-
-**Lo que sucede en memoria**:
-
-```
-Antes del hook:
-PokeBattle_Scene#pbDisplayMessage → código original
-
-Después del hook:
-PokeBattle_Scene#pbDisplayMessage 
-├─ [HOOK] PokeAccess.speak(msg)
-├─ [ORIGINAL] mostrar ventana
-└─ [RETURN] resultado
-```
-
-## Guarda de reentrancia (por qué existe)
-
-El juego es mono-hilo. `Hooks` mantiene una pila de módulo (`@active`) con los NOMBRES de los métodos
-cuyo ORIGINAL está corriendo ahora mismo. Con eso resuelve un problema sutil de los `after_hook`:
-
-- `nested_other?(meth)` (`hooks.rb:34`) devuelve `true` si hay algo en la pila y la cima NO es `meth`.
-- El dispatcher de `wrap` (`hooks.rb:74`): si la llamada es una entrada anidada a un método hookeado con
-  nombre DISTINTO al de la cima, se salta la cadena y va directo al original.
-
-¿Para qué? Un `after_hook` cuyo original llama SINCRÓNICAMENTE a OTRO método hookeado (p.ej. en la era
-GameData `set_party_index` invoca por dentro a `refresh`) no debe dejar que el hook interno hable y
-consuma el dedup del externo: el `after_hook` EXTERNO, cuando el original vuelve, es el anunciante
-autoritativo. Una llamada anidada del MISMO nombre SÍ pasa (un hijo que llega a su padre hookeado vía
-`super` dispara ambos hooks: la cebolla documentada).
-
-`guarded(meth)` (`hooks.rb:40`) empuja `meth`, hace `yield` y SIEMPRE hace `pop` (`ensure`): un original
-que lanza nunca deja hooks anidados mudos para siempre. Por defecto, un `after_hook` corre su original
-BAJO esta guarda.
-
-### Cuándo un hook debe correr SIN guarda: contenedores y drivers por-frame
-
-La guarda es correcta SOLO para **anunciantes atómicos** (métodos cuyo propio cuerpo es la voz). Dos
-clases de hook tienen que correr su original SIN guarda o silencian a los lectores que hablan:
-
-- **CONTENEDOR — `after_hook(..., :hook_container => true)`**: un loop modal o abre-escena que DELEGA el
-  anuncio a métodos hookeados que él conduce por dentro. Ejemplos reales: la fase de comandos de combate
-  (`pbShowCommands`/`pbCommandMenu` conducen `CommandMenuDisplay#index=` y `FightMenuDisplay#setIndex`);
-  los abre-escenas (`pbScene`/`pbStartScene`/`main` conducen el `drawPage` del pokédex, el `drawPageOne`
-  del resumen, el `selected=` del panel de party, los lectores del mapa). En `core/battle/gen6/battle_g6.rb:21`,
-  `pbUpdateSelected` es contenedor porque conduce los `index=` hookeados del display de comandos/movimientos.
-
-- **DRIVER por-frame — `frame_hook`**: un método que el motor llama cada frame y que puede alojar
-  sincrónicamente un loop modal anidado ENTERO. Internamente es `after_hook(cname, meth, :hook_container => true)`
-  con el cuerpo después (un poller no usa el valor de retorno). Yields `(instancia, args)`.
-
-```ruby
-# core/audio/audio3d.rb:537 y core/nav/locator.rb:517 — mismo método, dos features:
-PokeAccess::Hooks.frame_hook("Game_Player", :update) do |_p, _a|
-  # sondear el estado del frame recién actualizado (p.ej. el tile nuevo del jugador)
-end
-```
-
-**El caso del combate salvaje en gen-6** (por qué `frame_hook` existe): en gen-6, pisar hierba lanza el
-combate salvaje DESDE DENTRO de `Game_Player#update` (`Scene_Map#update -> $game_player.update -> encounter
--> el loop de combate entero`). Si se enganchara `update` con un `after_hook` normal, `:update` quedaría
-fijado en la pila durante todo el combate y cada lector de batalla (mensajes, menú de comandos,
-movimientos) se saltaría como `nested_other?`. El síntoma era exacto: "los combates salvajes son mudos,
-los de entrenador leen" — un combate de entrenador corre desde el intérprete del mapa, no desde el player,
-por eso no le afectaba. `frame_hook` corre el original sin guarda y arregla esto.
-
-Por defecto es atómico (guardado): un hook que no dice nada mantiene el comportamiento seguro. Los cuerpos
-de `before_hook` corren SIEMPRE antes del original y nunca guardan su original.
-
-## Casos de Uso Prácticos
-
-### Caso 1: Lectura de Mensajes de Batalla
-
-**Archivo**: `core/battle/gen6/battle_g6.rb`
-
-```ruby
-# En batalla, cuando se muestra un mensaje:
+# core/battle/gen6/battle_g6.rb
 PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbDisplayMessage) do |scene, args|
   PokeAccess::Battle.set_battle(scene.instance_variable_get(:@battle))
-  # Hablar el mensaje SIN interrumpir el flujo gráfico (speak_clean = limpiar códigos + hablar)
-  PokeAccess.speak_clean(args[0], false)
+  PokeAccess.speak_clean(args[0], false)   # encolado: no cortar lo que suene
 end
-
-# Flujo:
-# 1. Código de Essentials: pbDisplayMessage("¡Ataque crítico!")
-# 2. Hook intercepta: PokeAccess.speak("Ataque crítico!")
-# 3. Método original: Mostrar ventana gráficamente
-# 4. El jugador escucha + ve el mensaje simultáneamente
 ```
 
-### Caso 2: Selección de Movimiento en Batalla
+El cuerpo puede **mutar `args` in situ** para cambiar lo que recibe el original.
 
-**Archivo**: `core/battle/gen6/battle_g6.rb`
-
-```ruby
-PokeAccess::Hooks.after_hook("FightMenuDisplay", :setIndex) do |disp, _r, _a|
-  b = disp.instance_variable_get(:@battler)
-  idx = disp.instance_variable_get(:@index)
-  
-  if b && b.moves[idx] && b.moves[idx].id != 0
-    m = b.moves[idx]
-    # Hablar nombre del movimiento + PP
-    text = "#{m.name}. PP: #{m.pp}/#{m.totalpp}"
-    PokeAccess.speak(text, true)
-  end
-end
-
-# Cuando el jugador navega movimientos con flechas:
-# 1. Se ejecuta FightMenuDisplay#setIndex
-# 2. Hook DESPUÉS: Lee qué movimiento está seleccionado
-# 3. PokeAccess.speak() lo anuncia al jugador
-```
-
-### Caso 3: Menú de Pausa basado en sprites (sin ventana de comandos)
-
-**Archivo**: `core/menus/neo_pausemenu.rb`
-
-Algunos menús no usan `Window_CommandPokemon`; son sprites con el índice en un ivar privado. No hay un
-`index=` que enganchar, así que se engancha el `update` de la escena y se sondea el índice por frame
-(patrón `Menus.poll_sprite_menu`):
+### `after_hook` — leer el estado ya actualizado
 
 ```ruby
-# El menú "Neo" no tiene ventana de comandos: se vigila su escena. poll_sprite_menu recibe el ivar de la
-# lista, un slot de dedup PELADO (sin arroba: Cursor compone él mismo el ivar @access_cur_<slot> sobre la
-# escena) y un bloque que da la etiqueta de la entrada enfocada.
-PokeAccess::Hooks.after_hook("PokemonMenu_Scene", :update) do |scene, _r, _a|
+# core/menus/neo_pausemenu.rb
+PokeAccess::Hooks.after_hook("PokemonMenu_Scene", :update, :optional => true) do |scene, _r, _a|
   if defined?(MenuHandlers)
     PokeAccess::Menus.poll_sprite_menu(scene, :@entries, :neo_last) do |entry|
       (MenuHandlers.getName(entry) rescue entry.to_s)
@@ -287,247 +93,335 @@ PokeAccess::Hooks.after_hook("PokemonMenu_Scene", :update) do |scene, _r, _a|
 end
 ```
 
-Para el caso normal (una ventana de comandos que sí tiene `index=`), lo correcto es `screen_reader`
-(ver [14_EXTENDING.md](14_EXTENDING.md) §2a).
+### `around_hook` — controlar si el original corre
 
-## Manejo de Errores
-
-### Validación de Clases
-
-`before_hook`/`after_hook`/`around_hook` delegan en `wrap`, y es `wrap` quien comprueba la existencia
-de la clase con `PokeAccess.const_at` (resolución 1.8.7-safe, no `Object.const_defined?` con `"::"`) antes
-de atar nada. Una clase ausente es variación normal entre juegos y se ignora en silencio; un método ausente
-sobre una clase presente sí se anota en `Hooks.missing` (casi siempre un typo). No hay que reimplementar esa
-comprobación en cada hook:
+No hay un `throw :skip_original`: el control es `call_next`. **No recibe argumentos**; replay de la
+cadena con los argumentos originales del llamante (para cambiarlos, muta `args` antes de llamarlo).
 
 ```ruby
-# Resultado:
-# - Gen-6 + hook de clase v21: no pasa nada (NO-OP, la clase no existe)
-# - v21 + hook de clase v21: funciona
+# core/field/minigame_text.rb -- marcar la mano activa mientras dura el bucle del minijuego
+PokeAccess::Hooks.around_hook("TriadScene", :pbPlayerChooseCard, :optional => true) do |scene, call_next, _a|
+  PokeAccess::TripleTriad.start_hand(scene)
+  begin; call_next.call; ensure; PokeAccess::TripleTriad.stop; end
+end
 ```
 
-### Recuperación de Errores en Hooks
+### `frame_hook` — driver por-frame
 
-El cuerpo de cada hook ya corre dentro de `run_body`, que traga la excepción (para que un lector con
-fallo nunca rompa el juego) y registra el PRIMER fallo por método en el marker (deduplicado). Por eso el
-cuerpo NO necesita su propio `begin/rescue`: basta escribir el lector:
+Un método que el motor llama cada frame y que puede alojar sincrónicamente un bucle modal entero.
+El cuerpo corre DESPUÉS (un poller lee el frame ya actualizado) y no usa el valor de retorno.
 
 ```ruby
-PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbDisplayMessage) do |scene, result, args|
+# core/nav/locator.rb
+PokeAccess::Hooks.frame_hook("Game_Player", :update) do |_p, _a|
+  PokeAccess::Perf.measure(:map_poll) { PokeAccess::Locator.map_poll }
+end
+```
+
+### `read_on_open` — resumen hablado al abrir una pantalla
+
+Engancha el abridor de la escena y habla el texto del bloque **encolado** (una lectura de apertura nunca
+debe cortar el clic de transición ni una línea en curso; solo los lectores de navegación interrumpen).
+El texto pasa por `PokeAccess.clean`; `nil` o vacío se queda callado.
+
+```ruby
+# core/menus/trainer_card.rb
+PokeAccess::Hooks.read_on_open("PokemonTrainerCardScene") { |_s| PokeAccess::TrainerCard.text }
+
+# games/opalo/trainer_card.rb -- este abridor BLOQUEA en su propio bucle; con un after solo hablaría al cerrar
+PokeAccess::Game.define("opalo") do
+  read_on_open("OpaloCard", :pbStartScene, :timing => :before) { |_s| PokeAccess::OpaloCard.main_text }
+end
+```
+
+### `override` — reemplazo declarado
+
+`override` **sustituye** un método, declarando la intención (frente a reabrir un módulo en silencio, que
+nadie ve). `target` es un **módulo del mod** (se reemplaza su método de singleton) o el **nombre de una
+clase del juego** en string (se reemplaza su método de instancia, vía `around_hook`).
+
+- El cuerpo recibe `(receptor, original, args)`. `original` es un lambda con la implementación
+  reemplazada: **llámalo para envolver** en vez de sustituir.
+- Semántica de `around`: los fallos del cuerpo se loguean y **se relanzan** (nunca se tragan).
+- **Apilable**: un segundo `override` sobre el mismo método recibe el PRIMERO como su `original`; gana el
+  último y los dos quedan listados.
+- Cada instalación se registra en `Hooks.overrides` y **el diagnóstico la imprime**, así que pisar un
+  lector del core nunca es invisible.
+- Un nombre que toda clase responde en su singleton (`:name`, `:to_s`, heredados de `Module`) solo cuenta
+  como singleton si el target lo define él mismo; si no, se entiende el método de instancia.
+
+```ruby
+# games/reminiscencia/move_relearner.rb -- este juego quiere que las flechas digan solo el nombre
+# del movimiento (el detalle completo lo da la tecla de info), así que reemplaza el lector del core.
+PokeAccess::Game.define("reminiscencia") do
+  override(PokeAccess::MoveRelearnerGen6, :detail) do |_mod, _original, args|
+    id = (PokeAccess::MoveRelearnerGen6.focused_id(args[0]) rescue nil)
+    name = id ? (PokeAccess::Data.move_name(id) rescue nil) : nil
+    PokeAccess.speak(name.to_s, true) if name && !name.to_s.empty?
+  end
+end
+```
+
+> Desde la DSL de perfiles la firma es `override(target, meth)` (sin `opts`): el tag lo pone ella,
+> `"game_<perfil>"`.
+
+### `wrap_global` / `wrap_kernel` — funciones que no son de clase
+
+Los hooks de clase no alcanzan las funciones top-level de Essentials (`pbDisplayMail`,
+`pbShowCommandsWithHelp`, `pbItemBall`...).
+
+| | Busca en | timing por defecto |
+|---|---|---|
+| `wrap_global(name, tag, timing)` | método top-level de `Object` | `:after` |
+| `wrap_kernel(name, tag, timing)` | singleton de `Kernel` (`def Kernel.foo`, estilo gen-6) y, si no, cae a `wrap_global` (`def foo`, estilo moderno) | `:before` |
+
+Contrato del bloque según `timing`:
+
+| timing | Bloque | Se traga la excepción |
+|---|---|---|
+| `:before` | `(args, nil)`, corre antes del original | Sí (se loguea una vez) |
+| `:after` | `(args, resultado)`, corre después | Sí (se loguea una vez) |
+| `:around` | `(args, call_next)`, **debes** llamar `call_next`; devuelve su resultado | No: se loguea y se relanza |
+
+Una función que no existe **en ningún sitio** se anota en `Hooks.fn_absent` y se salta; una ya envuelta es
+no-op.
+
+```ruby
+# core/field/mail.rb -- leer el correo antes de que aparezca su tarjeta modal
+PokeAccess::Hooks.wrap_global("pbDisplayMail", "hook_mail", :before) { |args, _r| PokeAccess.say_mail(args[0]) }
+
+# core/field/hud_text.rb -- pbDisplayText es Kernel en unos juegos y top-level en otros
+PokeAccess::Hooks.wrap_kernel("pbDisplayText", "hud_text", :after) { |args, _r| PokeAccess::HudText.say(args[0]) }
+
+# core/battle/gen6/battle_g6.rb -- envolver el combate entero, marcando entrada y salida pase lo que pase
+PokeAccess::Hooks.wrap_kernel("pbBattleAnimation", "hook_battle_sonar", :around) do |_args, call_next|
+  PokeAccess::Battle.battle_started
+  begin; call_next.call; ensure; PokeAccess::Battle.battle_ended; end
+end
+```
+
+---
+
+## Implementación interna: la cebolla
+
+Varios hooks pueden envolver el mismo método: cada uno registra un middleware y **se encadenan** alrededor
+del original, así una función nueva nunca desactiva en silencio un hook existente.
+
+`wrap` no redefine de cero cada vez. La PRIMERA vez crea el alias del original (con nombre por-clase,
+p.ej. `update__pa_orig_Game_Player`) y un `define_method` que recorre la cadena; cada hook posterior solo
+añade su middleware. Resumido:
+
+```ruby
+key = "#{cname}##{meth}"
+fresh = !@chains.has_key?(key)
+(@chains[key] ||= []).push(mw)
+return unless fresh
+k.send(:alias_method, orig, meth)
+k.send(:define_method, meth) do |*args, &blk|
+  return send(orig, *args, &blk) if PokeAccess::Hooks.nested_other?(meth)
+  call = lambda { send(orig, *args, &blk) }        # el original, al fondo de la cebolla
+  chains[key].reverse_each do |w|                  # envolver cada middleware alrededor
+    nxt = call
+    call = lambda { w.call(self, nxt, args) }
+  end
+  call.call
+end
+```
+
+El alias se comprueba contra los métodos **propios** de la clase, así que enganchar un padre y luego un
+hijo que sobrescribe el mismo método no se salta la lógica del hijo.
+
+`before_hook`/`after_hook` son capas finas sobre `wrap`: el "before" corre el cuerpo y luego `nxt.call`;
+el "after" hace `r = nxt.call`, corre el cuerpo con `r` y devuelve `r`.
+
+**Orden**: el PRIMER registro queda en la capa MÁS EXTERNA de la cebolla. Por tanto, con dos hooks A y B
+registrados en ese orden sobre el mismo método:
+
+- los cuerpos de `before_hook` corren **A, B** (y luego el original);
+- los cuerpos de `after_hook` corren **B, A** (el más interno vuelve antes).
+
+Todos reciben el mismo resultado del original, así que el orden solo importa si dos hooks hablan; si te
+descubres dependiendo de él, casi siempre lo correcto es fusionarlos en un lector.
+
+---
+
+## La guarda de reentrancia
+
+Este es el concepto más difícil del motor y el que más bugs ha causado. Léelo antes de escribir un
+`after_hook` sobre algo que abra pantallas.
+
+El juego es mono-hilo, así que basta una pila de módulo (`@active`) con los NOMBRES de los métodos cuyo
+ORIGINAL está corriendo ahora mismo:
+
+- `nested_other?(meth)` → `true` si hay algo en la pila y la cima NO es `meth`.
+- El dispatcher de `wrap`: si la llamada es una entrada **anidada** a un método hookeado de nombre
+  **distinto** al de la cima, **se salta la cadena entera** y va directo al original.
+- `guarded(meth)` empuja `meth`, hace `yield` y SIEMPRE hace `pop` (`ensure`): un original que lanza nunca
+  deja hooks anidados mudos para siempre.
+
+**Para qué.** Un `after_hook` cuyo original llama SINCRÓNICAMENTE a OTRO método hookeado (p.ej.
+`set_party_index`, que por dentro invoca `refresh`) no debe dejar que el hook interno hable y consuma el
+dedup del externo: el `after_hook` EXTERNO, cuando el original vuelve, es el anunciante autoritativo.
+
+La guarda es correcta SOLO para **anunciantes atómicos**: métodos cuyo propio cuerpo es la voz.
+
+### Los tres escapes
+
+| Escape | Qué pasa | Cuándo lo quieres |
+|---|---|---|
+| **Mismo nombre** | Una llamada anidada al MISMO nombre sí atraviesa la guarda | Un hijo que llega a su padre hookeado vía `super` dispara ambos hooks (la cebolla documentada) |
+| **`:hook_container => true`** (y `frame_hook`, su alias con forma de poller) | El original corre SIN guarda | El método es un CONTENEDOR: delega el anuncio en métodos hookeados que él conduce |
+| **Solo `after_hook` guarda** | `before_hook` y `around_hook` nunca empujan su original a la pila | Un `before` ya habló antes del original, así que no tiene dedup que proteger; un `around` controla la llamada él mismo |
+
+**Qué es un CONTENEDOR.** Un bucle modal o un abridor de escena que no habla él mismo, sino que conduce
+lectores hookeados por dentro: la fase de comandos de combate (`pbShowCommands`/`pbCommandMenu` conducen
+`CommandMenuDisplay#index=` y `FightMenuDisplay#setIndex`), o los abre-escenas
+(`pbScene`/`pbStartScene`/`main` conducen el `drawPage` del pokédex, el `drawPageOne` del resumen, el
+`selected=` del panel de party). Guardarlos enmudece a los lectores que hacen el trabajo.
+
+```ruby
+# core/battle/gen6/battle_g6.rb -- selección de objetivo en dobles: el original conduce los setters
+# de índice ya hookeados del display; guardarlo los silenciaría.
+PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbUpdateSelected, :hook_container => true) do |scene, _r, args|
+  PokeAccess::Battle.announce_target(scene, args[0])
+end
+```
+
+**Qué es un DRIVER por-frame.** Un método que el motor llama cada frame y que puede alojar un bucle modal
+entero. El caso canónico es `Game_Player#update`: en gen-6, pisar hierba lanza el combate salvaje DESDE
+DENTRO (`Scene_Map#update -> $game_player.update -> encounter -> el combate entero`). Guardarlo fija
+`:update` en la pila durante todo el combate y cada lector de batalla se salta como `nested_other?`. El
+síntoma es exacto: "los combates salvajes son mudos, los de entrenador leen" (el de entrenador corre desde
+el intérprete del mapa, no desde el player). Para eso está `frame_hook`.
+
+**Por defecto es atómico (guardado)**: un hook que no dice nada mantiene el comportamiento seguro.
+
+---
+
+## Manejo de errores
+
+El cuerpo de `before_hook`/`after_hook`/`frame_hook`/`read_on_open` corre dentro de `run_body`, que
+**traga la excepción** (un lector que peta no rompe el juego) y **loguea el PRIMER fallo** al marker,
+deduplicado por REGISTRO (no por método): si dos features enganchan `Game_Player#update`, el fallo de una
+no silencia el diagnóstico de la otra. Por eso el cuerpo no necesita su propio `begin/rescue`:
+
+```ruby
+PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbDisplayMessage) do |_scene, _result, args|
   PokeAccess.speak(args[0])   # si lanza, run_body lo traga y anota el primer fallo
 end
 ```
 
-## Registro de Hooks Fallantes
+`around_hook` y `override` son la excepción: como pueden elegir legítimamente no ejecutar el original, su
+primer fallo se loguea y **se relanza**.
 
-**Archivo**: `core/input/hooks.rb` (método `missing`)
+---
 
-`missing` NO reporta clases ausentes (eso es variación normal entre juegos y se ignora a propósito).
-Reporta lo contrario: bindings cuya **clase existe pero el método no** — casi siempre un nombre de
-método mal escrito.
+## Diagnóstico de enganches
 
-```ruby
-def self.missing; @missing; end
-# @missing se va llenando dentro de wrap cuando la clase existe pero method_defined?(meth) es false.
+Tres listas, con significados distintos. El volcado de diagnóstico (Ctrl+Alt+F9) imprime las tres en su
+línea `hooks:`, y el diagnóstico hablado (Ctrl+Alt+F10) canta cuántos `missing` hay si hay alguno.
 
-# En boot.rb:
-miss = (PokeAccess::Hooks.missing rescue [])
-log("[diag] enganches sin metodo: #{miss.join(', ')}") if miss && !miss.empty?
+| Consulta | Qué contiene | Cómo leerlo |
+|---|---|---|
+| `Hooks.missing` | `"Clase#metodo"` cuya **clase existe pero el método no** (y no era `:optional`); también los targets no resueltos de `override` | **Probable typo.** Casi siempre un nombre de método mal escrito |
+| `Hooks.fn_absent` | Nombres de función global que `wrap_global`/`wrap_kernel` **no encontraron en ningún sitio** (ni singleton de `Kernel` ni `Object`) | **Informativo.** Una función que solo existe en algunos fangames es variación normal; aquí es donde asoma un nombre mal escrito |
+| `Hooks.overrides` | Los reemplazos declarados, como `"Target.meth (tag)"` | **Auditoría.** Qué está sustituido y quién lo sustituyó |
 
-# Si esto reporta algo, casi seguro es un typo en el nombre del método de un hook:
-# la clase se encontró, pero el método indicado no existe en ella.
+```
+hooks: missing=[] fn_absent=["pbDisplayText"] overrides=["PokeAccess::MoveRelearnerGen6.detail (game_reminiscencia)"]
 ```
 
-## Avanzado: Modificación de Comportamiento
+---
 
-### Cambiar Valor de Retorno
+## Patrones comunes
 
-```ruby
-PokeAccess::Hooks.after_hook("Passability", :move_possible?) do |obj, result, args|
-  # En lugar de devolver el resultado original...
-  # Implementar lógica personalizada
-  
-  # Pero normalmente el hook solo LEE, no modifica
-end
-```
-
-### Bloquear o sustituir la ejecución del original
-
-No hay un `throw :skip_original`. Para decidir si el original corre (o sustituirlo), se usa
-`around_hook`: el cuerpo recibe `call_next` y controla si lo llama o no.
-
-```ruby
-PokeAccess::Hooks.around_hook("Puzzle", :onTile) do |puzzle, call_next, args|
-  if special_case?
-    # No llamamos a call_next => el método original NO se ejecuta
-    PokeAccess.speak("...")
-  else
-    call_next.call   # ejecuta el original (y el resto de la cadena)
-  end
-end
-```
-
-> `around_hook` es el único que NO traga la excepción del cuerpo: como puede elegir legítimamente no
-> ejecutar el original, su primer fallo se loguea y se relanza (preserva la semántica del `around`).
-
-### Enganchar funciones globales (no de clase)
-
-Los hooks de clase no alcanzan las funciones top-level de Essentials (`pbDisplayMail`,
-`pbShowCommandsWithHelp`, etc.). Para eso hay dos helpers:
-
-- `wrap_global(name, tag, timing = :after)` (`hooks.rb:161`): envuelve un método top-level de `Object`.
-  `timing :before` corre el bloque antes del original (para llamadas bloqueantes cuyo anuncio debe
-  precederlas), con `nil` en el valor de retorno; `:after` corre después y pasa el resultado. El bloque
-  recibe `(args_array, return_value)`. No-op si el método no existe o ya está envuelto.
-- `wrap_kernel(name, tag, timing = :before)` (`hooks.rb:197`): para funciones que unos juegos definen como
-  singleton de `Kernel` (`def Kernel.foo`, estilo gen-6) y otros como top-level de `Object` (`def foo`,
-  estilo moderno) — `pbShowCommandsWithHelp` es una de ellas. Prueba el singleton de `Kernel` primero y si
-  no cae a `wrap_global`. `timing :before`/`:after` → bloque `(args_array, return_value)`; `:around` →
-  bloque `(args_array, call_next)` y DEBE llamar `call_next` (devuelve el resultado del original).
-
-```ruby
-# core/field/mail.rb: leer el correo antes de que aparezca su tarjeta modal (:before).
-PokeAccess::Hooks.wrap_global("pbDisplayMail", "hook_mail", :before) { |args, _r| PokeAccess.say_mail(args[0]) }
-```
-
-## Diferencias: before vs after
-
-| Aspecto | before | after |
-|---------|--------|-------|
-| **Cuándo** | Antes del método original | Después del método original |
-| **Acceso** | Solo argumentos | Argumentos + resultado |
-| **Caso de uso** | Preparar, loguear entrada | Reaccionar a resultado |
-| **Modificación** | Puede modificar args | No puede cambiar args |
-| **Ejemplo** | Hablar antes de mostrar | Leer UI después de actualizar |
-
-## Patrones Comunes
-
-### Patrón: Lectura Deduplicada
-
-```ruby
-PokeAccess::Hooks.after_hook("Window", :index=) do |window, _r, args|
-  idx = args[0]
-  
-  # Solo hablar si el índice CAMBIÓ
-  # (evitar lecturas duplicadas si el usuario presiona la flecha varias veces)
-  if idx != window.instance_variable_get(:@access_last_index)
-    window.instance_variable_set(:@access_last_index, idx)
-    PokeAccess.speak(get_label(idx))
-  end
-end
-```
-
-### Patrón: Información Contextual
-
-```ruby
-PokeAccess::Hooks.before_hook("BattleScreen", :draw) do |scene, args|
-  # Guardar contexto para que otros módulos lo lean
-  PokeAccess::Info.set_info(:battle_turn, scene.turn_count)
-  PokeAccess::Info.set_info(:active_pokemon, scene.active_battler)
-end
-```
-
-### Patrón: Condicional por Engine
-
-```ruby
-PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbDisplayMessage) do |scene, args|
-  # En gen-6
-  PokeAccess.speak(args[0]) if PokeAccess::Engine.gen6?
-end
-
-PokeAccess::Hooks.before_hook("Battle::Scene", :pbMessageWindow) do |scene, args|
-  # En la era GameData
-  PokeAccess.speak(args[0]) if PokeAccess::Engine.gamedata?
-end
-```
-
-> En la práctica casi nunca hace falta ramificar por engine: registra cada hook donde la CLASE existe
-> (el hook es NO-OP si no), y para lo que difiere dentro de una misma clase, gatea por CAPACIDAD con
-> `Engine.has?("Clase#metodo")` en vez de por versión. Así un fork que backportee el método se activa solo.
-
-### Patrón: Gate por capacidad (recomendado para features opcionales)
-
-```ruby
-# Solo si esta clase+método existen (vanilla v22, Sky que lo backportee, o una versión futura que lo conserve):
-if PokeAccess::Engine.has?("Battle::Scene#pbUpdateBattlerInfo")
-  PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBattlerInfo) do |scene, _r, args|
-    # ...
-  end
-end
-```
-
-### Patrón: Lectura de cursor deduplicada (Cursor)
+### Lectura de cursor deduplicada (`Cursor`)
 
 La UI re-afirma la selección cada frame, así que un lector de cursor debe hablar SOLO cuando el foco
-cambia. No abras tu propio ivar `@access_*`: usa la primitiva `Cursor`.
+cambia. `PokeAccess::Cursor` (`core/menus/cursor.rb`) es la primitiva de dedup **por defecto**: úsala en
+todo lector nuevo en vez de abrir un ivar `@access_*` propio.
 
 ```ruby
 PokeAccess::Hooks.after_hook("MiVisuals", :refresh_on_index_changed) do |vis, _r, _a|
   idx = (vis.index rescue nil)
-  PokeAccess::Cursor.announce(vis, :mi_lista, idx) { texto_de(vis, idx) }  # habla solo si idx cambió
+  PokeAccess::Cursor.announce(vis, :mi_lista, idx) { texto_de(vis, idx) }   # habla solo si idx cambió
 end
 # Al (re)abrir la escena, para que relea el mismo índice:
 PokeAccess::Hooks.before_hook("MiScene", :pbStartScene) { |s, _a| PokeAccess::Cursor.reset(s, :mi_lista) }
 ```
 
-La key puede ser un índice, un texto o una tupla (`[page, party_index]`). El `holder` es la instancia
-(estado por escena, muere con ella), o `nil` para una tabla global por slot.
+La key puede ser un índice, un texto o una tupla (`[página, índice]`). El `holder` es la instancia (estado
+por escena, muere con ella) o `nil` para una tabla global por slot. API completa en
+[10_API_REFERENCE.md](10_API_REFERENCE.md).
 
-## Debugging Hooks
+> **La excepción acotada.** El dedup a mano con un ivar propio se tolera solo donde el hook **ya recibe
+> por `args` el dato que se compara** (un `after_hook` cuyo método toma el índice o la clave como
+> argumento): ahí la comparación es local al hook y el ivar solo guarda el valor anterior. Los lectores
+> in-battle de DBK son ese caso. En cuanto tengas que ir a buscar el foco a la instancia, o necesites
+> `reset`/`pending?`/clave-tupla, es `Cursor`.
 
-### Logging de Hooks Ejecutados
+### Menús con su propio bucle bloqueante (`SceneWatcher`)
+
+Si la pantalla corre su propio bucle de entrada, los hooks de cursor no disparan a mitad y hay que sondear
+por frame. `PokeAccess::SceneWatcher` (`core/menus/scene_watcher.rb`) sujeta la escena durante el bucle
+(con un `around`) y corre el poll:
 
 ```ruby
-PokeAccess::Hooks.before_hook("MyClass", :my_method) do |obj, args|
-  puts "HOOK: MyClass#my_method llamado con #{args.inspect}"
-  PokeAccess.write_marker("Hook ejecutado\n")
+# core/menus/v21/pausemenu_v21.rb -- el bloque devuelve [key, texto]; una key nueva habla el texto
+PauseMenuV21 = SceneWatcher.reader("PokemonPauseMenu_Scene", :pbShowCommands, :pausemenu_v21) do |s|
+  w = PokeAccess.sprite(s, "cmdwindow")
+  idx = w ? (w.index rescue nil) : nil
+  (idx.nil? || idx < 0) ? nil : [idx, (PokeAccess::Menus.generic_focus(w, idx) rescue nil)]
 end
 ```
 
-### Inspeccionar Estado
+### Gate por capacidad
+
+Casi nunca hace falta ramificar por versión de Essentials: registra el hook donde la CLASE existe (es
+no-op si no), y para lo que difiere dentro de una misma clase, gatea por CAPACIDAD con `Engine.has?`. Así
+un fork que backportee el método se activa solo.
 
 ```ruby
-PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbDisplayMessage) do |scene, result, args|
-  # Escribir diagnóstico
-  File.open("diag.txt", "a") do |f|
-    f.write("Mensaje mostrado: #{args[0]}\n")
-    f.write("Batalla: #{scene.instance_variable_get(:@battle).inspect}\n")
+# core/battle/v21/battle_v21.rb
+if PokeAccess::Engine.has?("Battle::Scene::MenuBase#setIndexAndMode")
+  PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :setIndexAndMode) do |menu, _r, args|
+    # ...
   end
 end
 ```
 
-## Limitaciones y Consideraciones
+Si lo único que quieres es que un método ausente no cuente como typo, `:optional => true` es más directo
+que un `Engine.has?` alrededor.
 
-### 1. **Rendimiento**
-Cada hook añade overhead (llamada a bloque, instance_variable_get). Optimizar:
-- Caché resultados
-- Reduce hooks por frame
-- Evita loops
+### Información contextual para la tecla de info
 
-### 2. **Orden de Ejecución**
-Si múltiples módulos registran hooks en el mismo método:
 ```ruby
-# Ambos se ejecutan, pero ¿en qué orden?
-PokeAccess::Hooks.after_hook("Window", :update) { puts "A" }
-PokeAccess::Hooks.after_hook("Window", :update) { puts "B" }
-
-# Orden de registro (FIFO)
-# OUTPUT: A, B
+PokeAccess::Hooks.after_hook("MoveRelearnerScene", :pbDrawMoveList) do |scene, _r, _a|
+  PokeAccess::Info.set_info(:text, texto_del_movimiento_enfocado(scene))
+end
 ```
 
-### 3. **Compatibilidad con Otros Mods**
-Si otro mod también usa hooks:
-- Podrían interferir
-- Generalmente OK si usan métodos diferentes
-- Requiere comunicación con el autor del mod
+---
+
+## Limitaciones
+
+1. **Rendimiento.** Cada hook añade una llamada a bloque por invocación. En métodos por-frame, mide con
+   `PokeAccess::Perf.measure(:etiqueta) { ... }` y evita recalcular lo que no cambió (para eso está
+   `Cursor`).
+2. **Compatibilidad con otros mods.** Otro mod que reabra la misma clase con `alias_method` puede quedar
+   por debajo o por encima de la cadena según el orden de carga. Enganches sobre métodos distintos no
+   interfieren.
+
+---
 
 ## Referencias
 
-- [Hooks Module](../core/input/hooks.rb) - Implementación (motor de cadena/middleware)
-- [Battle G6 Hooks](../core/battle/gen6/battle_g6.rb) - Ejemplos gen-6
-- [Battle V21 Hooks](../core/battle/v21/battle_v21.rb) - Ejemplos era GameData
-- [Menu Framework](../core/menus/menus.rb) - def_extractor / poll_sprite_menu
-- [Guía de extensión](14_EXTENDING.md) - Cómo añadir tus propios hooks/lectores
+- [Hooks](../core/input/hooks.rb) - el motor de cadena/middleware
+- [Cursor](../core/menus/cursor.rb) - primitiva de dedup
+- [SceneWatcher](../core/menus/scene_watcher.rb) - pantallas con bucle propio
+- [Game](../core/foundation/game.rb) - la DSL de perfiles sobre estos registradores
+- [Battle G6](../core/battle/gen6/battle_g6.rb) / [Battle V21](../core/battle/v21/battle_v21.rb) - ejemplos reales
+- [Guía de extensión](14_EXTENDING.md) - cómo añadir tus propios lectores
 
 ## Próximo
 

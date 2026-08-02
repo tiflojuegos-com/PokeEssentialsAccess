@@ -27,10 +27,15 @@ Suite.define("battle: HP gain on a foe reads a percentage") do
   not_spoke "does not leak the exact foe HP", /#{Regexp.escape(PokeAccess::I18n.t(:bt_hp_exact, :hp => 50, :tot => 100))}/
 end
 
-Suite.define("battle: no HP change and nil old value say nothing") do
+Suite.define("battle: an unchanged HP says nothing") do
   pkmn = TestBattler.new("Char", 40, 40, 0)
   PokeAccess::Battle.announce_hp_change(pkmn, 40)
   silent "an unchanged HP says nothing"
+
+  # A nil pkmn or a nil oldhp is silent too, but that is NOT provable here and the assert that claimed it
+  # was empty: the subtraction is already inside a `rescue 0`, so removing announce_hp_change's own
+  # `return unless pkmn && oldhp` changes no observable behaviour. The guard stays as defence in depth --
+  # it would matter the day the rescue goes -- and this spec does not pretend to cover it.
   PokeAccess::Battle.announce_hp_change(pkmn, nil)
-  silent "a nil old value says nothing"
+  silent "and so is a nil previous value, though by the rescue rather than by the guard"
 end

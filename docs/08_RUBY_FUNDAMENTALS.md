@@ -1,560 +1,327 @@
-# Fundamentos de Ruby Necesarios
+# Fundamentos de Ruby
 
-PokeEssentialsAccess utiliza conceptos avanzados de Ruby. Este documento explica los mínimos necesarios para entender el código.
+El Ruby que hace falta para leer y escribir código de PokeEssentialsAccess. Empieza por la sección 1: es una restricción dura del proyecto y la causa número uno de que a un colaborador nuevo se le rompa un juego entero.
 
-## 1. Módulos (Modules)
+## 1. La restricción: Ruby 1.8.7
 
-**¿Qué es?** Contenedor de métodos y constantes (como clase pero sin instanciación).
+Los fangames de la era gen-6 corren sobre **Ruby 1.8.7**. Los modernos, sobre Ruby 3.x. Y `core/` se carga en los dos.
+
+Eso divide el árbol en dos clases de archivo:
+
+| Archivos | Ruby | Qué puedes escribir |
+|----------|------|---------------------|
+| `core/*/v21/`, `core/*/v22/`, `core/*/skyflyer/` y los perfiles modernos: `anil`, `royal`, `relict`, `infinitefusion`, `infinitefusion_hoenn` | 3.x | Ruby moderno, sin límites |
+| **Todo lo demás**: el resto de `core/`, `loader/*.rb` y el resto de perfiles de `games/` | 1.8.7 | Solo sintaxis y métodos de 1.8.7 |
+
+La primera fila solo se carga en juegos modernos, así que ahí no hay problema. La segunda es el **código dual**, y en él una construcción de Ruby 1.9+ no da un aviso: da un `SyntaxError` que **aborta el archivo entero**. Y como el boot anota el error y sigue cargando el resto, el síntoma no es un cierre del juego sino un silencio: un módulo que desaparece y se lleva por delante funciones que parecían no tener nada que ver con él.
+
+La lista exacta de lo que se salta la comprobación es la constante `MODERN`, y está en los dos verificadores (`test/check187.py` y `test/check187_real.rb`): si añades una carpeta que solo cargan los juegos modernos, tiene que entrar en las dos.
+
+### Prohibido en código dual
+
+| No escribas | Escribe |
+|-------------|---------|
+| `lista.map(&:name)` | `lista.map { \|x\| x.name }` |
+| `->(x) { ... }` | `lambda { \|x\| ... }` |
+| `obj&.metodo` | `(obj.metodo rescue nil)`, o comprueba antes |
+| `n.clamp(0, 100)` | `[[n, 0].max, 100].min` |
+| `h.dig(:a, :b)` | `(h[:a] && h[:a][:b])` |
+| `v.round(2)` | `(v * 100).round / 100.0` |
+| `lista.each_with_object({}) { ... }` | `h = {}; lista.each { ... }; h` |
+| `<<~TEXTO` | Concatenar cadenas |
+| `%i[a b]` | `[:a, :b]` |
+| `h.transform_values`, `.then`, `.tally`, `.filter_map` | Un `each` o un `map` a mano |
+
+### Tres trampas de sintaxis
+
+**1. El punto al principio de línea.** En 1.8.7 el punto tiene que ir al final de la línea anterior:
 
 ```ruby
-# Definir módulo
-module MiModulo
-  VERSION = "1.0"
-  
-  def self.mi_metodo
-    "Hola"
-  end
+# SyntaxError en 1.8.7
+lista.select { |x| x.vivo? }
+     .map    { |x| x.nombre }
+
+# Correcto
+lista.select { |x| x.vivo? }.
+      map    { |x| x.nombre }
+```
+
+Esto ya pasó: una constante encadenada así mató `config_menu.rb`, y con el módulo ausente el poll del mapa reventaba en cada frame — sin pasos, sin guía y sin teclas del locator en todos los juegos gen-6.
+
+**2. `rescue` dentro de un bloque.** En 1.8.7 un `rescue` solo puede colgar de `begin`, `def`, `class` o `module`, nunca de un `do`/`{`:
+
+```ruby
+# SyntaxError en 1.8.7
+lista.each do |x|
+  algo(x)
+rescue StandardError
+  nil
 end
 
-# Usar módulo
-MiModulo::VERSION              # → "1.0"
-MiModulo.mi_metodo             # → "Hola"
-
-# Namespace (organización)
-module PokeAccess
-  module Pathfinder
-    def self.find_path(x, y)
-      # ...
-    end
-  end
-end
-
-PokeAccess::Pathfinder.find_path(10, 20)
-```
-
-**Ventajas**: Organización, no hay conflicto de nombres
-
-## 2. Métodos de Clase
-
-```ruby
-module PokeAccess
-  def self.speak(text)  # ← "self." = método de módulo/clase
-    # Solo se puede llamar: PokeAccess.speak("hola")
-    # NO: PokeAccess.new.speak("hola")
-  end
-end
-```
-
-## 3. Instancias Variables (Instance Variables)
-
-```ruby
-module PokeAccess
-  @global_state = {}  # ← Empieza con @
-  
-  def self.get_state
-    @global_state  # Acceder dentro del módulo
-  end
-  
-  def self.set_state(value)
-    @global_state = value
-  end
-end
-```
-
-**Nota**: `@global_state` es privado al módulo (no se ve desde afuera).
-
-## 4. attr_accessor
-
-```ruby
-# Crear getters/setters automáticamente
-class MiClase
-  attr_accessor :nombre  # Crea nombre() y nombre=(valor)
-  attr_reader :edad      # Solo getter (edad())
-  attr_writer :email     # Solo setter (email=(valor))
-end
-
-obj = MiClase.new
-obj.nombre = "Juan"      # Llama nombre=(...)
-puts obj.nombre          # Llama nombre()
-```
-
-**En PokeEssentialsAccess**:
-```ruby
-module PokeAccess::Config
-  # Crear getters/setters para todas las opciones
-  attr_accessor(*(SCHEMA.map { |row| row[0] } + OTHER))
-  
-  # Expande a:
-  # attr_accessor :language, :auto_guide, :hide_unreachable, ...
-end
-
-PokeAccess::Config.language = :es
-puts PokeAccess::Config.language  # → :es
-```
-
-## 5. Bloques y Yields
-
-```ruby
-# Bloque = código pasado a método con &block
-def mi_metodo(&block)
-  block.call("argumento")
-end
-
-mi_metodo { |x| puts x }
-# OUTPUT: argumento
-
-# ¿Sin variable &block?
-def mi_metodo
-  yield("argumento")
-end
-
-mi_metodo { |x| puts x }
-# OUTPUT: argumento
-```
-
-**En PokeEssentialsAccess**:
-```ruby
-# Registrar callback que se ejecuta después
-PokeAccess::Hooks.after_hook("MiClase", :metodo) do |obj, result, args|
-  # Este bloque se ejecuta cuando MiClase#metodo termina
-end
-
-# Emitir evento a todos los suscriptores
-PokeAccess::Events.on(:mapa_cambio) do |mapa_id|
-  # Este bloque se ejecuta cuando cambia el mapa
-end
-```
-
-## 6. Lambda y Proc
-
-```ruby
-# Lambda = función almacenada en variable
-increment = lambda { |x| x + 1 }
-increment.call(5)  # → 6
-
-# Equivalente:
-increment = proc { |x| x + 1 }
-
-# En PokeAccess (core/nav/pathfinder.rb): el A* elige heap o cola con lambdas
-# de un solo argumento, para no ramificar en cada empuje del bucle de búsqueda.
-push = heaped ? lambda { |item| heap_push(heap, item) } : lambda { |item| queue.push(item) }
-push.call([hw * ((px - tx).abs + (py - ty).abs), 0, px, py, 0])
-# La heurística Manhattan va en línea, no en una lambda: (nx - tx).abs + (ny - ty).abs
-```
-
-## 7. Hash
-
-```ruby
-# Diccionario clave → valor
-mi_hash = {
-  :nombre => "Juan",
-  :edad => 30,
-  "ciudad" => "Madrid"
-}
-
-mi_hash[:nombre]         # → "Juan"
-mi_hash[:nombre] = "Carlos"
-
-# Acceso seguro (no crashea si no existe)
-mi_hash[:pais] || "España"  # → "España"
-
-# Iteración
-mi_hash.each do |clave, valor|
-  puts "#{clave}: #{valor}"
-end
-
-# Con default
-defaults = Hash.new(0)
-defaults[:x] += 1  # → 1 (0 + 1)
-defaults[:x] += 1  # → 2 (1 + 1)
-```
-
-**En PokeEssentialsAccess**:
-```ruby
-# Caché de rutas
-@pcache = {}
-@pcache[pkey(10, 20)] = true
-
-# Providers data
-@providers = []
-@providers.push([priority, provider])
-pr = @providers.max_by { |pr| pr[0] }
-```
-
-## 8. Array
-
-```ruby
-arr = [1, 2, 3, 4, 5]
-arr[0]           # → 1
-arr[-1]          # → 5
-arr.push(6)      # → [1, 2, 3, 4, 5, 6]
-arr.shift        # → 1, arr = [2, 3, 4, 5, 6]
-
-arr.each { |x| puts x }
-arr.map { |x| x * 2 }      # → [2, 4, 6, 8, 10]
-arr.select { |x| x > 2 }   # → [3, 4, 5]
-```
-
-**En PokeEssentialsAccess**:
-```ruby
-# Manifest = array de strings
-list = %w[foundation/config foundation/engine data/data ...]
-
-# Iteración
-list.each { |entry| load_module("#{dir}/#{entry}.rb") }
-
-# Búsqueda
-spec_row = SCHEMA.select { |row| row[0] == :language }
-```
-
-## 9. Symbol (:)
-
-```ruby
-# Símbolo = string inmutable (se reutiliza)
-:nombre    # Símbolo
-"nombre"   # String
-
-:nombre == :nombre  # true (mismo objeto)
-"nombre" == "nombre"  # true (objetos diferentes)
-
-# Útil para claves de hash
-config = { :language => :es, :auto_guide => false }
-config[:language]  # → :es
-
-# Símbolo a string
-:nombre.to_s       # → "nombre"
-
-# String a símbolo
-"nombre".to_sym    # → :nombre
-```
-
-**En PokeEssentialsAccess**:
-```ruby
-# Configuración
-[:language, :es, :lang, :general, ...]
-
-# Engine detection
-Engine.kind       # → :gamedata o :gen6
-Engine.fork       # → :sky o nil
-
-# Data API
-Data.species_name(123)  # Usando símbolo internamente
-```
-
-## 10. Define_method
-
-```ruby
-# Definir método dinámicamente
-class MiClase
-  define_method(:saludar) do
-    "Hola"
-  end
-end
-
-MiClase.new.saludar  # → "Hola"
-
-# Con parámetros
-define_method(:sumar) do |a, b|
-  a + b
-end
-```
-
-**En PokeEssentialsAccess**:
-```ruby
-# Crear setters automáticamente
-SCHEMA.each do |row|
-  key = row[0]
-  default = row[1]
-  
-  define_method("#{key}=") do |value|
-    instance_variable_set("@#{key}", value)
-  end
-end
-```
-
-## 11. Instance_variable_get/set
-
-```ruby
-# Acceder a variables privadas de otros objetos
-class MiClase
-  def initialize
-    @privado = "secreto"
-  end
-end
-
-obj = MiClase.new
-obj.instance_variable_get(:@privado)  # → "secreto"
-obj.instance_variable_set(:@privado, "nuevo")
-```
-
-**En PokeEssentialsAccess**: el mod introspecta objetos del motor por ivar constantemente (el motor no expone accessors)
-y cada lectura debe ser defensiva porque la presencia del ivar varía entre versiones del juego. Por eso NO se usa
-`instance_variable_get` a pelo; hay una primitiva centralizada, 1.8.7-safe, en `core/foundation/const.rb`:
-
-```ruby
-# PokeAccess.ivar(obj, :@x, fallback = nil) -- devuelve fallback si el ivar no existe o la lectura lanza
-battler = PokeAccess.ivar(menu, :@battler)
-moves = battler.moves if battler
-
-# PokeAccess.ivar_i(obj, :@x, fallback = 0) -- igual pero coacciona a Integer (para ivars numéricos)
-index = PokeAccess.ivar_i(menu, :@index)
-
-# PokeAccess.sprite(scene, "commandwindow") -- ((@sprites || {})["k"] rescue nil) en una llamada
-win = PokeAccess.sprite(scene, "commandwindow")
-```
-
-Esto reemplaza el idiom abierto `(obj.instance_variable_get(:@x) rescue nil)` que estaba repetido en ~200 sitios.
-
-## 12. Alias_method
-
-```ruby
-class MiClase
-  def metodo_original
-    "original"
-  end
-  
-  # Guardar referencia
-  alias_method :metodo_viejo, :metodo_original
-  
-  # Redefinir
-  def metodo_original
-    "modificado: " + metodo_viejo
-  end
-end
-
-MiClase.new.metodo_original  # → "modificado: original"
-```
-
-**En PokeEssentialsAccess**:
-```ruby
-# Envolver Graphics.update sin perder original
-alias_method :update__access_preload, :update
-def update(*a)
-  r = update__access_preload(*a)  # Llamar original
-  AccessPreload.try_load         # Código personalizado
-  r
-end
-```
-
-## 13. const_get / const_defined?
-
-```ruby
-# Obtener constante por nombre
-MyClass = "definida"
-Object.const_get("MyClass")  # → "definida"
-
-# Verificar si existe
-Object.const_defined?("MyClass")  # → true
-Object.const_defined?("NoExiste")  # → false
-
-# Seguro (no crashea)
-(Object.const_get("NoExiste") rescue nil)  # → nil
-```
-
-**En PokeEssentialsAccess**: NO se usa `Object.const_defined?`/`const_get` directo con nombres anidados (`"A::B::C"`),
-porque en Ruby 1.8.7 (gen-6) `const_defined?` rechaza un nombre con `"::"` y lanza error. En su lugar hay
-una primitiva única, 1.8.7-safe, que recorre los segmentos uno a uno:
-
-```ruby
-# core/foundation/const.rb -- la usan Hooks, Input, Menus, Engine.has?
-PokeAccess.const_at("Battle::Scene")          # → la clase, o nil si algún segmento falta
-PokeAccess.const?("UI::BagVisuals")           # → true / false
-
-# Registrar hooks solo si la clase existe:
-klass = PokeAccess.const_at("Battle::Scene")
-return if klass.nil?  # No existe → NO hacer nada
-
-# Para gatear por capacidad (clase + método), usa Engine.has?:
-PokeAccess::Engine.has?("Battle::Scene::MenuBase#setIndexAndMode")
-```
-
-## 14. Rescue (Manejo de Errores)
-
-```ruby
-begin
-  1 / 0  # Error!
-rescue ZeroDivisionError => e
-  puts "Error: #{e.message}"
-  puts e.backtrace.join("\n")
-end
-
-# Forma corta
-result = risky_operation rescue default_value
-
-# Múltiples rescues
-begin
-  # código
-rescue NoMethodError => e
-  puts "Método no existe"
-rescue StandardError => e
-  puts "Otro error"
-end
-
-# Ensure (siempre ejecuta)
-begin
-  # código
-ensure
-  puts "Esto SIEMPRE se ejecuta"
-end
-```
-
-**En PokeEssentialsAccess**:
-```ruby
-def resolve(method, arg)
-  pr = active
-  return nil unless pr
-  
+# Correcto
+lista.each do |x|
   begin
-    pr.send(method, arg)
-  rescue StandardError => e
-    note_error(method, e)
+    algo(x)
+  rescue StandardError
     nil
   end
 end
 ```
 
-## 15. Send y Method
+**3. `return` dentro de `define_method`.** El cuerpo es un bloque, y en 1.8.7 un `return` ahí sale del método que lo definió. Se usa `next`:
 
 ```ruby
-# Llamar método por nombre (dinámica)
-obj = "hola"
-obj.send(:upcase)  # → "HOLA"
-obj.send(:length)  # → 5
-
-# Con argumentos
-obj.send(:[], 0)   # → "h" (mismo que obj[0])
-
-# Obtener método
-m = obj.method(:upcase)
-m.call  # → "HOLA"
-```
-
-**En PokeEssentialsAccess**:
-```ruby
-# Llamar método del provider
-provider.send(:species_name, 123)
-
-# En Data.resolve:
-pr.send(method, arg)  # Llama pr.move_name(id), etc.
-```
-
-## 16. Regex
-
-```ruby
-# Expresión regular
-version_string = "21.1"
-version_string[/\d+(\.\d+)?/]  # → "21.1"
-
-str = "Essentials v22_1a"
-str[/\d+/]  # → "22"
-
-# Reemplazar
-text = "Señor   José"
-text.gsub(/\s+/, " ")  # → "Señor José"
-```
-
-**En PokeEssentialsAccess**:
-```ruby
-# Parsear versión de string
-ev.to_s[/\d+(\.\d+)?/].to_f  # Extraer número flotante
-```
-
-## 17. Ternary Operator
-
-```ruby
-x = 5
-resultado = x > 3 ? "grande" : "pequeño"  # → "grande"
-
-# Es equivalente a:
-if x > 3
-  resultado = "grande"
-else
-  resultado = "pequeño"
+# core/menus/scene_watcher.rb
+meta.send(:define_method, :poll) do
+  s = @scene
+  next unless s          # next, no return
+  ...
 end
 ```
 
-**En PokeEssentialsAccess**:
-```ruby
-# Elegir según engine (así se define Engine.kind en foundation/engine.rb)
-kind = Engine.gamedata? ? :gamedata : :gen6
+### La red que lo verifica
+
+Dos comprobaciones, no una:
+
+1. **`test/check187.py`** — recorre los archivos duales buscando los patrones de arriba (encadenado con punto inicial, `rescue` de bloque, y una lista curada de métodos que no existen en 1.8.7). Rápido, y no necesita nada instalado.
+2. **`test/check187_real.rb`** — **parsea** cada archivo dual con un intérprete de Ruby 1.8.7 de verdad (sin ejecutarlo). El verificador de patrones solo reconoce lo que se le ha enseñado; el parser conoce toda la sintaxis del lenguaje. Lo lanza `check187.py` cuando encuentra el intérprete: en `tools/ruby-1.8.7-*/bin/ruby.exe` al lado del repositorio, o donde apunte la variable de entorno `RUBY187`. Si no lo encuentra, lo dice y se queda solo con los patrones.
+
+Las dos van dentro de la batería de tests:
+
+```bash
+ruby test/run_all.rb              # tests de los dos motores + comprobaciones estáticas
+python test/check187.py           # solo el chequeo 1.8.7, sobre todo el árbol
+python test/check187.py core/nav/locator.rb   # o sobre los archivos que has tocado
 ```
 
-## 18. Lazy Initialization (||=)
+---
+
+Con eso claro, el resto es Ruby normal. Los ejemplos son código real del proyecto.
+
+## 2. Módulos
+
+Casi todo el mod son módulos con métodos de módulo: no hay instancias que crear ni estado que pasar de mano en mano.
 
 ```ruby
-@cache ||= {}  # Si @cache es nil, crear {}; si no, usar lo que hay
-
-@cache ||= {}
-@cache[:x] = 5  # Guardar en caché
-
-@cache ||= {}   # Ya existe, no hacer nada
-```
-
-**En PokeEssentialsAccess**:
-```ruby
-def active_entry
-  @active_entry ||= @providers.max_by { |pr| pr[0] }
-end
-
-# Primera llamada: calcular y guardar
-# Siguientes: devolver lo guardado (sin recalcular)
-```
-
-## 19. Splat Operator (*)
-
-```ruby
-def mi_metodo(*args)  # Captura TODOS los argumentos en array
-  args.each { |arg| puts arg }
-end
-
-mi_metodo(1, 2, 3)  # args = [1, 2, 3]
-
-# Expandir array
-arr = [1, 2, 3]
-mi_otro_metodo(*arr)  # Se vuelve: mi_otro_metodo(1, 2, 3)
-```
-
-**En PokeEssentialsAccess** (los hooks reciben los argumentos del método original como array):
-```ruby
-PokeAccess::Hooks.after_hook("Algo_Scene", :metodo) do |scene, result, args|
-  # args = los argumentos con que se llamó al método original
-end
-```
-
-## 20. Class.new y Class.define_method
-
-```ruby
-# Crear clase dinámicamente
-MiClase = Class.new do
-  def mi_metodo
-    "resultado"
+module PokeAccess
+  module Engine
+    def self.kind          # se llama PokeAccess::Engine.kind
+      gamedata? ? :gamedata : :gen6
+    end
   end
 end
-
-MiClase.new.mi_metodo  # → "resultado"
 ```
 
-## Resumen Rápido
+`self.` delante del nombre es lo que lo convierte en método del módulo. Un módulo se puede **reabrir** en otro archivo para añadirle métodos; el mod lo usa para partir un módulo grande en varios archivos: `core/input/input.rb` define `PokeAccess::Keys` y `core/input/diag.rb` reabre el mismo módulo para añadirle la parte de diagnóstico.
 
-| Concepto | Sintaxis | Uso en PokeEssentialsAccess |
-|----------|----------|-------------------|
-| Módulo | `module X; end` | Organización de código |
-| Método clase | `def self.m; end` | `PokeAccess.speak()` |
-| Variable instancia | `@var` | Cache, estado |
-| Bloque | `{ \|x\| x + 1 }` | Hooks, eventos |
-| Hash | `{ :key => val }` | Config, datos |
-| Array | `[1, 2, 3]` | Manifests, listas |
-| Símbolo | `:symbol` | Claves, tipos |
-| Rescue | `begin...rescue` | Errores sin crashear |
-| ||= | `x ||= default` | Inicialización perezosa |
-| ? : | `condition ? a : b` | Decisiones rápidas |
+## 3. Variables de instancia y memoización
 
-## Referencias
+Dentro de un módulo, `@algo` es estado privado del módulo:
 
-- [Ruby Official Docs](https://ruby-doc.org)
-- [Ruby Style Guide](https://rubystyle.guide)
+```ruby
+# core/data/data.rb
+def self.active_entry
+  @active_entry ||= @providers.max_by { |pr| pr[0] }
+end
+```
+
+`||=` es "si es `nil`, calcula y guarda; si no, devuelve lo que hay". Es el patrón de caché por defecto del proyecto. Ojo con él si el valor legítimo puede ser `false`: entonces se recalcularía cada vez.
+
+## 4. `attr_accessor` y `class << self`
+
+`attr_accessor :x` crea el getter `x` y el setter `x=`. Para que sean métodos **del módulo** hay que declararlos dentro de `class << self`:
+
+```ruby
+# core/foundation/config.rb -- una opción nueva es una fila en SCHEMA, y ya
+class << self
+  attr_accessor(*(SCHEMA.map { |row| row[0] } + OTHER))
+end
+
+SCHEMA.each { |row| send("#{row[0]}=", row[1]) }   # aplica los valores por defecto
+```
+
+```ruby
+PokeAccess::Config.language = :es
+PokeAccess::Config.language        # => :es
+```
+
+## 5. Bloques
+
+Un bloque es código que se pasa a un método, entre `{ }` o entre `do ... end`. El mod los usa para registrar cosas: enganches, suscriptores de eventos, invalidadores de caché.
+
+```ruby
+# core/battle/gen6/battle_g6.rb -- el bloque corre después del método original
+PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbHPChanged) do |scene, resultado, args|
+  # ...
+end
+
+# core/nav/locator.rb -- el bloque corre cuando alguien emite el evento
+PokeAccess::Events.on(:tags_changed) { (PokeAccess::Locator.rebuild_targets rescue nil) }
+
+# core/foundation/caches.rb -- el bloque corre al invalidar las cachés
+PokeAccess::Events.on(:map_changed) { PokeAccess::Caches.reset_all }
+```
+
+Quien recibe el bloque lo llama con `yield` o lo captura con `&block` y hace `block.call`:
+
+```ruby
+# core/foundation/events.rb
+def self.on(name, &block)
+  (@handlers[name] ||= []).push(block)
+end
+```
+
+Los argumentos que recibe cada bloque los fija quien lo llama; los de los enganches están en [04_PATCHING_AND_HOOKS](04_PATCHING_AND_HOOKS.md).
+
+## 6. Procs y lambdas
+
+Un `lambda` es un bloque guardado en una variable. Sirve para decidir una vez algo que se usará muchas veces:
+
+```ruby
+# core/nav/pathfinder.rb -- se elige montículo o cola ANTES del bucle de búsqueda,
+# para no repetir la misma condición en cada empuje
+push  = heaped ? lambda { |item| heap_push(heap, item) } : lambda { |item| queue.push(item) }
+empty = heaped ? lambda { heap.empty? }                  : lambda { queue.empty? }
+
+push.call([hw * ((px - tx).abs + (py - ty).abs), 0, px, py, 0])
+until empty.call
+  # ...
+end
+```
+
+En 1.8.7 se escribe `lambda { |x| ... }`; la flecha `->` no existe.
+
+## 7. Hash, Array y símbolos
+
+Un símbolo (`:nombre`) es una cadena inmutable y única: se usa como clave, como identificador de tipo y como nombre de método. En código dual, un hash se escribe siempre con la flecha `=>`, no con `clave:` (esa sintaxis es de 1.9+):
+
+```ruby
+# core/foundation/config.rb -- acción => código de tecla virtual de Windows
+self.keys = {
+  :next => 0x4C, :prev => 0x4A, :where => 0x4B, :route => 0x49,
+  :info => 0x54, :hp => 0x48, :coords => 0x4D, :field => 0x47,
+  :config => 0x4F, :shift => 0x10, :ctrl => 0x11
+}
+```
+
+Con arrays, los métodos que se ven por todo el proyecto son `each`, `map`, `select`, `detect`, `push` y `max_by`, siempre con bloque explícito (nada de `&:simbolo`):
+
+```ruby
+# core/foundation/config.rb
+def self.schema_group(group); SCHEMA.select { |row| row[3] == group }; end
+def self.schema_row(key);     SCHEMA.find   { |row| row[0] == key }; end
+
+# core/battle/gen6/battle_g6.rb -- el primero que exista de una lista de nombres
+mega_setter = ["megaButton=", "mode="].detect { |m| PokeAccess::Engine.has?("FightMenuDisplay##{m}") }
+```
+
+Un manifest no es más que un array de cadenas (`%w[...]`) que el boot recorre en orden.
+
+## 8. `send`, `alias_method` y `define_method`
+
+Son las tres piezas con las que está hecho el sistema de enganches.
+
+`send` llama a un método por su nombre:
+
+```ruby
+# core/data/data.rb
+pr.send(method, arg)   # llama pr.species_name(id), pr.move_name(id)... según el caso
+```
+
+`alias_method` le da un segundo nombre a un método, para poder seguir llamándolo después de redefinirlo. `define_method` define un método a partir de un bloque. Juntos son el envoltorio:
+
+```ruby
+# core/input/hooks.rb, simplificado -- guardar el original y poner uno nuevo en su sitio
+k.send(:alias_method, orig, meth)
+k.send(:define_method, meth) do |*args, &blk|
+  # ... aquí corren los cuerpos registrados ...
+  send(orig, *args, &blk)   # y luego el original
+end
+```
+
+`*args` recoge todos los argumentos en un array (y al llamar, los vuelve a expandir), así el envoltorio funciona sea cual sea la firma del método original.
+
+Casi nunca tendrás que escribir esto: para eso está `PokeAccess::Hooks`. Pero conviene reconocerlo cuando lo leas.
+
+## 9. Introspección defensiva
+
+El mod lee constantemente los objetos del motor, que no exponen accesores y cuyas variables de instancia cambian de una versión a otra. Por eso no se usa `instance_variable_get` a pelo: hay tres primitivas en `core/foundation/const.rb`, todas seguras en 1.8.7 y todas devuelven un valor por defecto en vez de lanzar.
+
+```ruby
+PokeAccess.ivar(menu, :@battler)        # el ivar, o nil si no existe o la lectura falla
+PokeAccess.ivar_i(menu, :@index)        # igual, forzado a Integer (por defecto 0)
+PokeAccess.sprite(scene, "commandwindow")  # ((@sprites || {})["clave"] rescue nil) en una llamada
+```
+
+Lo mismo con las constantes. `Object.const_defined?` rechaza un nombre con `"::"` en 1.8.7, así que se resuelve segmento a segmento:
+
+```ruby
+PokeAccess.const_at("Battle::Scene")   # la clase, o nil si falta algún segmento
+```
+
+Y para la pregunta que de verdad se hace el código — "¿puede este motor hacer X?" — hay una sola puerta, `Engine.has?`, que acepta un símbolo de capacidad, un nombre de clase o `"Clase#metodo"`:
+
+```ruby
+# core/battle/v21/battle_v21.rb
+if PokeAccess::Engine.has?("Battle::Scene::MenuBase#setIndexAndMode")
+  # ...
+end
+```
+
+## 10. `rescue`
+
+El mod nunca puede tumbar la partida: un lector que falla se calla, no explota. De ahí que el `rescue` esté por todas partes, en sus dos formas.
+
+```ruby
+# forma corta: valor por defecto si la expresión lanza
+h = (GFW.call rescue 0)
+
+# forma larga: registrar y degradar
+# core/data/data.rb
+def self.resolve(method, arg)
+  pr = active
+  return nil unless pr
+  begin
+    pr.send(method, arg)
+  rescue StandardError => e
+    note_error(method, e)    # se anota una vez y sale en el diagnóstico
+    nil
+  end
+end
+```
+
+La regla del proyecto: tragar el error **sí**, pero dejando rastro. Para eso están `PokeAccess.log_once(clave, error)` y `PokeAccess.write_marker(texto)`; un fallo silencioso sin rastro es un lector mudo que nadie sabrá diagnosticar.
+
+## 11. Expresiones regulares
+
+Aparecen sobre todo al normalizar texto y al extraer números:
+
+```ruby
+# core/foundation/engine.rb -- la versión de Essentials como número
+ev.to_s[/\d+(\.\d+)?/].to_f
+
+# core/speech/speech.rb -- colapsar espacios antes de hablar
+text = text.to_s.gsub(/\s+/, " ").strip
+```
+
+## Resumen
+
+| Concepto | Sintaxis | Dónde lo verás |
+|----------|----------|----------------|
+| Módulo | `module X; def self.m; end; end` | Todo el mod |
+| Memoización | `@x ||= calculo` | Cachés, providers |
+| Accesores de módulo | `class << self; attr_accessor :x; end` | `Config` |
+| Bloque | `do \|a, b\| ... end` | Hooks, eventos, cachés |
+| Lambda | `lambda { \|x\| ... }` | Pathfinder |
+| Hash | `{ :clave => valor }` | Config, tablas |
+| Llamada dinámica | `obj.send(:metodo, arg)` | Data, Hooks |
+| Envoltorio | `alias_method` + `define_method` | Hooks |
+| Lectura defensiva | `PokeAccess.ivar(obj, :@x)` | Todos los lectores |
+| Puerta por capacidad | `Engine.has?("Clase#metodo")` | Adaptadores por era |
+| Error tragado con rastro | `rescue` + `log_once` | Todo el mod |
 
 ## Próximo
 
-- [Volver a Introducción](01_INTRODUCTION.md)
-- [Architecture](02_ARCHITECTURE.md)
+- [04_PATCHING_AND_HOOKS](04_PATCHING_AND_HOOKS.md) — qué hace `PokeAccess::Hooks` con todo esto.
+- [14_EXTENDING](14_EXTENDING.md) — escribir tu primer lector.
+- [10_API_REFERENCE](10_API_REFERENCE.md) — los métodos, por módulo.

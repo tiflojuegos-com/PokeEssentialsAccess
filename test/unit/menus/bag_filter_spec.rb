@@ -5,6 +5,30 @@
 # real v21 API the extractor relies on: #pocket, #index, #item and #itemCount are filterlist-aware, and the
 # raw pocket lives in @bag.pockets. filter keeps pocket indices [1, 3], so visual 0 -> real 1, visual 1 ->
 # real 3, and visual 2 is the close row -- the exact mapping the pre-fix code got wrong.
+# The bag window stand-in, at file level: it used to be built inside the FIRST suite and used by the
+# second, so running them in any other order was a NameError. A fixture two suites share belongs to
+# neither of them.
+unless Object.const_defined?(:Window_PokemonBag)
+  win_klass = Class.new do
+    attr_accessor :index
+    attr_reader :pocket
+    def initialize(bag, filterlist, pocket, adapter)
+      @bag = bag; @filterlist = filterlist; @pocket = pocket; @adapter = adapter; @index = 0
+    end
+
+    def itemCount
+      (@filterlist ? @filterlist[@pocket].length : @bag.pockets[@pocket].length) + 1
+    end
+
+    def item
+      return nil if @filterlist && !@filterlist[@pocket][@index]
+      row = @filterlist ? @bag.pockets[@pocket][@filterlist[@pocket][@index]] : @bag.pockets[@pocket][@index]
+      row ? row[0] : nil
+    end
+  end
+  Object.const_set(:Window_PokemonBag, win_klass)
+end
+
 Suite.define("menus: filtered bag announces the mapped item, not a neighbour") do
   bag_klass = Class.new do
     attr_reader :pockets
@@ -15,26 +39,6 @@ Suite.define("menus: filtered bag announces the mapped item, not a neighbour") d
     def getDisplayName(id); @names[id] || id.to_s; end
   end
 
-  unless Object.const_defined?(:Window_PokemonBag)
-    win_klass = Class.new do
-      attr_accessor :index
-      attr_reader :pocket
-      def initialize(bag, filterlist, pocket, adapter)
-        @bag = bag; @filterlist = filterlist; @pocket = pocket; @adapter = adapter; @index = 0
-      end
-
-      def itemCount
-        (@filterlist ? @filterlist[@pocket].length : @bag.pockets[@pocket].length) + 1
-      end
-
-      def item
-        return nil if @filterlist && !@filterlist[@pocket][@index]
-        row = @filterlist ? @bag.pockets[@pocket][@filterlist[@pocket][@index]] : @bag.pockets[@pocket][@index]
-        row ? row[0] : nil
-      end
-    end
-    Object.const_set(:Window_PokemonBag, win_klass)
-  end
 
   names = { :POTION => "Pocion", :REPEL => "Repelente", :RARECANDY => "Caramelo", :FULLHEAL => "Cura total" }
   pockets = { 1 => [[:POTION, 5], [:REPEL, 2], [:RARECANDY, 9], [:FULLHEAL, 1]] }

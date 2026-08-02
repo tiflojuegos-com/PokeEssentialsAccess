@@ -47,45 +47,29 @@ module PokeAccess
       LABEL[KIND[number(t)]] || (surfable?(t) ? :surf_water : nil)
     end
 
-    # True if a raw terrain value is surfable water.
-    def self.surfable?(t)
+    # The three-step dual-engine probe every tag test shares: the modern object's boolean flag, then the
+    # gen-6 PBTerrain helper, then the block over the NORMALISED tag number. One ladder instead of four
+    # near-identical copies, and the number fallback is uniform (the old surfable? compared the raw value).
+    def self.probe(t, flag, pb_name)
       return false if t.nil?
-      return (t.can_surf ? true : false) if t.respond_to?(:can_surf)
-      return PBTerrain.isSurfable?(t) if defined?(PBTerrain) && PBTerrain.respond_to?(:isSurfable?)
-      SURF_NUMBERS.include?(t)
+      return (t.send(flag) ? true : false) if t.respond_to?(flag)
+      return PBTerrain.send(pb_name, t) if defined?(PBTerrain) && PBTerrain.respond_to?(pb_name)
+      yield(number(t))
     rescue StandardError
       false
     end
+
+    # True if a raw terrain value is surfable water.
+    def self.surfable?(t); probe(t, :can_surf, :isSurfable?) { |n| SURF_NUMBERS.include?(n) }; end
 
     # True if a raw terrain value is a one-way ledge (tag 1).
-    def self.ledge?(t)
-      return false if t.nil?
-      return (t.ledge ? true : false) if t.respond_to?(:ledge)
-      return PBTerrain.isLedge?(t) if defined?(PBTerrain) && PBTerrain.respond_to?(:isLedge?)
-      number(t) == 1
-    rescue StandardError
-      false
-    end
+    def self.ledge?(t); probe(t, :ledge, :isLedge?) { |n| n == 1 }; end
 
     # True if a raw terrain value is ice (forced slide).
-    def self.ice?(t)
-      return false if t.nil?
-      return (t.ice ? true : false) if t.respond_to?(:ice)
-      return PBTerrain.isIce?(t) if defined?(PBTerrain) && PBTerrain.respond_to?(:isIce?)
-      number(t) == 12
-    rescue StandardError
-      false
-    end
+    def self.ice?(t); probe(t, :ice, :isIce?) { |n| n == 12 }; end
 
     # True if a raw terrain value is a bridge tile.
-    def self.bridge?(t)
-      return false if t.nil?
-      return (t.bridge ? true : false) if t.respond_to?(:bridge)
-      return PBTerrain.isBridge?(t) if defined?(PBTerrain) && PBTerrain.respond_to?(:isBridge?)
-      number(t) == 15
-    rescue StandardError
-      false
-    end
+    def self.bridge?(t); probe(t, :bridge, :isBridge?) { |n| n == 15 }; end
 
     # True if a raw terrain value is walkable grass (plain, tall or soot).
     def self.grass?(t)

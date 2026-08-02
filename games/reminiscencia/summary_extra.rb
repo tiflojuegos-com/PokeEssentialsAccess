@@ -71,7 +71,8 @@ module PokeAccess
     # One spoken line of the six stats in screen order, each label followed by its value. param title the
     # line heading (Estadisticas / IVs / EVs / Bonus); param suffix appended to each value (e.g. "%")
     def self.stat_line(title, vals, suffix = "")
-      "#{title}. " + STAT_ORDER.map { |i| "#{STAT_LABELS[i]} #{vals[i]}#{suffix}" }.join(", ")
+      stats = STAT_ORDER.map { |i| "#{STAT_LABELS[i]} #{vals[i]}#{suffix}" }.join(", ")
+      "#{title}. #{stats}"
     end
 
     # The current value of each stat, by PBStats index (HP shown as current of max).
@@ -83,13 +84,10 @@ module PokeAccess
     # The per-species stat bonus the screen shows, by PBStats index, or nil when all zero/absent.
     def self.bonus_values(scene)
       h = {}
-      any = false
       BONUS_IVARS.each do |stat, ivar|
-        v = (scene.instance_variable_get(ivar) rescue nil).to_i
-        h[stat] = v
-        any = true if v != 0
+        h[stat] = (scene.instance_variable_get(ivar) rescue nil).to_i
       end
-      any ? h : nil
+      h.values.any? { |v| v != 0 } ? h : nil
     rescue StandardError
       nil
     end

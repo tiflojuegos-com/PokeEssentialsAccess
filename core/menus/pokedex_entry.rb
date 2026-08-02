@@ -14,8 +14,8 @@ module PokeAccess
       nm = (PokeAccess::Data.species_name(sp) || sp.to_s)
       parts = [nm, PokeAccess::I18n.t(:dex_category, :cat => (pk.kind rescue ""))]
       if ($Trainer && $Trainer.owned[sp] rescue false)
-        parts.push(PokeAccess::I18n.t(:dex_height, :h => fmt1((pk.height rescue 0) / 10.0)))
-        parts.push(PokeAccess::I18n.t(:dex_weight, :w => fmt1((pk.weight rescue 0) / 10.0)))
+        parts.push(PokeAccess::I18n.t(:dex_height, :h => PokeAccess::Pokedex.fmt_float((pk.height rescue 0) / 10.0)))
+        parts.push(PokeAccess::I18n.t(:dex_weight, :w => PokeAccess::Pokedex.fmt_float((pk.weight rescue 0) / 10.0)))
         e = (pk.dexEntry rescue nil)
         parts.push(PokeAccess.clean(e)) if e && !e.to_s.empty?
       end
@@ -42,9 +42,6 @@ module PokeAccess
     rescue StandardError
       nil
     end
-
-    # One decimal place, locale-neutral.
-    def self.fmt1(n); (sprintf("%.1f", n.to_f) rescue n.to_s); end
   end
 end
 

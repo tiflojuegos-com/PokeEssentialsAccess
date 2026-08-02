@@ -1,9 +1,8 @@
-# Kernel.pbDisplayText: a HUD text writer some fangames add (both Infinite Fusion games ship it, in
-# 052_AddOns/DisplayText.rb and 052_InfiniteFusion/System/DisplayText.rb). Screens built on it paint their
-# labels straight onto a bare BitmapSprite -- no Essentials window is involved -- so everything drawn that way
-# was silent: in Infinite Fusion that is the whole PokeNav (Contacts, PokeRadar, Challenges, weather) plus the
-# character creator. Wrapping this one function reaches all of them at once, and it no-ops where the function
-# is not defined, so it costs nothing in the other games.
+# Kernel.pbDisplayText: a HUD text writer some fangames ship (a DisplayText.rb addon script). Screens built
+# on it paint their labels straight onto a bare BitmapSprite -- no Essentials window is involved -- so
+# everything drawn that way was silent: in the games that ship it that is a whole PokeNav (Contacts,
+# PokeRadar, Challenges, weather) plus the character creator. Wrapping this one function reaches all of them
+# at once, and it no-ops where the function is not defined, so it costs nothing in the other games.
 #
 # It redraws the same label on many consecutive frames, so the reader speaks only when the text actually
 # changes (Cursor on the module-wide table: the caller is Kernel, there is no scene instance to hang state on).

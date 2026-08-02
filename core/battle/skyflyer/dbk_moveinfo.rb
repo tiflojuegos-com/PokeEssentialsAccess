@@ -46,19 +46,17 @@ module PokeAccess
   end
 end
 
-if PokeAccess::Engine.has?("Battle::Scene#pbUpdateMoveInfoWindow")
-  PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateMoveInfoWindow) do |scene, _ret, args|
-    battler = args[0]; cw = args[2]
-    if PokeAccess.ivar(scene, :@enhancedUIToggle) == :move && battler && cw
-      idx = (cw.index rescue nil)
-      key = idx.nil? ? nil : "mi#{(battler.index rescue 0)}_#{idx}"
-      if key && key != PokeAccess.ivar(scene, :@access_moveinfo)
-        scene.instance_variable_set(:@access_moveinfo, key)
-        t = PokeAccess::DBKMoveInfo.text(battler, idx, args[1], cw, scene)
-        PokeAccess.speak(t, true) if t && !t.to_s.empty?
-      end
-    else
-      scene.instance_variable_set(:@access_moveinfo, nil) rescue nil
+PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateMoveInfoWindow, :optional => true) do |scene, _ret, args|
+  battler = args[0]; cw = args[2]
+  if PokeAccess.ivar(scene, :@enhancedUIToggle) == :move && battler && cw
+    idx = (cw.index rescue nil)
+    key = idx.nil? ? nil : "mi#{(battler.index rescue 0)}_#{idx}"
+    if key && key != PokeAccess.ivar(scene, :@access_moveinfo)
+      scene.instance_variable_set(:@access_moveinfo, key)
+      t = PokeAccess::DBKMoveInfo.text(battler, idx, args[1], cw, scene)
+      PokeAccess.speak(t, true) if t && !t.to_s.empty?
     end
+  else
+    scene.instance_variable_set(:@access_moveinfo, nil) rescue nil
   end
 end

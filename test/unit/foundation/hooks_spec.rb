@@ -43,6 +43,27 @@ Suite.define("hooks: missing records typo, ignores absent class") do
         PokeAccess::Hooks.missing.include?("HookNoSuchClassXYZ_pa#whatever")
 end
 
+# :optional declares the METHOD legitimately absent on some games (a plugin variant, a fork rename): the
+# bind is skipped silently, so @missing keeps its exact meaning of "possible typo". Where the method DOES
+# exist, :optional binds normally -- it only changes the absent-method outcome. All four registrars accept it.
+Suite.define("hooks: :optional skips an absent method silently but still binds a present one") do
+  target = Class.new { def present_method; :orig; end }
+  Object.const_set(:HookOptTarget, target) unless Object.const_defined?(:HookOptTarget)
+  PokeAccess::Hooks.after_hook("HookOptTarget", :absent_method, :optional => true) { |_i, _r, _a| }
+  PokeAccess::Hooks.before_hook("HookOptTarget", :absent_before, :optional => true) { |_i, _a| }
+  PokeAccess::Hooks.around_hook("HookOptTarget", :absent_around, :optional => true) { |_i, n, _a| n.call }
+  falsy "an optional absent method is not recorded as a typo",
+        PokeAccess::Hooks.missing.include?("HookOptTarget#absent_method")
+  falsy "optional covers before_hook too",
+        PokeAccess::Hooks.missing.include?("HookOptTarget#absent_before")
+  falsy "optional covers around_hook too",
+        PokeAccess::Hooks.missing.include?("HookOptTarget#absent_around")
+  fired = []
+  PokeAccess::Hooks.after_hook("HookOptTarget", :present_method, :optional => true) { |_i, r, _a| fired << r }
+  eq "an optional present method binds and preserves the result", HookOptTarget.new.present_method, :orig
+  eq "the optional hook on a present method fired", fired, [:orig]
+end
+
 # wrap_global: the shared helper that replaced six copy-pasted Object-method wraps. :after runs after the
 # original and sees its return value; :before runs first with a nil result; the original's return is
 # preserved; it never double-wraps. Throwaway Object methods stand in for the real (stubbed-away) sites.

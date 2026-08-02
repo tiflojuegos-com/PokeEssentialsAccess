@@ -1,4 +1,4 @@
-# Achievements (Logros_Scene), a common fangame addon (Pokemon Z, Reminiscencia...). showTexts(index)
+# Achievements (Logros_Scene), a common fangame addon. showTexts(index)
 # runs as the list is navigated; installs only where the class exists and reads defensively.
 PokeAccess::Hooks.after_hook("Logros_Scene", :showTexts) do |scene, _r, args|
   next if (PokeAccess::LogrosIndexed.watching? rescue false)
@@ -11,14 +11,14 @@ PokeAccess::Hooks.after_hook("Logros_Scene", :showTexts) do |scene, _r, args|
 end
 
 module PokeAccess
-  # An indexed Logros screen (e.g. Africanvs) with no showTexts: a pbUpdate loop moves @indexSel over
+  # An indexed Logros screen (seen in the wild) with no showTexts: a pbUpdate loop moves @indexSel over
   # @logros (LogroIcon name/desc/status), drawing the focused one. Kept apart from the showTexts variant.
   module LogrosIndexed
     @scene = nil; @last = nil
     def self.watch(s); @scene = s; @last = nil; end
     def self.unwatch; @scene = nil; @last = nil; end
     # True while this indexed variant owns the scene, so the showTexts hook stands down (avoids double read
-    # on games like royal whose Logros_Scene has BOTH @indexSel and showTexts).
+    # on games whose Logros_Scene has BOTH @indexSel and showTexts).
     def self.watching?; !@scene.nil?; end
 
     # Reads the focused achievement when the cursor moves.

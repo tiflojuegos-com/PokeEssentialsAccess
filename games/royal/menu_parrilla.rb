@@ -7,10 +7,9 @@ PokeAccess::Game.define("royal") do
   after("Menu2", :pbActualizarIconosMenu) do |menu, _ret, _args|
     items = PokeAccess.ivar(menu, :@items)
     idx   = PokeAccess.ivar(menu, :@selected_item)
-    if items.is_a?(Array) && idx && items[idx].is_a?(Array) &&
-       PokeAccess::Cursor.changed?(menu, :pm, idx)
-      label = items[idx][1]
-      PokeAccess.speak_clean(label.to_s, true) if label && !label.to_s.empty?
-    end
+    next unless items.is_a?(Array) && idx && items[idx].is_a?(Array)
+    next unless PokeAccess::Cursor.changed?(menu, :pm, idx)
+    label = items[idx][1]
+    PokeAccess.speak_clean(label.to_s, true) if label && !label.to_s.empty?
   end
 end

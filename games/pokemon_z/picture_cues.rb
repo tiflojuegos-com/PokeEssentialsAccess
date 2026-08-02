@@ -19,9 +19,9 @@ PokeAccess::Game.define("pokemon_z") do
 end
 
 # Regi legendary inscriptions (maps 289/245/303): a braille message shown as an image. Instead of speaking
-# dots, the mod announces a mystery braille message and copies the braille (as unicode, U+2800 + dot mask)
-# to the clipboard, so the player pastes it into Notepad or reads it on a braille display. Values
-# transcribed from the in-game plaques.
+# dots, the mod announces a mystery braille message, sends the braille (as unicode, U+2800 + dot mask)
+# straight to any connected braille display, and copies it to the clipboard so a player without a display
+# can paste it into Notepad. Values transcribed from the in-game plaques.
 module PokeAccess
   module ZRegi
     # Keys are the games actual picture names: map 289's plaque is "reg1" (no "i"), maps 245/303 are
@@ -33,12 +33,14 @@ module PokeAccess
     }
     @last = nil
 
-    # On a regi inscription picture: copies its braille to the clipboard and announces it. Deduped so the
-    # engine's same-picture re-show does not copy twice; reset() (on erase) allows re-reading.
+    # On a regi inscription picture: pushes its braille to the display, copies it to the clipboard and
+    # announces it. Deduped so the engine's same-picture re-show does not copy twice; reset() (on erase)
+    # allows re-reading.
     def self.on_picture(name)
       cps = BRAILLE[name.to_s]
       return if cps.nil? || name.to_s == @last
       @last = name.to_s
+      (PokeAccess.braille_codepoints(cps) rescue nil)
       ok = (PokeAccess::Clipboard.set_codepoints(cps) rescue false)
       PokeAccess.speak(PokeAccess::I18n.t(ok ? :regi_braille_copied : :regi_braille), true)
     end

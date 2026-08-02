@@ -1,11 +1,12 @@
 # v22 pause menu (Essentials v22: UI::PauseMenuVisuals). Its command list is a Window_CommandPokemon that
 # the screen reads by index and may leave inactive, so the active-only generic reader can miss it. Mark the
-# window so the generic reader skips it (no double read), and read the focused command here on the visuals'
-# per-frame update, deduped by index. @commands is [[ids], [names]].
-if PokeAccess::V22.const_exists?("UI::PauseMenuVisuals")
+# window with the mod's OWN dedicated flag so the generic reader skips it (no double read) -- never
+# @ignore_input, the ENGINE's flag whose collision caused the gen-6 move-relearner bug -- and read the
+# focused command here on the visuals' per-frame update, deduped by index. @commands is [[ids], [names]].
+if PokeAccess::Engine.has?("UI::PauseMenuVisuals")
   PokeAccess::Hooks.after_hook("UI::PauseMenuVisuals", :set_commands) do |vis, _ret, _args|
     win = (vis.instance_variable_get(:@sprites)[:commands] rescue nil)
-    win.instance_variable_set(:@ignore_input, true) if win
+    win.instance_variable_set(:@access_dedicated, true) if win
   end
 
   PokeAccess::Hooks.after_hook("UI::PauseMenuVisuals", :update_visuals) do |vis, _ret, _args|

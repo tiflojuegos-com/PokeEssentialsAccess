@@ -28,7 +28,10 @@ end
 
 # Mute the generic bare-name read of the move window, then read the full detail on each redraw. Use the mod's
 # own @access_dedicated flag (not @ignore_input, which some Selectable windows use to gate their navigation).
-PokeAccess::Hooks.after_hook("EggMoveLearner_Scene", :pbStartScene) do |scene, _r, _a|
+# hook_container: this body only STORES, it never speaks, and pbStartScene calls pbDrawMoveList -- whose hook is
+# the one that announces. Guarded, that opening read is dropped as nested_other? and the screen opens
+# in silence; the guard only earns its keep when the outer hook is itself the announcer.
+PokeAccess::Hooks.after_hook("EggMoveLearner_Scene", :pbStartScene, :hook_container => true) do |scene, _r, _a|
   w = PokeAccess.sprite(scene, "commands")
   w.instance_variable_set(:@access_dedicated, true) if w
 end

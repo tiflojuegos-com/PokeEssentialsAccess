@@ -11,8 +11,8 @@ module PokeAccess
 
     # Whether the player has seen (or owns) a species, tolerant of how each engine exposes the Pokedex:
     # gen-6 keeps plain seen/owned arrays on the trainer, while v18+ replaced them with seen?/owned?
-    # predicates (on the player itself, or on a nested pokedex object -- Infinite Fusion's Player::Pokedex
-    # routes fusions through them). Reading only the gen-6 arrays left the dex list silent on v18 games.
+    # predicates (on the player itself, or on a nested pokedex object -- one fangame's Player::Pokedex
+    # routes its custom species through them). Reading only the gen-6 arrays left the dex list silent on v18 games.
     # Returns true/false, or nil when nothing resolves, so a caller can tell "not seen" from "unknown".
     def self.dex_seen?(sp);  dex_flag(sp, :seen?, :seen);   end
     def self.dex_owned?(sp); dex_flag(sp, :owned?, :owned); end

@@ -11,6 +11,12 @@ module PokeAccess
   module Cursor
     @global = {}
 
+    # Drops the module-wide table. Dedup normally dies with the scene it hangs on, but readers with no
+    # instance to hang on (the HUD text line, Awakening's affinity cards) land here instead, and this table
+    # outlives everything. Nothing cleared it in the running game -- only the test harness did, between
+    # suites, which is the tell that it was known to leak. Registered on :map_changed below.
+    def self.reset_global; @global = {}; end
+
     # The slot with any legacy leading @ stripped (:@access_x and :access_x are the same slot), so the
     # composed dedup ivar is always a legal instance-variable name and never raises inside the rescue.
     def self.bare_slot(slot)
@@ -85,3 +91,6 @@ module PokeAccess
     end
   end
 end
+
+# The instance-held dedup dies with its scene; the module-wide fallback needs saying so explicitly.
+PokeAccess::Caches.register(:cursor_global) { PokeAccess::Cursor.reset_global }

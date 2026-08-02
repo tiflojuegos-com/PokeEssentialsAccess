@@ -7,7 +7,7 @@
 PokeAccess::V22.on_nav("UI::PartyVisuals", :set_index) do |vis|
   idx   = vis.index
   party = vis.instance_variable_get(:@party)
-  max   = (Settings::MAX_PARTY_SIZE rescue 6)
+  max   = (::Settings::MAX_PARTY_SIZE rescue 6)
   if idx.is_a?(Integer) && idx >= max
     multi = (vis.instance_variable_get(:@multi_select) rescue false)
     (multi && idx == max) ? PokeAccess::I18n.t(:pc_confirm) : PokeAccess::I18n.t(:pc_cancel)

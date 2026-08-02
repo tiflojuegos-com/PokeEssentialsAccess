@@ -33,7 +33,7 @@ PokeAccess::V22.on_nav("UI::BagVisuals") { |vis| PokeAccess::BagV22.item_line(vi
 
 # Pocket change (left/right) goes through set_pocket, which does not fire refresh_on_index_changed, so
 # announce the new pocket plus its focused item and prime the nav dedup key to avoid an immediate repeat.
-if PokeAccess::V22.const_exists?("UI::BagVisuals")
+if PokeAccess::Engine.has?("UI::BagVisuals")
   PokeAccess::Hooks.after_hook("UI::BagVisuals", :set_pocket) do |vis, _ret, _args|
     line = PokeAccess::BagV22.item_line(vis)
     name = PokeAccess::BagV22.pocket_name(vis)

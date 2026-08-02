@@ -29,7 +29,8 @@ libraries redistributed for convenience under assets/ are the property of their
 respective authors and remain governed by their own licenses, not by this one:
 
   - phonon.dll — Steam Audio, © Valve Corporation.
-  - SRAL.dll — Screen Reader Abstraction Library, by its authors.
-  - nvdaControllerClient.dll — NVDA Controller Client, © NV Access.
+  - prism.dll — prism screen-reader access library, © Ethin Probst, MPL-2.0
+    (https://github.com/ethindp/prism). prism_pea.dll is this project's own
+    bridge over it (source under bridge/), covered by the MIT license above.
 
 Refer to each project for its licensing terms.

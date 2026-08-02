@@ -32,15 +32,8 @@ module PokeAccess
     # Loads map_names.txt into the store.
     def self.load_file
       @names = {}
-      return unless File.exist?(FILE)
-      File.foreach(FILE) do |raw|
-        line = raw.gsub(/\r?\n\z/, "")
-        s = line.strip
-        next if s.empty? || s[0, 1] == "#"
-        eq = line.index("=")
-        next unless eq
-        mid = line[0, eq].strip.to_i
-        nm = line[(eq + 1)..-1].to_s.strip
+      PokeAccess::KVFile.each(FILE) do |k, nm|
+        mid = k.to_i
         @names[mid] = nm unless nm.empty? || mid <= 0
       end
     rescue StandardError
@@ -51,7 +44,7 @@ module PokeAccess
     def self.save
       File.open(FILE, "w") do |f|
         f.write("# Nombres de mapa personalizados (mapid=nombre). Editable y compartible.\n")
-        store.keys.sort.each { |mid| f.write("#{mid}=#{store[mid]}\n") }
+        store.sort.each { |mid, nm| f.write("#{mid}=#{nm}\n") }
       end
     rescue StandardError
       nil

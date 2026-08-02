@@ -23,9 +23,8 @@ module PokeAccess
     def self.battler_text(scene, idxSide, idxPoke)
       battle = PokeAccess.ivar(scene, :@battle)
       return nil unless battle
-      sides = [[], []]
-      (battle.allSameSideBattlers.each { |b| sides[0].push(b) } rescue nil)
-      (battle.allOtherSideBattlers.reverse.each { |b| sides[1].push(b) } rescue nil)
+      sides = [(battle.allSameSideBattlers rescue []),
+               (battle.allOtherSideBattlers.reverse rescue [])]
       b = (sides[idxSide][idxPoke] rescue nil)
       return nil unless b
       pk = (b.displayPokemon rescue (b.pokemon rescue nil))
@@ -42,36 +41,28 @@ end
 # Poke Ball selector: pbUpdateBallSelection(items, index, showDesc) redraws on open and on each left/right
 # move; read the focused ball (deduped by index). The dedup ivar lives on the battle-long Scene, so reset
 # it when the selector (re)opens, or reopening on the same index would stay mute.
-if PokeAccess::Engine.has?("Battle::Scene#pbUpdateBallSelection")
-  if PokeAccess::Engine.has?("Battle::Scene#pbSelectBallInfo")
-    PokeAccess::Hooks.before_hook("Battle::Scene", :pbSelectBallInfo) do |scene, _a|
-      scene.instance_variable_set(:@access_ball_idx, nil)
-    end
-  end
-  PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBallSelection) do |scene, _ret, args|
-    items = args[0]; index = args[1]
-    if index != PokeAccess.ivar(scene, :@access_ball_idx)
-      scene.instance_variable_set(:@access_ball_idx, index)
-      t = PokeAccess::DBKSelectors.ball_text(items, index)
-      PokeAccess.speak(t, true) if t && !t.to_s.empty?
-    end
+PokeAccess::Hooks.before_hook("Battle::Scene", :pbSelectBallInfo, :optional => true) do |scene, _a|
+  scene.instance_variable_set(:@access_ball_idx, nil)
+end
+PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBallSelection, :optional => true) do |scene, _ret, args|
+  items = args[0]; index = args[1]
+  if index != PokeAccess.ivar(scene, :@access_ball_idx)
+    scene.instance_variable_set(:@access_ball_idx, index)
+    t = PokeAccess::DBKSelectors.ball_text(items, index)
+    PokeAccess.speak(t, true) if t && !t.to_s.empty?
   end
 end
 
 # Battler selection grid: pbUpdateBattlerSelection(idxSide, idxPoke, select) redraws on each cursor move;
 # read the highlighted battler (deduped by the [side, poke] pair). Reset on (re)open like the ball selector.
-if PokeAccess::Engine.has?("Battle::Scene#pbUpdateBattlerSelection")
-  if PokeAccess::Engine.has?("Battle::Scene#pbSelectBattlerInfo")
-    PokeAccess::Hooks.before_hook("Battle::Scene", :pbSelectBattlerInfo) do |scene, _a|
-      scene.instance_variable_set(:@access_bsel, nil)
-    end
-  end
-  PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBattlerSelection) do |scene, _ret, args|
-    key = [args[0], args[1]]
-    if key != PokeAccess.ivar(scene, :@access_bsel)
-      scene.instance_variable_set(:@access_bsel, key)
-      t = PokeAccess::DBKSelectors.battler_text(scene, args[0], args[1])
-      PokeAccess.speak(t, true) if t && !t.to_s.empty?
-    end
+PokeAccess::Hooks.before_hook("Battle::Scene", :pbSelectBattlerInfo, :optional => true) do |scene, _a|
+  scene.instance_variable_set(:@access_bsel, nil)
+end
+PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBattlerSelection, :optional => true) do |scene, _ret, args|
+  key = [args[0], args[1]]
+  if key != PokeAccess.ivar(scene, :@access_bsel)
+    scene.instance_variable_set(:@access_bsel, key)
+    t = PokeAccess::DBKSelectors.battler_text(scene, args[0], args[1])
+    PokeAccess.speak(t, true) if t && !t.to_s.empty?
   end
 end

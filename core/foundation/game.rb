@@ -29,19 +29,35 @@ module PokeAccess
       # Registers a focused-option reader for a command window. Yields (window, index) -> option text.
       def screen_reader(cname, &blk); PokeAccess::Menus.def_extractor(cname, &blk); end
 
-      # Runs the block AFTER a method fires. Yields (instance, result, args).
-      def after(cname, meth, &blk); PokeAccess::Hooks.after_hook(cname, meth, &blk); end
+      # Runs the block AFTER a method fires. Yields (instance, result, args). opts reaches the hook
+      # untouched, so a profile has the same options the core does: :optional for a method legitimately
+      # absent on some builds of the game (skipped silently instead of landing in Hooks.missing) and
+      # :hook_container for an opener that delegates the announcement to hooked methods it drives.
+      def after(cname, meth, opts = {}, &blk); PokeAccess::Hooks.after_hook(cname, meth, opts, &blk); end
 
-      # Runs the block BEFORE a method fires. Yields (instance, args).
-      def before(cname, meth, &blk); PokeAccess::Hooks.before_hook(cname, meth, &blk); end
+      # Runs the block BEFORE a method fires. Yields (instance, args). opts as in after (:optional).
+      def before(cname, meth, opts = {}, &blk); PokeAccess::Hooks.before_hook(cname, meth, opts, &blk); end
 
       # Wraps a method: the block runs around the original and must call the yielded nxt. Yields
-      # (instance, nxt, args).
-      def around(cname, meth, &body); PokeAccess::Hooks.around_hook(cname, meth, &body); end
+      # (instance, nxt, args). opts as in after (:optional).
+      def around(cname, meth, opts = {}, &body); PokeAccess::Hooks.around_hook(cname, meth, opts, &body); end
+
+      # Speaks the block's text when a scene opens, queued (see Hooks.read_on_open). Yields (scene) ->
+      # text; meth defaults to :pbStartScene; :timing => :before for openers that block in their own loop.
+      def read_on_open(cname, meth = :pbStartScene, opts = {}, &blk); PokeAccess::Hooks.read_on_open(cname, meth, opts, &blk); end
+
+      # REPLACES a core reader's module method (or a game class's instance method) for this profile,
+      # declaring the intent -- the diag lists every override, so the core is never steamrolled in silence.
+      # Yields (receiver, original, args); call original.() to wrap instead of substitute.
+      def override(target, meth, &body); PokeAccess::Hooks.override(target, meth, :tag => "game_#{@name}", &body); end
 
       # Hooks a top-level function (a bare def, possibly on Kernel), for plugin functions that are not class
       # methods (e.g. pbItemBall). timing is :before/:after/:around; no-op where the function is absent.
       def kernel(fname, timing = :before, &body); PokeAccess::Hooks.wrap_kernel(fname, "game_#{@name}_#{fname}", timing, &body); end
+
+      # Contributes a section to the diagnostic dump (and the debug menu's group), so a game's own
+      # mechanics can be diagnosed without the core knowing the game. Yields the output line array.
+      def diag_section(name, group = :scene, &body); PokeAccess::Keys.register_diag_section(name, group, &body); end
 
       # Registers a remappable extra action (a raw key that would otherwise clash), reassignable from
       # the controls menu.
@@ -49,10 +65,6 @@ module PokeAccess
 
       # Runs a block once per frame in every scene, for menus the game drives from its own blocking loop.
       def poll_each_frame(&blk); PokeAccess::Keys.on_frame(&blk); end
-
-      # Registers the block only on engines matching the spec, e.g. for_engine(:min => 22) { ... }
-      # (see Engine.matches?). The common case is gated by class existence and needs no spec.
-      def for_engine(opts = {}, &blk); PokeAccess::Engine.for_engine(opts, &blk); end
 
       # Registers a map puzzle (see Puzzles.register).
       def puzzle(map_id, opts); PokeAccess::Puzzles.register(map_id, opts); end

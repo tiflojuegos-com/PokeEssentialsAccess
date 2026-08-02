@@ -377,9 +377,10 @@ module PokeAccess
       return [] unless d
       if kind(d) == :grid && d[:cells]
         names = d[:names] || GRID3
-        out = []
-        d[:cells].each_index { |i| c = d[:cells][i]; out.push(PokeAccess::Locator::SurfaceTarget.new(c[0], c[1], label_of(names[i]), :puzzle_cell)) }
-        out
+        (0...d[:cells].length).map do |i|
+          c = d[:cells][i]
+          PokeAccess::Locator::SurfaceTarget.new(c[0], c[1], label_of(names[i]), :puzzle_cell)
+        end
       elsif kind(d) == :facing
         facing_statues(d).map { |ev| PokeAccess::Locator::SurfaceTarget.new(ev.x, ev.y, label_of(d[:label]), :statue) }
       else
@@ -417,8 +418,7 @@ module PokeAccess
     # True if a puzzle obstacle event sits on tile (x,y).
     def self.obstacle_at?(x, y)
       return false unless $game_map
-      $game_map.events.each_value { |ev| return true if ev.x == x && ev.y == y && obstacle_kind(ev) }
-      false
+      $game_map.events.values.any? { |ev| ev.x == x && ev.y == y && obstacle_kind(ev) }
     rescue StandardError
       false
     end

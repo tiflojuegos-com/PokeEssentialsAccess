@@ -29,22 +29,20 @@ end
 
 # modern (HallOfFame_Scene): the entry sequence is pure sprite animation, so read the welcome and the
 # whole team from the party on entry, since there is no per-member text to catch.
-PokeAccess::Hooks.after_hook("HallOfFame_Scene", :pbStartSceneEntry) do |_s, _r, _a|
-  party = (PokeAccess::World.player.party rescue nil)
-  next unless party.is_a?(Array)
-  names = party.compact.map { |pk| PokeAccess::HallOfFame.member_text(pk) }.compact
-  next if names.empty?
-  PokeAccess.speak(PokeAccess::I18n.t(:hof_welcome) + ". " + names.join(". "), false)
+PokeAccess::Hooks.read_on_open("HallOfFame_Scene", :pbStartSceneEntry) do |_s|
+  party = (PokeAccess::Engine.player.party rescue nil)
+  names = party.is_a?(Array) ? party.compact.map { |pk| PokeAccess::HallOfFame.member_text(pk) }.compact : []
+  names.empty? ? nil : "#{PokeAccess::I18n.t(:hof_welcome)}. #{names.join('. ')}"
 end
 
 # modern (HallOfFame_Scene): the PC viewer of past records (pbStartScenePC) DOES draw each member via
 # writePokemonData as you browse, so read the focused member there, interrupting on change. Deduped per
-# scene so a redraw of the same pokemon is silent.
+# scene by OBJECT IDENTITY (object_id as the Cursor key -- two team members may compare == but must both
+# read), so a redraw of the same pokemon is silent.
 PokeAccess::Hooks.after_hook("HallOfFame_Scene", :writePokemonData) do |scene, _r, args|
   pk = args[0]
   next unless pk
-  next if pk.equal?(scene.instance_variable_get(:@access_hof_pk))
-  scene.instance_variable_set(:@access_hof_pk, pk)
+  next unless PokeAccess::Cursor.changed?(scene, :hof_pk, pk.object_id)
   t = PokeAccess::HallOfFame.member_text(pk)
   PokeAccess.speak(t, true) if t && !t.to_s.empty?
 end

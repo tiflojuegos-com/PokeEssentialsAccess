@@ -14,5 +14,5 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("royal") do
-  after("IconosLeyenda_Scene", :pbStartScene) { |_s, _r, _a| PokeAccess.speak(PokeAccess::RoyalIconLegend::TEXT, true) }
+  read_on_open("IconosLeyenda_Scene") { |_s| PokeAccess::RoyalIconLegend::TEXT }
 end

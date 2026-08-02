@@ -30,3 +30,50 @@ Suite.define("game api: define forwards every declarative call") do
   PokeAccess::Keys.run_frame_pollers
   truthy "poll_each_frame registers and runs", $frame_log_ref.include?(:tick)
 end
+
+# The DSL's hook forwarders must pass an OPTIONS hash through, or a profile is a second-class citizen of the
+# very API written for it: the core marks its own binds :optional wherever a method is legitimately absent on
+# some build of a game, and a profile -- which meets far more of that variance than the core does -- could
+# not, so its perfectly legitimate bind landed in Hooks.missing, the list whose entire value is that
+# everything on it is a typo. The discriminating case is an absent METHOD on a PRESENT class: an absent
+# class is silent for everyone, flag or no flag, so it would pass even with the options dropped. The
+# non-optional bind at the end is the control: it proves these asserts fail for the right reason and that
+# forwarding opts did not simply stop the binds from being attempted.
+Suite.define("game api: a profile's hooks take the same options the core's do") do
+  opt_target = Class.new { def present_one; :orig; end }
+  Object.const_set(:ApiOptTarget, opt_target) unless Object.const_defined?(:ApiOptTarget)
+  PokeAccess::Game.define("opts_profile") do
+    after("ApiOptTarget",  :gone_after,  :optional => true) { |_i, _r, _a| }
+    before("ApiOptTarget", :gone_before, :optional => true) { |_i, _a| }
+    around("ApiOptTarget", :gone_around, :optional => true) { |_i, nxt, _a| nxt.call }
+  end
+  miss = PokeAccess::Hooks.missing
+  falsy "an optional after on an absent method is not recorded as a typo", miss.include?("ApiOptTarget#gone_after")
+  falsy "optional reaches before too", miss.include?("ApiOptTarget#gone_before")
+  falsy "optional reaches around too", miss.include?("ApiOptTarget#gone_around")
+
+  PokeAccess::Game.define("opts_profile") { after("ApiOptTarget", :typo_one) { |_i, _r, _a| } }
+  truthy "and a bind WITHOUT the flag is still flagged as a typo",
+         PokeAccess::Hooks.missing.include?("ApiOptTarget#typo_one")
+
+  container = Class.new do
+    def open_it(i); reader(i); :opened; end
+    def reader(i); @i = i; :read; end
+  end
+  Object.const_set(:ApiContainerTarget, container) unless Object.const_defined?(:ApiContainerTarget)
+  $api_read_ref = []
+  PokeAccess::Game.define("opts_profile") do
+    after("ApiContainerTarget", :reader) { |_i, _r, a| $api_read_ref << a[0] }
+    after("ApiContainerTarget", :open_it, :hook_container => true) { |_i, _r, _a| }
+  end
+  eq "the container's original still returns its value", ApiContainerTarget.new.open_it(3), :opened
+  eq "hook_container reaches the hook: the reader the opener drives still speaks", $api_read_ref, [3]
+
+  present = []
+  $api_present_ref = present
+  PokeAccess::Game.define("opts_profile") do
+    after("ApiOptTarget", :present_one, :optional => true) { |_i, r, _a| $api_present_ref << r }
+  end
+  eq "an optional bind on a method that DOES exist still binds", ApiOptTarget.new.present_one, :orig
+  eq "and its body ran", present, [:orig]
+end

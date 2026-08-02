@@ -6,17 +6,16 @@ module PokeAccess
   module AwakeningDexNav
     MAX = 20
 
-    # Speaks the encounter summary for the just-opened screen, from its @encarray of species ids.
-    def self.say(scene)
+    # The spoken encounter summary for the just-opened screen, from its @encarray of species ids, or nil.
+    def self.text(scene)
       arr = PokeAccess.ivar(scene, :@encarray)
       map = ($game_map.name rescue nil)
       unless arr.is_a?(Array) && !arr.empty?
-        PokeAccess.speak(PokeAccess::I18n.t(:aw_dexnav_none, :map => map.to_s), true) if map
-        return
+        return map ? PokeAccess::I18n.t(:aw_dexnav_none, :map => map.to_s) : nil
       end
       names = arr[0, MAX].map { |sp| species_label(sp) }.reject { |s| s.nil? || s.empty? }
       head = PokeAccess::I18n.t(:aw_dexnav_head, :map => map.to_s, :n => arr.length)
-      PokeAccess.speak_clean([head, names.join(", ")].join(". "), true)
+      [head, names.join(", ")].join(". ")
     rescue StandardError
       nil
     end
@@ -35,7 +34,5 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("awakening") do
-  after("EncounterListUI", :initialize) do |scene, _r, _a|
-    PokeAccess::AwakeningDexNav.say(scene)
-  end
+  read_on_open("EncounterListUI", :initialize) { |scene| PokeAccess::AwakeningDexNav.text(scene) }
 end

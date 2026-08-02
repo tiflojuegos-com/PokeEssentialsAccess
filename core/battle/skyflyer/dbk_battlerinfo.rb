@@ -47,26 +47,24 @@ module PokeAccess
   end
 end
 
-if PokeAccess::Engine.has?("Battle::Scene#pbUpdateBattlerInfo")
-  PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBattlerInfo) do |scene, _ret, args|
-    battler = args[0]; effects = args[1]; idx_effect = args[2] || 0
-    if PokeAccess.ivar(scene, :@enhancedUIToggle) == :battler && battler
-      bidx = (battler.index rescue nil)
-      prev = PokeAccess.ivar(scene, :@access_binfo)
-      key = [bidx, idx_effect]
-      if key != prev
-        scene.instance_variable_set(:@access_binfo, key)
-        eff = PokeAccess::DBKBattlerInfo.effect_text(effects, idx_effect)
-        if !prev || prev[0] != bidx
-          sm = PokeAccess::DBKBattlerInfo.summary(battler)
-          PokeAccess.speak(sm, true) if sm && !sm.to_s.empty?
-          PokeAccess.speak(eff, false) if eff && !eff.to_s.empty?
-        elsif eff && !eff.to_s.empty?
-          PokeAccess.speak(eff, true)
-        end
+PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBattlerInfo, :optional => true) do |scene, _ret, args|
+  battler = args[0]; effects = args[1]; idx_effect = args[2] || 0
+  if PokeAccess.ivar(scene, :@enhancedUIToggle) == :battler && battler
+    bidx = (battler.index rescue nil)
+    prev = PokeAccess.ivar(scene, :@access_binfo)
+    key = [bidx, idx_effect]
+    if key != prev
+      scene.instance_variable_set(:@access_binfo, key)
+      eff = PokeAccess::DBKBattlerInfo.effect_text(effects, idx_effect)
+      if !prev || prev[0] != bidx
+        sm = PokeAccess::DBKBattlerInfo.summary(battler)
+        PokeAccess.speak(sm, true) if sm && !sm.to_s.empty?
+        PokeAccess.speak(eff, false) if eff && !eff.to_s.empty?
+      elsif eff && !eff.to_s.empty?
+        PokeAccess.speak(eff, true)
       end
-    else
-      scene.instance_variable_set(:@access_binfo, nil) rescue nil
     end
+  else
+    scene.instance_variable_set(:@access_binfo, nil) rescue nil
   end
 end

@@ -55,9 +55,10 @@ end
 
 def pkey(x, y); x * 100000 + y; end
 
-# A*; prune=set restricts expansion to flood-reachable tiles (variant #5); light avoids per-neighbour
-# array allocation (variant #3).
-def astar(px, py, tx, ty, prune = nil, light = false)
+# A*; prune=set restricts expansion to flood-reachable tiles (variant #5). A "#3 light" variant
+# (lighter heap nodes) once threaded a flag through here, but its two branches had ended up identical
+# -- it measured nothing, so it was removed rather than kept as a lying row.
+def astar(px, py, tx, ty, prune = nil)
   return nil if (px - tx).abs + (py - ty).abs > REACH
   h = [[((px - tx).abs + (py - ty).abs), px, py]]
   g = { pkey(px, py) => 0 }; came = {}; closed = {}; iter = 0
@@ -79,8 +80,7 @@ def astar(px, py, tx, ty, prune = nil, light = false)
       ng = g[ck] + 1
       if g[nk].nil? || ng < g[nk]
         g[nk] = ng; came[nk] = ck
-        item = light ? [ng + (nx - tx).abs + (ny - ty).abs, nx, ny] : [ng + (nx - tx).abs + (ny - ty).abs, nx, ny]
-        heap_push(h, item)
+        heap_push(h, [ng + (nx - tx).abs + (ny - ty).abs, nx, ny])
       end
     end
   end
@@ -109,8 +109,8 @@ def blocked?(set, full, tx, ty)
   !NEAR2.any? { |d| set[pkey(tx + d[0], ty + d[1])] }
 end
 
-# find_path under a variant. opts: :flood_gate (#1), :no_ledges (#2: skip 2nd pass), :light (#3),
-# :prune (#5). has_ledges models a map with ledge tiles (so the 2nd pass differs).
+# find_path under a variant. opts: :flood_gate (#1), :no_ledges (#2: skip 2nd pass), :prune (#5).
+# has_ledges models a map with ledge tiles (so the 2nd pass differs).
 def find_path(px, py, tx, ty, opts, has_ledges)
   set = nil; full = true
   near = (px - tx).abs + (py - ty).abs <= 20
@@ -120,11 +120,11 @@ def find_path(px, py, tx, ty, opts, has_ledges)
     return nil if blocked?(set, full, tx, ty)
   end
   prune = (opts[:prune] && set) ? set : nil
-  r = astar(px, py, tx, ty, prune, opts[:light])
+  r = astar(px, py, tx, ty, prune)
   return r if r
   # second pass (ledge): skipped by #2 when the map has no ledges (same result)
   return nil if opts[:no_ledges] && !has_ledges
-  astar(px, py, tx, ty, prune, opts[:light])
+  astar(px, py, tx, ty, prune)
 end
 
 PLAYER = [35, 41]
@@ -139,9 +139,7 @@ VARIANTS = {
   "#1 floodgate" => { :flood_gate => true },
   "#2 noledge"   => { :no_ledges => true },
   "#1+#2"        => { :flood_gate => true, :no_ledges => true },
-  "#3 light"     => { :light => true },
   "#5 prune"     => { :prune => true },
-  "#1+#2+#3"     => { :flood_gate => true, :no_ledges => true, :light => true },
 }
 
 def bench(px, py, tx, ty, opts, reps)

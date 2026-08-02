@@ -192,6 +192,19 @@ module PokeAccess
       end
     end
 
+    # The tile a route step actually LANDS on: one tile normally, but TWO when the step crosses a ledge --
+    # the pathfinder packs a ledge hop as a single direction whose landing is beyond the ledge tile
+    # (ledge_jump's two-tile model), so a consumer advancing one tile per step desynchronises after every
+    # hop and re-runs the full A* (the cached guide route was useless on ledge routes).
+    def self.step_span(x, y, dir)
+      fx, fy = step_tile(x, y, dir)
+      if (PokeAccess::Terrain.ledge_at?(fx, fy) rescue false)
+        [x + 2 * (fx - x), y + 2 * (fy - y)]
+      else
+        [fx, fy]
+      end
+    end
+
     # Advances the cached path to the player's tile by dropping walked steps. True if still on the path.
     def self.advance_guide_path(px, py)
       return false unless @guide_path && @guide_from
@@ -199,7 +212,7 @@ module PokeAccess
       consumed = 0
       @guide_path.each do |d|
         break if [x, y] == [px, py]
-        x, y = step_tile(x, y, d)
+        x, y = step_span(x, y, d)
         consumed += 1
       end
       return false unless [x, y] == [px, py]
@@ -250,14 +263,18 @@ module PokeAccess
     end
 
     # True if every step of a cached route is still walkable from a start tile (a ledge hop counts as
-    # walkable), scanned linearly with no node expansion -- far cheaper than rerunning A*.
+    # walkable and advances to its LANDING, so the steps after a hop validate from the right tile),
+    # scanned linearly with no node expansion -- far cheaper than rerunning A*.
     def self.path_walkable?(px, py, path)
       return true if path.nil? || path.empty?
       x = px; y = py
       path.each do |d|
         fx, fy = step_tile(x, y, d)
-        walk = (PokeAccess::Terrain.ledge_at?(fx, fy) rescue false) || ($game_player.passable?(x, y, d) rescue true)
-        return false unless walk
+        if (PokeAccess::Terrain.ledge_at?(fx, fy) rescue false)
+          x = x + 2 * (fx - x); y = y + 2 * (fy - y)
+          next
+        end
+        return false unless ($game_player.passable?(x, y, d) rescue true)
         x = fx; y = fy
       end
       true

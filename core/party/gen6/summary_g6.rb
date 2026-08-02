@@ -13,7 +13,7 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:sm_nature, :n => nat)) if nat && !nat.to_s.empty?
       m = met_text(pk); parts.push(m) if m
       c = characteristic_text(pk); parts.push(c) if c
-      parts.empty? ? nil : (PokeAccess::I18n.t(:sm_memo) + ". " + parts.join(". ") + ".")
+      parts.empty? ? nil : "#{PokeAccess::I18n.t(:sm_memo)}. #{parts.join('. ')}."
     rescue StandardError
       nil
     end
@@ -55,7 +55,7 @@ module PokeAccess
           best = i
         end
       end
-      PokeAccess::I18n.t(("sm_char_" + (best * 5 + (iv[best] % 5)).to_s).to_sym)
+      PokeAccess::I18n.t("sm_char_#{best * 5 + (iv[best] % 5)}".to_sym)
     rescue StandardError
       nil
     end
@@ -99,7 +99,7 @@ module PokeAccess
         nm = (PBMoves.getName(move_to_learn) rescue nil)
         t += PokeAccess::I18n.t(:sm_learn, :move => nm) + ". " if nm && !nm.to_s.empty?
       end
-      t + PokeAccess::I18n.t(:sm_choose_forget) + ". " + move_list_text(pk)
+      "#{t}#{PokeAccess::I18n.t(:sm_choose_forget)}. #{move_list_text(pk)}"
     rescue StandardError
       nil
     end
@@ -122,7 +122,7 @@ module PokeAccess
     # stale swap state left from a previous summary (which would speak a spurious cancel/placed line).
     def self.reset_reorder; @reorder_sw = nil; @reorder_idx = nil; end
 
-    # Watches the summary move sprites each frame (gen-6 uses movesel/movepresel, shared by Z and Opalo):
+    # Watches the summary move sprites each frame (gen-6 uses movesel/movepresel, shared across gen-6 forks):
     # announces entering the swap (picking a move up), the position while reordering, and where it lands.
     # Each move's full detail is read as you navigate (drawSelectedMove) and the four-move overview on
     # arrival comes from drawPageFour, so this never re-speaks them. No-op without those sprites.
@@ -158,50 +158,66 @@ module PokeAccess
     rescue StandardError
       nil
     end
+
+    # The scene class to hook, or "" when this reader does not apply to the running engine.
+    #
+    # A gen-6 fork can ship the v16 class name as an empty SUBCLASS of the v17 one and instantiate only the
+    # v17 name (Awakening's BES-T compatibility file does it for 23 screens). Hooking "PokemonSummaryScene"
+    # then bound to a class nobody creates and this whole reader went silent -- while summary_v21, which
+    # matches that same v17 name, bound instead and read a gen-6 Pokemon through the GameData API, losing
+    # types, ability, item and nature. scene_class answers with the ancestral name that sees every instance.
+    #
+    # The era check is the other half and is not optional: on a real GameData game the v17 name exists too,
+    # carrying the OTHER data API, and without this both readers would speak over each other. An empty name
+    # binds nothing -- the same silent no-op an absent class already is -- so no registration needs an if.
+    SCENE = PokeAccess::Engine.era_scene(:gen6, "PokemonSummaryScene", "PokemonSummary_Scene")
   end
 end
 
+# Every registration below binds through SummaryGen6::SCENE (see its comment): the right alias on a gen-6
+# engine, and nothing at all on a GameData one.
+
 # Clear the move-reorder tracking when the summary opens, so reopening another pokemon's summary never
 # fires a stale cancel/placed line from a reorder left mid-way in the previous one.
-PokeAccess::Hooks.before_hook("PokemonSummaryScene", :pbStartScene) do |_s, _a|
+PokeAccess::Hooks.before_hook(PokeAccess::SummaryGen6::SCENE, :pbStartScene) do |_s, _a|
   PokeAccess::SummaryGen6.reset_reorder
 end
 
 # Summary info page: full data sheet read on open. Skipped where the summary is a single redrawn page
-# (Reminiscencia): that game's own handler reads it to avoid repeating on every redraw.
-PokeAccess::Hooks.after_hook("PokemonSummaryScene", :drawPageOne) do |_s, _r, args|
+# (Summary.single_page): that profile's own handler reads it to avoid repeating on every redraw.
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageOne) do |_s, _r, args|
   PokeAccess.speak(PokeAccess::Info.summary_text(args[0]), false) unless PokeAccess::Summary.single_page
 end
 
 # Summary trainer-memo page (nature, met info, characteristic).
-PokeAccess::Hooks.after_hook("PokemonSummaryScene", :drawPageTwo) do |_s, _r, args|
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageTwo) do |_s, _r, args|
   PokeAccess.speak(PokeAccess::SummaryGen6.memo_text(args[0]), false)
 end
 
 # Summary stats page (the five stats and ability).
-PokeAccess::Hooks.after_hook("PokemonSummaryScene", :drawPageThree) do |_s, _r, args|
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageThree) do |_s, _r, args|
   PokeAccess.speak(PokeAccess::SummaryGen6.stats_text(args[0]), false)
 end
 
 # Summary moves page (drawPageFour lists the four moves): read them on arrival.
-PokeAccess::Hooks.after_hook("PokemonSummaryScene", :drawPageFour) do |_s, _r, args|
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFour) do |_s, _r, args|
   PokeAccess.speak(PokeAccess::Summary.moves_text(args[0]), false)
 end
 
 # Summary ribbons page.
-PokeAccess::Hooks.after_hook("PokemonSummaryScene", :drawPageFive) do |_s, _r, args|
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFive) do |_s, _r, args|
   PokeAccess.speak(PokeAccess::SummaryGen6.ribbons_text(args[0]), false)
 end
 
 # Move detail: each move read with its data when selected.
-PokeAccess::Hooks.after_hook("PokemonSummaryScene", :drawSelectedMove) do |_s, _r, args|
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawSelectedMove) do |_s, _r, args|
   PokeAccess.speak(PokeAccess::Info.move_by_id_info(args[0], args[2]), true)
 end
 
 # Keep the info key (T) on the Pokemon currently shown: the summary lets you switch Pokemon in place
 # (up/down) without leaving, but only the party slot set the contextual Pokemon, so T kept reading the one
 # you entered with. pbUpdate runs each frame with the live @pokemon, so refresh it here.
-PokeAccess::Hooks.after_hook("PokemonSummaryScene", :pbUpdate) do |scene, _r, _a|
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :pbUpdate) do |scene, _r, _a|
   pk = PokeAccess.ivar(scene, :@pokemon)
   PokeAccess::Info.set_info(:pokemon, pk) if pk
   PokeAccess::SummaryGen6.reorder_poll(scene)
@@ -209,6 +225,6 @@ end
 
 # Learning a move with a full moveset: read the new move and the current four to choose which to forget
 # (the screen otherwise stays silent until you navigate).
-PokeAccess::Hooks.before_hook("PokemonSummaryScene", :pbChooseMoveToForget) do |scene, args|
+PokeAccess::Hooks.before_hook(PokeAccess::SummaryGen6::SCENE, :pbChooseMoveToForget) do |scene, args|
   PokeAccess.speak(PokeAccess::SummaryGen6.relearn_text(scene.instance_variable_get(:@pokemon), args[0]), false)
 end

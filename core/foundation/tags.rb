@@ -88,35 +88,37 @@ module PokeAccess
     def self.load_file
       @tags = {}
       parse_into(@tags, FILE)
-      if File.exist?(IMPORT)
-        imported = {}
-        parse_into(imported, IMPORT)
-        added = false
-        imported.each do |mid, evs|
-          evs.each do |eid, r|
-            next if @tags[mid] && @tags[mid].has_key?(eid)
-            (@tags[mid] ||= {})[eid] = r
-            added = true
-          end
-        end
-        save if added
-      end
+      save if File.exist?(IMPORT) && merge_new(parse_import) > 0
     rescue StandardError
       @tags ||= {}
     end
 
+    # Parses tags_import.txt into a fresh store hash.
+    def self.parse_import
+      imported = {}
+      parse_into(imported, IMPORT)
+      imported
+    end
+
+    # Merges an imported store into the live one, keeping existing entries. Returns how many were added.
+    def self.merge_new(imported)
+      added = 0
+      dest = store
+      imported.each do |mid, evs|
+        evs.each do |eid, r|
+          next if dest[mid] && dest[mid].has_key?(eid)
+          (dest[mid] ||= {})[eid] = r
+          added += 1
+        end
+      end
+      added
+    end
+
     # Parses a tags file into a store hash: "mapid:eventid=name" lines with optional tab-separated
-    # "cat=<symbol>" and "hide" tokens. Old name-only lines load unchanged.
+    # "cat=<symbol>" and "hide" tokens. Old name-only lines load unchanged. :strip_value false because
+    # the value is tab-structured (each token strips itself).
     def self.parse_into(dest, path)
-      return unless File.exist?(path)
-      File.foreach(path) do |raw|
-        line = raw.gsub(/\r?\n\z/, "")
-        stripped = line.strip
-        next if stripped.empty? || stripped[0, 1] == "#"
-        eq = line.index("=")
-        next unless eq
-        key = line[0, eq].strip
-        val = line[(eq + 1)..-1].to_s
+      PokeAccess::KVFile.each(path, :strip_value => false) do |key, val|
         colon = key.index(":")
         next if colon.nil?
         mid = key[0, colon].to_i
@@ -144,16 +146,7 @@ module PokeAccess
     # Returns how many were added.
     def self.import_now
       return 0 unless File.exist?(IMPORT)
-      imported = {}
-      parse_into(imported, IMPORT)
-      added = 0
-      imported.each do |mid, evs|
-        evs.each do |eid, r|
-          next if store[mid] && store[mid].has_key?(eid)
-          (store[mid] ||= {})[eid] = r
-          added += 1
-        end
-      end
+      added = merge_new(parse_import)
       save if added > 0
       added
     end
@@ -182,8 +175,8 @@ module PokeAccess
       File.open(FILE, "w") do |f|
         f.write("# PokeAccess: overrides de objetos. Formato: mapa:evento=nombre, con tabulador cat=categoria y hide\n")
         f.write("# Comparte este archivo; para importar otro, renombralo a tags_import.txt\n")
-        (@tags || {}).keys.sort.each do |mid|
-          @tags[mid].keys.sort.each { |eid| f.write(line_for(mid, eid, @tags[mid][eid]) + "\n") }
+        (@tags || {}).sort.each do |mid, evs|
+          evs.sort.each { |eid, r| f.write("#{line_for(mid, eid, r)}\n") }
         end
       end
     rescue StandardError

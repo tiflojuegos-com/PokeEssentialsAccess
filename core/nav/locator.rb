@@ -5,7 +5,7 @@ module PokeAccess
   module Locator
     @targets = []; @ti = 0; @cat = 0; @target = nil
     @guide = false
-    @last_map_id = nil
+    @last_map_id = nil; @last_map_ref = nil
     @guide_path = nil; @guide_from = nil; @guide_target = nil
     @surface_cache = nil; @surface_cache_pos = nil
     @interp_running = false
@@ -181,10 +181,9 @@ module PokeAccess
       pf = PokeAccess::Pathfinder
       return true if s[pf.pkey(tx, ty)] || s[pf.pkey(tx - 1, ty)] || s[pf.pkey(tx + 1, ty)] ||
                      s[pf.pkey(tx, ty - 1)] || s[pf.pkey(tx, ty + 1)]
-      [[-1, 0], [1, 0], [0, -1], [0, 1]].each do |dx, dy|
-        return true if ($game_map.counter?(tx + dx, ty + dy) rescue false) && !!s[pf.pkey(tx + 2 * dx, ty + 2 * dy)]
+      [[-1, 0], [1, 0], [0, -1], [0, 1]].any? do |dx, dy|
+        ($game_map.counter?(tx + dx, ty + dy) rescue false) && !!s[pf.pkey(tx + 2 * dx, ty + 2 * dy)]
       end
-      false
     rescue StandardError
       true
     end
@@ -226,6 +225,21 @@ module PokeAccess
       select_current
     end
 
+    # The shared rename flow: announce "label for X", prompt with the current value, empty clears / text
+    # saves (via the block), announce the outcome. keys: [announce_key, prompt_key, removed_key, saved_key].
+    def self.prompt_rename(current_name, current_value, keys)
+      PokeAccess.speak(PokeAccess::I18n.t(keys[0], :name => current_name), true)
+      txt = (pbEnterText(PokeAccess::I18n.t(keys[1]), 0, 40, current_value) rescue nil)
+      return if txt.nil?
+      if txt.strip.empty?
+        yield("")
+        PokeAccess.speak(PokeAccess::I18n.t(keys[2]), true)
+      else
+        yield(txt.strip)
+        PokeAccess.speak(PokeAccess::I18n.t(keys[3], :label => txt.strip), true)
+      end
+    end
+
     # Gives the focused object a custom spoken label (Shift+K), stored in the shareable tag dictionary.
     # An empty entry removes it; surfaces (no event id) cannot be tagged.
     def self.rename_target
@@ -234,15 +248,8 @@ module PokeAccess
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_cant_label), true) unless $game_map && @target.respond_to?(:id)
       mid = $game_map.map_id; eid = @target.id
       cur = (PokeAccess::Tags.get(mid, eid) rescue nil).to_s
-      PokeAccess.speak(PokeAccess::I18n.t(:loc_label_for, :name => target_name(@target)), true)
-      txt = (pbEnterText(PokeAccess::I18n.t(:loc_label_prompt), 0, 40, cur) rescue nil)
-      return if txt.nil?
-      if txt.strip.empty?
-        PokeAccess::Tags.set(mid, eid, "")
-        PokeAccess.speak(PokeAccess::I18n.t(:loc_label_removed), true)
-      else
-        PokeAccess::Tags.set(mid, eid, txt.strip)
-        PokeAccess.speak(PokeAccess::I18n.t(:loc_label_saved, :label => txt.strip), true)
+      prompt_rename(target_name(@target), cur, [:loc_label_for, :loc_label_prompt, :loc_label_removed, :loc_label_saved]) do |label|
+        PokeAccess::Tags.set(mid, eid, label)
       end
     end
 
@@ -252,15 +259,8 @@ module PokeAccess
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_cant_label), true) unless $game_map
       mid = $game_map.map_id
       cur = (PokeAccess::MapNames.get(mid) rescue nil).to_s
-      PokeAccess.speak(PokeAccess::I18n.t(:map_label_for, :name => map_name(mid).to_s), true)
-      txt = (pbEnterText(PokeAccess::I18n.t(:map_label_prompt), 0, 40, cur) rescue nil)
-      return if txt.nil?
-      if txt.strip.empty?
-        PokeAccess::MapNames.set(mid, "")
-        PokeAccess.speak(PokeAccess::I18n.t(:map_label_removed), true)
-      else
-        PokeAccess::MapNames.set(mid, txt.strip)
-        PokeAccess.speak(PokeAccess::I18n.t(:map_label_saved, :label => txt.strip), true)
+      prompt_rename(map_name(mid).to_s, cur, [:map_label_for, :map_label_prompt, :map_label_removed, :map_label_saved]) do |label|
+        PokeAccess::MapNames.set(mid, label)
       end
     end
 
@@ -361,7 +361,7 @@ module PokeAccess
         return PokeAccess.speak(phrase, true)
       end
       ord = ordinal_of(@target)
-      ordtxt = (ord && @targets.length > 0) ? (PokeAccess::I18n.t(:loc_count, :n => ord, :total => @targets.length) + ", ") : ""
+      ordtxt = (ord && !@targets.empty?) ? (PokeAccess::I18n.t(:loc_count, :n => ord, :total => @targets.length) + ", ") : ""
       PokeAccess.speak("#{target_name(@target)}, #{ordtxt}#{phrase}#{step_phrase(@target)}", true)
     end
 
@@ -391,11 +391,25 @@ module PokeAccess
         PokeAccess::Pathfinder.find_path(@target.x, @target.y))), true)
     end
 
-    # Announces the map name once when entering a new map (orientation, no key needed).
+    # Announces the map name once when entering a new map (orientation, no key needed), and is the single
+    # trigger for :map_changed -- so it is also what makes Caches.reset_all run.
+    #
+    # The map id alone is not enough to notice a LOAD. Loading a save can land on the very map the player
+    # was already standing on, and then the id has not changed: nothing was announced and, worse, no cache
+    # was reset, so the previous run's emitters and targets carried over. The load screens used to paper
+    # over this by calling forget_map, but only the two classic ones do -- v22 loads through UI::LoadVisuals
+    # and nobody called it there, and a future engine would go the same way.
+    #
+    # Loading rebuilds $game_map from the save, so it is a DIFFERENT object even for the same id, and the
+    # map factory hands back the cached instance when the player merely walks back to a map already visited.
+    # Comparing identity as well as id therefore catches every load, in any era, without knowing a single
+    # thing about which screen performed it.
     def self.announce_map_change
       mid = ($game_map.map_id rescue nil)
-      return if mid.nil? || mid == @last_map_id
+      ref = ($game_map.__id__ rescue nil)
+      return if mid.nil? || (mid == @last_map_id && ref == @last_map_ref)
       @last_map_id = mid
+      @last_map_ref = ref
       PokeAccess::Events.emit(:map_changed, mid)
       @targets = []; @target = nil; @ti = 0
       (rebuild_targets rescue nil)
@@ -440,14 +454,19 @@ module PokeAccess
     # Drops the target list and selection (NOT @last_map_id), so the locator never offers an event from the
     # previous map. This is the cache reset run on :map_changed; it must NOT clear @last_map_id, or
     # announce_map_change would see "changed" again next frame and re-announce/re-emit forever.
+    # Also drops the guide's route memo. @noroute_key is [px, py, tx, ty] with no map in it, so a "there is
+    # no route" answered on one map would be replayed verbatim on another at the same coordinates -- and
+    # replayed WITHOUT running A*, which is the part that makes it wrong rather than merely stale.
     def self.clear_targets
       @targets = []; @target = nil; @ti = 0
+      @guide_path = nil; @guide_from = nil; @guide_target = nil; @noroute_key = nil
     end
 
     # Forgets the current map so the next announce_map_change fires even on the same map_id. Used ONLY when
     # loading a save (which may land on the map the player was already on); NOT wired to :map_changed.
     def self.forget_map
       @last_map_id = nil
+      @last_map_ref = nil
       @last_pos = nil
       clear_targets
     end
@@ -467,6 +486,7 @@ module PokeAccess
       if @interp_running && !run
         (PokeAccess::Pathfinder.invalidate_cache rescue nil)
         (PokeAccess::Locator.forget_noroute rescue nil)
+        (PokeAccess::Locator.clear_verdicts rescue nil)
         rebuild_targets unless @targets.empty?
       end
       @interp_running = run

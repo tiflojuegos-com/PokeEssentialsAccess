@@ -22,7 +22,7 @@ module PokeAccess
 end
 
 # In-game save: the focused slot's summary as the cursor moves.
-if PokeAccess::V22.const_exists?("UI::SaveVisuals")
+if PokeAccess::Engine.has?("UI::SaveVisuals")
   PokeAccess::Hooks.after_hook("UI::SaveVisuals", :set_index) do |vis, _ret, _args|
     sd = PokeAccess.ivar(vis, :@save_data)
     i  = (vis.index rescue nil)
@@ -33,7 +33,7 @@ if PokeAccess::V22.const_exists?("UI::SaveVisuals")
 end
 
 # Title screen: the focused command (Continue/New Game/Options...), plus the save summary on Continue.
-if PokeAccess::V22.const_exists?("UI::LoadVisuals")
+if PokeAccess::Engine.has?("UI::LoadVisuals")
   PokeAccess::Hooks.after_hook("UI::LoadVisuals", :set_index) do |vis, _ret, _args|
     cmds = PokeAccess.ivar(vis, :@commands)
     idx  = PokeAccess.ivar(vis, :@index)
@@ -57,6 +57,6 @@ if PokeAccess::V22.const_exists?("UI::LoadVisuals")
     next unless sd && slot
     hash = (sd[slot] ? sd[slot][1] : nil)
     pre  = PokeAccess::I18n.t(:load_slot, :n => slot + 1, :tot => sd.length)
-    PokeAccess.speak(pre + ". " + PokeAccess::LoadSaveV22.slot_summary(hash).to_s, true)
+    PokeAccess.speak("#{pre}. #{PokeAccess::LoadSaveV22.slot_summary(hash)}", true)
   end
 end

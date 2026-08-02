@@ -22,7 +22,11 @@ module PokeAccess
       key = (order.is_a?(Array) && order[idx]) ? order[idx].to_s : nil
       panel = key ? panels[key] : nil
       return unless panel
-      PokeAccess::Cursor.announce(nil, :awk_cards, idx, true) do
+      # Keyed on the panel table's identity as well as the index: this screen has no instance to hang the
+      # dedup on, so it lands in Cursor's module-wide table, which outlives the screen. Reopening always
+      # starts at @posi = 0, so on the plain index it matched what was left from last time and the screen
+      # opened SILENT. The game rebuilds @paneles on every open, which is what makes it a new key.
+      PokeAccess::Cursor.announce(nil, :awk_cards, [idx, panels.__id__], true) do
         name = PokeAccess.clean((panel.instance_variable_get(:@nombre) rescue "").to_s).to_s.strip
         rank = (panel.instance_variable_get(:@rango_letras) rescue nil)
         rank ? "#{name}, #{rank}" : name

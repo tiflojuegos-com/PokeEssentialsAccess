@@ -4,10 +4,23 @@
 # is hand-drawn in pbDrawMoveList. The scene exposes the same @pokemon/@moves/@sprites["commands"] shape as
 # the egg-move tutor, so reuse SkyEggMove.detail (defined in menus/skyflyer/eggmove; referenced at runtime,
 # so load order does not matter). Mute the generic bare-name read and speak the full detail on each redraw.
-PokeAccess::Hooks.after_hook("MoveRelearner_Scene", :pbStartScene) do |scene, _r, _a|
+# hook_container: this body only STORES, it never speaks, and pbStartScene calls pbDrawMoveList -- whose hook is
+# the one that announces. Guarded, that opening read is dropped as nested_other? and the screen opens
+# in silence; the guard only earns its keep when the outer hook is itself the announcer.
+# The class name is NOT enough to tell the eras apart here: a gen-6 fork can declare MoveRelearner_Scene
+# too (Awakening's BES-T compatibility layer) with gen-6 internals, and this reader would then mute the
+# generic bare-name read and replace it with nothing, because the detail comes from GameData::Move. Gate on
+# the data API, which is what this file is actually written against; "" binds nothing.
+module PokeAccess
+  module MoveRelearnerV21
+    SCENE = PokeAccess::Engine.era_scene(:gamedata, "MoveRelearner_Scene", "MoveRelearnerScene")
+  end
+end
+
+PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerV21::SCENE, :pbStartScene, :hook_container => true) do |scene, _r, _a|
   w = PokeAccess.sprite(scene, "commands")
   w.instance_variable_set(:@access_dedicated, true) if w
 end
-PokeAccess::Hooks.after_hook("MoveRelearner_Scene", :pbDrawMoveList) do |scene, _r, _a|
+PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerV21::SCENE, :pbDrawMoveList) do |scene, _r, _a|
   PokeAccess::SkyEggMove.detail(scene)
 end

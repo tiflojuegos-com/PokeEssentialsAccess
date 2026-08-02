@@ -17,11 +17,10 @@ module PokeAccess
       return false unless defined?($game_screen) && $game_screen
       pics = ($game_screen.pictures rescue nil)
       return false unless pics
-      (1..50).each do |i|
+      (1..50).any? do |i|
         nm = (pics[i].name rescue nil)
-        return true if nm && !nm.to_s.empty? && TEXTS.has_key?(nm.to_s)
+        nm && !nm.to_s.empty? && TEXTS.has_key?(nm.to_s)
       end
-      false
     rescue StandardError
       false
     end

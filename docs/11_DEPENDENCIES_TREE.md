@@ -1,11 +1,11 @@
 # Árbol de Dependencias
 
-Visualización completa de cómo los módulos dependen unos de otros.
+Visualización de cómo los módulos dependen unos de otros.
 
 ## Diagrama General
 
 ```
-MKXP-Z Engine (C++/Ruby Runtime)
+mkxp-z (C++/Ruby Runtime)
     ↓
 Graphics.update [envuelto en preload_access.rb]
     ↓
@@ -24,26 +24,31 @@ PokeAccess Fully Loaded
 ## Jerarquía de Carga: CORE
 
 El orden real y COMPLETO de carga vive en `core/manifest.rb` (un array `%w[...]` de entradas
-`subsistema/nombre`, sin `.rb`, evaluado por `loader/boot.rb` en ese orden exacto). El árbol de abajo
-es un extracto ilustrativo de los módulos fundacionales; hay más módulos (menús, battle por versión,
-party, field, nav) que el manifest carga después. Para saber qué se carga y en qué orden, consulta
-siempre el manifest, no este extracto.
+`subsistema/nombre`, sin `.rb`, evaluado por `loader/boot.rb` en ese orden exacto). El árbol de abajo es un
+extracto ilustrativo con los módulos fundacionales y una muestra de cada subsistema; hay muchos más
+(menús, battle por versión, party, field, nav) que el manifest carga después. Para saber qué se carga y en
+qué orden, consulta siempre el manifest, no este extracto.
 
 ```
 core/manifest.rb (extracto del orden de carga)
 ├── foundation/config
-│   └─ SCHEMA = [[:language, :es, ...], ...]
-│      KIND_BOUNDS = {:vol => [0, 100, ...], ...}
+│   └─ SCHEMA = [[:language, :es, ...], ...]  |  KIND_BOUNDS = {:vol => [0, 100, ...], ...}
 │
 ├── foundation/const
-│   └─ PokeAccess.const_at("A::B::C") / const? - resolución de constantes 1.8.7-safe
+│   └─ PokeAccess.const_at("A::B::C") - resolución de constantes 1.8.7-safe
+│      + ivar / ivar_i / sprite - introspección defensiva de objetos del motor
 │      ↑ CRITICO: lo usan Hooks, Input, Menus, Engine.has? (carga pronto, sin dependencias)
 │
 ├── foundation/paths
-│   └─ Resuelve DATA, SOUNDS, SAVES paths
+│   └─ ROOT / CORE / GAME / SOUNDS / LIB / LANG y DATA (que cae a AppData si el juego es de solo lectura)
+│
+├── util/kv_file
+│   └─ KVFile.each(path, :strip_value => ...) - el ÚNICO parser clave=valor del mod
+│      ↑ Lo usan i18n, settings, tags y map_names (antes eran cuatro copias a mano)
 │
 ├── foundation/i18n
 │   └─ Carga lang/en.txt, lang/es.txt; I18n.parity_issues valida es/en
+│      Depende de: Paths, KVFile
 │
 ├── util/grouping
 │   └─ Util.union_groups(n) { |i,j| ... } - agrupa por union-find (emisores/salidas cercanas)
@@ -55,26 +60,21 @@ core/manifest.rb (extracto del orden de carga)
 │   └─ Util.playtime_parts(secs), Util.badge_count(who) - helpers de datos del entrenador
 │
 ├── foundation/game
-│   └─ Sistema para definir juegos específicos
-│      PokeAccess::Game.define("royal") { ... }
+│   └─ El DSL de perfiles: PokeAccess::Game.define("royal") { ... }
+│      Delega en Config, Menus, Hooks, Keys, Remap, Puzzles, Locator (en tiempo de llamada)
 │
 ├── foundation/engine
-│   ├─ Detecta Engine.kind (:gamedata/:gen6)
-│   ├─ Engine.version (16.0 / 19.0 / 21.1 / 22.0)
-│   ├─ Engine.fork (:sky / nil)
-│   ├─ Engine.has?(cap) - gate por capacidad (símbolo / "Clase" / "Clase#metodo"), vía const_at
-│   └─ Métodos: gamedata?, gen6?, for_engine(), matches?()
-│      ↑ CRITICO: usado por casi todo
-│
-├── foundation/world
-│   └─ Fachada de globales: World.map / player_char / player / bag / on_map? / want (loguea ausencias)
-│      depende de engine (player delega en Engine.player)
+│   ├─ Engine.has?(cap) - EL gate por capacidad (símbolo registrado / "Clase" / "Clase#metodo")
+│   ├─ Engine.player - $player (era GameData) o $Trainer (gen-6)
+│   ├─ Engine.kind / version / fork - solo para el diagnóstico y la cabecera del grabador
+│   └─ Depende de: const_at (has? resuelve constantes)
+│      ↑ CRITICO: has? lo usa casi todo lector
 │
 ├── foundation/settings
-│   └─ Carga/guarda config del usuario
+│   └─ Carga/guarda config del usuario   Depende de: Config (schema), KVFile
 │
 ├── foundation/events
-│   └─ Bus de eventos (on/emit)
+│   └─ Bus de eventos (on / emit)
 │
 ├── foundation/caches
 │   └─ Caches.register(:x) { reset } / reset_all - se dispara en :map_changed (depende de events)
@@ -83,169 +83,160 @@ core/manifest.rb (extracto del orden de carga)
 │   └─ Acceso a portapapeles (Win32API)
 │
 ├── foundation/perf
-│   └─ Timers y profiling
+│   └─ Perf.measure(:etiqueta) { ... } / report / reset - alimenta la línea perf: del diag
 │
 ├── foundation/tags
-│   └─ Etiquetas de usuario para eventos
-│      Depende de: Paths (lee tags.txt)
+│   └─ Etiquetas de usuario para eventos ("mapid:eventid=nombre" + cat=/hide)
+│      Depende de: Paths, KVFile
 │
 ├── foundation/map_names
-│   └─ Nombres de mapa personalizados (Locator.rename_map, Mayús+M); persiste en map_names.txt
-│      Depende de: Paths
+│   └─ Nombres de mapa personalizados (Locator.rename_map); persiste en map_names.txt
+│      Depende de: Paths, KVFile
 │
 ├── data/data
-│   ├─ Definición del provider pattern
-│   ├─ @providers = []
-│   └─ active, register(), resolve()
+│   ├─ Provider pattern: register(priority, provider), active, active_priority, resolve(metodo, arg)
+│   └─ + la fachada de consulta (species_name, move_power, item_description...)
 │      ↑ BASE: usado por data_fallback, gen6, v21
 │
 ├── data/data_fallback
-│   └─ Provider fallback (priority 0)
-│      Depende de: data/data
+│   └─ Provider fallback (priority 0)   Depende de: data/data
 │
 ├── data/gen6/data_g6
-│   ├─ module PokeAccess::DataG6
-│   ├─ Accede a: PBSpecies, PBMoves, PBTypes, PBItems, etc.
-│   ├─ Registra priority 10
-│   └─ Solo se registra si existen las constantes (PBMoves && !GameData)
-│      Depende de: data/data
+│   ├─ module PokeAccess::DataG6 - accede a PBSpecies, PBMoves, PBTypes, PBItems...
+│   └─ Registra priority 10, solo si existen las constantes (PBMoves && !GameData)
 │
 ├── data/v21/data_v21
-│   ├─ module PokeAccess::DataV21
-│   ├─ Accede a: GameData::Species, GameData::Move, etc.
-│   ├─ Registra priority 20
-│   └─ Solo se registra si existen las clases (GameData::Move)
-│      Depende de: data/data
+│   ├─ module PokeAccess::DataV21 - accede a GameData::Species, GameData::Move...
+│   └─ Registra priority 20, solo si existen las clases (GameData::Move)
 │
 ├── speech/markers
-│   └─ write_marker(), log functions
-│      Depende de: Paths (escribe a archivo)
+│   └─ write_marker(), log_once(), DLL_DIR   Depende de: Paths (escribe a archivo)
 │
 ├── speech/text
-│   ├─ clean() - limpia etiquetas
-│   └─ Depende de: nada
+│   └─ clean() - quita los códigos de control de RPG Maker (\PN, \V[n], \C[n]...)
 │
 ├── speech/speech
-│   ├─ speak() - síntesis de voz
-│   ├─ Accede a: SRAL.dll (Win32API)
-│   └─ Depende de: markers
+│   ├─ speak / speak_clean / braille / stop_speech / speaking? / speech_backend
+│   ├─ on_speak= - el ÚNICO punto de extensión sobre lo hablado (lo usa el grabador)
+│   ├─ Accede a: prism_pea.dll → prism.dll (Win32API), desde accessibility/lib/
+│   └─ Depende de: markers (DLL_DIR, write_marker)
 │
 ├── input/hooks
-│   ├─ Semi-API de hooks: before_hook / after_hook / around_hook / frame_hook / wrap_global / wrap_kernel
-│   ├─ Guarda de reentrancia (@active, nested_other?, guarded); container/frame corren el original sin guarda
-│   └─ Depende de: nada (base de todo lector); ver docs de la API de hooks
+│   ├─ Semi-API: before_hook / after_hook / around_hook / frame_hook / read_on_open / override /
+│   │  wrap_global / wrap_kernel; y los registros de salud missing / fn_absent / overrides
+│   ├─ Guarda de reentrancia (@active, nested_other?, guarded); container/frame corren sin guarda
+│   └─ Depende de: const_at (resolución de clase). Base de todo lector
+│
+├── input/keyboard
+│   ├─ PokeAccess::Keyboard: raw_down?, all_down?, triggered? / combo_triggered? (flancos), edge?
+│   ├─ Constantes VK de los acordes globales (CONTROL, ALT, F8, F9, F10)
+│   ├─ Accede a: GetAsyncKeyState (Win32API)
+│   └─ Depende de: nada (sin conocimiento del mod: copiable a otro proyecto)
+│
+├── input/focus
+│   ├─ PokeAccess::Focus: focused?, mark_focused, hwnd. Fail-safe: si no se puede leer, "enfocado"
+│   ├─ Accede a: GetForegroundWindow / GetActiveWindow / GetCurrentProcessId (Win32API)
+│   └─ Depende de: nada (sin conocimiento del mod)
 │
 ├── input/remap
-│   └─ Remapeo de controles
-│      Depende de: Config (lee rebinds)
+│   └─ Remapeo de controles   Depende de: Config (lee rebinds)
 │
 ├── input/input
-│   ├─ Polling de teclado
-│   ├─ Accede a: GetAsyncKeyState (Win32API)
-│   └─ Depende de: I18n, Config, markers
+│   ├─ PokeAccess::Keys, el orquestador: enabled/toggle_poll, global_poll, key(:sym), typing!/menu_lock!,
+│   │  on_frame / run_frame_pollers. Engancha ::Input#update (el latido de cada frame)
+│   └─ Depende de: Keyboard, Focus, Config, I18n, Speech, ConfigMenu, Info, Battle, Locator, Puzzles
+│
+├── input/diag
+│   ├─ Reabre Keys con su mitad diagnóstica: Ctrl+Alt+F9 (volcado) y F10 (diag hablado)
+│   ├─ DIAG_ALL / DIAG_SECTIONS, diag_build(secciones), register_diag_section(nombre, grupo)
+│   └─ Depende de: Keys, Engine, Speech, Hooks, Perf, Clipboard, Locator, Pathfinder, Audio3D
 │
 ├── menus/config_menu
-│   ├─ Menú de configuración genérico
-│   └─ Depende de: Config, I18n, Data
+│   └─ El menú del propio mod: ajustes, glosario de sonidos, etiquetas, remapeo, depuración
+│      Depende de: Config, I18n, Speech, SoundGlossary, Tags, Recorder, Keys (diag)
 │
 ├── nav/terrain
-│   ├─ label(x, y) - tipo de terreno
-│   ├─ ledge_at?(), surfable_at?(), ice?(), etc.
-│   └─ Depende de: Essentials terrain tags
+│   └─ label(x, y), ledge_at?, surfable_at?, ice?...   Depende de: terrain tags de Essentials
 │
 ├── audio/spatial
-│   └─ Mapeo de eventos a emitores de sonido
-│      Depende de: Locator (obtiene eventos)
+│   └─ Mapeo de eventos a emitores de sonido; cue() para reproducir una muestra suelta
+│      Depende de: Locator (obtiene eventos), Audio3D
+│
+├── audio/glossary
+│   ├─ SoundGlossary::ENTRIES: [id, fichero, clave del nombre, clave de ayuda, tono] por señal
+│   ├─ play(entry) - previsualización plana (centrada, volumen completo) para memorizar el timbre
+│   └─ Depende de: Spatial.cue. Lo consume el menú de configuración
 │
 ├── audio/audio3d
-│   ├─ Audio3D engine (Steam Audio)
-│   ├─ Accede a: PA3D_steam.dll (Win32API)
+│   ├─ Motor HRTF binaural (Steam Audio) vía PA3D_steam.dll (Win32API)
 │   ├─ Canales: npc, object, door, teleporter, hazard, wall, interact, control, trap, push,
 │   │            water, wind_*, step, grass, fstep_water, guide
 │   └─ Depende de: Paths (busca .wav), Config (volúmenes)
 │
 ├── field/contextual
-│   ├─ Información contextual del jugador
-│   └─ Depende de: Engine, Data, Terrain
+│   └─ Información contextual del jugador   Depende de: Engine, Data, Terrain
 │
-├── field/minigame_text
-│   ├─ Accesibilidad de minijuegos
-│   └─ Depende de: Hooks
+├── field/hud_text
+│   └─ Texto que el juego pinta fuera de una ventana (Kernel.pbDisplayText)   Depende de: Hooks
 │
 ├── puzzles/puzzles            (subsistema propio, no field/)
-│   ├─ Ayuda con puzles
-│   └─ Depende de: Config (puzzle_assist)
-│
-├── field/achievements
-│   ├─ Lectura de logros/medallas
-│   └─ Depende de: Engine, Data
+│   └─ Ayuda con puzles   Depende de: Config (puzzle_assist)
 │
 ├── menus/cursor
-│   └─ Cursor.changed?/on_change/announce/reset - primitiva única de dedup de cursor (carga antes de menus)
+│   └─ Cursor.changed? / on_change / announce / reset - primitiva de dedup por defecto (antes de menus)
 │
 ├── menus/menus
-│   ├─ Framework de menús accesibles (def_extractor, poll_sprite_menu → delega en Cursor)
-│   └─ Depende de: Hooks, Speech, I18n, Config, Cursor
+│   └─ Framework: def_extractor, poll_sprite_menu (delega en Cursor), generic_focus
+│      Depende de: Hooks, Speech, I18n, Config, Cursor
 │      (el hook genérico de Window_Selectable/Command vive en input/input, no aquí)
 │
-├── menus/neo_pausemenu
-│   └─ Depende de: menus/menus, Hooks
+├── menus/scene_watcher
+│   └─ SceneWatcher.wire / reader - lectores por frame atados a una escena concreta
 │
 ├── battle/battle
-│   ├─ Lógica compartida de batalla
-│   ├─ Métodos: describe_battle(), describe_move(), etc.
-│   └─ Depende de: Data, Engine, I18n, Speech, Info
+│   └─ Lógica compartida: describe_battle, announce_hp, announce_field...
+│      Depende de: Data, Engine, I18n, Speech, Info
 │
 ├── battle/move_info
-│   ├─ PokeAccess::MoveInfo: formato compartido del detalle de un movimiento (poder/precisión/PP/desc)
-│   ├─ by_id(id) (agnóstico vía GameData), power_phrase / accuracy_phrase / line(...)
+│   ├─ MoveInfo: formato compartido del detalle de un movimiento (poder/precisión/PP/descripción)
 │   └─ Lo usan todos los lectores de movimientos (combate, relearner/egg-move, página de movs del summary)
 │
 ├── battle/scene_reader
-│   ├─ PokeAccess::BattleScene: lectura AGNÓSTICA de los menús Battle::Scene::* (comunes a v19-v22 vanilla)
+│   ├─ BattleScene: lectura AGNÓSTICA de los menús Battle::Scene::* (comunes a v19-v22 vanilla)
 │   ├─ read_menu / command_label / target_label / move_text / hp_change_text / ability_text
 │   ├─ Solo DEFINE métodos (no engancha nada); lo invocan los hooks de v21/v22
 │   └─ Depende de: Battle, MoveInfo, Data, I18n, Speech, Info
 │
 ├── battle/gen6/battle_g6
-│   ├─ Hooks específicos gen-6 (autónomo, no usa BattleScene)
-│   ├─ Hookers: PokeBattle_Scene, CommandMenuDisplay, FightMenuDisplay
-│   ├─ Cada hook se ata solo si la clase/método existe (gen-6)
+│   ├─ Hooks específicos gen-6 (autónomo, no usa BattleScene): PokeBattle_Scene, CommandMenuDisplay,
+│   │  FightMenuDisplay. Cada hook se ata solo si la clase/método existe
 │   └─ Depende de: Hooks, battle/battle
 │
 ├── battle/v21/battle_v21
 │   ├─ Solo los disparadores de v19-v21/Sky (index=, setIndexAndMode, mode=, shiftMode=, hp, mensajes)
-│   ├─ El contenido hablado lo da battle/scene_reader (BattleScene)
-│   ├─ Cada hook se ata solo si la clase/método existe
 │   └─ Depende de: Hooks, battle/battle, battle/scene_reader
 │
 ├── battle/v22/battle_v22
 │   ├─ Solo los disparadores propios de v22 (set_index_and_commands, update_input, mega_evolution_state=)
-│   ├─ El contenido hablado lo da battle/scene_reader (BattleScene)
-│   ├─ Cada hook se ata solo si el método existe (v22)
 │   └─ Depende de: Hooks, battle/battle, battle/scene_reader
 │
-├── battle/skyflyer/* (Sky fork / DBK)
+├── battle/skyflyer/* (fork de Sky / DBK)
 │   ├─ dbk_battle, dbk_moveinfo, dbk_battlerinfo, dbk_selectors (Poké Ball + selección de combatiente)
-│   ├─ Cursores de sprite del Deluxe Battle Kit; cada hook gateado por existencia de método
-│   └─ Depende de: Hooks, battle/scene_reader
+│   └─ Depende de: Hooks, battle/scene_reader. Cada hook gateado por existencia de método
 │
-├── party/party_storage
-│   └─ Depende de: Data, Engine, Hooks
+├── nav/locator_naming
+│   ├─ target_name: etiqueta de usuario, Pokémon salvaje, peligro, movimiento de campo, PALANCA
+│   │  (toggle de 2 estados), salida, cartel, objeto. Detecta por la FORMA del dato del evento
+│   └─ Depende de: Tags, Data, I18n
 │
-├── menus/load
-│   └─ Pantalla de cargar juego
-│      Depende de: menus/menus, Hooks
+├── nav/locator / nav/guide / nav/pathfinder
+│   └─ Ver "Sistema de Pathfinding" abajo
 │
-├── field/berry
-│   └─ Sistema de bayas
-│      Depende de: Hooks, Data
-│
-└── nav/locator_naming
-    ├─ Generación automática de nombres para eventos (target_name): etiqueta de usuario, Pokémon salvaje,
-    │  peligro, movimiento de campo, PALANCA (toggle de 2 estados, dice "movida"/"sin mover"), salida,
-    │  cartel, objeto. Detecta por la FORMA del dato del evento, no por nombre (agnóstico de juego).
-    └─ Depende de: Tags, Data, I18n
+└── util/recorder            (el ÚLTIMO del manifest)
+    ├─ Transcribe una sesión: say / map / pos / scene / sel / diag, con volcados de secciones del diag
+    ├─ Se cuelga de PokeAccess.on_speak y de un frame_hook sobre Game_Player#update: CERO hooks dentro
+    │  de los lectores, así que el instrumento no puede romper lo que mide
+    └─ Depende de: Paths, Engine, Keys.diag_build, Locator, Spatial. Lo arranca el menú de depuración
 
 (más módulos específicos...)
 ```
@@ -256,10 +247,10 @@ core/manifest.rb (extracto del orden de carga)
 games/<nombre>/manifest.rb
 ├── constants
 │   └─ PokeAccess::Game.define("royal") { ... }
-│      └─ Establece constantes específicas del juego
+│      config / screen_reader / before / after / around / read_on_open / override / kernel /
+│      diag_section / poll_each_frame / puzzle / hazard / remap_extra / picture_texts
 │
-├── Módulos específicos del juego
-│   └─ Menús personalizados, selectors, etc.
+├── Módulos específicos del juego (lectores de sus pantallas propias)
 │
 └─ Depende de: core/ (completamente cargado)
 ```
@@ -270,285 +261,127 @@ games/<nombre>/manifest.rb
 
 ```
 data/data
-├─ Exporta: PokeAccess::Data module
-├─ Métodos: register(), active(), resolve()
+├─ Exporta: PokeAccess::Data (register, active, active_priority, resolve + la fachada de consulta)
 └─ Usado por: casi todo
 
-data/data_fallback (priority 0)
-├─ Proveedor de último recurso
-└─ Siempre registrado
+data/data_fallback (priority 0)   ← último recurso, siempre registrado
+data/gen6/data_g6  (priority 10)  ← PBSpecies, PBMoves...   si PBMoves && !GameData
+data/v21/data_v21  (priority 20)  ← GameData::Species...    si GameData::Move
 
-data/gen6/data_g6 (priority 10)
-├─ Provider si gen-6
-├─ Registra: PokeAccess::DataG6 (módulo)
-└─ Accede a: PBSpecies, PBMoves, etc.
+El activo es sencillamente el de mayor prioridad REGISTRADO (el guard vive en cada provider),
+memoizado y reinvalidado al registrar.
 
-data/v21/data_v21 (priority 20)
-├─ Provider si era GameData
-├─ Registra: PokeAccess::DataV21 (módulo)
-└─ Accede a: GameData::Species, etc.
-
-Usuarios de Data:
-├─ battle/battle
-├─ speech/text (limpia tags)
-├─ menus/menus (lee nombres de items, etc.)
-├─ field/contextual
-├─ party/summary
-└─ muchos más...
+Usuarios de Data: battle/*, menus/*, field/contextual, party/summary, nav/locator_naming...
 ```
 
 ### Sistema de Audio 3D
 
 ```
 audio/spatial
-├─ Escanea eventos cercanos
-├─ Los convierte en emitores de sonido
-└─ Depende de: Locator (targets)
+├─ Escanea eventos cercanos y los convierte en emitores
+└─ Depende de: Locator (targets), Audio3D
+
+audio/glossary
+├─ El catálogo browsable de esas mismas señales
+└─ Depende de: Spatial.cue
 
 audio/audio3d
-├─ Motor HRTF Steam Audio
-├─ Maneja canales de audio 3D
-├─ Depende de:
-│  ├─ Paths (busca .wav)
-│  ├─ Config (volúmenes)
-│  └─ native/PA3D_steam.dll
-│
-└─ Usuarios:
-   └─ spatial.rb (emite pings)
+├─ Motor HRTF (Steam Audio), canales por categoría
+└─ Depende de: Paths (.wav), Config (volúmenes) y accessibility/lib/PA3D_steam.dll + phonon.dll
+   (que el instalador copia desde assets/<arch>/ según la arquitectura del ejecutable)
 ```
 
 ### Sistema de Pathfinding
 
 ```
-nav/pathfinder
-├─ A* search
-├─ HPA* clustering
-├─ Flood reachability
-└─ Depende de: Essentials passable?()
-
-nav/locator_surfaces
-├─ Encuentra superficies (agua, etc.)
-├─ Depende de: Terrain.label()
-└─ Retorna: SurfaceTarget structs
-
-nav/locator_naming
-├─ Genera nombres para eventos
-├─ Depende de:
-│  ├─ Tags (etiquetas personalizadas)
-│  ├─ Data (obtiene categorías)
-│  └─ I18n (traduce)
-│
-└─ Usuarios: Locator (necesita nombres)
-
-nav/locator
-├─ Centro de localización
-├─ Combina: events, surfaces, exits
-├─ Depende de: pathfinder, locator_naming, locator_surfaces
-└─ Usuarios: Input (cuando presiona hotkey)
+nav/terrain          → label(x, y) y los predicados de terreno
+nav/pathfinder       → A* / JPS / HPA* + flood de alcanzabilidad; depende de passable? de Essentials
+nav/locator_surfaces → superficies (agua, hierba...); depende de Terrain.label
+nav/locator_naming   → nombres de evento; depende de Tags, Data, I18n
+nav/locator          → el centro: combina eventos, superficies y salidas
+                       depende de pathfinder, locator_naming, locator_surfaces
+nav/guide            → guía paso a paso sobre la ruta calculada
+                       ↑ Usuario final: Keys (cuando el jugador pulsa la tecla del localizador)
 ```
 
 ### Sistema de Battle
 
 ```
-battle/battle (Compartido)
-├─ Lógica universal de batalla
-├─ Métodos como describe_move()
-├─ Depende de: Data, I18n, Speech
-
-battle/scene_reader (Agnóstico - BattleScene)
-├─ Lectura de los menús Battle::Scene::* (comunes a v19-v22 vanilla y Sky)
-├─ Solo define métodos; lo invocan los hooks de v21/v22
-├─ Depende de: battle/battle, MoveInfo, Data, I18n, Speech
-
-battle/gen6/battle_g6 (Gen-6)
-├─ Hooks a PokeBattle_Scene / CommandMenuDisplay (autónomo, no usa BattleScene)
-├─ Depende de: Hooks, battle/battle
-
-battle/v21/battle_v21 (era GameData + Sky)
-├─ Solo disparadores (index=, setIndexAndMode, mode=, shiftMode=, hp, mensajes) -> BattleScene
-├─ Depende de: Hooks, battle/battle, battle/scene_reader
-
-battle/v22/battle_v22 (v22)
-├─ Solo disparadores propios de v22 (set_*, update_input, mega_evolution_state=) -> BattleScene
-├─ Depende de: Hooks, battle/battle, battle/scene_reader
-
-battle/skyflyer/* (Sky fork / DBK)
-├─ dbk_battle, dbk_moveinfo, dbk_battlerinfo, dbk_selectors (ball + selección de combatiente)
-├─ Depende de: Hooks, battle/scene_reader
+battle/battle        (compartido)   announce_hp, announce_field...     ← Data, I18n, Speech
+battle/move_info     (compartido)   detalle de un movimiento
+battle/scene_reader  (agnóstico)    lee los menús Battle::Scene::*     ← battle, move_info, Data
+battle/gen6/*        (gen-6)        hooks a PokeBattle_Scene, autónomo ← Hooks, battle
+battle/v21/*         (v19-v21/Sky)  solo disparadores → BattleScene    ← Hooks, scene_reader
+battle/v22/*         (v22)          solo disparadores → BattleScene    ← Hooks, scene_reader
+battle/skyflyer/*    (Sky/DBK)      ball + selección de combatiente    ← Hooks, scene_reader
 
 Integración:
-├─ Gen-6: Solo battle_g6 hace hooks
-├─ v19-v21 y v22 vanilla: comparten las clases Battle::Scene::*; scene_reader lleva la lectura y
-│  battle_v22 añade los binds de los métodos de apertura propios de v22
+├─ Gen-6: solo battle_g6 engancha
+├─ v19-v22 vanilla: comparten las clases Battle::Scene::*, así que scene_reader lleva la LECTURA
+│  y cada battle_vNN solo ata los métodos de apertura/navegación propios de su versión
 └─ Sky: battle_v21 + battle/skyflyer/*
 ```
 
 ### Sistema de Menús
 
 ```
-menus/menus (Base)
-├─ Framework universal (def_extractor, poll_sprite_menu)
-├─ Depende de: Hooks, Speech, I18n
-   (el hook genérico de ventanas de comando está en input/input, no aquí)
-
-menus/neo_pausemenu
-├─ Menú de pausa accesible
-├─ Depende de: menus/menus, Hooks
-
-menus/config_menu
-├─ Menú de configuración de PokeAccess
-├─ Depende de: Config schema, I18n, Speech
-
-menus/v21/pausemenu_v21
-├─ Adaptador para v21 (PokemonPauseMenu_Scene#pbShowCommands; se ata vía SceneWatcher.wire)
-├─ Depende de: menus/scene_watcher (wire), menus/menus (generic_focus), Speech
-
-menus/v22/pausemenu_v22
-├─ Adaptador para v22 (engancha UI::PauseMenuVisuals si la clase existe)
-├─ Depende de: Hooks, menus/v22/screen_v22 (V22.const_exists?), Speech
+menus/cursor          → la primitiva de dedup; carga antes que todo lector de menú
+menus/menus           → framework (def_extractor, poll_sprite_menu, generic_focus)  ← Hooks, Speech, Cursor
+menus/scene_watcher   → SceneWatcher.reader/wire: lector por frame atado a una escena
+menus/config_menu     → el menú del propio mod                                      ← Config, I18n, Speech
+menus/v21/pausemenu_v21 → PokemonPauseMenu_Scene#pbShowCommands, atado con SceneWatcher.reader
+                          ← scene_watcher, menus (generic_focus)
+menus/v22/screen_v22    → V22.on_nav(clase, metodo) { |vis| ... }: el helper con el que se atan
+                          los lectores del rework UI::                              ← Engine.has?, Hooks
+menus/v22/pausemenu_v22 → UI::PauseMenuVisuals, gateado por Engine.has?             ← Hooks, Speech
 ```
 
 ## Importancia Relativa
 
-### CRÍTICO (Sin estos, nada funciona)
-
-```
-foundation/config      → Todas las opciones
-foundation/engine      → Detección de versión
-foundation/paths       → Rutas de archivo
-data/data             → Abstracción de datos
-speech/speech         → Síntesis de voz
-input/hooks           → Sistema de extensión
-```
-
-### MUY IMPORTANTE
-
-```
-audio/audio3d        → Navegación por sonido
-nav/pathfinder       → Búsqueda de rutas
-menus/menus          → Accesibilidad de menús
-battle/battle        → Accesibilidad de batalla
-```
-
-### IMPORTANTE
-
-```
-foundation/events    → Reactividad
-foundation/i18n      → Multiidioma
-input/input          → Polling de teclado
-nav/locator          → Búsqueda de objetos
-field/              → Interacción con campo
-```
-
-### OPCIONAL
-
-```
-field/achievements   → Lectura de logros
-puzzles/puzzles      → Ayuda con puzles
-field/fishing        → Acceso a pesca
-```
+| Nivel | Módulos |
+|-------|---------|
+| **CRÍTICO** (sin esto no funciona nada) | `foundation/const`, `foundation/config`, `foundation/paths`, `foundation/engine`, `data/data`, `speech/speech`, `input/hooks` |
+| **MUY IMPORTANTE** | `input/input`, `menus/menus`, `menus/cursor`, `battle/battle`, `nav/locator`, `nav/pathfinder`, `audio/audio3d` |
+| **IMPORTANTE** | `foundation/events`, `foundation/i18n`, `input/keyboard`, `input/focus`, `input/diag`, `audio/spatial`, `field/*` |
+| **OPCIONAL** | `audio/glossary`, `util/recorder`, `field/achievements`, `puzzles/puzzles`, `field/fishing` |
 
 ## Dependencias Cruzadas
 
-### Problemas Potenciales
-
-❌ **Circular Dependency** (A depende de B, B depende de A):
-```
-NO EXISTE en PokeAccess
-El manifest.rb está cuidadosamente ordenado para evitar esto
-```
-
-✅ **Forward References** (A usa B que carga después):
-```
-Permitido porque todo se carga ANTES de que el juego inicie
-Ej: speech/speech puede referenciar a Paths porque Paths ya se cargó
-```
-
-### Regla de Oro
+**No hay dependencias circulares**: el manifest está ordenado para evitarlas. Sí hay referencias hacia
+adelante, y son legítimas, porque todo se carga antes de que el jugador toque nada:
 
 ```
-Si X depende de Y:
-├─ Y DEBE estar en manifest ANTES de X
-├─ O Y DEBE ser optional (check con defined?)
-└─ O Y DEBE ser lazy-loaded (init on first use)
+Si X usa Y:
+├─ Y DEBE estar en el manifest ANTES de X, si X lo usa AL CARGARSE (constantes, hooks que se atan ya)
+└─ O basta con que Y exista cuando X se EJECUTE (dentro de un bloque de hook, en un poller...)
 ```
-
-## Ejemplos de Validación
-
-### ✅ Válido: forward reference
 
 ```ruby
-# En menus/menus.rb (se carga después de speech/speech):
-PokeAccess.speak("Menu abierto")  # OK, speech ya existe
-```
-
-### ❌ Inválido: backward reference
-
-```ruby
-# Si speech/speech.rb intentara:
-PokeAccess::Menus.read_menu  # ERROR, menus no existe aún
-```
-
-### ✅ Válido: lazy check
-
-```ruby
-# En cualquier módulo:
-if defined?(PokeAccess::Audio3D)
-  PokeAccess::Audio3D.boot  # Solo si audio3d se cargó (idempotente)
+# ✅ Válido: el cuerpo del hook se ejecuta más tarde, con todo cargado (nav/locator.rb)
+PokeAccess::Hooks.frame_hook("Game_Player", :update) do |_p, _a|
+  PokeAccess::Perf.measure(:map_poll) { PokeAccess::Locator.map_poll }
 end
+
+# ❌ Inválido: se evalúa AL CARGAR, y Menus todavía no existe desde speech/
+PokeAccess::Menus.def_extractor("Foo") { ... }   # dentro de speech/speech.rb
 ```
 
-## Validación del Orden
+## Cómo se Vigila el Orden
 
-Para verificar que el orden es correcto:
+Dos tests estáticos, sin motor ni stubs, convierten estas reglas en CI:
 
-```ruby
-# En boot.rb después de cargar todo:
-dependencies = {
-  :config => [],
-  :engine => [:config],
-  :data => [:config],
-  :gen6_data => [:data, :engine],
-  :speech => [:paths],
-  # ... completar
-}
-
-# Validar que cada módulo viene después de sus deps
-```
+| Test | Qué garantiza |
+|------|---------------|
+| `test/static/manifest_check.rb` | Todo `.rb` de `core/` y de cada `games/<perfil>/` está listado exactamente una vez, y toda entrada listada tiene fichero. Caza el lector nuevo sin registrar y la entrada renombrada |
+| `test/static/coupling_spec.rb` | Ninguna referencia cruzada entre capas: una versión no usa otra versión, un perfil no usa otro perfil, y `:shared` no usa una versión. Las excepciones conscientes viven en su whitelist, con motivo |
 
 ## Extensión: Agregar Nuevo Módulo
 
-Para agregar `core/mi_modulo/mi_modulo.rb`:
-
-1. **Identificar dependencias**:
-   ```ruby
-   # ¿Qué necesita mi_modulo?
-   - PokeAccess::Config         → Depende de config
-   - PokeAccess::Engine         → Depende de engine
-   - PokeAccess::Pathfinder     → Depende de nav/pathfinder
-   ```
-
-2. **Encontrar posición correcta en manifest**:
-   ```ruby
-   # core/manifest.rb
-   ...
-   foundation/engine           ← mi_modulo depende
-   ...
-   nav/pathfinder             ← mi_modulo depende
-   ...
-   mi_modulo/mi_modulo        ← INSERTAR AQUÍ
-   ...
-   menus/menus                ← módulos que usan mi_modulo
-   ```
-
-3. **Agregarlo**:
-   ```ruby
-   %w[
-     # ... todo lo anterior ...
-     my_module/my_module        # ← Nueva línea
-     # ... todo lo posterior ...
-   ]
-   ```
+1. **Identificar dependencias**: ¿qué necesita al CARGARSE (constantes, clases que engancha) y qué solo al
+   ejecutarse?
+2. **Colocarlo en el manifest** después de todo lo que necesita al cargarse.
+3. **Añadir la línea** a `core/manifest.rb` (o al del perfil). Sin esa línea el módulo no carga en ninguna
+   parte, y `manifest_check.rb` lo dirá.
 
 ## Diagnóstico de Problemas
 
@@ -561,9 +394,9 @@ Si un módulo no se carga:
 $ cat accessibility/data/loader_error.txt
 
 mi_modulo/mi_modulo.rb: NoMethodError: undefined method 'speak' for PokeAccess:Module
-  # Significa: mi_modulo intentó usar PokeAccess.speak
-  # Pero speech/speech no se había cargado aún
-  # SOLUCIÓN: Mover mi_modulo más abajo en manifest
+  # Significa: mi_modulo usó PokeAccess.speak al cargarse
+  # Pero speech/speech aún no se había cargado
+  # SOLUCIÓN: mover mi_modulo más abajo en el manifest
 ```
 
 ---

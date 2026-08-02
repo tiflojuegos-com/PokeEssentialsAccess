@@ -1,5 +1,5 @@
 # Character creator (CharacterSelectMenuPresenter, 050_Outfits/UI/): the first screen a new game shows --
-# name, gender, age, skin, hair, confirm. Both Infinite Fusion games ship the very same class, so this
+# name, gender, age, skin, hair, confirm. The games that bundle it ship the very same class, so this
 # registers globally and simply never binds where the class is absent.
 #
 # Two things made it unreadable. The view paints the VALUES with pbDrawTextPositions onto a bare
@@ -21,7 +21,7 @@ module PokeAccess
       announce_row(pres, idx) if idx.is_a?(Integer)
     end
 
-    # The opening read. main sets @current_index = 0 right after entering, and Hoenn's rival variant swaps
+    # The opening read. main sets @current_index = 0 right after entering, and the rival-select variant swaps
     # @options before calling it, so row 0 of the CURRENT options is what the player is about to be shown.
     def self.open(pres)
       announce_row(pres, 0)

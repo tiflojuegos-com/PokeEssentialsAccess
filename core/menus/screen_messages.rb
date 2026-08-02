@@ -17,15 +17,11 @@ module PokeAccess
 end
 
 # This is intentional over-binding (each scene uses only some of these methods, and the names vary by
-# engine), so bind only the methods a class actually defines -- otherwise the typo detector flags dozens
-# of legitimate cross-engine absences as "possible typos". Behaviour is identical (an absent method was a
-# no-op anyway).
+# engine), declared :optional so the typo detector does not flag dozens of legitimate cross-engine
+# absences as "possible typos". Behaviour is identical (an absent method was a no-op anyway).
 PokeAccess::SCREEN_MSG_SCENES.each do |cname|
-  klass = PokeAccess.const_at(cname)
-  next unless klass.is_a?(Module)
   PokeAccess::SCREEN_MSG_METHODS.each do |meth|
-    next unless klass.method_defined?(meth) || klass.private_method_defined?(meth)
-    PokeAccess::Hooks.before_hook(cname, meth) do |_scene, args|
+    PokeAccess::Hooks.before_hook(cname, meth, :optional => true) do |_scene, args|
       PokeAccess.say_dialogue(args[0].to_s) if args[0] && !args[0].to_s.empty?
     end
   end

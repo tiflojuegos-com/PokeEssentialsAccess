@@ -4,7 +4,7 @@
 # hand-drawn in pbDrawMoveList. Without this, gen-6 games spoke only the move name while the modern relearner
 # and the forget-move screen spoke everything -- the inconsistency players reported. Mute the bare-name read
 # and speak the full detail on each redraw, via MoveInfo.by_id_via_data (PBMoveData on gen-6). The BetterMove-
-# Relearner plugin (e.g. Pokemon Z) stores @moves as [id, "MT"] pairs; vanilla stores plain ids, so unwrap.
+# Relearner plugin stores @moves as [id, "MT"] pairs; vanilla stores plain ids, so unwrap.
 module PokeAccess
   module MoveRelearnerGen6
     # The move id under the focused list row, unwrapping a [id, tag] pair (BetterMoveRelearner) to its id.
@@ -28,16 +28,26 @@ module PokeAccess
     rescue StandardError
       nil
     end
+
+    # The scene class to hook, or "" when this reader does not apply to the running engine. Same trap as the
+    # gen-6 summary: a fork can declare MoveRelearnerScene as an empty SUBCLASS of MoveRelearner_Scene and
+    # only ever build the latter, so this reader bound to nothing -- and move_relearner_v21, matching that
+    # v17 name, bound instead, MUTED the generic bare-name read and then said nothing itself, because its
+    # detail builder needs GameData::Move. The screen went from "only the move name" to completely silent.
+    SCENE = PokeAccess::Engine.era_scene(:gen6, "MoveRelearnerScene", "MoveRelearner_Scene")
   end
 end
 
 # Mute the generic bare-name read of the move list, but with the mod's own flag: on gen-6 the command
 # window gates its OWN navigation on @ignore_input (050_SpriteWindow), so setting that here would freeze the
 # player's cursor. @access_dedicated tells menus.rb to skip the window without touching the engine's input.
-PokeAccess::Hooks.after_hook("MoveRelearnerScene", :pbStartScene) do |scene, _r, _a|
+# hook_container: this body only STORES, it never speaks, and pbStartScene calls pbDrawMoveList -- whose hook is
+# the one that announces. Guarded, that opening read is dropped as nested_other? and the screen opens
+# in silence; the guard only earns its keep when the outer hook is itself the announcer.
+PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbStartScene, :hook_container => true) do |scene, _r, _a|
   w = PokeAccess.sprite(scene, "commands")
   w.instance_variable_set(:@access_dedicated, true) if w
 end
-PokeAccess::Hooks.after_hook("MoveRelearnerScene", :pbDrawMoveList) do |scene, _r, _a|
+PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbDrawMoveList) do |scene, _r, _a|
   PokeAccess::MoveRelearnerGen6.detail(scene)
 end

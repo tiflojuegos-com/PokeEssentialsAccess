@@ -11,10 +11,6 @@
 # shape the core uses for Triple Triad's blocking pickers.
 module PokeAccess
   module AfricanusMinigames
-    # Its own cue, not one of the 3D-audio ones: those already mean "wall", "npc" or "control" to the player,
-    # and reusing them here would read as the sonar firing in the middle of a minigame. pa_mg_tick is a short
-    # 60 ms percussive blip made for this, so it can repeat every frame without smearing when pitch-shifted.
-    TICK = "pa_mg_tick"
     @active = nil
     @kind = nil
 
@@ -40,7 +36,7 @@ module PokeAccess
       c = closeness
       c = 0.0 if c < 0
       c = 1.0 if c > 1
-      PokeAccess::Spatial.cue(TICK, 60, 80 + (c * 100).to_i)
+      PokeAccess::Spatial.earcon(:minigame_tick, 60, 80 + (c * 100).to_i)
     rescue StandardError
       nil
     end

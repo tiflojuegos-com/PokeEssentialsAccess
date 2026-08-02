@@ -17,31 +17,15 @@ end
 
 module PokeAccess
   # Random-mode selector (MenuSelectorRandomScene): a checklist with no select* methods -- @select 0-3 over
-  # four categories, each toggled on/off in @added. Track the live scene and read the focused category and
-  # its on/off state on change.
-  module RoyalRandom
-    LABELS = ["Entrenadores", "Encuentros", "Regalos", "Objetos"]
-    @scene = nil; @last = nil
-
-    def self.watch(s); @scene = s; @last = nil; end
-    def self.unwatch; @scene = nil; @last = nil; end
-
-    def self.poll
-      s = @scene
-      return unless s
-      sel = PokeAccess.ivar(s, :@select)
-      return if sel.nil?
-      added = (s.instance_variable_get(:@added) rescue [])
-      mods = (s.instance_variable_get(:@modifiers) rescue [])
-      on = (mods[sel] ? added.include?(mods[sel]) : false)
-      key = [sel, on]
-      return if key == @last
-      @last = key
-      PokeAccess.speak("#{LABELS[sel] || "Opcion #{sel + 1}"}, #{on ? 'activado' : 'desactivado'}", true)
-    rescue StandardError
-      nil
-    end
+  # four categories, each toggled on/off in @added. SceneWatcher.reader tracks the live scene and speaks the
+  # focused category and its on/off state on change.
+  ROYAL_RANDOM_LABELS = ["Entrenadores", "Encuentros", "Regalos", "Objetos"]
+  RoyalRandom = SceneWatcher.reader("MenuSelectorRandomScene", :pbUpdate, :royal_random) do |s|
+    sel = PokeAccess.ivar(s, :@select)
+    next nil if sel.nil?
+    added = (s.instance_variable_get(:@added) rescue [])
+    mods = (s.instance_variable_get(:@modifiers) rescue [])
+    on = (mods[sel] ? added.include?(mods[sel]) : false)
+    [[sel, on], "#{ROYAL_RANDOM_LABELS[sel] || "Opcion #{sel + 1}"}, #{on ? 'activado' : 'desactivado'}"]
   end
 end
-
-PokeAccess::SceneWatcher.wire("MenuSelectorRandomScene", :pbUpdate, PokeAccess::RoyalRandom)

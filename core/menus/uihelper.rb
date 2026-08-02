@@ -1,4 +1,4 @@
-# GameData-era Essentials (Anil) routes many plugin screen messages through the UIHelper module (UIHelper.
+# GameData-era Essentials routes many plugin screen messages through the UIHelper module (UIHelper.
 # pbDisplay / pbDisplayStatic / pbConfirm) instead of pbMessage, so those lines (egg-move learner prompts,
 # plugin notices, yes/no questions) were never voiced. Wrap the module's singleton methods to read the
 # message first, then run the original (via say_dialogue, so an identical line within half a second is

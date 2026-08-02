@@ -1,5 +1,5 @@
 module PokeAccess
-  # Readable in-game books (a fangame addon, e.g. Realidea's BookScene): the page text is drawn to a
+  # Readable in-game books (a fangame addon's BookScene): the page text is drawn to a
   # bitmap by `texto` every frame, so the page is read when it changes (deduped on the page index).
 
   # The cleaned text of a book page, or nil when empty/out of range.

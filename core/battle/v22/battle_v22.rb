@@ -5,17 +5,10 @@ module PokeAccess
   # Battle::Scene. Each hook binds only where the method exists, so it no-ops on the fork and on gen-6;
   # cursor navigation (index=) and all spoken content stay shared via the agnostic PokeAccess::BattleScene.
   module BattleV22
-    # The Battle::Scene::<name> class if currently defined, else nil (safe when Battle is absent on gen-6).
-    def self.menu_class(name)
-      PokeAccess.const_at("Battle::Scene::#{name}")
-    end
-
-    # after_hooks Battle::Scene::<name>#<meth>, but only if that class defines the method, so v21/gen-6
-    # (which lack the v22 method) neither bind nor flag a false typo.
+    # after_hooks Battle::Scene::<name>#<meth> as :optional, so v21/gen-6 (which lack the class or the
+    # v22 method) neither bind nor flag a false typo.
     def self.bind(name, meth, &blk)
-      k = menu_class(name)
-      return unless k && (k.method_defined?(meth) || k.private_method_defined?(meth))
-      PokeAccess::Hooks.after_hook("Battle::Scene::#{name}", meth, &blk)
+      PokeAccess::Hooks.after_hook("Battle::Scene::#{name}", meth, :optional => true, &blk)
     end
 
     # Binds a menu's update_input to read the focused option when @index changes, deduped on the given ivar.

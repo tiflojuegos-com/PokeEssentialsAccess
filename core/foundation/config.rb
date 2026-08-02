@@ -98,12 +98,16 @@ module PokeAccess
 
     #--- non-schema defaults ---
 
-    # Mod hotkeys: action => Windows virtual-key code.
-    self.keys = {
+    # Mod hotkeys: action => Windows virtual-key code. Kept as a frozen table of shipped defaults AND a
+    # working copy, because the two are needed for different things: the remap menu restores ONE key from
+    # the defaults (a mod key has no native fallback the way a game button does -- cleared, it would simply
+    # stop working), and settings.rb only writes to the ini the ones the player actually changed.
+    KEY_DEFAULTS = {
       :next => 0x4C, :prev => 0x4A, :where => 0x4B, :route => 0x49,
       :info => 0x54, :hp => 0x48, :coords => 0x4D, :field => 0x47,
       :config => 0x4F, :shift => 0x10, :ctrl => 0x11
-    }
+    }.freeze
+    self.keys = KEY_DEFAULTS.dup
     # Wall-cue cooldown in frames.
     self.bump_cooldown = 16
 

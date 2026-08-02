@@ -4,8 +4,7 @@
 #
 # Layout is module-first: each subsystem folder (battle/, menus/, party/, data/, field/...) holds its
 # engine-agnostic readers plus version subfolders for the parts that differ by engine, each gated by
-# class existence so they no-op elsewhere (use Engine.for_engine when behaviour differs by version on
-# the SAME class):
+# class existence (Engine.has? / :optional hooks) so they no-op elsewhere:
 #   <module>/gen6/     the gen-6 era (Ruby 1.8.7: PokeBattle_Scene, PScreen, PB* data)
 #   <module>/v21/      GameData-era Essentials v19-v21.1 (Battle::Scene, GameData, the pre-rework scenes/MUI)
 #   <module>/v22/      the v22 UI:: rework (UI::BaseScreen / UI::*Visuals)
@@ -15,14 +14,15 @@
 %w[
   foundation/config
   foundation/const
+  foundation/plugins
   foundation/paths
+  util/kv_file
   foundation/i18n
   util/grouping
   util/text
   util/player
   foundation/game
   foundation/engine
-  foundation/world
   foundation/settings
   foundation/events
   foundation/caches
@@ -38,11 +38,15 @@
   speech/text
   speech/speech
   input/hooks
+  input/keyboard
+  input/focus
   input/remap
   input/input
+  input/diag
   menus/config_menu
   nav/terrain
   audio/spatial
+  audio/glossary
   audio/audio3d
   field/contextual
   field/hud_text
@@ -126,6 +130,7 @@
   party/summary
   party/gen6/summary_g6
   nav/region_map
+  nav/town_map
   nav/locator
   nav/guide
   nav/pathfinder
@@ -139,4 +144,5 @@
   field/quests
   menus/money_window
   menus/uihelper
+  util/recorder
 ]

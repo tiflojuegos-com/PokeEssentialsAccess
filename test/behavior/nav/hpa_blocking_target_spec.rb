@@ -5,14 +5,8 @@
 # target across several clusters, prove the walkable-target route is unaffected, and keep a legitimately
 # unreachable target falling back.
 
-# Loads an ASCII grid and resets the pathfinder's per-map caches so a fresh layout is searched from scratch.
-def hpa_fresh_grid(rows)
-  $game_map.clear_ledges
-  $game_map.load_grid(rows)
-  [:@rs_key, :@pcache_state, :@hpa_sig, :@slide_key, :@rs, :@rs_full].each do |s|
-    PokeAccess::Pathfinder.instance_variable_set(s, nil)
-  end
-end
+# hpa_fresh_grid / hpa_arena live in test/support/hpa_helpers.rb (runner-loaded), shared with the
+# cache-readonly spec.
 
 # Walks a step route from (sx,sy) checking each step is passable; returns [all_passable, end_x, end_y].
 def hpa_walk(route, sx, sy)
@@ -22,25 +16,6 @@ def hpa_walk(route, sx, sy)
     x += (d == 6 ? 1 : (d == 4 ? -1 : 0)); y += (d == 2 ? 1 : (d == 8 ? -1 : 0))
   end
   [ok, x, y]
-end
-
-# A 24x14 arena split by two vertical wall bands (gaps at (8,3) and (16,10)) so a route spans several
-# 10-tile clusters and MUST cross portals. Player at (1,1); a target letter is dropped at (22,12).
-def hpa_arena(target_ch)
-  rows = ["#" * 24]
-  (1..12).each do |y|
-    row = ""
-    (0..23).each do |x|
-      row << (
-        (x == 0 || x == 23) ? "#" :
-        (x == 1 && y == 1) ? "@" :
-        (x == 22 && y == 12) ? target_ch :
-        ((x == 8 && y != 3) || (x == 16 && y != 10)) ? "#" : ".")
-    end
-    rows << row
-  end
-  rows << "#" * 24
-  rows
 end
 
 Suite.define("pathfinder: HPA* reaches a blocking target by routing adjacent, no fallback") do

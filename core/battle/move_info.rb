@@ -49,12 +49,14 @@ module PokeAccess
     end
 
     # Assembles "name. type. power. accuracy[. pp][. description]" from already-resolved parts. Options:
-    # :pp and :total_pp (both required to speak pp), :desc (appended when present and non-blank).
+    # :pp and :total_pp (both required to speak pp), :desc (appended when present and non-blank). A nil
+    # power/accuracy means UNRESOLVED and omits its phrase -- only a real 0 speaks "no damage"/"never
+    # misses"; callers with partial data stay honest instead of guessing.
     def self.line(name, type_name, power, accuracy, opts = {})
       s = name.to_s
       s += ". " + PokeAccess::I18n.t(:mv_type, :t => type_name) if type_name && !type_name.to_s.empty?
-      s += ". " + PokeAccess::I18n.t(:mv_power, :p => power_phrase(power))
-      s += ". " + PokeAccess::I18n.t(:mv_acc, :a => accuracy_phrase(accuracy))
+      s += ". " + PokeAccess::I18n.t(:mv_power, :p => power_phrase(power)) unless power.nil?
+      s += ". " + PokeAccess::I18n.t(:mv_acc, :a => accuracy_phrase(accuracy)) unless accuracy.nil?
       pp = opts[:pp]; tot = opts[:total_pp]
       s += ". " + PokeAccess::I18n.t(:mv_pp, :pp => pp, :tot => tot) if pp && tot
       desc = opts[:desc]

@@ -20,7 +20,12 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("relict") do
+  # The silent animation is a PLAYER SETTING, not a constant: QuickPickup adds a "Default / Instant" option
+  # and pbItemBall falls back to the engine's own message when it is Default (FAST_PICK_ITEM_ACTIVE == 0).
+  # Speaking unconditionally would then announce the pickup twice for anyone who chose Default. Unknown or
+  # missing constant means the addon's own default, Instant, so the line is spoken.
   kernel("pbItemBall", :before) do |args, _r|
+    next if (FAST_PICK_ITEM_ACTIVE rescue 1) == 0
     PokeAccess::RelictItemGet.say(args[0], args[1])
   end
 end

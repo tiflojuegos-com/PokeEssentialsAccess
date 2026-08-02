@@ -2,14 +2,14 @@ module PokeAccess
   # Opalo's custom trainer card (OpaloCard) that replaces the standard one. Two pages drawn in their own
   # loops with no cursor: pbStartScene shows name, money, Pokedex tally, play time and a star rank
   # ($game_variables[250]); badgeScene shows the earned badges and the Q-I keys that play each badge's
-  # anthem. Read each page's content on entry (a before-hook on each method), since there is no per-move
-  # redraw to hook.
+  # anthem. Each page's content is read on entry via read_on_open with :timing => :before -- the page
+  # methods BLOCK in their own loop, so an after-read would only speak on close.
   module OpaloCard
     STARS_VAR = 250
 
-    # The data page: name, money, Pokedex, play time and star rank.
-    def self.read_main
-      return unless $Trainer
+    # The data page: name, money, Pokedex, play time and star rank. Or nil.
+    def self.main_text
+      return nil unless $Trainer
       parts = [PokeAccess::I18n.t(:tc_title), PokeAccess::I18n.t(:tc_name, :name => $Trainer.name)]
       mn = ($Trainer.money rescue nil)
       parts.push(PokeAccess::I18n.t(:tc_money, :n => mn)) if mn
@@ -19,17 +19,16 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:tr_playtime, :h => hm[0], :m => hm[1])) if hm
       stars = ($game_variables[STARS_VAR] rescue nil)
       parts.push(PokeAccess::I18n.t(:tcard_stars, :n => stars.to_i)) if stars
-      PokeAccess.speak_clean(parts.join(", "), true)
+      parts.join(", ")
     rescue StandardError
       nil
     end
 
-    # The badges page: how many badges are earned, plus the hint about the anthem keys.
-    def self.read_badges
-      return unless $Trainer
+    # The badges page: how many badges are earned, plus the hint about the anthem keys. Or nil.
+    def self.badges_text
+      return nil unless $Trainer
       n = PokeAccess::Util.badge_count($Trainer) || 0
-      PokeAccess.speak_clean(
-        PokeAccess::I18n.t(:tr_badges, :n => n) + ". " + PokeAccess::I18n.t(:tcard_anthem_keys), true)
+      "#{PokeAccess::I18n.t(:tr_badges, :n => n)}. #{PokeAccess::I18n.t(:tcard_anthem_keys)}"
     rescue StandardError
       nil
     end
@@ -37,6 +36,6 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("opalo") do
-  before("OpaloCard", :pbStartScene) { |_s, _a| PokeAccess::OpaloCard.read_main }
-  before("OpaloCard", :badgeScene) { |_s, _a| PokeAccess::OpaloCard.read_badges }
+  read_on_open("OpaloCard", :pbStartScene, :timing => :before) { |_s| PokeAccess::OpaloCard.main_text }
+  read_on_open("OpaloCard", :badgeScene, :timing => :before) { |_s| PokeAccess::OpaloCard.badges_text }
 end

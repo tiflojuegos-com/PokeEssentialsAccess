@@ -31,7 +31,9 @@ module Assert
       @pass += 1
     else
       @fail += 1
-      @failures.push("[#{@suite}] #{label}" + (detail ? " :: #{detail}" : ""))
+      line = "[#{@suite}] #{label}"
+      line += " :: #{detail}" if detail
+      @failures.push(line)
     end
   end
 end
@@ -63,7 +65,7 @@ end
 
 # Asserts that exactly one captured spoken line matches re (the dedup / no-spam workhorse).
 def spoke_once(label, re)
-  Assert.check(label, SpeakCapture.lines.select { |l| l =~ re }.length == 1, SpeakCapture.lines.inspect)
+  Assert.check(label, SpeakCapture.lines.count { |l| l =~ re } == 1, SpeakCapture.lines.inspect)
 end
 
 # Asserts that no captured line matches re since the last clear.

@@ -2,11 +2,11 @@
 # with names/prices via its @adapter -- the generic reader would speak the raw id symbol instead ("PROTEIN",
 # with no price). Nothing here is game-specific, so it registers once for every game: an extractor for a class
 # the running game does not define is never reached (focused_text resolves the name through const_at and skips
-# it), which is what makes a plain global registration safe. It used to be opt-in per profile, and the two
-# profiles that forgot to opt in (Anil, and Emerald through the generic profile) shipped the raw ids for
+# it), which is what makes a plain global registration safe. It used to be opt-in per profile, and the
+# profiles that forgot to opt in shipped the raw ids for
 # months -- an avoidable gap the class-existence gating already prevents.
 #
-# Eternal Emerald's "Battle Point Mart" (Window_PokemonMart_BattlePoints) is a second window with the very
+# The "Battle Point Mart" variant (Window_PokemonMart_BattlePoints) is a second window with the very
 # same shape -- @stock of item ids, an @adapter for name/price, and one extra row for cancel -- but it
 # descends from Window_DrawableCommand instead of Window_PokemonMart, so the mart extractor never matched it
 # (focused_text picks an extractor with win.is_a?). Registering the same reader under both names covers it.

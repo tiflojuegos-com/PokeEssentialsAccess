@@ -5,26 +5,54 @@
 # exists as a colour tint. Left/Right choose, Down moves to cancel (-1), Up returns.
 #
 # Only initialize/getBackgroundPicture are overridden by the subclass, so hooking the parent's
-# updateSelectionGraphics -- which the loop calls whenever the choice actually changes -- covers both.
-# FusionPreviewScreen does not fill @species_left/@species_right (it keeps @poke1/@poke2 and rebuilds the
-# fused ids), so the reader recomputes them the same way the constructor does. GameData::Species.get is
-# patched by the game to resolve a fused id into a FusedSpecies, so the combined name and types come out
-# right; .name can still be nil on species the game has no split name for, hence the head/body fallback.
+# updateSelectionGraphics -- which the loop calls whenever the choice actually changes -- covers both. That
+# call is the ONLY one, so nothing spoke on open: startSelection enters its loop on @selected = 0 and the
+# screen stayed mute until the first Left/Right. Hence the opening hook alongside it, sharing the dedup.
+#
+# @species_left/@species_right ARE filled, but with the two PARENT Pokemon: FusionPreviewScreen#initialize
+# calls super(poke1, poke2) and DoublePreviewScreen stores them as-is. Trusting them because they are not
+# nil was the bug -- the reader then said a parent's plain name and never a fusion, on the one screen whose
+# whole job is telling the two fusions apart. So the ivar is used only when it really holds a species, and
+# otherwise the fused id is rebuilt from the parents. GameData::Species.get is patched by the game to
+# resolve a fused id into a FusedSpecies, so the combined name and the head/body split come out right;
+# .name can still be nil where the game has no split name, hence the head/body fallback.
 module PokeAccess
   module IFFusionPreview
-    NB = 501
+    # The base the saga packs a fusion id with (head * nb + body). It has to come from the game and never
+    # from a literal: Kanto's Settings::NB_POKEMON is 501, but Hoenn's 002_BattleSettings reassigns it to
+    # 576 after 001_Settings sets 501. A hardcoded 501 there decoded to a DIFFERENT fusion and named it
+    # with confidence -- and this file being a byte-identical twin is exactly how Kanto's number got there.
+    #
+    # The leading :: is load-bearing. The mod owns a PokeAccess::Settings, so inside this module a bare
+    # Settings:: resolves to OURS by lexical scope, raises NameError and lands on the fallback -- silently
+    # reintroducing the very literal this method exists to avoid.
+    def self.nb
+      (::Settings::NB_POKEMON rescue 501)
+    end
+
+    # True only for a species entry. DoublePreviewScreen stores Pokemon objects in the same ivars, and a
+    # Pokemon answers to name -- which is exactly why "not nil" was never a good enough test.
+    def self.species?(v)
+      return false if v.nil?
+      return false if defined?(::Pokemon) && v.is_a?(::Pokemon)
+      return true if defined?(GameData::Species) && v.is_a?(GameData::Species)
+      v.respond_to?(:head_pokemon)
+    rescue StandardError
+      false
+    end
 
     # The fused species on one side, or nil. side 0 = left (poke1 head), 1 = right (the reverse).
     def self.side_species(scene, side)
       direct = PokeAccess.ivar(scene, side == 0 ? :@species_left : :@species_right)
-      return direct unless direct.nil?
+      return direct if species?(direct)
       p1 = PokeAccess.ivar(scene, :@poke1)
       p2 = PokeAccess.ivar(scene, :@poke2)
       return nil unless p1 && p2
       a = (p1.species_data.id_number rescue nil)
       b = (p2.species_data.id_number rescue nil)
       return nil if a.nil? || b.nil?
-      id = (side == 0) ? (a * NB + b) : (b * NB + a)
+      base = nb
+      id = (side == 0) ? (a * base + b) : (b * base + a)
       (GameData::Species.get(id) rescue nil)
     rescue StandardError
       nil
@@ -65,5 +93,6 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("infinitefusion") do
+  before("DoublePreviewScreen", :startSelection) { |s, _a| PokeAccess::IFFusionPreview.focus(s) }
   after("DoublePreviewScreen", :updateSelectionGraphics) { |s, _r, _a| PokeAccess::IFFusionPreview.focus(s) }
 end

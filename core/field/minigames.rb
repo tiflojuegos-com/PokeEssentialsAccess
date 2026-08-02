@@ -94,9 +94,8 @@ module PokeAccess
     # is spoken once per change, not every frame of the awaiting-coins loop.
     def self.slot_wager(scene)
       w = scene.instance_variable_get(:@wager).to_i
-      prev = scene.instance_variable_get(:@pa_slot_wager)
-      return if prev == w || w <= 0
-      scene.instance_variable_set(:@pa_slot_wager, w)
+      return if w <= 0
+      return unless PokeAccess::Cursor.changed?(scene, :slot_wager, w)
       PokeAccess.speak(PokeAccess::I18n.t(:mg_slot_wager, :n => w), true)
     rescue StandardError
       nil
@@ -209,6 +208,9 @@ PokeAccess::Hooks.after_hook("SlotMachineScene", :pbPayout) { |scene, _r, _a| Po
 # per-frame update. The cursor and board live in the scene's ivars, so no around-hook is needed.
 PokeAccess::Hooks.after_hook("TilePuzzleScene", :update) { |scene, _r, _a| PokeAccess::Minigames.tile_puzzle(scene) }
 
-# Duel (DuelWindow): only the HP readout is silent; duel_refresh runs on every change, including the initial
-# draw, so hooking it covers both windows without a poller.
-PokeAccess::Hooks.after_hook("DuelWindow", :duel_refresh) { |win, _r, _a| PokeAccess::Minigames.duel_hp(win) }
+# Duel (DuelWindow): only the HP readout is silent; the refresh runs on every change, including the
+# initial draw, so hooking it covers both windows without a poller. The method is duel_refresh in the
+# modern minigame and duelRefresh in the pre-GameData one (same window shape either way); each game has
+# exactly one of the two, hence both optional.
+PokeAccess::Hooks.after_hook("DuelWindow", :duel_refresh, :optional => true) { |win, _r, _a| PokeAccess::Minigames.duel_hp(win) }
+PokeAccess::Hooks.after_hook("DuelWindow", :duelRefresh, :optional => true) { |win, _r, _a| PokeAccess::Minigames.duel_hp(win) }

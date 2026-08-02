@@ -1,167 +1,93 @@
-# PokeEssentialsAccess - Documentación Completa
+# Introducción
 
-## Introducción General
+**PokeEssentialsAccess** es un mod de accesibilidad para fangames de Pokémon: hace jugable con lector de pantalla lo que hasta ahora era un juego enteramente visual. Está escrito en Ruby y se carga dentro del propio juego, sin modificar sus scripts.
 
-**PokeEssentialsAccess** es un toolkit de accesibilidad exhaustivo para fangames de Pokémon construidos sobre **RPG Maker** (específicamente versiones que usan **Pokemon Essentials**). El proyecto inyecta código Ruby a través de **MKXP-Z** (una versión mejorada del motor RPG Maker multiplataforma), permitiendo que juegos que funcionan sobre Essentials tengan soporte completo de:
+Funciona sobre fangames hechos con **Pokémon Essentials** y ejecutados con **mkxp-z**, desde la era gen-6 (Essentials v16-v17) hasta v22 y sus forks. Hay 13 perfiles en `games/`: doce fangames concretos y uno genérico para el resto.
 
-- 📢 **Lector de pantalla integrado**: Síntesis de voz en tiempo real
-- 🗺️ **Buscador de rutas**: Navegación assistida mediante A* y HPA*
-- 🔍 **Detector de objetos**: Identificación automática de elementos interactivos en el mapa
-- 🎵 **Audio 3D binaural**: Navegación por sonido posicional (Steam Audio HRTF)
-- 🎮 **Remapeo de controles**: Teclado accesible para todas las acciones
-- 🎪 **Accesibilidad de menús**: Lectura automática de pantallas y opciones
-- ⚔️ **Combate accesible**: Descripción de batallas y opciones claras
+## Qué le da al jugador
 
-### ¿Qué es MKXP-Z?
+- **Lectura de textos.** Diálogos, menús, combate, fichas de Pokémon, Pokédex, mochila, tarjeta de entrenador, minijuegos... La voz sale por **prism**, que habla con NVDA, JAWS, SAPI, UIA, ZDSR y otros lectores, y también envía a la línea braille.
+- **Navegación con sonar 3D.** Un sonido binaural (Steam Audio, HRTF) sitúa a su alrededor personas, objetos, puertas, teletransportes, controles de puzzle, agua y paredes: la posición se oye, no se describe. Los pasos, los choques y la cercanía tienen sus propias señales.
+- **Guía por ruta.** El jugador elige un objetivo de la lista del mapa (personas, objetos, salidas, carteles...), el mod calcula la ruta con A* y lo guía con un sonido que se desplaza hacia el siguiente paso.
+- **Lectura de menús y combate.** Cada movimiento del cursor dice qué hay bajo él; en combate se leen los mensajes, los comandos, los movimientos con su tipo, potencia y PP, los PS de ambos equipos y el estado del terreno.
+- **Glosario de sonidos.** Todas las señales del mod, en una lista que se puede recorrer: cada una se oye, se nombra y explica cuándo suena. Aprender el vocabulario deja de depender de encontrárselo en el campo.
+- **Grabador de sesiones.** Guarda en un archivo lo que el mod vio y lo que dijo, en orden. Quien prueba el mod adjunta la grabación al reportar un fallo, en vez de intentar describir el momento en que se quedó callado.
+- **Remapeo de teclas** del juego y **puzzles accesibilizados** juego a juego (hoy, Pokémon Z y Pokémon Ópalo).
 
-**MKXP-Z** es un intérprete de **RGSS** (Ruby Game Scripting System) de código abierto, multiplataforma, que funciona en Windows, Linux y macOS. Es un fork mejorado de MKXP (el original, que a su vez es un intérprete RGSS). 
+Las teclas y la instalación están en el [README](../README.md); las opciones que el jugador puede ajustar, en [16_CONFIG_MENU](16_CONFIG_MENU.md).
 
-MKXP-Z implementa la API de Ruby / RGSS que RPG Maker XP esperaba, permitiendo ejecutar juegos de RPG Maker en cualquier plataforma sin depender de Windows ni de DirectX. Es particularmente importante porque:
+## Sobre qué se apoya
 
-1. **Ejecuta Pokemon Essentials**: El proyecto original de MKXP-Z fue hacer correr Pokémon Essentials en múltiples plataformas
-2. **Soporta preload scripts**: Permite inyectar código Ruby *antes* de que carguen los scripts del juego
-3. **Win32API completa**: Acceso a APIs de Windows desde Ruby (necesario para audio, clipboard, etc.)
+### mkxp-z
 
-### ¿Qué es Pokemon Essentials?
+**mkxp-z** es un intérprete libre y multiplataforma de **RGSS**, el sistema de scripting de RPG Maker XP, y es lo que ejecuta hoy la mayoría de fangames de Essentials. Al mod le importan tres cosas de él:
 
-**Pokemon Essentials** es un framework RPG Maker completo que facilita la creación de fangames de Pokémon. Proporciona:
+1. Admite un **preload script**: código Ruby que corre antes que los scripts del juego. Esa es la vía por la que entra el mod, y se declara en el `mkxp.json` del juego.
+2. Da acceso a **Win32API**, necesario para hablar con el lector de pantalla, con la biblioteca de audio 3D y con el teclado físico.
+3. No hace falta tocar `Scripts.rxdata`, así que la instalación es reversible.
 
-- Sistema de batalla completo tipo Pokémon
-- Gestión de Pokédex, mochilas, equipo
-- Movimientos y habilidades
-- Elementos del mundo Pokémon (gimnasios, NPCs, etc.)
+Un build de mkxp-z puede estar compilado sin soporte de `preloadScript`; el instalador lo comprueba antes de copiar nada.
 
-Existe en varias versiones:
-- **Gen-6 (v16-v17)**: Versión antigua, usa clases nombradas como `PokeBattle_Scene`, `PB*`
-- **Era GameData (v19+)**: Usa `GameData::*` para acceso a datos
-- **v21**: Versión v19-v21.1 con muchas mejoras
-- **v22**: Gran refactor UI con clases `UI::*`
-- **Sky**: Fork especial que backportea v22 UI a v21
+### Pokémon Essentials
 
-### Estructura del Proyecto
+**Pokémon Essentials** es el framework sobre el que se hacen los fangames: sistema de combate, Pokédex, mochila, equipo, mapas. Ha cambiado mucho entre versiones, y el mod tiene que convivir con todas:
 
-```
-PokeEssentialsAccess/
-├── core/                    # Núcleo compartido (Engine-agnostic)
-├── games/<name>/            # Capa específica por juego
-├── loader/                  # Sistema de carga
-├── lang/                    # Traducciones i18n
-├── assets/                  # Sonidos y voces
-├── installer/               # Instalador/desinstalador
-├── native/                  # Fuente C del backend de audio 3D (pa3d_steam.c -> PA3D_steam.dll)
-└── test/                    # Herramientas de testing
-```
+- **Era gen-6 (v16-v17)**: clases `PokeBattle_Scene`, `PScreen_*`, datos en tablas `PB*`. Corre sobre **Ruby 1.8.7**.
+- **Era GameData (v18+)**: los datos pasan a `GameData::*`. Ruby moderno.
+- **v19-v21.1**: aparece `Battle::Scene` y el resto de la estructura moderna.
+- **v22**: reescritura de la interfaz con clases `UI::*`.
+- **Forks**: por ejemplo el de La Base de Sky, que trae la UI de v22 sobre una base v21.1.
 
-## Conceptos Clave
+Y los fangames reales mezclan: hay juegos v18 con backports, y forks que adelantan partes de una versión posterior.
 
-### 1. **Inyección de Código (Code Injection)**
+## Las ideas que sostienen el diseño
 
-El proyecto NO modifica directamente los juegos. En su lugar:
+### 1. No se modifica el juego
 
-1. Los archivos de PokeEssentialsAccess se colocan en una carpeta `accessibility/`
-2. Se carga un **preload script** (`loader/preload_access.rb`) a través de `mkxp.json`
-3. El preload envuelve `Graphics.update` y espera a que el bucle principal corra: dispara cuando `$scene` queda definido, o por un contador de frames de reserva (`READY_FRAME`) para builds que nunca lo asignan
-4. Luego eval()'s el archivo `accessibility/boot.rb` (que llama a `PokeAccessBoot.run`) e inicializa todo
+Los archivos del mod van a una carpeta `accessibility/` dentro del juego, y `mkxp.json` declara el preload. En tiempo de ejecución el mod **envuelve** los métodos de Essentials en vez de reescribirlos, a través de la semi-API `PokeAccess::Hooks` (`core/input/hooks.rb`): `before_hook`, `after_hook`, `around_hook`, `frame_hook`, `wrap_global` y `wrap_kernel`, con guarda de reentrancia y errores tragados, para que un fallo del mod nunca tumbe la partida.
 
-Esta aproximación significa:
-- El juego original NO se modifica
-- PokeEssentialsAccess es completamente removible
-- Funciona con cualquier versión de Essentials (gen-6 o era GameData)
+Consecuencias: el juego original queda intacto, el mod se puede quitar, y una pantalla nueva se accesibiliza añadiendo un enganche, no editando código ajeno. Ver [04_PATCHING_AND_HOOKS](04_PATCHING_AND_HOOKS.md).
 
-### 2. **Ruby: eval() y Monkey Patching**
+### 2. Se pregunta por capacidades, no por versiones
 
-Ruby permite modificar clases en tiempo de ejecución usando `eval()` (evaluación de código como strings):
+Como las versiones se mezclan, el código nunca decide por número de versión: pregunta si la clase o el método existen (`PokeAccess::Engine.has?`). Un enganche cuya clase no está presente simplemente no se registra, y el módulo queda inerte en ese juego. Ver [03_ENGINE_DETECTION](03_ENGINE_DETECTION.md).
 
-```ruby
-# En lugar de editar la clase:
-class GameClass
-  def method_name
-    original_logic
-  end
-end
+### 3. Los datos se piden a un provider
 
-# Se puede hacer:
-eval(File.read("patch_file.rb"))  # Que contiene métodos adicionales
+Los lectores llaman a `PokeAccess::Data.species_name(id)` y no saben en qué era corren. Cada era registra su provider con una prioridad; el más alto presente sirve, y un fallback de última hora devuelve el id crudo para que nunca falte respuesta. Ver [05_DATA_API](05_DATA_API.md).
 
-# O parchear métodos existentes con alias_method:
-original = GameClass.instance_method(:method_name)
-GameClass.define_method(:method_name) do
-  # Lógica nueva
-  original.bind(self).call
-end
-```
+### 4. La carga es una lista, no un glob
 
-En la práctica los readers NO escriben este parcheo a mano: usan la semi-API `PokeAccess::Hooks` (`core/input/hooks.rb`), que ofrece `before_hook`, `after_hook`, `around_hook`, `frame_hook`, `wrap_global` y `wrap_kernel` sobre esta misma técnica, con guarda de reentrancia y tragado de excepciones. Ver la documentación de hooks para el detalle.
+Cada carpeta cargable tiene su `manifest.rb`: un array ordenado de módulos que el boot evalúa uno a uno. El orden es el de dependencias y se edita a mano; ningún módulo depende de cómo ordene el sistema de archivos. Ver [09_LOADING_SYSTEM](09_LOADING_SYSTEM.md).
 
-### 3. **Versiones de Essentials**
+### 5. Nada de texto hablado a pelo
 
-El proyecto necesita detectar qué versión de Essentials se ejecuta porque:
-- **Gen-6** usa clases `PokeBattle_Scene`, datos en tablas `PB*`
-- **Era GameData** usa `GameData::*`, `Battle::Scene`
-- **v22** cambió completamente a `UI::*`
+Todo lo que dice el mod sale de las tablas `lang/es.txt` y `lang/en.txt` a través de `PokeAccess::I18n.t`. Lo que viene del propio juego se limpia de códigos de control antes de hablarlo. Ver [15_SPEECH_AND_I18N](15_SPEECH_AND_I18N.md).
 
-Solución: Detección en tiempo de ejecución + manifests modulares
-
-### 4. **Manifests y Carga Ordenada**
-
-En lugar de un glob desordenado (`require_all 'modules/*'`), cada carpeta tiene `manifest.rb`:
-
-```ruby
-# core/manifest.rb
-%w[
-  foundation/config
-  foundation/engine
-  foundation/events
-  # ... más módulos en orden de dependencia
-]
-```
-
-Esto asegura que las dependencias se cargan primero.
-
-## Flujo de Carga
+## Capas
 
 ```
-MKXP-Z inicia
-  ↓
-Ejecuta preload script (loader/preload_access.rb)
-  ↓
-Espera a que el juego esté listo (Graphics.update hook)
-  ↓
-Eval boot.rb (loader/boot.rb)
-  ↓
-PokeAccessBoot.run
-  ├─ Carga core/ (por manifest)
-  │  ├─ foundation/ (config, engine, eventos, etc.)
-  │  ├─ data/ (providers de datos)
-  │  ├─ speech/ (síntesis de voz)
-  │  └─ ... (nav, audio, menus, batalla, etc.)
-  │
-  ├─ Carga accessibility/game/ (por manifest)   # el instalador copia el games/<nombre> elegido aquí
-  │  └─ Constantes y pantallas específicas del juego
-  │
-  └─ Aplica PokeAccess::Settings (user overrides)
+┌──────────────────────────────────────────────┐
+│ Perfil del juego (games/<juego>)             │  Lectores y constantes de ese fangame
+├──────────────────────────────────────────────┤
+│ Adaptadores por era (core/<mod>/gen6|v21|     │  Se activan solo si su clase existe
+│ v22|skyflyer)                                │
+├──────────────────────────────────────────────┤
+│ Core compartido (core/<mod>/)                │  Lógica universal: voz, datos, nav, audio
+├──────────────────────────────────────────────┤
+│ Pokémon Essentials + mkxp-z                  │  El juego, sin tocar
+└──────────────────────────────────────────────┘
 ```
 
-## Arquitecura de Capas
+Detalle en [02_ARCHITECTURE](02_ARCHITECTURE.md).
 
-```
-┌─────────────────────────────────────────┐
-│      Juego Específico (games/<name>)    │  ← Constantes por juego, UI específica
-├─────────────────────────────────────────┤
-│  Motor Específico (core/<mod>/gen6|v21|v22|skyflyer) │  ← Adaptadores por versión, gateados por existencia de clase
-├─────────────────────────────────────────┤
-│      Core Compartido (core/*/*)         │  ← Lógica universal
-├─────────────────────────────────────────┤
-│      Pokemon Essentials + MKXP-Z        │  ← Base del juego
-└─────────────────────────────────────────┘
-```
+## Antes de escribir código
 
-## Siguiente: Leer otros documentos
+`core/` se carga en los dos motores y los juegos gen-6 corren sobre **Ruby 1.8.7**: hay sintaxis moderna que no puedes usar en los ficheros duales, y usarla rompe la carga entera de esos juegos. Está explicado, con la red que lo verifica, en [08_RUBY_FUNDAMENTALS](08_RUBY_FUNDAMENTALS.md). Empieza por ahí.
 
-- [Arquitectura](02_ARCHITECTURE.md) - Detalles de cada capa
-- [Detección de Engine](03_ENGINE_DETECTION.md) - Cómo detecta versiones
-- [Parcheo y Hooks](04_PATCHING_AND_HOOKS.md) - La semi-API `PokeAccess::Hooks`
-- [API de Datos](05_DATA_API.md) - Cómo accede a datos de Pokémon
-- [Pathfinding](06_PATHFINDING.md) - Búsqueda de rutas
-- [Audio 3D](07_AUDIO3D.md) - Sistema de navegación por sonido
-- [Sistema de Carga](09_LOADING_SYSTEM.md) - Preload, boot y manifests
+## Siguiente
+
+- [02_ARCHITECTURE](02_ARCHITECTURE.md) — las capas en detalle.
+- [08_RUBY_FUNDAMENTALS](08_RUBY_FUNDAMENTALS.md) — el Ruby que hace falta, y la restricción 1.8.7.
+- [14_EXTENDING](14_EXTENDING.md) — añadir lectores, puzzles y perfiles.
+- [13_READING_GUIDE](13_READING_GUIDE.md) — rutas de lectura según lo que quieras hacer.

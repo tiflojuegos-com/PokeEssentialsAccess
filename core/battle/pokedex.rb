@@ -2,12 +2,21 @@ module PokeAccess
   # Pokedex data entry: reads the page (category and description) the battle opens when a newly-caught
   # species is registered. Name/category/description come from the engine's data provider.
   module Pokedex
-    # Formats a tenth-units integer (decimetres/hectograms) as one decimal with a comma, as the dex shows.
-    # Shared by the v21 and v22 pokedex-info readers so the height/weight format lives in one place.
+    # Formats a tenth-units integer (decimetres/hectograms) as one decimal, with the separator the active
+    # language declares (lang key decimal_sep: comma in Spanish, point in English) -- previously v21/v22
+    # forced a comma and gen-6 a point, regardless of language. Shared by every dex height/weight reader.
     def self.fmt_dec(v)
-      format("%.1f", v / 10.0).gsub(".", ",")
+      fmt_float(v / 10.0)
     rescue StandardError
       v.to_s
+    end
+
+    # One decimal place with the language's separator (see fmt_dec), for values already in real units.
+    def self.fmt_float(f)
+      s = format("%.1f", f.to_f)
+      (PokeAccess::I18n.t(:decimal_sep).to_s == ",") ? s.gsub(".", ",") : s
+    rescue StandardError
+      f.to_s
     end
 
     # Builds the spoken pokedex entry for a species (name, category, description), via PokeAccess::Data

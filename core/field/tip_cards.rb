@@ -1,5 +1,5 @@
 module PokeAccess
-  # Tip Cards (a fangame tutorial-card addon, e.g. Relict): pbDrawTip draws the focused card as bitmap
+  # Tip Cards (a fangame tutorial-card addon): pbDrawTip draws the focused card as bitmap
   # text, so a screen reader gets nothing. These read the focused card when shown or changed; the
   # title/body are localization tokens resolved through the game's own _INTL and cleaned of markup.
 

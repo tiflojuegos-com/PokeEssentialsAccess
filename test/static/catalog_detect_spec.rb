@@ -1,9 +1,11 @@
 # Regression over the real games/catalog.json autodetect patterns. Both consumers (the launcher's
 # catalog.rs and installer install.ps1) build the haystack as "folder + exe", lowercase it, and match each
-# profile's `detect` regex case-insensitively, first hit wins. The pokemon_z pattern used to include a bare
-# \bz\b that matched a "Z:" drive letter and "mkxp-z.exe", so pokemon_z (the first profile) shadowed every
-# other game. This asserts the pattern still matches real Pokemon Z folders but never a drive letter or
-# mkxp-z, and that another profile behind it still wins on such paths.
+# profile's `detect` regex case-insensitively -- the LONGEST match wins, not the first in file order (the
+# layered detection decided 2026-08-01; modelling first-match here would test an algorithm neither
+# consumer runs any more, and a future collision that only surfaces under longest-match would pass).
+# The pokemon_z pattern used to include a bare \bz\b that matched a "Z:" drive letter and "mkxp-z.exe",
+# so pokemon_z shadowed every other game. This asserts the pattern still matches real Pokemon Z folders
+# but never a drive letter or mkxp-z, and that another profile still wins on such paths.
 CATALOG_JSON = File.join(File.expand_path("../..", __dir__), "games", "catalog.json")
 
 # Builds the match haystack exactly as the launcher/installer do: "<folder> <exe>", lowercased.
@@ -22,15 +24,21 @@ def detect_regexp_for(key)
   Regexp.new(pat.gsub('\\\\', '\\'), Regexp::IGNORECASE)
 end
 
-# Resolves which profile key wins for a haystack: first profile (in file order) whose detect matches.
+# Resolves which profile key wins for a haystack, mirroring the consumers' layer 2: among every detect
+# that matches, the one whose MATCHED TEXT is longest wins (ties keep file order, as both consumers do).
 def detect_profile(path)
   raw = File.read(CATALOG_JSON)
   hay = catalog_haystack(path)
+  best = nil
+  best_len = -1
   raw.scan(/"key"\s*:\s*"([^"]+)"[^{}]*?"detect"\s*:\s*(null|"((?:[^"\\]|\\.)*)")/m).each do |key, detect, pat|
     next if detect == "null"
-    return key if hay =~ Regexp.new(pat.gsub('\\\\', '\\'), Regexp::IGNORECASE)
+    m = hay.match(Regexp.new(pat.gsub('\\\\', '\\'), Regexp::IGNORECASE))
+    next if m.nil? || m[0].length <= best_len
+    best = key
+    best_len = m[0].length
   end
-  nil
+  best
 end
 
 Suite.define("catalog: pokemon_z detect matches real Z folders, not drive letter or mkxp-z") do

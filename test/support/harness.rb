@@ -21,7 +21,25 @@ module Harness
     dir = File.join(ROOT, rel)
     mf = File.join(dir, "manifest.rb")
     return unless File.file?(mf)
-    list = (eval(File.read(mf), TOPLEVEL_BINDING, mf) rescue nil)
+    value = (eval(File.read(mf), TOPLEVEL_BINDING, mf) rescue nil)
+    # Both manifest shapes, exactly as loader/boot.rb accepts them: an Array is the plain module list, a
+    # Hash also declares third-party plugin readers. The declared plugins are loaded HERE, before the
+    # profile, in the real order -- a harness that skipped them would test a mod the player never runs.
+    list = value.is_a?(Hash) ? value[:modules] : value
+    if value.is_a?(Hash)
+      (value[:plugins] || []).each do |name|
+        f = File.join(ROOT, "plugins", "#{name}.rb")
+        unless File.file?(f)
+          @errors << "#{rel}/manifest.rb: plugin declarado pero ausente: plugins/#{name}.rb"
+          next
+        end
+        begin
+          eval(File.read(f), TOPLEVEL_BINDING, f)
+        rescue Exception => e
+          @errors << "plugins/#{name}.rb: #{e.class}: #{e.message}"
+        end
+      end
+    end
     unless list.is_a?(Array)
       @errors << "#{rel}/manifest.rb: did not evaluate to an Array of module paths (got #{list.class})"
       return

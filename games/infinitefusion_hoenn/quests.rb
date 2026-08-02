@@ -64,6 +64,10 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("infinitefusion_hoenn") do
+  # switch_button is the ONLY thing that moves @main_menu_index, and nothing calls it on entry (initialize
+  # just sets it to 0), so the main screen opened without saying which category was focused. draw_main_text
+  # is what paints it, which is the same moment the player would see it.
+  after("Questlog", :draw_main_text) { |s, _r, _a| PokeAccess::IF2Quests.category(s) }
   after("Questlog", :switch_button) { |s, _r, _a| PokeAccess::IF2Quests.category(s) }
   after("Questlog", :move_selection) { |s, _r, _a| PokeAccess::IF2Quests.quest(s) }
   after("Questlog", :show_quest_list) { |s, _r, _a| PokeAccess::IF2Quests.quest(s) }

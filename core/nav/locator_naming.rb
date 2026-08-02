@@ -63,6 +63,36 @@ module PokeAccess
       false
     end
 
+    # Per-event VERDICT cache for the page-scanning classifiers (transfer/sign/examinable/shows_text),
+    # which used to rescan every command of every page on each locator rebuild while push/lever already
+    # cached. The invalidation lives INSIDE the key: [event id, identity of the live @list, kind] -- when
+    # a switch flips the event to another page, the engine's refresh assigns that page's list to @list,
+    # the identity changes, and the stale verdict is simply never looked up again (flipping back revives
+    # the old key with its still-correct verdict). @trigger and character_name change in the same refresh,
+    # so every input the classifiers read is covered by that one identity. On top of the self-keying, the
+    # whole store is dropped at the two points the locator already invalidates -- end of a running event
+    # (a variable-driven type-1 transfer resolves $game_variables live, and variables change inside
+    # events) and map change via Caches -- so keys never pile up and variable-dependent verdicts refresh.
+    # Values are wrapped in a one-element array so nil/false verdicts cache as real hits.
+    @verdicts = {}
+
+    # The cached verdict for (event, kind), computing it from the block on the first miss.
+    def self.verdict(ev, kind)
+      key = [ev.id, (PokeAccess.ivar(ev, :@list).__id__ rescue 0), kind]
+      hit = @verdicts[key]
+      return hit[0] if hit
+      v = yield
+      @verdicts[key] = [v]
+      v
+    rescue StandardError
+      yield
+    end
+
+    # Drops every cached verdict (event end, map change).
+    def self.clear_verdicts
+      @verdicts = {}
+    end
+
     # All command lists of an event (its raw pages, plus the active page's live @list).
     def self.event_command_lists(ev)
       lists = []
@@ -106,6 +136,11 @@ module PokeAccess
     # The destination map id of a SCRIPT-based transfer (pbTransfer / player_new_map_id=), or nil. Many
     # fangame doors transfer by script, not the editor's command 201, so 201-only detection would miss them.
     def self.transfer_script_dest(ev)
+      verdict(ev, :tscript) { transfer_script_dest_uncached(ev) }
+    end
+
+    # The uncached script-transfer scan (see transfer_script_dest).
+    def self.transfer_script_dest_uncached(ev)
       script_call_find(ev, transfer_command_lists(ev)) do |s|
         ($1.to_i if s =~ /\bpbTransfer\w*\(\s*(\d+)/ || s =~ /player_new_map_id\s*=\s*(\d+)/)
       end
@@ -125,8 +160,16 @@ module PokeAccess
     # The destination [map, x, y] of an editor Transfer Player command (201), or nil. Type 1 ("with
     # variables") resolves the variables holding map/x/y live; type 0 stores literals in pars[1..3]. The
     # coordinates let clustering tell a wide doorway (tiles landing on one spot) from two distinct doors
-    # that merely share a destination map.
+    # that merely share a destination map. The cache kind carries the transfer_active_page_only setting
+    # (and the config menu clears all verdicts on every setting write), so a toggle never serves a
+    # verdict computed under the other semantics.
     def self.transfer_command_dest_xy(ev)
+      kind = (PokeAccess::Config.transfer_active_page_only rescue true) ? :txy_active : :txy_all
+      verdict(ev, kind) { transfer_command_dest_xy_uncached(ev) }
+    end
+
+    # The uncached 201-command scan (see transfer_command_dest_xy).
+    def self.transfer_command_dest_xy_uncached(ev)
       transfer_command_lists(ev).each do |list|
         list.each do |c|
           next unless (c.code rescue 0) == TRANSFER_CODE
@@ -147,10 +190,14 @@ module PokeAccess
 
     # True if an event shows text or choices when used (tells a sign from a door).
     def self.shows_text?(ev)
-      event_command_lists(ev).each do |list|
-        list.each { |c| return true if TEXT_CODES.include?((c.code rescue 0)) }
+      verdict(ev, :text) { shows_text_uncached?(ev) }
+    end
+
+    # The uncached text scan (see shows_text?).
+    def self.shows_text_uncached?(ev)
+      event_command_lists(ev).any? do |list|
+        list.any? { |c| TEXT_CODES.include?((c.code rescue 0)) }
       end
-      false
     rescue StandardError
       false
     end
@@ -158,6 +205,11 @@ module PokeAccess
     # True if an event is a sign: examined with the action button, shows text, has no character sprite,
     # and does not transfer (so a sign named "salida" is not miscategorised as an exit).
     def self.sign_event?(ev)
+      verdict(ev, :sign) { sign_event_uncached?(ev) }
+    end
+
+    # The uncached sign test (see sign_event?).
+    def self.sign_event_uncached?(ev)
       return false unless ev.character_name.to_s.empty?
       return false unless examinable?(ev)
       return false unless transfer_command_dest(ev).nil? && transfer_script_dest(ev).nil?
@@ -170,6 +222,11 @@ module PokeAccess
     # Signs and autorun/parallel events are excluded; an action-button NPC that warps is a person unless
     # its name says exit; touch-triggered warp tiles (sprite or not) stay exits.
     def self.transfer_event?(ev)
+      verdict(ev, :transfer) { transfer_event_uncached?(ev) }
+    end
+
+    # The uncached transfer test (see transfer_event?).
+    def self.transfer_event_uncached?(ev)
       return false if sign_event?(ev)
       trig = PokeAccess.ivar_i(ev, :@trigger)
       return false if trig == 3 || trig == 4
@@ -313,9 +370,8 @@ module PokeAccess
 
     # The destination map name of a transfer event (command or script), or nil.
     def self.transfer_dest_name(ev)
-      d = transfer_command_dest(ev)
-      d = transfer_script_dest(ev) if d.nil?
-      (d && map_name(d)) ? map_name(d) : nil
+      d = transfer_command_dest(ev) || transfer_script_dest(ev)
+      d ? map_name(d) : nil
     rescue StandardError
       nil
     end
@@ -333,7 +389,7 @@ module PokeAccess
       ns = dy >= ty ? "s" : (dy <= -ty ? "n" : "")
       key = "#{ns}#{ew}"
       return nil if key.empty?
-      ("dir_" + key).to_sym
+      "dir_#{key}".to_sym
     rescue StandardError
       nil
     end
@@ -355,7 +411,16 @@ module PokeAccess
     def self.map_name(mapid)
       ov = (PokeAccess::MapNames.get(mapid) rescue nil)
       return ov if ov && !ov.to_s.empty?
-      @mapinfos = (pbLoadRxData("Data/MapInfos") rescue nil) if @mapinfos.nil?
+      # Memoise the FAILURE too. Without the empty-hash fallback the guard stays true and the whole Marshal
+      # is re-attempted on every call -- each map change, each exit name, each diag line, each recorder
+      # sample -- while no map is ever named and nothing is written anywhere.
+      if @mapinfos.nil?
+        @mapinfos = (pbLoadRxData("Data/MapInfos") rescue nil)
+        if @mapinfos.nil?
+          PokeAccess.log_once("mapinfos", "Data/MapInfos no cargable")
+          @mapinfos = {}
+        end
+      end
       return nil unless @mapinfos && @mapinfos[mapid]
       (@mapinfos[mapid].name rescue nil)
     end
@@ -483,14 +548,19 @@ module PokeAccess
     # Event name/sprite patterns that mark a door/exit (matched on the event's name and charset).
     EXIT_NAME_RE = /door|puerta|salida|exit/i
     # Action-button command codes that mean an event does something: text/choices, script, or item/money.
-    # Built on a duped array with concat, never `+`: Pokemon Z's MTS library redefines Array#+ as an
-    # in-place mutator, so the literal `+` would corrupt TEXT_CODES and alias this constant to it.
+    # Built on a duped array with concat, never `+`: a fangame script patch redefines Array#+ as an in-place
+    # mutator (seen in the wild), so the literal `+` would corrupt TEXT_CODES and alias this constant to it.
     EXAMINE_CODES = TEXT_CODES.dup.concat(SCRIPT_CODES).concat(GOODS_CODES)
 
     # True if the event is examined with the action button (trigger 0) and then does something: a sign
     # (show text/choices) or an invisible interactable whose action is a script or item/money change
     # (the rare-candy cups, hidden items). Pure setup triggers (only switches/variables) are skipped.
     def self.examinable?(ev)
+      verdict(ev, :exam) { examinable_uncached?(ev) }
+    end
+
+    # The uncached examinable test (see examinable?).
+    def self.examinable_uncached?(ev)
       return false unless PokeAccess.ivar(ev, :@trigger) == 0
       list = PokeAccess.ivar(ev, :@list)
       return false unless list.is_a?(Array)
@@ -511,3 +581,7 @@ module PokeAccess
     end
   end
 end
+
+# Verdicts also die with the map: event ids repeat across maps, so a map change must not let map A's
+# event 12 answer for map B's (the shared reset point every per-map cache registers on).
+PokeAccess::Caches.register(:verdicts) { PokeAccess::Locator.clear_verdicts }

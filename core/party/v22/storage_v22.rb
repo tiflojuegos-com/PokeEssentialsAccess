@@ -36,12 +36,27 @@ module PokeAccess
     rescue StandardError
       nil
     end
+
+    # The line for a box CHANGE, which always LEADS with the box name. The engine pages boxes from any
+    # cursor position, not only from the box-name row (update_interaction fires go_to_*_box on
+    # QUICK_UP/QUICK_DOWN wherever the cursor is), so the slot line alone can come out byte-identical in
+    # the new box -- two slots empty in both boxes read the same -- and the cursor dedup swallows it:
+    # the player paged and heard nothing. Naming the box is also the answer to "which box am I in now?",
+    # which the slot line never carried.
+    def self.box_line(vis)
+      here = line(vis)
+      name = (PokeAccess.ivar(vis, :@storage)[(vis.box rescue nil)].name rescue nil)
+      return here if name.nil? || name.to_s.empty?
+      head = PokeAccess::I18n.t(:pc_box, :name => name)
+      (here.nil? || here.to_s.empty? || here == head) ? head : "#{head}. #{here}"
+    rescue StandardError
+      nil
+    end
   end
 end
 
 PokeAccess::V22.on_nav("UI::PokemonStorageVisuals", :set_index) { |vis| PokeAccess::StorageV22.line(vis) }
-# Cycling boxes (LEFT/RIGHT on the box-name row) calls go_to_next_box/go_to_previous_box directly without
-# touching @index, so set_index never fires; hook them too so the new box is announced (deduped by the box
-# name, which changes even though the index stays -1).
-PokeAccess::V22.on_nav("UI::PokemonStorageVisuals", :go_to_next_box) { |vis| PokeAccess::StorageV22.line(vis) }
-PokeAccess::V22.on_nav("UI::PokemonStorageVisuals", :go_to_previous_box) { |vis| PokeAccess::StorageV22.line(vis) }
+# Cycling boxes calls go_to_next_box/go_to_previous_box directly without touching @index, so set_index
+# never fires: hook them too, through box_line so the new box is always named (see there).
+PokeAccess::V22.on_nav("UI::PokemonStorageVisuals", :go_to_next_box) { |vis| PokeAccess::StorageV22.box_line(vis) }
+PokeAccess::V22.on_nav("UI::PokemonStorageVisuals", :go_to_previous_box) { |vis| PokeAccess::StorageV22.box_line(vis) }

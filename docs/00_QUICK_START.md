@@ -1,219 +1,138 @@
-# Quick Start - Resumen en 5 Minutos
+# Quick Start — Resumen en 5 minutos
 
-¿Prisa? Aquí está todo lo que necesitas saber en 5 minutos.
+¿Prisa? Esto es lo esencial.
 
 ## ¿Qué es PokeEssentialsAccess?
 
-Toolkit de accesibilidad que añade:
-- 📢 Síntesis de voz (lector de pantalla)
-- 🗺️ Búsqueda automática de rutas
-- 🎵 Audio 3D posicional
-- 🎮 Controles accesibles
-- ⚙️ Configuración extensible
+Un mod que hace jugables con lector de pantalla los fangames de Pokémon hechos sobre **Pokémon Essentials** y ejecutados con **mkxp-z**. Añade lectura de textos (menús, diálogos, combate), navegación por sonido 3D, búsqueda de rutas con guía sonora, glosario de sonidos, grabador de sesiones y remapeo de teclas.
 
-Para juegos Pokémon basados en **RPG Maker**.
+Si lo que quieres es **jugar**, ve al [README](../README.md): instalación, juegos soportados y teclas. Este documento explica el código.
 
-## ¿Cómo Funciona?
+## Cómo se carga
 
 ```
-1. MKXP-Z (motor del juego) carga el juego
-2. PokeAccess se inyecta automáticamente
-3. Engancha métodos de Essentials SIN modificarlos
-4. Añade funcionalidad accesible
-5. Todo sucede en runtime (en memoria)
+mkxp-z arranca y ejecuta loader/preload_access.rb (declarado en mkxp.json)
+  ↓
+El preload envuelve Graphics.update y espera a que el juego esté vivo
+  ↓
+Evalúa boot.rb, que carga en orden:
+  ├─ core/    (por core/manifest.rb)
+  ├─ game/    (el perfil de games/<juego> que copió el instalador)
+  └─ los ajustes del jugador, encima de todo
 ```
 
-**Clave**: Nada es modificado permanentemente. Es como un plugin.
+Nada del juego se modifica: los scripts originales se quedan como están y el mod se puede desinstalar.
 
-## Estructura en 30 Segundos
+## Las cuatro ideas del código
 
-```
-PokeEssentialsAccess/
-├── core/           ← Código compartido por TODOS los juegos
-├── games/<game>/   ← Personalización por juego
-├── loader/         ← Cómo se carga todo
-├── native/         ← DLL para audio 3D
-└── docs/           ← Documentación (tú estás aquí)
-```
+### 1. Enganches (hooks)
 
-## 3 Puntos Clave
-
-### 1️⃣ Múltiples Versiones de Essentials
-
-```
-Gen-6 (v16-v17):  PBSpecies.getName(123)
-Era GameData (v19+):   GameData::Species.get(123).name
-
-PokeAccess soporta AMBAS automáticamente
-```
-
-### 2️⃣ Enganches (Hooks)
+En vez de editar los métodos de Essentials, se envuelven:
 
 ```ruby
-# En lugar de modificar:
-class PokeBattle_Scene
-  def pbDisplayMessage(msg)
-    # código original
-  end
+# core/battle/gen6/battle_g6.rb
+PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbDisplayPausedMessage) do |_s, args|
+  PokeAccess.speak_clean(args[0], false)   # false = encolar, no cortar la voz
 end
-
-# PokeAccess hace:
-PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbDisplayMessage) { |s, args|
-  PokeAccess.speak(args[0])
-}
 ```
 
-### 3️⃣ Providers de Datos
+Si la clase o el método no existen en ese juego, el enganche simplemente no se registra. Ver [04_PATCHING_AND_HOOKS](04_PATCHING_AND_HOOKS.md).
 
-```
-Un método funciona en TODAS las versiones:
-PokeAccess::Data.species_name(123)  # "Pikachu"
-  ↓
-  ├─ Si gen-6: llama PBSpecies.getName(123)
-  ├─ Si usa GameData: llama GameData::Species.get(123).name
-  └─ Si desconocido: devuelve el id crudo "123"
-```
+### 2. Providers de datos
 
-## Así se Carga
-
-```
-MKXP-Z comienza
-  ↓
-Espera a que juego esté listo (Graphics.update)
-  ↓
-Carga boot.rb
-  ├─ Carga core/ (foundation, data, speech, audio, etc.)
-  ├─ Carga games/<nombre>/ (personalización)
-  └─ Aplica settings de usuario
-  ↓
-¡PokeAccess completamente funcional!
-```
-
-## Métodos Más Usados
+Un mismo método sirve en cualquier versión de Essentials:
 
 ```ruby
-# Hablar
-PokeAccess.speak("Hola")
-
-# Datos (funciona en cualquier versión)
-PokeAccess::Data.species_name(25)      # "Pikachu"
-
-# Versión actual
-PokeAccess::Engine.gamedata?             # true o false
-PokeAccess::Engine.version             # 21.1
-
-# Ruta hacia un tile (desde la posición del jugador)
-path = PokeAccess::Pathfinder.find_path(10, 10)
-
-# Configuración
-PokeAccess::Config.audio3d_volume = 80
-
-# Buscar cercanos (reconstruye la lista y anuncia el seleccionado)
-PokeAccess::Locator.rebuild_targets
-PokeAccess::Locator.announce_selected(true)   # true = incluir el nombre
+PokeAccess::Data.species_name(25)   # "Pikachu"
 ```
 
-## Ruby: Conceptos Mínimos
+Cada era registra su provider (gen-6 lee las tablas `PB*`, la era GameData lee `GameData::*`) y gana el de mayor prioridad; hay un fallback que devuelve el id crudo, así que nunca falta provider. Ver [05_DATA_API](05_DATA_API.md).
+
+### 3. Puertas por capacidad, no por versión
+
+Los fangames mezclan eras (v18 con backports, forks que adelantan la UI de v22). Por eso el código no pregunta "¿qué versión es?" sino "¿existe esto?":
 
 ```ruby
-# Módulo (como clase, pero sin instancias)
-module MiModulo
-  def self.mi_metodo
-    "resultado"
-  end
-end
-MiModulo.mi_metodo  # → "resultado"
-
-# Bloque ({ código })
-[1,2,3].each { |x| puts x }  # Imprime 1, 2, 3
-
-# Símbolo (:nombre)
-{ :idioma => :es, :audio => true }
-
-# Hash (diccionario)
-config = { :volumen => 80 }
-config[:volumen]  # → 80
+PokeAccess::Engine.has?("Battle::Scene")                        # ¿existe la clase?
+PokeAccess::Engine.has?("Battle::Scene::MenuBase#setIndexAndMode")  # ¿clase y método?
 ```
 
-## Dónde Está Todo
+Ver [03_ENGINE_DETECTION](03_ENGINE_DETECTION.md).
+
+### 4. Manifests, no globs
+
+Cada carpeta cargable tiene su `manifest.rb`: una lista ordenada de módulos. El orden es el de dependencias, no el del sistema de archivos. Ver [09_LOADING_SYSTEM](09_LOADING_SYSTEM.md).
+
+## La regla que más se incumple: Ruby 1.8.7
+
+`core/` se carga en los dos motores, y los juegos gen-6 corren sobre **Ruby 1.8.7**. Ahí no existen `&:simbolo`, `->`, `.clamp`, `.dig`, `<<~`, `each_with_object`, `&.` ni encadenar poniendo el punto al principio de la línea. Escribir cualquiera de esas cosas en un fichero dual rompe la carga entera de esos juegos.
+
+Lo verifica `ruby test/run_all.rb`. Antes de tocar código, lee [08_RUBY_FUNDAMENTALS](08_RUBY_FUNDAMENTALS.md).
+
+## Dónde está cada cosa
 
 | Qué | Dónde |
 |-----|-------|
-| Configuración | `core/foundation/config.rb` |
-| Detección engine | `core/foundation/engine.rb` |
-| Datos (agnóstico) | `core/data/data.rb` |
-| Gen-6 específico | `core/battle/gen6/`, `core/data/gen6/` |
-| Específico era GameData | `core/battle/v21/`, `core/data/v21/` |
-| Audio 3D | `core/audio/audio3d.rb` |
+| Configuración y esquema de opciones | `core/foundation/config.rb` |
+| Detección de motor y capacidades | `core/foundation/engine.rb` |
+| Enganches | `core/input/hooks.rb` |
+| Teclas del mod | `core/input/input.rb`, `keyboard.rb`, `focus.rb` |
+| Diagnóstico | `core/input/diag.rb` |
+| Voz | `core/speech/speech.rb` |
+| Textos traducidos | `core/foundation/i18n.rb` + `lang/*.txt` |
+| Datos agnósticos | `core/data/data.rb` (+ `gen6/`, `v21/`) |
 | Rutas | `core/nav/pathfinder.rb` |
-| Síntesis voz | `core/speech/speech.rb` |
-| Personalizaciones | `games/<nombre>/` |
+| Objetivos del mapa | `core/nav/locator.rb` |
+| Audio 3D | `core/audio/audio3d.rb`, `spatial.rb` |
+| Glosario de sonidos | `core/audio/glossary.rb` |
+| Menú del mod | `core/menus/config_menu.rb` |
+| Grabador de sesiones | `core/util/recorder.rb` |
+| Lectores por juego | `games/<juego>/` |
 
-## Diagnóstico Rápido
+## Métodos más usados
 
-Si algo falla:
+```ruby
+# Hablar
+PokeAccess.speak("Hola")                  # corta lo que se esté diciendo
+PokeAccess.speak_clean(texto_del_juego)   # limpia los códigos \V[n], \C[n]... y habla
+PokeAccess::I18n.t(:mod_on)               # texto traducido de lang/*.txt
 
-```bash
-# 1. Ver errores
-$ cat accessibility/data/loader_error.txt
+# Datos (en cualquier versión)
+PokeAccess::Data.species_name(25)         # "Pikachu"
 
-# 2. Ver si preload funcionó
-$ cat accessibility/data/preload_started.txt
+# Motor
+PokeAccess::Engine.kind                   # :gamedata o :gen6
+PokeAccess::Engine.version                # 21.1 (solo para el diagnóstico)
 
-# 3. Generar diagnóstico (Ctrl+Alt+F9 en juego)
-$ cat accessibility/data/diag.txt
+# Ruta hasta una casilla contigua al objetivo
+PokeAccess::Pathfinder.find_path(10, 10)
+
+# Objetivos del mapa
+PokeAccess::Locator.rebuild_targets
+PokeAccess::Locator.announce_selected(true)   # true = decir también el nombre
+
+# Configuración
+PokeAccess::Config.audio3d_volume = 80
 ```
 
-## Contribuir: Pasos
+Lista completa en [10_API_REFERENCE](10_API_REFERENCE.md).
 
-1. Entender [Introducción](01_INTRODUCTION.md) (10 min)
-2. Entender [Arquitectura](02_ARCHITECTURE.md) (20 min)
-3. Leer código relevante en `core/`
-4. Hacer cambio/fix
-5. Testear
+## Si algo falla
 
-## Documentación Completa
+Dentro del juego:
 
-- **[INDEX](12_INDEX.md)** - Mapa de todos los documentos
-- **[READING_GUIDE](13_READING_GUIDE.md)** - Ruta personalizada según tu rol
-- **[Introducción](01_INTRODUCTION.md)** - Explicación profunda
-- **[Arquitectura](02_ARCHITECTURE.md)** - Cómo todo se conecta
-- **[Engine Detection](03_ENGINE_DETECTION.md)** - Múltiples versiones
-- **[Patching & Hooks](04_PATCHING_AND_HOOKS.md)** - Cómo se engancha
-- **[Data API](05_DATA_API.md)** - Acceso agnóstico a datos
-- **[Pathfinding](06_PATHFINDING.md)** - Búsqueda de rutas
-- **[Audio3D](07_AUDIO3D.md)** - Sonido 3D
-- **[Loading System](09_LOADING_SYSTEM.md)** - Proceso de carga
-- **[API Reference](10_API_REFERENCE.md)** - Quick lookup
-- **[Dependencies](11_DEPENDENCIES_TREE.md)** - Qué depende de qué
+- `Ctrl`+`Alt`+`F10` habla un diagnóstico corto: escena actual, mapa y posición, última línea leída y enganches que no encontraron su método.
+- `Ctrl`+`Alt`+`F9` vuelca el diagnóstico completo a `accessibility/data/diag.txt`.
 
-## En 30 Segundos: ¿Por qué es diferente?
+En la carpeta `accessibility/data/` del juego:
 
-### ❌ Alternativa tradicional (modificar archivos):
-```
-Essentials original: 100 archivos .rb
-Parchear manualmente cada uno
-Resultado: Código desordenado, mantenimiento imposible
-```
+- `preload_started.txt` — existe si mkxp-z llegó a ejecutar el preload.
+- `loader_error.txt` — errores de carga de cada módulo.
+- `diag.txt` — los volcados de `Ctrl`+`Alt`+`F9`.
 
-### ✅ Solución PokeEssentialsAccess (enganches):
-```
-Essentials original: Sin modificar
-+ PokeAccess carga en runtime
-+ Usa hooks para interceptar métodos
-= Funcionalidad nueva sin tocar original
-```
+## Siguiente paso
 
-## Próximos Pasos
-
-- **Primero vez**: Lee [Introducción](01_INTRODUCTION.md)
-- **Necesitas referencia**: Ve a [API Reference](10_API_REFERENCE.md)
-- **Eres contributor**: Sigue [READING_GUIDE](13_READING_GUIDE.md)
-- **Tienes problema**: Ve a [Dependencies](11_DEPENDENCIES_TREE.md)
-
----
-
-**¿Preguntas?** Consulta [Índice](12_INDEX.md)
-
-Versión: 1.0  
-Última actualización: 2026-06-22
+- **Quiero entender el proyecto**: [01_INTRODUCTION](01_INTRODUCTION.md).
+- **Voy a escribir código**: [08_RUBY_FUNDAMENTALS](08_RUBY_FUNDAMENTALS.md) → [02_ARCHITECTURE](02_ARCHITECTURE.md) → [14_EXTENDING](14_EXTENDING.md).
+- **Busco algo concreto**: [12_INDEX](12_INDEX.md).
+- **Quiero una ruta de lectura**: [13_READING_GUIDE](13_READING_GUIDE.md).

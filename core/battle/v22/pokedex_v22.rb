@@ -5,7 +5,7 @@
 PokeAccess::V22.on_nav("UI::PokedexVisuals") do |vis|
   sp = (vis.species rescue nil)
   if sp
-    dex = (PokeAccess::World.player.pokedex rescue nil)
+    dex = (PokeAccess::Engine.player.pokedex rescue nil)
     name = (GameData::Species.get(sp).name rescue sp.to_s)
     if (dex && dex.owned?(sp) rescue false)
       name + ", " + PokeAccess::I18n.t(:dex_caught)
@@ -78,7 +78,7 @@ module PokeAccess
   end
 end
 
-if PokeAccess::V22.const_exists?("UI::PokedexEntryVisuals")
+if PokeAccess::Engine.has?("UI::PokedexEntryVisuals")
   [:go_to_next_page, :go_to_previous_page, :set_dex_index, :set_species].each do |m|
     PokeAccess::Hooks.after_hook("UI::PokedexEntryVisuals", m) do |vis, _ret, _args|
       PokeAccess::PokedexEntryV22.speak(vis)

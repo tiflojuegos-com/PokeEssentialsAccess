@@ -1,22 +1,17 @@
 module PokeAccess
-  # Encounter List UI (a fangame addon: Sky base, Relict, royal's override...): shows the species on the
-  # current map as icons with no text. Both the Sky-base scene and royal's override redraw the focused
-  # encounter type via drawPresent on each left/right change (royal has no pbEncounter loop), so drawPresent
-  # is the single universal hook; drawAbsent fires for a type with no encounters. Reads the focused type's
-  # species list (name + Pokedex status), deduped by @index. No-op without the class.
+  # Encounter List UI (a fangame addon: the Sky base ships one, other games their own overrides): shows the
+  # species on the current map as icons with no text. Both the Sky-base scene and the overrides redraw the
+  # focused encounter type via drawPresent on each left/right change (an override may lack the pbEncounter
+  # loop), so drawPresent is the single universal hook; drawAbsent fires for a type with no encounters.
+  # Reads the focused type's species list (name + Pokedex status), deduped per scene instance via
+  # Cursor (pbStartScene resets the slot so reopening on the same type still reads). No-op without the class.
   module EncounterList
-    @last = nil
     MAX = 15
-
-    # Clears the dedup when the scene opens, so reopening at the same type still reads.
-    def self.reset; @last = nil; end
 
     # Reads the focused encounter type when @index changes.
     def self.read_present(s)
       idx = PokeAccess.ivar(s, :@index)
-      return if idx == @last
-      @last = idx
-      t = text_for(s)
+      t = PokeAccess::Cursor.on_change(s, :encounter_list, idx) { text_for(s) }
       PokeAccess.speak(t, true) if t && !t.to_s.empty?
     rescue StandardError
       nil
@@ -30,7 +25,7 @@ module PokeAccess
       type_name = ((::USER_DEFINED_NAMES[key] rescue nil) || (GameData::EncounterType.get(key).real_name rescue nil) || key.to_s)
       entries = enc.map do |sp|
         nm = (PokeAccess::Data.species_name(sp) || sp.to_s)
-        dex = (PokeAccess::World.player.pokedex rescue nil)
+        dex = (PokeAccess::Engine.player.pokedex rescue nil)
         st = (dex.owned?(sp) rescue false) ? :dex_caught :
              ((dex.seen?(sp) rescue false) ? :dex_seen : :dex_unknown)
         [nm, st]
@@ -53,7 +48,7 @@ module PokeAccess
   end
 end
 
-PokeAccess::Hooks.before_hook("EncounterList_Scene", :pbStartScene) { |_s, _a| PokeAccess::EncounterList.reset }
+PokeAccess::Hooks.before_hook("EncounterList_Scene", :pbStartScene) { |s, _a| PokeAccess::Cursor.reset(s, :encounter_list) }
 PokeAccess::Hooks.after_hook("EncounterList_Scene", :drawPresent) { |s, _r, _a| PokeAccess::EncounterList.read_present(s) }
 PokeAccess::Hooks.after_hook("EncounterList_Scene", :drawAbsent) do |_s, _r, _a|
   PokeAccess.speak(PokeAccess::I18n.t(:enc_none, :loc => ($game_map.name rescue nil).to_s), true)

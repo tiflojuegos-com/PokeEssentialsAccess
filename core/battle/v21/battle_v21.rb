@@ -62,27 +62,23 @@ PokeAccess::Hooks.after_hook("Battle::Scene", :pbShowAbilitySplash) do |_s, _r, 
 end
 
 # Mega button toggle: mode= is shared by MenuBase subclasses, so gate to the FightMenu and announce only
-# a real available(1)<->registered(2) toggle, not the initial open. Bound only where mode= exists (v22 uses
-# mega_evolution_state=, handled in battle_v22) so it never logs a false typo in Hooks.missing.
-if PokeAccess::Engine.has?("Battle::Scene::MenuBase#mode=")
-  PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :mode=) do |menu, _r, args|
-    if defined?(::Battle::Scene::FightMenu) && menu.is_a?(::Battle::Scene::FightMenu)
-      v = args[0]
-      k = PokeAccess::Battle.mega_key(menu.instance_variable_get(:@access_mega), v)
-      menu.instance_variable_set(:@access_mega, v) if v == 1 || v == 2
-      PokeAccess.speak(PokeAccess::I18n.t(k), true) if k
-    end
+# a real available(1)<->registered(2) toggle, not the initial open. :optional because v22 uses
+# mega_evolution_state= instead (handled in battle_v22), so its absence is variance, not a typo.
+PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :mode=, :optional => true) do |menu, _r, args|
+  if defined?(::Battle::Scene::FightMenu) && menu.is_a?(::Battle::Scene::FightMenu)
+    v = args[0]
+    k = PokeAccess::Battle.mega_key(menu.instance_variable_get(:@access_mega), v)
+    menu.instance_variable_set(:@access_mega, v) if v == 1 || v == 2
+    PokeAccess.speak(PokeAccess::I18n.t(k), true) if k
   end
 end
 
-# Shift button (multi-battle, modern only): announce when it becomes available (0 -> 1). Gated like the
-# others so it never logs a false typo where shiftMode= is absent.
-if PokeAccess::Engine.has?("Battle::Scene::FightMenu#shiftMode=")
-  PokeAccess::Hooks.after_hook("Battle::Scene::FightMenu", :shiftMode=) do |menu, _r, args|
-    v = args[0]
-    PokeAccess.speak(PokeAccess::I18n.t(:bt_shift), false) if v == 1 && menu.instance_variable_get(:@access_shift) != 1
-    menu.instance_variable_set(:@access_shift, v)
-  end
+# Shift button (multi-battle, modern only): announce when it becomes available (0 -> 1). :optional --
+# absent where the engine has no shift mechanic.
+PokeAccess::Hooks.after_hook("Battle::Scene::FightMenu", :shiftMode=, :optional => true) do |menu, _r, args|
+  v = args[0]
+  PokeAccess.speak(PokeAccess::I18n.t(:bt_shift), false) if v == 1 && menu.instance_variable_get(:@access_shift) != 1
+  menu.instance_variable_set(:@access_shift, v)
 end
 
 # Level-up stat gains (modern): the panel is graphic-only. Old-stat arg order is hp,atk,def,spatk,spdef,

@@ -62,7 +62,7 @@ module PokeAccess
   end
 end
 
-if PokeAccess::V22.const_exists?("UI::PokemonSummaryVisuals")
+if PokeAccess::Engine.has?("UI::PokemonSummaryVisuals")
   # set_party_index changes the shown Pokemon and then calls refresh INTERNALLY. The hook engine's
   # reentrancy guard skips that nested refresh hook (a DIFFERENT method than set_party_index), so it neither
   # speaks the page without the glance nor consumes the [page, party_index] dedup: set_party_index's own

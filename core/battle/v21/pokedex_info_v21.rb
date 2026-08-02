@@ -9,10 +9,11 @@ module PokeAccess
     # Species per page in the MUI Data Page sub-list (its grid is 12 entries).
     DATA_PAGE_SIZE = 12
 
-    @last = nil
-
-    # Resets the dedup so reopening an entry reads it again.
-    def self.reset; @last = nil; @datalast = nil; end
+    # Resets both dedups (Cursor slots on the scene) so reopening an entry reads it again.
+    def self.reset(scene)
+      PokeAccess::Cursor.reset(scene, :pdx_page)
+      PokeAccess::Cursor.reset(scene, :pdx_data)
+    end
 
     # The spoken text for the focused pokedex page, or nil.
     def self.page_text(scene)
@@ -23,7 +24,7 @@ module PokeAccess
       data = (GameData::Species.get(species) rescue nil) unless data
       return nil unless data
       name  = (data.name rescue species.to_s)
-      owned = (PokeAccess::World.player.owned?(species) rescue false)
+      owned = (PokeAccess::Engine.player.owned?(species) rescue false)
       pid   = (scene.instance_variable_get(:@page_id) rescue :page_info)
       case pid
       when :page_area  then PokeAccess::I18n.t(:pdx_zone, :name => name)
@@ -88,11 +89,12 @@ module PokeAccess
       (entry[:shift] rescue false) ? n - 1 : n
     end
 
-    # Speaks the focused page if it changed since the last read.
+    # Speaks the focused page if it changed since the last read (deduped by the page TEXT -- the species
+    # can change without the page id changing, so the text is the honest key).
     def self.read(scene)
       t = page_text(scene)
-      return if t.nil? || t.empty? || t == @last
-      @last = t
+      return if t.nil? || t.empty?
+      return unless PokeAccess::Cursor.changed?(scene, :pdx_page, t)
       PokeAccess.speak(t, true)
     rescue StandardError
       nil
@@ -108,29 +110,29 @@ module PokeAccess
     SECTIONS = { :general => :pdx_sec_general, :stats => :pdx_sec_stats, :family => :pdx_sec_family,
                  :habitat => :pdx_sec_habitat, :shape => :pdx_sec_shape, :egg => :pdx_sec_egg,
                  :item => :pdx_sec_item, :ability => :pdx_sec_ability, :moves => :pdx_sec_moves }
-    @datalast = nil
 
-    # Speaks data-sub-navigation text when it changes (a separate dedup from the page reader).
-    def self.data_dedup(text)
-      return if text.nil? || text.to_s.empty? || text == @datalast
-      @datalast = text
+    # Speaks data-sub-navigation text when it changes (a Cursor slot on the scene, separate from the page
+    # reader's).
+    def self.data_dedup(scene, text)
+      return if text.nil? || text.to_s.empty?
+      return unless PokeAccess::Cursor.changed?(scene, :pdx_data, text)
       PokeAccess.speak(text, true)
     end
 
     # Reads the focused data-page section name (@cursor) as the cursor moves.
     def self.section_read(scene)
       k = SECTIONS[PokeAccess.ivar(scene, :@cursor)]
-      data_dedup(k ? PokeAccess::I18n.t(k) : nil)
+      data_dedup(scene, k ? PokeAccess::I18n.t(k) : nil)
     rescue StandardError
       nil
     end
 
     # Reads the focused species in a data sub-list, computed as list[page*DATA_PAGE_SIZE + index].
-    def self.species_list_read(list, index, page)
+    def self.species_list_read(scene, list, index, page)
       return unless list.is_a?(Array)
       sp = list[(page.to_i * DATA_PAGE_SIZE) + index.to_i]
       nm = sp ? (GameData::Species.try_get(sp).name rescue (GameData::Species.get(sp).name rescue nil)) : PokeAccess::I18n.t(:back)
-      data_dedup(nm)
+      data_dedup(scene, nm)
     rescue StandardError
       nil
     end
@@ -145,20 +147,16 @@ PokeAccess::Hooks.after_hook("PokemonPokedexInfo_Scene", :drawPage) do |scene, _
   PokeAccess::PokedexInfoV21.read(scene)
 end
 
-# Data-page section cursor and species sub-list (MUI Pokedex Data Page plugin). Bound only where the
-# plugin's methods exist, so games without it never log a false typo in Hooks.missing.
-if PokeAccess::Engine.has?("PokemonPokedexInfo_Scene#pbDrawDataNotes")
-  PokeAccess::Hooks.after_hook("PokemonPokedexInfo_Scene", :pbDrawDataNotes) do |scene, _r, _a|
-    PokeAccess::PokedexInfoV21.section_read(scene)
-  end
+# Data-page section cursor and species sub-list (MUI Pokedex Data Page plugin). :optional -- games
+# without the plugin simply lack these methods.
+PokeAccess::Hooks.after_hook("PokemonPokedexInfo_Scene", :pbDrawDataNotes, :optional => true) do |scene, _r, _a|
+  PokeAccess::PokedexInfoV21.section_read(scene)
 end
-if PokeAccess::Engine.has?("PokemonPokedexInfo_Scene#pbDrawSpeciesDataList")
-  PokeAccess::Hooks.after_hook("PokemonPokedexInfo_Scene", :pbDrawSpeciesDataList) do |_s, _r, args|
-    PokeAccess::PokedexInfoV21.species_list_read(args[0], args[1], args[2])
-  end
+PokeAccess::Hooks.after_hook("PokemonPokedexInfo_Scene", :pbDrawSpeciesDataList, :optional => true) do |s, _r, args|
+  PokeAccess::PokedexInfoV21.species_list_read(s, args[0], args[1], args[2])
 end
 
 # Reset the dedup when an entry's loop begins so reopening reads it again.
-PokeAccess::Hooks.before_hook("PokemonPokedexInfo_Scene", :pbScene) do |_s, _a|
-  PokeAccess::PokedexInfoV21.reset
+PokeAccess::Hooks.before_hook("PokemonPokedexInfo_Scene", :pbScene) do |s, _a|
+  PokeAccess::PokedexInfoV21.reset(s)
 end

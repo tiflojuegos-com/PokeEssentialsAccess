@@ -22,26 +22,34 @@ module PokeAccess
       PokeAccess.log_once("poll_sprite_#{scene.class}", e)
     end
 
-    # The focused option's text for a command window, via the matching extractor or generic_focus.
+    # The focused option's text for a command window. Of every registered extractor whose class matches
+    # the window, the MOST DERIVED wins (smallest ancestor distance) -- mirroring Ruby's own method
+    # dispatch, so a profile can specialise a SUBCLASS of a window the core already covers and its
+    # extractor wins regardless of registration order (first-match-by-registration let the core capture
+    # the subclass forever). An exact tie in distance means the same class, where the FIRST registration
+    # keeps winning, preserving the old behaviour for duplicates (min_by keeps the first minimum).
     def self.focused_text(win)
       i = win.index
       return nil if i.nil? || i < 0
-      EXTRACTORS.each do |cname, blk|
+      matches = EXTRACTORS.map do |cname, blk|
         k = PokeAccess.const_at(cname)
-        if k && win.is_a?(k)
-          begin
-            return blk.call(win, i)
-          rescue StandardError => e
-            log = (@ext_logged ||= [])
-            unless log.include?(cname)
-              log << cname
-              PokeAccess.write_marker("extractor #{cname}: #{e.class}: #{e.message}\n")
-            end
-            return nil
-          end
-        end
+        d = (k && win.is_a?(k)) ? win.class.ancestors.index(k) : nil
+        d ? [d, cname, blk] : nil
       end
-      generic_focus(win, i)
+      best_d, best_name, best_blk = matches.compact.min_by { |m| m[0] }
+      return generic_focus(win, i) unless best_blk
+      begin
+        best_blk.call(win, i)
+      rescue StandardError => e
+        log = (@ext_logged ||= [])
+        unless log.include?(best_name)
+          log << best_name
+          PokeAccess.write_marker("extractor #{best_name}: #{e.class}: #{e.message}\n")
+        end
+        # Fall back to the generic read instead of going mute: a broken dedicated extractor should cost the
+        # EXTRA it added, not the option's name, which generic_focus takes from the window's own list.
+        generic_focus(win, i)
+      end
     end
 
     # The ivars an Essentials selectable window commonly stores its option list in, tried in order
@@ -160,10 +168,10 @@ module PokeAccess
 
     # Dual-shape: gen-6 entries are arrays ([species, name, .., displayname]); the modern Window_Pokedex
     # stores hashes ({:species, :name}). One extractor covers both. The seen/owned state goes through
-    # Util.dex_seen?/dex_owned?, which probe the predicate API before the gen-6 arrays -- v18-era games
-    # (Infinite Fusion) keep the array row shape but expose only seen?/owned?, so reading the arrays
-    # directly raised and left the whole dex list silent. A row already carrying its name (c[1]) is spoken
-    # as-is, which is also what resolves a fusion's combined name without rebuilding the species.
+    # Util.dex_seen?/dex_owned?, which probe the predicate API before the gen-6 arrays -- some v18-era
+    # games keep the array row shape but expose only seen?/owned?, so reading the arrays directly raised
+    # and left the whole dex list silent. A row already carrying its name (c[1]) is spoken as-is, which
+    # is also what resolves a custom composite species name without rebuilding the species.
     def_extractor("Window_Pokedex") do |win, i|
       c = win.instance_variable_get(:@commands)[i]
       cap = PokeAccess::I18n.t(:dex_caught)

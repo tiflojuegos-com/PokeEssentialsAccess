@@ -7,6 +7,7 @@ Pokemon Essentials existe en múltiples versiones con APIs completamente diferen
 | Versión | Era (por su API de datos) | Clases Batalla | Datos | Problemas |
 |---------|-----|---|---|---|
 | v16-v17 | gen-6 (2015) | `PokeBattle_Scene` | Constantes `PB*` | No existe `GameData` |
+| v18 | GameData (transicional) | `PokeBattle_Scene` | `GameData::*` | `GameData` ya, pero `$Trainer` todavía |
 | v19-v21.1 | GameData (2019+) | `Battle::Scene` | `GameData::*` | Estructura completamente nueva |
 | v22 | GameData + UI rework (2023+) | `Battle::Scene` | `GameData::*` | `UI::*` reemplaza windows |
 | Sky Fork | v21 + v22 UI | Mixta | `GameData::*` | Backport de v22 UI a v21 |
@@ -22,7 +23,7 @@ de versión, + selección de adaptadores.
 
 **Ubicación**: `core/foundation/engine.rb`
 
-### Detección Básica
+### Era: gamedata? / gen6? / kind
 
 ```ruby
 module PokeAccess::Engine
@@ -30,204 +31,123 @@ module PokeAccess::Engine
   def self.gamedata?
     (defined?(GameData) && defined?(GameData::Species)) ? true : false
   end
-  
-  # Si NO usa GameData → es gen-6
-  def self.gen6?
-    !gamedata?
-  end
-  
-  # Retorna :gamedata o :gen6
-  def self.kind
-    gamedata? ? :gamedata : :gen6
-  end
+
+  def self.gen6?; !gamedata?; end          # sin GameData → es gen-6
+
+  def self.kind; gamedata? ? :gamedata : :gen6; end
 end
 ```
 
-**¿Por qué funciona?**
-- `defined?()` en Ruby retorna nil si la constante no existe
-- Gen-6 no tiene `GameData`, solo constantes globales
-- La era GameData siempre tiene `GameData::Species` etc.
+`defined?()` devuelve nil si la constante no existe: gen-6 no tiene `GameData`, la era GameData siempre
+tiene `GameData::Species`.
 
-### Detección de Versión
+### version: SOLO para diagnóstico
 
 ```ruby
 def self.version
-  # Intenta leer Essentials::VERSION
-  ev = (defined?(Essentials) && Essentials::VERSION rescue nil) ||
-       (defined?(ESSENTIALS_VERSION) && ESSENTIALS_VERSION rescue nil)
-  
-  # Convierte "21.1" → 21.1 (Float)
+  return @version if defined?(@version) && @version
+  ev = (defined?(Essentials) && (Essentials::VERSION rescue nil)) ||
+       (defined?(ESSENTIALS_VERSION) && (ESSENTIALS_VERSION rescue nil))
   @version = if ev then ev.to_s[/\d+(\.\d+)?/].to_f
-             elsif gamedata? then 19.0  # Sin constante? Asume v19+ si usa GameData
+             elsif gamedata? then (PokeAccess.const_at("Battle::Scene") ? 19.0 : 18.0)
              elsif defined?(ESSENTIALSVERSION) then (v = ESSENTIALSVERSION.to_s[/\d+(\.\d+)?/].to_f; v < 1 ? 17.0 : v)
-             else 16.0  # Último recurso: asume v16 gen-6
+             else 16.0
              end
 end
 ```
 
-**Ejemplos reales**:
-```
-Essentials::VERSION = "21.1"        → version = 21.1
-ESSENTIALS_VERSION = "v22_1a"      → version = 22.0
-defined?(Essentials) = nil          → Si usa GameData: 19.0, si gen6: 16.0
-```
+Los fangames reales MEZCLAN eras (v18 con backports, Sky es v21.1 con la UI de v22), así que ningún lector
+gatea por este número: es la línea del diag y nada más. Cuando falta la constante de versión, la era se
+deduce por ESTRUCTURA y no por un global de runtime (en la pantalla de título el jugador aún no existe, y
+el valor se memoiza): v19 renombró la escena de batalla a `Battle::Scene`, así que su ausencia con
+`GameData` presente significa la era transicional v18.
 
-### Detección de Fork
+### fork
 
 ```ruby
 def self.fork
   return @fork if defined?(@fork)
-  
-  # Sky fork: usa GameData
-  #          Y versión < 21.9
-  #          Y tiene UI (v22 UI backported a v21)
   @fork = (gamedata? && version < 21.9 && defined?(UI) && defined?(UI::BaseScreen)) ? :sky : nil
 end
 ```
 
-## Métodos Clave de Selección
+### has?: el gate por capacidad (canal ÚNICO)
 
-### 1. pick() - Elegir por engine
+El gateo NO es por número de versión sino por **capacidad**: ¿existe la clase/método que el lector
+necesita? Así un fork que backportea una feature (o una versión futura que la conserva) se activa sin
+tocar el código. `Engine.has?` es el único punto para preguntarlo, y acepta tres formas:
 
-```ruby
-def self.pick(map)
-  # map = { :gamedata => valor_gamedata, :gen6 => valor_gen6, :default => fallback }
-  map.fetch(kind) { map[:default] }
-end
-
-# Uso:
-adapter = Engine.pick({
-  :gamedata => "Battle::Scene",
-  :gen6 => "PokeBattle_Scene"
-})
-```
-
-### 2. for_engine() - Ejecutar condicional
+| Forma | Ejemplo | Qué comprueba |
+|-------|---------|---------------|
+| Símbolo registrado | `Engine.has?(:ui_rework)` | Una capacidad de `Engine::CAPABILITIES` |
+| `"A::B::C"` | `Engine.has?("UI::BagVisuals")` | Que la constante exista (vía `PokeAccess.const_at`) |
+| `"Clase#metodo"` | `Engine.has?("Battle::Scene::MenuBase#setIndexAndMode")` | Constante **y** método de instancia |
 
 ```ruby
-def self.for_engine(opts = {})
-  yield if block_given? && matches?(opts)
-end
-
-# Uso:
-Engine.for_engine(:only => :gamedata, :min => 21.0) do
-  # Este código solo ejecuta si usa GameData y es v21+
-  puts "Soporta GameData"
-end
-
-Engine.for_engine(:fork => :sky) do
-  # Solo en Sky fork
-  register_sky_plugins()
-end
+CAPABILITIES = {
+  :gamedata     => lambda { gamedata? },
+  :gen6         => lambda { gen6? },
+  :sky_fork     => lambda { fork == :sky },
+  :ui_rework    => "UI::BaseScreen",   # el rework UI:: de v22
+  :battle_scene => "Battle::Scene"     # la escena de batalla v19+
+}
 ```
 
-### 3. matches?() - Evaluador de especificaciones
+Un probe es un lambda booleano o un nombre de constante; las transversales se registran aquí y una
+pantalla puntual pasa su nombre de clase directamente. Si v23 renombra una clase, basta actualizar su
+entrada en `CAPABILITIES` (un sitio) y todos los lectores que dependían de esa capacidad siguen
+funcionando. La carpeta `vNN/` solo dice DÓNDE se introdujo una capacidad; la activación siempre es por
+`has?`.
 
-```ruby
-def self.matches?(opts = {})
-  return false if opts[:min] && version < opts[:min]
-  return false if opts[:max] && version > opts[:max]
-  return false if opts[:fork] && fork != opts[:fork]
-  
-  case opts[:only]
-  when :gen6     then return gen6?
-  when :gamedata then return gamedata?
-  when Numeric   then return version == opts[:only]
-  end
-  
-  true
-end
+> **No hay un segundo predicado de existencia.** `PokeAccess.const_at("A::B::C")`
+> (`core/foundation/const.rb`) resuelve la constante EN SÍ, recorriendo los segmentos uno a uno para no
+> romper en Ruby 1.8.7 (donde `const_defined?` rechaza un nombre con `"::"`). Para el booleano "¿existe?"
+> la puerta es `has?`, y solo esa: una forma obvia de preguntarlo.
 
-# Ejemplos:
-Engine.matches?(:min => 19, :max => 21.1)  # ¿v19-v21.1?
-Engine.matches?(:only => :gen6)              # ¿Gen-6?
-Engine.matches?(:fork => :sky)               # ¿Sky fork?
-```
-
-### 5. has?() - Gate por capacidad (el canal único)
-
-El gateo recomendado NO es por número de versión sino por **capacidad**: ¿existe la clase/método que el
-lector necesita? Así un fork que backportea una feature (o una versión futura que la conserva) se activa
-sin tocar el código. `Engine.has?` es el único punto para preguntarlo, y acepta tres formas:
-
-```ruby
-# 1) un símbolo de capacidad registrada (las transversales, en Engine::CAPABILITIES):
-Engine.has?(:ui_rework)     # ¿existe el rework UI:: de v22? (probe "UI::BaseScreen")
-Engine.has?(:gamedata)      # ¿usa la API GameData?
-Engine.has?(:gen6)          # ¿es la era gen-6?
-Engine.has?(:sky_fork)      # ¿es el fork de Sky?
-Engine.has?(:battle_scene)  # ¿existe Battle::Scene (era v19+)?
-
-# 2) un nombre de clase "A::B::C" (resuelto 1.8.7-safe vía PokeAccess.const_at):
-Engine.has?("UI::BagVisuals")
-
-# 3) "Clase#metodo" para exigir además un método (clave para forks que backportean):
-Engine.has?("Battle::Scene::MenuBase#setIndexAndMode")
-```
-
-Si v23 renombra una clase, basta actualizar su entrada en `CAPABILITIES` (un sitio) y todos los lectores
-que dependían de esa capacidad siguen funcionando. La carpeta `vNN/` solo dice DÓNDE se introdujo una
-capacidad; la activación siempre es por `has?`.
-
-### 4. player() - Obtener objeto jugador
+### player
 
 ```ruby
 def self.player
-  # Era GameData: $player
-  # Gen-6: $Trainer
   (defined?($player) && $player) ? $player : (defined?($Trainer) ? $Trainer : nil)
 end
 
-# Uso universal (o via la fachada World.player, que delega aqui):
-name = PokeAccess::Engine.player.name  # Funciona en ambas versiones
+name = PokeAccess::Engine.player.name  # funciona en ambas eras
 ```
 
-> Los lectores deberían leer los globales del juego (mapa, jugador, bolsa...) a través de la fachada
-> `PokeAccess::World` (`core/foundation/world.rb`), no de `$player`/`$game_map` crudos: un único sitio que
-> conoce el nombre por motor y que con `World.want(key, val)` deja una línea de log cuando un global
-> esperado falta (un lector que enmudece se vuelve diagnosticable).
+`has?` y `player` son, de hecho, lo único que los lectores llaman de `Engine`: `kind`, `version` y `fork`
+solo los consumen el diagnóstico y la cabecera del grabador de sesiones.
 
 ## Cómo se Usa en el Sistema
 
 ### Ejemplo 1: Battle System
 
 ```
-core/
-├── battle/
-│   ├── battle.rb              ← Lógica compartida
-│   ├── gen6/
-│   │   └── battle_g6.rb       ← Hooks para PokeBattle_Scene
-│   └── v21/
-│       └── battle_v21.rb      ← Hooks para Battle::Scene
+core/battle/
+├── battle.rb            ← Lógica compartida
+├── scene_reader.rb      ← Lectura agnóstica de Battle::Scene::* (v19-v22)
+├── gen6/battle_g6.rb    ← Hooks para PokeBattle_Scene
+└── v21/battle_v21.rb    ← Disparadores para Battle::Scene
+```
 
-# En boot.rb:
-load_manifest("core")  # Carga todo, inclusive battle_g6.rb y battle_v21.rb
+El manifest carga los dos; cada uno se ata solo donde su clase existe:
 
-# En battle_g6.rb:
-# Solo existe PokeBattle_Scene en gen-6, así que estos hooks NO-OP en la era GameData
+```ruby
+# battle_g6.rb -- PokeBattle_Scene solo existe en gen-6; NO-OP en la era GameData
 PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbDisplayMessage) do |scene, args|
-  # This block only runs if PokeBattle_Scene exists (gen-6)
   PokeAccess.speak_clean(args[0], false)
 end
 
-# En battle_v21.rb:
-# Solo existe Battle::Scene en la era GameData, así que estos hooks NO-OP en gen-6
+# battle_v21.rb -- Battle::Scene solo existe en la era GameData; NO-OP en gen-6.
+# El disparador vive aquí; el CONTENIDO lo lee el módulo agnóstico.
 PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :index=) do |menu, _r, _a|
-  # This block only runs if Battle::Scene exists. Content is read by the agnostic module.
   PokeAccess::BattleScene.read_menu(menu)
 end
 ```
 
-**¿Cómo no entra en conflicto?**
-
-Si ejecutas el juego y cargas ambos battle_g6.rb Y battle_v21.rb:
-- En **gen-6**: `before_hook("PokeBattle_Scene", ...)` funciona, `before_hook("Battle::Scene", ...)` es NO-OP (clase no existe)
-- En **era GameData**: `before_hook("Battle::Scene", ...)` funciona, `before_hook("PokeBattle_Scene", ...)` es NO-OP (clase no existe)
-
 ### Ejemplo 2: Data System
 
 ```ruby
-# core/data/gen6/data_g6.rb -- es un MÓDULO; prioridad 10
+# core/data/gen6/data_g6.rb -- MÓDULO; prioridad 10
 module PokeAccess::DataG6
   def self.species_name(id); PBSpecies.getName(id) rescue nil; end
 end
@@ -239,44 +159,46 @@ module PokeAccess::DataV21
 end
 PokeAccess::Data.register(20, PokeAccess::DataV21) if defined?(GameData) && defined?(GameData::Move)
 
-# Uso (funciona en ambas versiones):
-PokeAccess::Data.species_name(123)  # Automáticamente usa el provider activo
+PokeAccess::Data.species_name(123)  # usa el provider activo, sea cual sea
 ```
 
-## Detección de Características Específicas
+## Casos Especiales
 
-### Métodos que Varían por Versión
+### Sky Fork
 
-El objeto jugador ya lo resuelve `Engine.player` (ver arriba): devuelve `$player` o `$Trainer`
-directamente, sin `eval`. No hay un `Engine.passable?` en el toolkit; la pasabilidad se consulta sobre
-`$game_player.passable?` (que existe en ambos motores) desde el pathfinder.
+**¿Qué es Sky?** Un fork de v21.1 que backportea la UI de v22: tiene a la vez `GameData` (era GameData) y
+`UI::` (v22), más los plugins que trae empaquetados (DBK, el tutor de movimientos huevo). Se detecta con
+`Engine.fork` (arriba) y sus lectores viven en `<módulo>/skyflyer/`, cada uno gateado por la clase o el
+método del plugin que cubre.
 
-El patrón normal NO es ramificar por versión, sino **gatear por existencia de clase/método**: cada hook
-se registra solo donde la clase existe (ver [04_PATCHING_AND_HOOKS.md](04_PATCHING_AND_HOOKS.md)). Para
-lo que sí difiere en la MISMA clase según versión, se usa `for_engine`:
+### Deluxe Battle Kit (DBK)
+
+No es una versión de Essentials sino un plugin: extiende `Battle::Scene` con más métodos y añade campos al
+menú de batalla. Se gatea por capacidad (clase + método), así que se activa también en un fork que lo
+backportee:
 
 ```ruby
-# Registra algo solo en v22+ (cuando hace falta distinguir dentro de una clase compartida):
-PokeAccess::Engine.for_engine(:min => 22) do
-  # ... comportamiento específico de v22 ...
+# Ojo: pbToggleSpecialActions vive en Battle (no en Battle::Scene).
+if PokeAccess::Engine.has?("Battle#pbToggleSpecialActions")
+  # los archivos core/battle/skyflyer/dbk_* ya hacen este gate
 end
 ```
 
-## Diagnostic: Cómo Saber Qué Detectó
+## Diagnóstico: Cómo Saber Qué Detectó
 
-### Tecla de Diagnóstico: Ctrl+Alt+F9
+### Ctrl+Alt+F9 — volcado a archivo
+
+Genera/anexa `accessibility/data/diag.txt`. Su sección de motor dice literalmente qué cree el mod que está
+corriendo y, sobre todo, qué CAPACIDADES ve (que es por lo que se atan los lectores):
 
 ```
-# Genera/anexa accessibility/data/diag.txt. La sección de escena incluye, p.ej.:
-...
+engine: kind=:gamedata version=21.1 fork=:sky caps=[battle_scene, ui_rework, $player]
+voice: prism=true ready=true backend="NVDA" speaking=false
 scene=Battle::Scene              ← clase de la escena actual
 in_menu=true
-...
 ```
-> Nota: el diag actual vuelca `scene=...` pero no líneas `engine.version/kind/fork`. Para ver la
-> versión detectada desde código, usa `PokeAccess::Engine.version/kind/fork` (abajo).
 
-### Tecla de Diagnóstico Hablado: Ctrl+Alt+F10
+### Ctrl+Alt+F10 — diagnóstico HABLADO
 
 A diferencia de F9 (vuelca a archivo, que un usuario con lector de pantalla tendría que abrir), **F10
 habla** el estado esencial al instante: escena activa, mapa y posición (en el campo), última línea hablada,
@@ -285,48 +207,10 @@ y el número de hooks que no engancharon. Es la respuesta rápida a "se quedó m
 ### Lectura Manual en Código
 
 ```ruby
-puts PokeAccess::Engine.version        # 21.1
-puts PokeAccess::Engine.kind           # :gamedata
-puts PokeAccess::Engine.gamedata?      # true
-puts PokeAccess::Engine.fork           # nil
+puts PokeAccess::Engine.kind              # :gamedata
+puts PokeAccess::Engine.version           # 21.1  (informativo: nunca gatees con esto)
+puts PokeAccess::Engine.fork              # nil
 puts PokeAccess::Engine.has?(:ui_rework)  # false en v21 vanilla, true en v22/Sky
-```
-
-## Casos Especiales
-
-### Sky Fork Detection
-
-**¿Qué es Sky?**
-- Fork de v21.1 que backportea la UI de v22
-- Tiene tanto `GameData` (era GameData) como `UI` (v22)
-- Algunas clases usan prefijo `UI::` en lugar de camelCase
-
-**Detección**:
-```ruby
-@fork = (gamedata? && version < 21.9 && defined?(UI) && defined?(UI::BaseScreen)) ? :sky : nil
-```
-
-**Uso especial**:
-```ruby
-Engine.for_engine(:fork => :sky) do
-  # Setup específico de Sky
-  load_module("core/menus/skyflyer/eggmove.rb")
-end
-```
-
-### Deluxe Battle Kit (DBK)
-
-No se detecta automáticamente; es un plugin de Essentials que:
-- Extiende `Battle::Scene` con más métodos
-- Añade campos nuevos en el menú de batalla
-
-**Manejo**:
-```ruby
-# Gatear por capacidad (clase + método), no por versión: así se activa también en un fork que lo backportee.
-# Ojo: pbToggleSpecialActions vive en Battle (no en Battle::Scene).
-if PokeAccess::Engine.has?("Battle#pbToggleSpecialActions")
-  # el hook DBK se registra (los archivos core/battle/skyflyer/dbk_* ya hacen este gate)
-end
 ```
 
 ## Árbol de Decisión
@@ -334,25 +218,23 @@ end
 ```
 ¿Existe GameData::Species?
 ├─ Sí → USA LA API GAMEDATA
-│  ├─ ¿Versión < 21.9 Y existe UI::BaseScreen?
-│  │  ├─ Sí → ES SKY FORK
-│  │  └─ No → ES VANILLA (era GameData)
-│  └─ ¿Versión?
-│     ├─ 19-20 → v19-v20
-│     ├─ 21-21.1 → v21
-│     └─ 22+ → v22
+│  ├─ ¿Existe Battle::Scene?
+│  │  ├─ No → v18 (transicional: GameData con PokeBattle_Scene y $Trainer)
+│  │  └─ Sí → v19+
+│  │     └─ ¿Versión < 21.9 Y existe UI::BaseScreen? → ES SKY FORK
+│  └─ ¿Existe UI::BaseScreen con versión >= 21.9? → v22 (rework UI::)
 └─ No → ES GEN-6
-   └─ ¿Existe ESSENTIALS_VERSION?
+   └─ ¿Existe ESSENTIALSVERSION?
       ├─ Sí → Parsear versión
       └─ No → Asumir v16
 ```
 
 ## Referencias
 
-- [Engine Module](core/foundation/engine.rb)
-- [Data Providers](core/data/) - Ejemplos de adaptadores
-- [Battle Versions](core/battle/) - Diferentes hooks por versión
-- [UI Adapters](core/menus/v21/, core/menus/v22/) - Menús adaptados
+- [Engine Module](../core/foundation/engine.rb) - `has?`, `CAPABILITIES`, `player`
+- [const.rb](../core/foundation/const.rb) - `const_at`, la resolución 1.8.7-safe en la que se apoya `has?`
+- [Data Providers](../core/data/) - Ejemplos de adaptadores
+- [Battle Versions](../core/battle/) - Disparadores por versión sobre un lector agnóstico
 
 ## Próximo
 

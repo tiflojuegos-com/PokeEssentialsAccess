@@ -25,7 +25,8 @@ module PokeAccess
 end
 
 # Dialogue and messages, queued (interrupt=false) so consecutive lines do not cut each other off.
-# OLD Essentials (Z/Opalo/Reminiscencia) call Kernel.pbMessageDisplay (a Kernel singleton method).
+# OLD Essentials (the gen-6 era, and the fangames built on it) routes every message through
+# Kernel.pbMessageDisplay, a Kernel SINGLETON method, so that is the form to wrap there.
 begin
   class << Kernel
     unless method_defined?(:pbMessageDisplay__access_orig)
@@ -40,7 +41,7 @@ rescue StandardError => e
   PokeAccess.write_marker("hook_text: #{e.message}\n")
 end
 
-# MODERN Essentials (Anil) dropped the Kernel. prefix: dialogue (including map events via command_101 ->
+# MODERN Essentials dropped the Kernel. prefix: dialogue (including map events via command_101 ->
 # pbMessage) flows through a bare top-level pbMessageDisplay, an Object instance method the singleton wrap
 # above does not intercept, so wrap it too. gen-6 defines only the Kernel singleton (def Kernel.
 # pbMessageDisplay), which is NOT an Object instance method, so this capability check is false there and

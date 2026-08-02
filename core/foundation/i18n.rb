@@ -61,7 +61,7 @@ module PokeAccess
     # cause of an English line in a Spanish game); a key DUPLICATED within one file (the later one silently
     # wins); or a key whose %{var} placeholders differ between languages (interpolation breaks in one).
     # __meta__ keys (starting "__") are ignored. Returns [] when everything is in sync. Works on a dup of
-    # the language cache and computes set differences with reject, never Array#-: Pokemon Z's MTS library
+    # the language cache and computes set differences with reject, never Array#-: a fangame script patch
     # redefines Array#- as an in-place mutator, so the literal `-` would empty the @langs cache.
     def self.parity_issues
       langs = available_languages.dup
@@ -88,15 +88,15 @@ module PokeAccess
       s.to_s.scan(/%\{(\w+)\}/).flatten.sort.uniq
     end
 
+    # The on-disk path of a language file, or nil.
+    def self.table_path(code)
+      ["#{PokeAccess::Paths::LANG}/#{code}.txt", "lang/#{code}.txt"].find { |p| File.exist?(p) }
+    end
+
     # Keys that appear more than once in a language file (the table hash hides them; the later value wins).
     def self.duplicate_keys(code)
       seen = {}; dupes = {}
-      path = ["#{PokeAccess::Paths::LANG}/#{code}.txt", "lang/#{code}.txt"].find { |p| File.exist?(p) }
-      return [] unless path
-      File.foreach(path) do |line|
-        next if line.strip.empty? || line[0, 1] == "#"
-        i = line.index("="); next unless i
-        k = line[0, i].strip; next if k.empty?
+      PokeAccess::KVFile.each(table_path(code).to_s, :strip_value => false) do |k, _v|
         dupes[k] = true if seen[k]
         seen[k] = true
       end
@@ -105,18 +105,11 @@ module PokeAccess
       []
     end
 
-    # Parses a lang/<code>.txt into a key => value hash (skips blank and # lines).
+    # Parses a lang/<code>.txt into a key => value hash. Values keep their leading spaces (part of the
+    # spoken text), hence :strip_value false.
     def self.load_table(code)
       h = {}
-      path = ["#{PokeAccess::Paths::LANG}/#{code}.txt", "lang/#{code}.txt"].find { |p| File.exist?(p) }
-      return h unless path
-      File.foreach(path) do |line|
-        next if line.strip.empty? || line[0, 1] == "#"
-        i = line.index("=")
-        next unless i
-        k = line[0, i].strip
-        h[k] = line[(i + 1)..-1].to_s.gsub(/\r?\n/, "") unless k.empty?
-      end
+      PokeAccess::KVFile.each(table_path(code).to_s, :strip_value => false) { |k, v| h[k] = v }
       h
     rescue StandardError
       h

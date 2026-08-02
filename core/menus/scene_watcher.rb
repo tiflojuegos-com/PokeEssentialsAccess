@@ -20,5 +20,43 @@ module PokeAccess
         poll_each_frame { reader.poll }
       end
     end
+
+    # The one-call form of wire for the COMMON reader shape: hold the scene, poll it each frame, dedup by
+    # key and speak on change. The block yields the held scene and returns [key, text]: a changed key
+    # speaks the text (cleaned, interrupting); nil (or a non-pair) skips the frame; a nil key never speaks
+    # (Cursor's contract); a real key with nil/empty text consumes the key silently. Dedup lives in a
+    # Cursor slot on a generated holder, reset on open AND close so reopening on the same entry re-reads.
+    # A raising block is swallowed per frame (a reader bug must not kill the input loop). Returns the
+    # holder for readers that need extra hooks over the same state. Blocks use next, not return
+    # (define_method under 1.8.7). Modules with a non-poll shape (own speak timing, an extra API like
+    # ReminBag's watching?) keep using wire directly.
+    def self.reader(cls, meth, slot, &blk)
+      holder = Object.new
+      meta = class << holder; self; end
+      meta.send(:define_method, :watch) do |scene|
+        @scene = scene
+        PokeAccess::Cursor.reset(self, slot)
+      end
+      meta.send(:define_method, :unwatch) do
+        @scene = nil
+        PokeAccess::Cursor.reset(self, slot)
+      end
+      meta.send(:define_method, :poll) do
+        s = @scene
+        next unless s
+        pair = begin
+                 blk.call(s)
+               rescue StandardError => e
+                 PokeAccess.log_once("scene_watcher_#{slot}", e)
+                 nil
+               end
+        next unless pair.is_a?(Array)
+        next unless PokeAccess::Cursor.changed?(self, slot, pair[0])
+        t = pair[1]
+        PokeAccess.speak(PokeAccess.clean(t.to_s), true) if t && !t.to_s.empty?
+      end
+      wire(cls, meth, holder)
+      holder
+    end
   end
 end

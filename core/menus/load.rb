@@ -3,11 +3,11 @@
 # Opening this screen also forgets the current map: loading a save may land on the same map_id the player
 # was already on, so without this the next announce_map_change (and the cache reset it triggers) would be
 # suppressed by the stale map_id.
-[["PokemonLoadScene", :pbStartScene], ["PokemonLoad_Scene", :pbStartScene]].each do |cls, _m|
+PokeAccess::Engine.scene_classes("PokemonLoadScene", "PokemonLoad_Scene").each do |cls|
   PokeAccess::Hooks.before_hook(cls, :pbStartScene) { |_s, _a| PokeAccess::Locator.forget_map rescue nil }
 end
 
-PokeAccess::Hooks.after_hook("PokemonLoadScene", :pbStartScene) do |_s, _r, args|
+PokeAccess::Hooks.after_hook(PokeAccess::Engine.era_scene(:gen6, "PokemonLoadScene", "PokemonLoad_Scene"), :pbStartScene) do |_s, _r, args|
   show_continue = args[1]
   trainer = args[2]
   framecount = args[3]
@@ -29,7 +29,7 @@ end
 
 # GameData-era Essentials load panel (PokemonLoad_Scene): a different class/signature, and its panel also shows
 # the Pokedex seen count; play time is already in seconds (stats.play_time).
-PokeAccess::Hooks.after_hook("PokemonLoad_Scene", :pbStartScene) do |_s, _r, args|
+PokeAccess::Hooks.after_hook(PokeAccess::Engine.era_scene(:gamedata, "PokemonLoad_Scene", "PokemonLoadScene"), :pbStartScene) do |_s, _r, args|
   show_continue = args[1]
   trainer = args[2]
   stats = args[3]

@@ -16,7 +16,13 @@ module PokeAccess
     # so the Rogue caption window stays silent and ordinary dialogue (no variant active) is never read.
     def self.current; @stack.last; end
     def self.enter(kind); @stack.push(kind); end
-    def self.leave; @stack.pop; end
+    # Clears the stored help line with the last menu on the stack, the same way RegionMap.forget does on
+    # close. In the field the next frame overwrites it, but going straight from one menu to another left
+    # the info key answering with the PREVIOUS menu's help.
+    def self.leave
+      @stack.pop
+      PokeAccess::Info.set_info(:text, nil) if @stack.empty?
+    end
 
     # Voices a help line (queued, so it follows the option name) and stores it for the info key, only when
     # the listener's variant is the one running. Deduped per window.
@@ -33,7 +39,7 @@ module PokeAccess
   end
 end
 
-# The standard pbShowCommandsWithHelp and Reminiscencia's own pbShowCommandsRogue variant (campfire and
+# The standard pbShowCommandsWithHelp and the fangame pbShowCommandsRogue variant (campfire and
 # item menus). Each marks which variant is running so the listener reads only that variant's help window.
 { "pbShowCommandsWithHelp" => :withhelp, "pbShowCommandsRogue" => :rogue }.each do |fn, kind|
   PokeAccess::Hooks.wrap_kernel(fn, "hook_cmdhelp", :around) do |_args, call_next|

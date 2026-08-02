@@ -11,6 +11,7 @@ module PokeAccess
         :set   => Win32API.new("user32", "SetClipboardData", ["i", "l"], "l"),
         :close => Win32API.new("user32", "CloseClipboard", [], "i"),
         :alloc => Win32API.new("kernel32", "GlobalAlloc", ["i", "i"], "l"),
+        :free  => Win32API.new("kernel32", "GlobalFree", ["l"], "l"),
         :lock  => Win32API.new("kernel32", "GlobalLock", ["l"], "l"),
         :unlock => Win32API.new("kernel32", "GlobalUnlock", ["l"], "i"),
         :copy  => Win32API.new("kernel32", "RtlMoveMemory", ["l", "p", "i"], "v") }
@@ -81,7 +82,9 @@ module PokeAccess
     end
 
     # Win32 clipboard fallback: writes the codepoints as UTF-16LE through CF_UNICODETEXT. Codepoints above
-    # the BMP (> U+FFFF, e.g. emoji) are split into a surrogate pair, as UTF-16 requires.
+    # the BMP (> U+FFFF, e.g. emoji) are split into a surrogate pair, as UTF-16 requires. Ownership of the
+    # GlobalAlloc handle passes to the system only when SetClipboardData succeeds; every earlier failure
+    # (lock, open, a rejected set) frees it here, per the Win32 contract -- who allocates frees on failure.
     def self.win32(cps)
       return false unless @api
       arr = []
@@ -99,12 +102,22 @@ module PokeAccess
       h = @api[:alloc].call(GMEM_MOVEABLE, bytes.size)
       return false if h == 0
       ptr = @api[:lock].call(h)
-      return false if ptr == 0
+      if ptr == 0
+        @api[:free].call(h)
+        return false
+      end
       @api[:copy].call(ptr, bytes, bytes.size)
       @api[:unlock].call(h)
-      return false if @api[:open].call(0) == 0
+      if @api[:open].call(0) == 0
+        @api[:free].call(h)
+        return false
+      end
       @api[:empty].call
-      @api[:set].call(CF_UNICODETEXT, h)
+      if @api[:set].call(CF_UNICODETEXT, h) == 0
+        @api[:free].call(h)
+        @api[:close].call
+        return false
+      end
       @api[:close].call
       true
     rescue StandardError

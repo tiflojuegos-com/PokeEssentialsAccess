@@ -42,3 +42,19 @@ end
 # Hold the bag scene for the duration of its choose loop, and read the focused item each frame while it is
 # open (the loop calls Input.update).
 PokeAccess::SceneWatcher.wire("PokemonBag_Scene", :pbChooseItem, PokeAccess::ReminBag)
+
+# This game's bag-watcher section of the diagnostic dump (was hardcoded in the core diag before the
+# register_diag_section primitive existed).
+PokeAccess::Game.define("reminiscencia") do
+  diag_section(:reminbag) do |o|
+    rb = PokeAccess::ReminBag
+    k = PokeAccess::Keys
+    s = PokeAccess.ivar(rb, :@scene)
+    o.push("reminbag: watching=#{!s.nil?} last=#{k.dv { rb.instance_variable_get(:@last).inspect }}")
+    unless s.nil?
+      win = PokeAccess.sprite(s, "itemwindow")
+      o.push("  itemwindow=#{win ? win.class : 'nil'} idx=#{k.dv { win.index }} pocket=#{k.dv { win.pocket }} adapter=#{k.dv { win.instance_variable_get(:@adapter).class }}")
+      o.push("  focused_text=#{k.dv { PokeAccess::Menus.focused_text(win) }.inspect[0, 160]}") if win
+    end
+  end
+end

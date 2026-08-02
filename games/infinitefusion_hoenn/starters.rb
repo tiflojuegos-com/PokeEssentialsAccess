@@ -12,15 +12,26 @@ module PokeAccess
       return unless idx.is_a?(Integer) && list.is_a?(Array) && idx >= 0 && idx < list.length
       name = (PokeAccess::Data.species_name(list[idx]) || list[idx].to_s)
       PokeAccess::Cursor.announce(scene, :if2_starter, idx, true) do
-        PokeAccess::I18n.t(:if2_starter, :name => name, :n => idx + 1, :tot => list.length)
+        single?(scene) ? name :
+          PokeAccess::I18n.t(:if2_starter, :name => name, :n => idx + 1, :tot => list.length)
       end
     rescue StandardError
       nil
+    end
+
+    # The one-starter variant pads its row with two invisible placeholders and pins @index to 1 (it forces
+    # it back on every direction key), so the position is ALWAYS a false "2 of 3". There is nothing to
+    # position yourself among, so it gets the name alone.
+    def self.single?(scene)
+      scene.class.to_s == "StartersSelectionSceneSingle"
+    rescue StandardError
+      false
     end
   end
 end
 
 PokeAccess::Game.define("infinitefusion_hoenn") do
+  # One registration covers both: StartersSelectionSceneSingle inherits updateStarterSelectionGraphics and
+  # does not redefine it, so registering it again only chained a second wrapper onto the same implementation.
   after("StartersSelectionScene", :updateStarterSelectionGraphics) { |s, _r, _a| PokeAccess::IF2Starters.focus(s) }
-  after("StartersSelectionSceneSingle", :updateStarterSelectionGraphics) { |s, _r, _a| PokeAccess::IF2Starters.focus(s) }
 end

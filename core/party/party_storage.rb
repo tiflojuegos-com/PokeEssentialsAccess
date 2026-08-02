@@ -44,7 +44,7 @@ module PokeAccess
     # party column, else nil
     def self.announce_pc(scene, selection, party)
       screen  = scene.instance_variable_get(:@screen)
-      storage = scene.instance_variable_get(:@storage)
+      storage = PokeAccess.expect!("pc.storage", scene.instance_variable_get(:@storage))
       held    = (screen.pbHeldPokemon rescue nil)
       box     = (storage.currentBox rescue -9)
       key     = [box, selection, (held ? held.object_id : nil), !party.nil?]
