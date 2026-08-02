@@ -164,8 +164,19 @@ module PokeAccess
 
     # True if a non-direction base button is bound, so its hook uses only the bound key and lets the
     # engine's default key go silent (directions are never suppressed; a missing GAKS can't lock input).
+    # True when the player has not rebound a single key, which is the case in almost every save. The five
+    # Input wrappers ask on EVERY call the game makes -- five a frame walking, six to eight per active
+    # window in a menu -- and without this each one paid two symbol lookups and a hash read to conclude
+    # nothing. An empty? on a Hash is O(1), so the common case now costs almost nothing; rebind one key and
+    # the shortcut simply stops applying, which is exactly when the full check has to run anyway.
+    def self.no_rebinds?
+      h = (PokeAccess::Config.rebinds rescue nil)
+      h.nil? || h.empty?
+    end
+
     def self.remapped_button?(bi)
       return false unless PokeAccess::Keys::GAKS
+      return false if no_rebinds?
       s = sym_for_button(bi)
       return false if s.nil? || DIR_CODE.has_key?(s)
       !(PokeAccess::Config.rebinds[s] rescue nil).nil?
@@ -182,6 +193,7 @@ module PokeAccess
     # True if the extra action for this raw key is bound, so triggerex? uses only the bound key.
     def self.extra_remapped?(vk)
       return false unless PokeAccess::Keys::GAKS
+      return false if no_rebinds?
       s = sym_for_extra(vk)
       return false if s.nil?
       !(PokeAccess::Config.rebinds[s] rescue nil).nil?

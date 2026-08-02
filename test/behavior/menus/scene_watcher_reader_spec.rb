@@ -79,3 +79,46 @@ Suite.define("scene_watcher: reader dedups by key, speaks on change, resets on r
   spoke "and a different scene opening on that same key reads it too", /item 2/
   holder.unwatch
 end
+
+# A cursor sits still. The player picks an entry and stays on it, so on 39 frames out of 40 the key matches
+# and whatever text the block built gets thrown away unread. Free for "item #{v}"; not free for the readers
+# that ask the game a question to word themselves -- Awakening's outfit list calls into Fates_Utilities, the
+# photo album stats a file for its date. Returning something callable defers that to the frames that speak.
+Suite.define("scene watcher: text that costs something is only built when it will be heard") do
+  builds = 0
+  holder = PokeAccess::SceneWatcher.reader("SwLazyNoSuchScene_pa", :main, :sw_lazy) do |s|
+    v = s.instance_variable_get(:@v)
+    v.nil? ? nil : [v, lambda { builds += 1; "item #{v}" }]
+  end
+  scene = World.stub_scene
+  holder.watch(scene)
+
+  scene.instance_variable_set(:@v, 1)
+  holder.poll
+  spoke "a callable is called and its text spoken", /item 1/
+  eq "and it ran exactly once", builds, 1
+
+  SpeakCapture.clear
+  5.times { holder.poll }
+  silent "sitting on the same entry stays silent"
+  eq "and never builds the text again", builds, 1
+
+  scene.instance_variable_set(:@v, 2)
+  holder.poll
+  spoke "moving builds it once more", /item 2/
+  eq "once, not twice", builds, 2
+  holder.unwatch
+
+  # A callable that blows up must behave like a block that blows up: no speech, no crash, one log line. By
+  # then the key is already consumed, so without the marker it would be a reader that died quietly forever.
+  logged = lambda { |key| !!(PokeAccess.instance_variable_get(:@logged_once) || {})[key] }
+  boom = PokeAccess::SceneWatcher.reader("SwLazyBoomNoSuchScene_pa", :main, :sw_lazy_boom) do |_s|
+    [:k, lambda { raise "texto roto" }]
+  end
+  boom.watch(World.stub_scene)
+  SpeakCapture.clear
+  boom.poll
+  silent "a raising callable does not speak and does not take the loop down"
+  truthy "but it is recorded", logged.call("scene_watcher_sw_lazy_boom")
+  boom.unwatch
+end

@@ -30,6 +30,11 @@ module PokeAccess
     # holder for readers that need extra hooks over the same state. Blocks use next, not return
     # (define_method under 1.8.7). Modules with a non-poll shape (own speak timing, an extra API like
     # ReminBag's watching?) keep using wire directly.
+    #
+    # text may instead be anything answering call, and then it is only called once the key has actually
+    # changed. Cursors sit still: the player picks an entry and stays on it, so the key matches on the
+    # other 39 frames of every second and the text built on them is thrown away unread. That is free for
+    # "#{name}" and not at all free for a reader that asks the game a question to word itself.
     def self.reader(cls, meth, slot, &blk)
       holder = Object.new
       meta = class << holder; self; end
@@ -44,16 +49,16 @@ module PokeAccess
       meta.send(:define_method, :poll) do
         s = @scene
         next unless s
-        pair = begin
-                 blk.call(s)
-               rescue StandardError => e
-                 PokeAccess.log_once("scene_watcher_#{slot}", e)
-                 nil
-               end
-        next unless pair.is_a?(Array)
-        next unless PokeAccess::Cursor.changed?(self, slot, pair[0])
-        t = pair[1]
-        PokeAccess.speak(PokeAccess.clean(t.to_s), true) if t && !t.to_s.empty?
+        begin
+          pair = blk.call(s)
+          next unless pair.is_a?(Array)
+          next unless PokeAccess::Cursor.changed?(self, slot, pair[0])
+          t = pair[1]
+          t = t.call if t.respond_to?(:call)
+          PokeAccess.speak(PokeAccess.clean(t.to_s), true) if t && !t.to_s.empty?
+        rescue StandardError => e
+          PokeAccess.log_once("scene_watcher_#{slot}", e)
+        end
       end
       wire(cls, meth, holder)
       holder

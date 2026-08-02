@@ -8,12 +8,11 @@ module PokeAccess
     arr = PokeAccess.ivar(s, :@classArray)
     name = PokeAccess.ivar(s, :@name)
     ok = sel && arr.is_a?(Array) && sel >= 0 && sel < arr.length && !arr[sel].to_s.empty?
-    if ok
-      cls = arr[sel].to_s
+    next nil unless ok
+    cls = arr[sel].to_s
+    [sel, lambda {
       unlocked = (::Fates_Utilities.checkIfHasClass(name, arr[sel]) rescue true)
-      [sel, unlocked ? cls : "#{cls}, #{PokeAccess::I18n.t(:aw_outfit_locked)}"]
-    else
-      nil
-    end
+      unlocked ? cls : "#{cls}, #{PokeAccess::I18n.t(:aw_outfit_locked)}"
+    }]
   end
 end

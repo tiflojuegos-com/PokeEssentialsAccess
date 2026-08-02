@@ -145,15 +145,31 @@ module PokeAccess
 end
 
 # Input hook: runs the global poll and the per-frame pollers every frame, in every context.
+#
+# Measured as :input_frame, and that label is the only one that reports from EVERYWHERE. The other two
+# measured hooks both hang off Game_Player#update, so they fall silent the moment the player opens a menu
+# or enters a battle -- and the diagnostic would still print their averages, giving a reassuring number for
+# work that was not running. Everything the mod does per frame outside the map goes through here: the remap
+# wrappers, the global key poll and every registered frame poller, the modal-loop readers among them. One
+# label rather than three keeps it to two clock reads a frame; if it ever shows up high, split it then.
+#
+# The whole thing is also guarded: each step already swallows its own failure, but a fault in the measuring
+# itself would propagate out of Input.update and take the game down with it.
 begin
   class << Input
     unless method_defined?(:update__access_orig)
       alias_method :update__access_orig, :update
       def update(*a)
         r = update__access_orig(*a)
-        begin; PokeAccess::Remap.update; rescue StandardError => e; PokeAccess.log_once("remap_update", e); end
-        begin; PokeAccess::Keys.global_poll; rescue StandardError => e; PokeAccess.log_once("global_poll", e); end
-        begin; PokeAccess::Keys.run_frame_pollers; rescue StandardError => e; PokeAccess.log_once("frame_pollers", e); end
+        begin
+          PokeAccess::Perf.measure(:input_frame) do
+            begin; PokeAccess::Remap.update; rescue StandardError => e; PokeAccess.log_once("remap_update", e); end
+            begin; PokeAccess::Keys.global_poll; rescue StandardError => e; PokeAccess.log_once("global_poll", e); end
+            begin; PokeAccess::Keys.run_frame_pollers; rescue StandardError => e; PokeAccess.log_once("frame_pollers", e); end
+          end
+        rescue StandardError => e
+          PokeAccess.log_once("input_frame", e)
+        end
         r
       end
     end

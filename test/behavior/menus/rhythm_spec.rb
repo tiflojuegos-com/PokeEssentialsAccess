@@ -13,7 +13,7 @@ Suite.define("royal rhythm: the next note to press, by its own direction") do
   rr = PokeAccess::RoyalRhythm
   sel = rr.selector_x(Object.new)
 
-  eq "directions come from the note's string", rr::DIRS["left"], :roy_left
+  eq "directions come from the note's string", rr::DIRS["left"], :dir_left
   eq "a rest beat is not a direction", rr::DIRS[""], nil
 
   scene = Object.new

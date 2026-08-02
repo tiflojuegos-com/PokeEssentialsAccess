@@ -373,10 +373,6 @@ rel_map_large=Large map
 rel_map_off=Map hidden
 awk_gacha=Banner %{n} of %{tot}, option %{opt}
 awk_tea=%{who}, %{n} affinity points
-roy_up=up
-roy_down=down
-roy_left=left
-roy_right=right
 rea_baile=%{dir}, %{n} hits
 rea_postre=%{n} percent
 loc_guide_off=Guide off
@@ -797,12 +793,9 @@ mn_default_keys=Default keys
 dex_caught=caught
 dex_seen=seen
 dex_unknown=unknown
-dex_num=Number %{n}, %{name}
 dex_category=%{cat} Pokémon
 dex_height=%{h} meters
 dex_weight=%{w} kg
-dex_area=Area: %{region}
-dex_area_unknown=Area unknown
 dex_form=Form: %{form}
 
 # keyboard text entry

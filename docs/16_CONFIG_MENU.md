@@ -36,9 +36,12 @@ Las opciones del usuario se declaran en una tabla `SCHEMA` en `core/foundation/c
 ```
 
 - **clave** — el símbolo del ajuste (`Config.audio3d_volume`, etc.); **valor_por_defecto** — el inicial.
-- **tipo** — cómo se edita y se lee. Numéricos (`:vol`, `:tiles`, `:sec`, `:ms`, `:reach`, `:astar`,
-  `:gdist`, `:desk`) usan `KIND_BOUNDS` `[min, max, paso, unidad]`; no numéricos (`:flag`, `:lang`,
-  `:navmode`, `:occ`, `:algo`) tienen su propia edición.
+- **tipo** — cómo se edita y se lee. Numéricos (`:vol`, `:tiles`, `:sonar`, `:sec`, `:ms`, `:reach`,
+  `:astar`, `:gdist`, `:desk`) usan `KIND_BOUNDS` `[min, max, paso, unidad]`; no numéricos (`:flag`,
+  `:lang`, `:navmode`, `:occ`, `:algo`) tienen su propia edición. El tipo agrupa ajustes que comparten
+  límites, así que **no lo reutilices por parecido de unidad**: `:sonar` (1-30) existe aparte de `:tiles`
+  (1-20) precisamente porque subir el sonar no debe ensanchar de rebote la sonda de paredes ni la
+  distancia de alternancia, que también se miden en casillas.
 - **categoría** — en qué submenú aparece: `:general`, `:pathfinder`, `:pathfinder_adv`, `:audio`, las
   sub-categorías `:audio3d_vol`/`:audio3d_freq`/`:audio3d_walls`/`:audio3d_adv`, o `:debug`.
 - **lbl_/help_** — claves i18n del nombre y de la ayuda (la que dice `:info`).

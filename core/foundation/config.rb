@@ -52,7 +52,7 @@ module PokeAccess
       [:audio3d_wall_range,  3,     :tiles, :audio3d_walls, :lbl_wall_range,   :help_wall_range],
       [:audio3d_wall_falloff,50,    :vol,   :audio3d_walls, :lbl_wall_falloff, :help_wall_falloff],
       [:audio3d_desk_range,  2,     :desk,  :audio3d_walls, :lbl_desk_range,   :help_desk_range],
-      [:audio3d_range,       12,    :tiles, :audio3d_adv, :lbl_sonar_range,   :help_sonar_range],
+      [:audio3d_range,       12,    :sonar, :audio3d_adv, :lbl_sonar_range,   :help_sonar_range],
       [:audio3d_alt_dist,    5,     :tiles, :audio3d_adv, :lbl_alt_dist,      :help_alt_dist],
       [:transfer_active_page_only, true, :flag, :debug, :lbl_transfer_active_only, :help_transfer_active_only]
     ]
@@ -63,6 +63,10 @@ module PokeAccess
       :vol   => [0, 100, 10, nil],
       :sec   => [1, 10, 1, :secs],
       :tiles => [1, 20, 1, :tiles_unit],
+      # The sonar's own range, apart from :tiles because it is the only one the player has a reason to
+      # push out: the wall probe and the alternation distance are short by design and widening them with
+      # it would be a silent side effect of a slider that says "sonar".
+      :sonar => [1, 30, 1, :tiles_unit],
       :astar => [1500, 10000, 500, nil],
       :ms    => [2, 30, 2, :ms_unit],
       :gdist => [1, 6, 1, :tiles_unit],

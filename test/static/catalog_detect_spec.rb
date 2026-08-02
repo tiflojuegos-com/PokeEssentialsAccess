@@ -69,3 +69,23 @@ Suite.define("catalog: pokemon_z no longer shadows other profiles on Z-drive or 
   eq "reminiscencia on Z: drive with mkxp-z resolves to reminiscencia", detect_profile("z:/games/reminiscenciav2/mkxp-z.exe"), "reminiscencia"
   eq "real Pokemon Z folder still resolves to pokemon_z", detect_profile("f:/POKEMON Z V2.18/game.exe"), "pokemon_z"
 end
+
+# Layer 1 matches the game's DECLARED title, and the declared title is written by a Spanish-speaking
+# author: Anil's live mkxp.json says "Pokémon Añil 4.0". Every candidate for it read "pokemon ...", so
+# the accent in Poke'mon -- not the one in Anil, which was covered -- made layer 1 miss, on both the
+# installer and the launcher. Nothing broke because layer 2 caught it by folder name; rename the folder
+# and both would have failed together, which is exactly the kind of fallback that hides a bug until the
+# day it cannot.
+#
+# The fix is data, not code: it is the one place both consumers already read, so no two-language port to
+# keep in sync. This keeps it that way as games are added.
+Suite.define("catalog: every unaccented pokemon title carries its accented twin") do
+  raw = File.read(CATALOG_JSON)
+  # Only the titles arrays: the detect patterns are regexps and "pokemon ?z\b" is not a title.
+  plain = raw.scan(/"titles"\s*:\s*\[(.*?)\]/m).flatten.join(",").scan(/"(pokemon [^"]*)"/).flatten.uniq
+  truthy "the catalog really does list unaccented titles", plain.length >= 5
+  missing = plain.reject do |t|
+    raw.index("\"" + t.sub(/\Apokemon\b/, [0x70, 0x6f, 0x6b, 0xe9, 0x6d, 0x6f, 0x6e].pack("U*")) + "\"")
+  end
+  eq "each has its accented twin", missing.sort, []
+end

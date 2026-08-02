@@ -53,7 +53,9 @@ Descarga `pokeessentialsaccess-launcher.exe` de la [página de releases](https:/
 | Desinstalar el mod de un juego | `Ctrl` + `D` |
 | Buscar una versión nueva del propio instalador | `Ctrl` + `B` |
 
-Al actualizar descarga solo los archivos que hayan cambiado y conserva tu configuración y tus etiquetas.
+Al actualizar descarga solo los archivos que hayan cambiado y conserva **todo lo que hay en
+`accessibility\data`**: tu configuración, tus etiquetas de objetos, los nombres de mapa que te hayas
+puesto a mano y tus grabaciones.
 
 ### A mano, con los scripts
 

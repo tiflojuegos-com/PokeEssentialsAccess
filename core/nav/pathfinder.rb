@@ -63,13 +63,36 @@ module PokeAccess
     # the monotonic-clock call too often; every BUDGET_CHECK nodes keeps the overhead negligible.
     BUDGET_CHECK = 256
 
-    # The deadline (a clock value) for a search started now, or nil when the auto/time mode is off (then the
-    # search bounds itself by node count, astar_max, as before). Auto mode trades a far long route for a
-    # guaranteed frame: the search stops after route_budget_ms regardless of map size.
+    # The deadline (a clock value) every search in the CURRENT operation shares, or nil when the auto/time
+    # mode is off (then the search bounds itself by node count, astar_max, as before).
+    #
+    # It has to be shared, and it was not. One find_path runs up to three searches -- the reachability
+    # probe, then the plain route, then the route allowing ledges -- and each started its own clock, so the
+    # budget the player set was really spent three times over. Worse than the arithmetic: running out on the
+    # first pass makes it return nil, and returning nil is exactly what FIRES the next pass. The mechanism
+    # meant to cut the work was adding it, in the one mode whose whole promise is a guaranteed frame.
     def self.search_deadline
+      return @budget_until if @budget_until
+      fresh_deadline
+    end
+
+    # A brand-new deadline, ignoring any in scope. Only with_budget and search_deadline should call this.
+    def self.fresh_deadline
       return nil unless (PokeAccess::Config.route_auto rescue false)
       ms = (PokeAccess::Config.route_budget_ms rescue 8).to_i
       (PokeAccess.clock rescue 0.0) + (ms / 1000.0)
+    end
+
+    # Runs a block with ONE deadline covering everything inside it, so route_budget_ms means what the option
+    # says. Nesting keeps the OUTER deadline (an inner search must not award itself a fresh budget), and the
+    # previous value is always restored, so a search that throws never leaves a stale deadline behind to cut
+    # the next one short.
+    def self.with_budget
+      outer = @budget_until
+      @budget_until = outer || fresh_deadline
+      yield
+    ensure
+      @budget_until = outer
     end
 
     # True once a search must stop: in time mode when the deadline passed (checked every BUDGET_CHECK nodes),
@@ -182,11 +205,13 @@ module PokeAccess
     # A route to a tile adjacent to the target. Prefers a pure walking/slide route (ledge hops are
     # awkward and often one-way for a blind player) and only allows ledge hops when no walking route exists.
     def self.find_path(tx, ty)
-      with_bridges do
-        px = ($game_player.x rescue 0); py = ($game_player.y rescue 0)
-        far = (px - tx).abs + (py - ty).abs > FLOOD_MIN
-        next nil if far && blocked_target?(tx, ty)
-        find_path_to(tx, ty, false) || find_path_to(tx, ty, true)
+      with_budget do
+        with_bridges do
+          px = ($game_player.x rescue 0); py = ($game_player.y rescue 0)
+          far = (px - tx).abs + (py - ty).abs > FLOOD_MIN
+          next nil if far && blocked_target?(tx, ty)
+          find_path_to(tx, ty, false) || find_path_to(tx, ty, true)
+        end
       end
     end
 

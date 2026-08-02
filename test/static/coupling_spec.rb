@@ -105,3 +105,68 @@ Suite.define("static: no undeclared coupling between versions, profiles, or shar
   truthy "the scan saw a realistic module census", defs.length > 100
   eq "no undeclared cross-layer references", violations.sort, []
 end
+
+# The other half of the same rule, and the half that was blind: the census above only knows constants the
+# MOD defines, so a fangame class named by STRING is invisible to it -- and a string is how every hook is
+# attached (Hooks.after_hook("Class", ...), Engine.scene_classes, Menus.def_extractor, SceneWatcher.wire).
+# core/ could therefore hook a class that exists in exactly one of the 13 games and the suite stayed green;
+# it did, for "PokemonOptionPuntos_Scene" (royal only) and "Window_PokemonMart_BattlePoints" (emerald only).
+# Every capitalized string literal in core/ is crossed against fangame_classes.txt, the census of names
+# defined by exactly ONE surveyed dump (regenerate it with build_fangame_census.rb; the dumps live outside
+# the repo, which is why the census is committed instead of scanned live). A hit means that core file is
+# tied to one game: move it to games/<profile>/ (or to plugins/) or declare it below WITH its reason.
+# Out of scope on purpose: names the census does not carry, which are vanilla Essentials, shared by two or
+# more games, or not class names at all (the Win32 and PA3D_* symbols); and names defined by exactly TWO
+# games, because whether a third-party plugin reader may live in core/ is the open doctrine question of
+# PENDIENTE 6.4, not a rule this spec gets to settle.
+Suite.define("static: no core/ file names a class only one fangame has") do
+  root = File.expand_path("../..", File.dirname(__FILE__))
+
+  # [file, class name] => why this one core file may name a single-game class.
+  declared = {
+    # royal's trainer-points Options scene (its "Puntos entrenador" plugin), listed as a third alias next
+    # to the two vanilla Options names. This is the case PENDIENTE 5.3 used to prove the census was blind;
+    # the move to a royal-only reader is still pending. Inert meanwhile: scene_classes drops the names the
+    # running game does not define.
+    ["core/menus/option_help.rb", "PokemonOptionPuntos_Scene"] => true,
+    # emerald's own Battle-Point mart window, registered beside the generic Window_BattlePointShop because
+    # both carry the same @stock/@adapter shape. The file header's "nothing here is game-specific" is
+    # contradicted by exactly this name (PENDIENTE 6.3).
+    ["core/menus/battle_point_shop.rb", "Window_PokemonMart_BattlePoints"] => true,
+    # Third-party "Tip Cards" addon: of the 13 dumps only royal installs this third scene (its siblings
+    # TipCard_Scene and TipCardGroups_Scene are in royal AND relict, so the census does not list them).
+    ["core/field/tip_cards.rb", "TipMenu_Scene"] => true,
+    # Sky's-base egg-move tutor; anil is the only surveyed dump on that base, so the name is exclusive by
+    # sample size. It names the LAYER's screen, not a game's.
+    ["core/menus/skyflyer/eggmove.rb", "EggMoveLearner_Scene"] => true,
+    # Third-party "Advanced Items - Field Moves" plugin, installed by anil alone among the 13 dumps.
+    ["core/field/v21/fieldmoves_v21.rb", "SelectMoveMenu_Scene"] => true,
+    # Third-party "Misc Scripts" starter menu, installed by anil alone among the 13 dumps.
+    ["core/field/v21/starters_v21.rb", "StarterMenu_Scene"] => true
+  }
+
+  census = {}
+  PokeAccess::KVFile.each(File.join(File.dirname(__FILE__), "fangame_classes.txt")) { |k, v| census[k] = v }
+  # Without this the whole check evaporates the day the census file is renamed, emptied or unreadable:
+  # every lookup misses, nothing is reported and the suite says "ok" -- the exact failure mode of the
+  # i18n parity spec that this same block had to fix.
+  truthy "the fangame class census loaded", census.length > 300
+
+  hits = []
+  found = {}
+  Dir.glob(File.join(root, "core", "**", "*.rb")).sort.each do |f|
+    rel = f[(root.length + 1)..-1].tr("\\", "/")
+    code = File.read(f).gsub(/#(?!\{).*/, "")
+    code.scan(/"([A-Z][A-Za-z0-9_]*)"/).flatten.uniq.each do |name|
+      next unless census[name]
+      found[[rel, name]] = true
+      next if declared[[rel, name]]
+      hits.push("#{rel} names #{name} (only in #{census[name]})")
+    end
+  end
+  eq "no core/ file names an undeclared single-game class", hits.sort, []
+  # An exception whose reference is gone is dead paperwork that keeps widening the rule for nothing, and it
+  # is how an allowlist grows until it covers more than the check does.
+  stale = declared.keys.reject { |k| found[k] }
+  eq "every declared exception is still a real reference", stale.map { |k| k.join(" -> ") }.sort, []
+end

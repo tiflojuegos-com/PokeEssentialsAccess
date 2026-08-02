@@ -17,7 +17,9 @@
 # press. Timing that game by ear needs a cue designed against a live session, not a leftover ivar.
 module PokeAccess
   module RoyalRhythm
-    DIRS = { "up" => :roy_up, "down" => :roy_down, "left" => :roy_left, "right" => :roy_right }
+    # The shared dir_* keys, not a royal-only copy: roy_up/down/left/right were byte-for-byte identical to
+    # them in both languages, so the duplicate was four more strings to keep in sync for no gain.
+    DIRS = { "up" => :dir_up, "down" => :dir_down, "left" => :dir_left, "right" => :dir_right }
 
     # Where notes are judged, by the game's own formula (the selector_x it passes to SongNote#check).
     def self.selector_x(scene)

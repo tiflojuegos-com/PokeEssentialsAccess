@@ -7,6 +7,7 @@ module PokeAccess
   PauseMenuV21 = SceneWatcher.reader("PokemonPauseMenu_Scene", :pbShowCommands, :pausemenu_v21) do |s|
     w = PokeAccess.sprite(s, "cmdwindow")
     idx = w ? (w.index rescue (w.instance_variable_get(:@index) rescue nil)) : nil
-    (idx.nil? || idx < 0) ? nil : [idx, (PokeAccess::Menus.generic_focus(w, idx) rescue nil)]
+    next nil if idx.nil? || idx < 0
+    [idx, lambda { PokeAccess::Menus.generic_focus(w, idx) }]
   end
 end

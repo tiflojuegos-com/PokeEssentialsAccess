@@ -108,31 +108,59 @@ Suite.define("audio3d: hide mode keeps the counter clerk but not the person behi
   end
 end
 
-# The water loop is placed from the locator's surface list, filtered by NAME: a map's grass or ice surfaces
-# must not start the water loop, and a shore outside the sonar range must stop it. @near[:water] is the one
-# value set_loop reads, so a wrong nil here is a loop that never stops (or never starts).
+# The water loop follows the nearest WATER tile within the sonar range: a map's grass must not start it,
+# and a shore further out than the range must stop it. @near[:water] is the one value set_loop reads, so a
+# wrong nil here is a loop that never stops (or never starts).
+#
+# The sonar used to get this from the locator's surface list, which meant a 61-tile box scanned for all
+# eleven surface kinds so that ten could be thrown away -- and then re-filtered by the range that should
+# have bounded the scan in the first place. It looks for its own water now, which is why this drives real
+# terrain tags instead of stubbing the locator out.
 Suite.define("audio3d: the water loop follows the nearest water surface only") do
   a3d = PokeAccess::Audio3D
-  saved = PokeAccess::Locator.method(:surface_targets)
   prev_range = PokeAccess::Config.audio3d_range
-  surface = Struct.new(:key, :x, :y)
   begin
     World.clear_events
+    $game_map.clear_grid
     PokeAccess::Config.audio3d_range = 6
-    PokeAccess::Locator.define_singleton_method(:surface_targets) { [surface.new(:sur_water, 8, 5)] }
+
+    $game_map.set_terrain(8, 5, 7)
     a3d.rescan(5, 5)
     eq "a shore in range positions the loop", a3d.instance_variable_get(:@near)[:water], [8, 5]
 
-    PokeAccess::Locator.define_singleton_method(:surface_targets) { [surface.new(:sur_water, 20, 5)] }
+    # Nearer water wins, and it is the manhattan distance that decides -- the rings must not report a tile
+    # simply because it was reached first in some scan order.
+    $game_map.set_terrain(5, 3, 7)
+    a3d.rescan(5, 5)
+    eq "and the nearest of two shores wins", a3d.instance_variable_get(:@near)[:water], [5, 3]
+
+    $game_map.clear_grid
+    $game_map.set_terrain(15, 5, 7)
     a3d.rescan(5, 5)
     eq "a shore out of range stops it", a3d.instance_variable_get(:@near)[:water], nil
 
-    PokeAccess::Locator.define_singleton_method(:surface_targets) { [surface.new(:sur_tallgrass, 6, 5)] }
+    PokeAccess::Config.audio3d_range = 12
+    a3d.rescan(5, 5)
+    eq "widening the sonar range reaches it", a3d.instance_variable_get(:@near)[:water], [15, 5]
+
+    $game_map.clear_grid
+    $game_map.set_terrain(6, 5, 10)
     a3d.rescan(5, 5)
     eq "and a surface that is not water never starts it", a3d.instance_variable_get(:@near)[:water], nil
+
+    # A waterfall has always counted as water for this cue, and the tile beyond the map edge has never
+    # been asked about: both are behaviour the rewrite had to carry over rather than decide afresh.
+    $game_map.set_terrain(4, 5, 8)
+    a3d.rescan(5, 5)
+    eq "a waterfall still counts as water", a3d.instance_variable_get(:@near)[:water], [4, 5]
+
+    $game_map.clear_grid
+    $game_map.set_terrain(0, 5, 7)
+    a3d.rescan(0, 5)
+    eq "water underfoot is found without leaving the map", a3d.instance_variable_get(:@near)[:water], [0, 5]
   ensure
-    PokeAccess::Locator.define_singleton_method(:surface_targets, saved)
     PokeAccess::Config.audio3d_range = prev_range
+    $game_map.clear_grid
     World.clear_events
   end
 end

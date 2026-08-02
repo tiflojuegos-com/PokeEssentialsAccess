@@ -183,6 +183,14 @@ un `passable?` lento puede convertirse en un pico de varios frames. Con **`route
 devolviendo la mejor ruta encontrada. El tiempo es constante; lo que varía es cuán lejos llega (más en un
 PC rápido, menos en uno lento).
 
+El plazo es **uno por RUTA, no por búsqueda**, y esa distinción es la opción entera. Un `find_path` son
+hasta tres búsquedas — la sonda de alcanzabilidad, la ruta a pie y la ruta que admite saltos de saliente —
+y mientras cada una arrancaba su propio reloj, los 8 ms se gastaban tres veces. Lo grave no era la
+aritmética: agotar el plazo hace que la búsqueda devuelva nil, y devolver nil es justo lo que **dispara la
+siguiente**, así que el corte alimentaba el trabajo que existía para cortar. `with_budget` envuelve
+`find_path` y todas comparten la misma hora límite; anidar conserva la de fuera, para que una búsqueda
+interna no se auto-conceda presupuesto nuevo.
+
 ```ruby
 BUDGET_CHECK = 256   # cada cuántos nodos se mira el reloj
 

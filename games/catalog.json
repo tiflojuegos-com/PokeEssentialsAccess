@@ -5,7 +5,8 @@
       "key": "pokemon_z",
       "display": "Pokemon Z",
       "titles": [
-        "pokemon z"
+        "pokemon z",
+        "pokémon z"
       ],
       "detect": "pokemon ?z\\b",
       "exes": [],
@@ -16,7 +17,9 @@
       "display": "Pokemon Ópalo",
       "titles": [
         "pokemon opalo",
-        "pokemon ópalo"
+        "pokémon opalo",
+        "pokemon ópalo",
+        "pokémon ópalo"
       ],
       "detect": "opalo|ópalo",
       "exes": [],
@@ -39,7 +42,8 @@
       "display": "Pokemon Armonia",
       "titles": [
         "pokemon_armonia",
-        "pokemon armonia"
+        "pokemon armonia",
+        "pokémon armonia"
       ],
       "detect": "armon",
       "exes": [
@@ -63,7 +67,9 @@
       "display": "Pokemon Africanus",
       "titles": [
         "pokemon africanvs",
-        "pokemon africanus"
+        "pokémon africanvs",
+        "pokemon africanus",
+        "pokémon africanus"
       ],
       "detect": "african",
       "exes": [],
@@ -73,7 +79,8 @@
       "key": "awakening",
       "display": "Pokemon Awakening",
       "titles": [
-        "pokemon awakening"
+        "pokemon awakening",
+        "pokémon awakening"
       ],
       "detect": "awakening",
       "exes": [],
@@ -84,7 +91,9 @@
       "display": "Pokemon Añil",
       "titles": [
         "pokemon anil",
-        "pokemon añil"
+        "pokémon anil",
+        "pokemon añil",
+        "pokémon añil"
       ],
       "detect": "añil|anil",
       "exes": [],
@@ -94,7 +103,8 @@
       "key": "royal",
       "display": "Pokemon Royal",
       "titles": [
-        "pokemon royal"
+        "pokemon royal",
+        "pokémon royal"
       ],
       "detect": "royal",
       "exes": [],

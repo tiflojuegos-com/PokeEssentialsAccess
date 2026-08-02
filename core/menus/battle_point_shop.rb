@@ -1,10 +1,11 @@
 # Battle Point shop (Window_BattlePointShop), a Window_DrawableCommand whose entries are item ids in @stock
 # with names/prices via its @adapter -- the generic reader would speak the raw id symbol instead ("PROTEIN",
-# with no price). Nothing here is game-specific, so it registers once for every game: an extractor for a class
-# the running game does not define is never reached (focused_text resolves the name through const_at and skips
-# it), which is what makes a plain global registration safe. It used to be opt-in per profile, and the
-# profiles that forgot to opt in shipped the raw ids for
-# months -- an avoidable gap the class-existence gating already prevents.
+# with no price). BOTH class names are game-specific -- neither is vanilla v22: Window_BattlePointShop exists
+# in 4 of the 13 dumps (anil, emerald, relict, royal) and Window_PokemonMart_BattlePoints in emerald alone.
+# What makes the plain global registration safe is therefore not that they are universal, but that an
+# extractor for a class the running game does not define is never reached (focused_text resolves the name
+# through const_at and skips it). It used to be opt-in per profile, and the profiles that forgot to opt in
+# shipped the raw ids for months -- an avoidable gap the class-existence gating already prevents.
 #
 # The "Battle Point Mart" variant (Window_PokemonMart_BattlePoints) is a second window with the very
 # same shape -- @stock of item ids, an @adapter for name/price, and one extra row for cancel -- but it

@@ -2,9 +2,6 @@ module PokeAccess
   # Locator part 2 of 4: terrain surfaces as navigation targets. Scans tiles around the player for
   # interesting surfaces and exposes the nearest of each as a synthetic SurfaceTarget, cached per tile.
   module Locator
-    # Surface scan radius (tiles around the player searched for terrain targets).
-    SURFACE_RADIUS = 30
-
     # A synthetic target standing for a map tile of a given surface, so navigation works on terrain like
     # on events. key is the language-neutral surface symbol (:surf_water...) for type matching.
     SurfaceTarget = Struct.new(:x, :y, :name, :key) do
@@ -16,30 +13,54 @@ module PokeAccess
       PokeAccess::Terrain::LABEL
     end
 
-    # Nearest tile of each interesting surface within SURFACE_RADIUS as synthetic targets, cached per tile.
+    # Nearest tile of each interesting surface the player can actually get to, as synthetic targets,
+    # cached per player tile.
+    #
+    # This was a 61x61 box around the player, and the box was wrong in both directions at once. Too small:
+    # the grass at the far end of a route did not exist, even though the guide would have walked you there
+    # without complaint. Too big: a lake behind a locked door was offered as a target and then the guide
+    # said there was no route, because a box knows nothing about walls. Both come from measuring the wrong
+    # thing -- straight-line distance is not what a navigation menu is about.
+    #
+    # So it asks the pathfinder instead, reusing the flood already computed for this tile and shared with
+    # the unreachable filter, and inherits its limit (route_reach, the same 128 tiles that decide where
+    # the guide can take you) for free. Note this is the LIST only: the sonar keeps its own short range
+    # and does its own looking, since what you can hear and where you can walk are different questions.
+    #
+    # The border ring is what keeps water on the list. You cannot stand on water, so the flood never
+    # enters it, but you can stand beside it -- and standing beside it is exactly what the guide is for,
+    # with surf_launch taking over from the shore.
     def self.surface_targets
       pos = [$game_player.x, $game_player.y, ($game_map.map_id rescue 0)]
       return @surface_cache if @surface_cache && @surface_cache_pos == pos
-      best = {}
-      px = $game_player.x; py = $game_player.y
-      w = ($game_map.width rescue 0); h = ($game_map.height rescue 0)
-      y0 = [0, py - SURFACE_RADIUS].max; y1 = [h - 1, py + SURFACE_RADIUS].min
-      x0 = [0, px - SURFACE_RADIUS].max; x1 = [w - 1, px + SURFACE_RADIUS].min
-      ty = y0
-      while ty <= y1
-        tx = x0
-        while tx <= x1
-          lbl = PokeAccess::Terrain.label(tx, ty)
-          if lbl
-            d = (tx - px).abs + (ty - py).abs
-            best[lbl] = [d, tx, ty] if best[lbl].nil? || d < best[lbl][0]
-          end
-          tx += 1
-        end
-        ty += 1
-      end
       @surface_cache_pos = pos
-      @surface_cache = best.map { |lbl, info| SurfaceTarget.new(info[1], info[2], PokeAccess::I18n.t(lbl), lbl) }
+      @surface_cache = scan_surfaces(pos[0], pos[1])
+    end
+
+    # One pass over the reachable tiles and the ring around them, keeping the nearest tile of each surface.
+    def self.scan_surfaces(px, py)
+      pf = PokeAccess::Pathfinder
+      w = ($game_map.width rescue 0); h = ($game_map.height rescue 0)
+      seen = {}
+      best = {}
+      look = lambda do |tx, ty|
+        next if tx < 0 || ty < 0 || tx >= w || ty >= h
+        k = pf.pkey(tx, ty)
+        next if seen[k]
+        seen[k] = true
+        lbl = PokeAccess::Terrain.label(tx, ty)
+        next if lbl.nil?
+        d = (tx - px).abs + (ty - py).abs
+        best[lbl] = [d, tx, ty] if best[lbl].nil? || d < best[lbl][0]
+      end
+      (pf.reachable_set rescue {}).each_key do |k|
+        x = k / pf::PKEY_STRIDE; y = k % pf::PKEY_STRIDE
+        look.call(x, y)
+        pf::DIRS.each { |dir| look.call(x + dir[0], y + dir[1]) }
+      end
+      best.map { |lbl, info| SurfaceTarget.new(info[1], info[2], PokeAccess::I18n.t(lbl), lbl) }
+    rescue StandardError
+      []
     end
 
     # The connections involving a map, across engines: modern indexes getMapConnections by id and offers

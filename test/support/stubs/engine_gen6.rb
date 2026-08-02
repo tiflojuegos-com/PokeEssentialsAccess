@@ -153,8 +153,17 @@ class Game_Map
 
   def events; @events; end
 
-  # The terrain tag at (x,y): 1 on a placed ledge (so Terrain.ledge_at? sees it), else 0.
-  def terrain_tag(x, y); @ledges[[x, y]] ? 1 : 0; end
+  # The terrain tag at (x,y): a tag placed with set_terrain, else 1 on a placed ledge (so
+  # Terrain.ledge_at? sees it), else 0.
+  def terrain_tag(x, y)
+    t = @terrain[[x, y]]
+    return t if t
+    @ledges[[x, y]] ? 1 : 0
+  end
+
+  # Places a gen-6 PBTerrain id, the numbers Terrain::KIND maps (7 water, 10 tall grass, 12 ice...), so a
+  # spec can lay out real surfaces instead of stubbing out whatever reads them.
+  def set_terrain(x, y, tag); @terrain[[x, y]] = tag; self; end
 
   # True while (x,y) is inside the map bounds; ledge_jump needs it to accept a landing tile.
   def valid?(x, y); x >= 0 && y >= 0 && x < @width && y < @height; end
@@ -192,7 +201,7 @@ class Game_Map
 
   # Drops any loaded ASCII grid and restores the default open 20x20 map, so a grid built by one suite does
   # not leak its walls (or its resized dimensions) into the next, which otherwise assumes open space.
-  def clear_grid; @grid = nil; @width = 20; @height = 20; end
+  def clear_grid; @grid = nil; @width = 20; @height = 20; @terrain = {}; end
 
   def cell(x, y); (@grid && y >= 0 && x >= 0 && @grid[y] && x < @grid[y].length) ? @grid[y][x, 1] : "#"; end
   def counter?(x, y); cell(x, y) == "C"; end
@@ -218,7 +227,10 @@ class Game_Map
   end
 
   # Exposes the passage/terrain-tag tables the real Game_Map carries, so ledge_passage can read them.
-  def init_ledges; @ledges = {}; @passages = {}; @terrain_tags = {}; @data = TestMapData.new(@ledges); end
+  def init_ledges
+    @ledges = {}; @passages = {}; @terrain_tags = {}; @terrain = {}
+    @data = TestMapData.new(@ledges)
+  end
   def data; @data; end
 end
 

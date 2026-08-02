@@ -23,6 +23,15 @@ module PokeAccess
       slot.to_s.sub(/\A@+/, "").to_sym
     end
 
+    # The [bare slot, dedup ivar] pair for a slot name, built once. announce asks for it TWICE per call
+    # (pending? and then changed?) and each build costs a regexp plus a symbol interpolation, on a path that
+    # runs every frame for every active window. The table cannot grow with play: slot names are symbols
+    # written by hand in the readers, a closed set, never derived from game data.
+    def self.slot_pair(slot)
+      @pairs ||= {}
+      @pairs[slot] ||= (b = bare_slot(slot); [b, :"@access_cur_#{b}"])
+    end
+
     # True (and records the new key) when key differs from what slot last held on holder; false when equal.
     # A nil key always counts as "unchanged" so a missing value never speaks. Use this when you want to gate
     # arbitrary work; for the speak-the-focused-entry case prefer on_change / announce.
@@ -31,8 +40,7 @@ module PokeAccess
     # @param key the current selection key (an index, a string, or an array tuple); nil never changes
     def self.changed?(holder, slot, key)
       return false if key.nil?
-      slot = bare_slot(slot)
-      ivar = :"@access_cur_#{slot}"
+      slot, ivar = slot_pair(slot)
       prev = holder ? (holder.instance_variable_get(ivar) rescue nil) : @global[slot]
       return false if key == prev
       holder ? holder.instance_variable_set(ivar, key) : (@global[slot] = key)
@@ -44,8 +52,7 @@ module PokeAccess
     # Clears slot on holder so the next changed?/on_change speaks even if the key is unchanged. Call when a
     # screen (re)opens with the cursor possibly on the same entry as last time, so reopening still reads it.
     def self.reset(holder, slot)
-      slot = bare_slot(slot)
-      ivar = :"@access_cur_#{slot}"
+      slot, ivar = slot_pair(slot)
       holder ? holder.instance_variable_set(ivar, nil) : @global.delete(slot)
     rescue StandardError
       nil
@@ -57,8 +64,7 @@ module PokeAccess
     # open-coded this kept a separate "seen" ivar beside the dedup one; this reads it off the dedup state
     # itself, so there is nothing extra to reset. Checked BEFORE the change? call that records the key.
     def self.pending?(holder, slot)
-      slot = bare_slot(slot)
-      ivar = :"@access_cur_#{slot}"
+      slot, ivar = slot_pair(slot)
       prev = holder ? (holder.instance_variable_get(ivar) rescue nil) : @global[slot]
       prev.nil?
     rescue StandardError

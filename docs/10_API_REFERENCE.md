@@ -253,6 +253,9 @@ holder = PokeAccess::SceneWatcher.reader(cls, meth, slot) { |scene| [key, texto]
 # La forma de UNA llamada para la figura habitual: sujeta la escena, la sondea cada frame, deduplica
 # por key y habla al cambiar (limpiado, interrumpiendo).
 #   - el bloque devuelve [key, texto]; nil (o algo que no sea par) salta el frame
+#   - texto puede ser un lambda: entonces SOLO se invoca si la key cambio. El cursor se queda quieto, asi
+#     que 39 de cada 40 frames la key coincide y el texto construido se tira sin leerse: gratis para
+#     "#{nombre}", nada gratis para un lector que le pregunta algo al juego para redactarse
 #   - una key nil nunca habla (contrato de Cursor); una key real con texto vacío la consume en silencio
 #   - el dedup vive en un slot de Cursor sobre un holder generado, reseteado al abrir Y al cerrar, así
 #     que reabrir en la misma entrada vuelve a leer

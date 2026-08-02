@@ -1,8 +1,11 @@
 module PokeAccess
-  # v22-style options screen (La Base de Sky's UI::OptionsVisualsList, a Window_DrawableCommand whose
-  # entries are option HASHES, not strings, so the generic reader gets nothing). Reads the focused option's
-  # name + value, on BOTH navigation (index change) and value edit (left/right on the same option) by
-  # deduping on [index, value]. The value is formatted by option[:type], mirroring draw_option_values:
+  # v22 options screen (UI::OptionsVisualsList, a Window_DrawableCommand whose entries are option HASHES,
+  # not strings, so the generic reader gets nothing). The class is VANILLA v22 -- it is declared in
+  # Data/Scripts/016_UI/015_UI_Options.rb of the stock engine, NOT in La Base de Sky's, which an earlier
+  # header claimed. That credit invites filing this reader under skyflyer/, where every other v22 game would
+  # lose it, and there is precedent for breaking games by reading a class name as proof of an engine fork.
+  # Reads the focused option's name + value, on BOTH navigation (index change) and value edit (left/right
+  # on the same option) by deduping on [index, value]. The value is formatted by option[:type], mirroring draw_option_values:
   # choice lists (:array/:array_one/:arrow_option) read the chosen label, :toggle reads its label or ON/OFF,
   # sliders/numbers read the number, :control reads the bound keys.
   module OptionsV22

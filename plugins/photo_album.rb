@@ -62,6 +62,7 @@ module PokeAccess
 
   PhotoAlbumReader = SceneWatcher.reader("AlbumFotos_Scene", :pbUpdateAlbum, :photo_album) do |s|
     viewing = (s.instance_variable_get(:@viendofoto) rescue false)
-    [[PokeAccess.ivar_i(s, :@page), PokeAccess.ivar_i(s, :@photo), viewing], PokeAccess::PhotoAlbum.text(s)]
+    [[PokeAccess.ivar_i(s, :@page), PokeAccess.ivar_i(s, :@photo), viewing],
+     lambda { PokeAccess::PhotoAlbum.text(s) }]
   end
 end

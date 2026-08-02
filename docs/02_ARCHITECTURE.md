@@ -155,7 +155,7 @@ un instrumento jamás debe poder enmudecer el mod.
 |---------|-----------------|
 | `nav/locator.rb` | Encuentra y anuncia los eventos cercanos (NPCs, objetos, salidas) |
 | `nav/locator_naming.rb` | Genera el nombre de un evento por la FORMA de su dato, no por su nombre |
-| `nav/locator_surfaces.rb` | Identifica superficies (agua, hierba, árbol...) |
+| `nav/locator_surfaces.rb` | Superficies (agua, hierba...) como objetivos: lo ALCANZABLE según `route_reach`, no un radio propio |
 | `nav/pathfinder.rb` | Rutas con A*/JPS/HPA* y flood de alcanzabilidad |
 | `nav/terrain.rb` | Clasifica terrenos (pasable, ledge, hielo...) |
 | `nav/region_map.rb`, `nav/guide.rb` | Mapa regional y guía paso a paso |
@@ -438,8 +438,12 @@ Dos instrumentos, y ninguno de los dos vive dentro de los lectores:
 | Menú de config → Depuración | Copia al portapapeles un subconjunto del diag, y arranca/para el grabador |
 
 ```
-perf: map_poll=0.5ms audio3d=1.2ms pathfinder=2.1ms
+perf: map_poll=0.5ms audio3d=1.2ms input_frame=2.1ms
 ```
+
+Las tres etiquetas que existen, y no son intercambiables: `map_poll` y `audio3d` cuelgan de
+`Game_Player#update`, así que **callan fuera del mapa**; `input_frame` cuelga de `Input.update`, que corre
+en todas las escenas. Un informe grabado en un menú lento solo trae la tercera.
 
 **Secciones de diagnóstico por perfil**: el core es agnóstico del juego, así que un fangame con mecánicas
 propias las diagnostica él mismo. `Keys.register_diag_section(nombre, grupo) { |o| o.push("...") }`

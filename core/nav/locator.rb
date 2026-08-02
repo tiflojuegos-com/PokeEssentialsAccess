@@ -131,18 +131,38 @@ module PokeAccess
     # and pass through untouched), so this is safe to call on the mixed :all list too. Destination-unknown
     # doors fall back to grouping by script-map or sprite, so a sprite-less (g0) doorway still collapses.
     # Union-find for transitive grouping (the doorway 11-12-13 merges as one chain).
+    # Only the DOORS are matched against each other. The merge test is O(n^2) and it used to be handed the
+    # WHOLE event list, so on a map with 25 events it ran 300 comparisons to answer 6 -- discarding 294 of
+    # them on the first condition, "this one is not a door". Everything else still comes back untouched,
+    # which is why the function takes the full list at all: its result IS the target list.
+    #
+    # Order is not preserved, and never was: rebuild_targets sorts by distance on the very next line.
     def self.cluster_exits(events, px, py)
-      n = events.length
-      return events if n <= 1
-      descs = events.map { |ev| (transfer_event?(ev) rescue false) ? exit_descriptor(ev) : nil }
-      groups = PokeAccess::Util.union_groups(n) do |a, b|
-        !descs[a].nil? && same_exit?(descs[a], descs[b]) &&
-          (events[a].x - events[b].x).abs <= 1 && (events[a].y - events[b].y).abs <= 1
+      return events if events.length <= 1
+      doors = []
+      descs = []
+      events.each_with_index do |ev, i|
+        d = (transfer_event?(ev) rescue false) ? exit_descriptor(ev) : nil
+        next if d.nil?
+        doors.push(i)
+        descs.push(d)
       end
-      groups.map do |idxs|
-        g = idxs.map { |i| events[i] }
-        g.length == 1 ? g[0] : g.min_by { |ev| (ev.x - px).abs + (ev.y - py).abs }
+      return events if doors.length <= 1
+      groups = PokeAccess::Util.union_groups(doors.length) do |a, b|
+        same_exit?(descs[a], descs[b]) &&
+          (events[doors[a]].x - events[doors[b]].x).abs <= 1 &&
+          (events[doors[a]].y - events[doors[b]].y).abs <= 1
       end
+      is_door = {}
+      doors.each { |i| is_door[i] = true }
+      kept = {}
+      groups.each do |idxs|
+        best = idxs.min_by { |k| (events[doors[k]].x - px).abs + (events[doors[k]].y - py).abs }
+        kept[doors[best]] = true
+      end
+      out = []
+      events.each_with_index { |ev, i| out.push(ev) if kept[i] || !is_door[i] }
+      out
     rescue StandardError
       events
     end
@@ -457,11 +477,19 @@ module PokeAccess
     # Also drops the guide's route memo. @noroute_key is [px, py, tx, ty] with no map in it, so a "there is
     # no route" answered on one map would be replayed verbatim on another at the same coordinates -- and
     # replayed WITHOUT running A*, which is the part that makes it wrong rather than merely stale.
+    # The surface list goes with them: it is built from the pathfinder's reachability flood, which IS in
+    # this registry, so leaving it out meant the flood was recomputed on a map change while the list
+    # derived from it still held the previous map's tiles.
     def self.clear_targets
       @targets = []; @target = nil; @ti = 0
       @guide_path = nil; @guide_from = nil; @guide_target = nil; @noroute_key = nil
+      @surface_cache = nil; @surface_cache_pos = nil
     end
 
+    # The surface list goes with them: it is built from the pathfinder's reachability flood, which IS in
+    # the reset registry, so leaving it out meant the flood was recomputed on a map change while the list
+    # derived from it kept the previous map's tiles.
+    #
     # Forgets the current map so the next announce_map_change fires even on the same map_id. Used ONLY when
     # loading a save (which may land on the map the player was already on); NOT wired to :map_changed.
     def self.forget_map

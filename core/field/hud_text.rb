@@ -10,8 +10,15 @@ module PokeAccess
   module HudText
     # Speaks a HUD label once per change. Blank or purely decorative strings are dropped, and the text goes
     # through the shared cleaner so colour/markup codes are not spelled out.
+    # Two filters, and the order is the point: a HUD redraws the same label for many consecutive frames, so
+    # the RAW string is checked first and the clean-up -- a dozen substitutions -- only runs for a label
+    # that actually changed. The clean text is still deduped afterwards because two different raw strings
+    # (different colour codes, different spacing) can clean down to the same sentence, and dropping that
+    # second check would start repeating lines. Both slots live in the same table, so both reset together.
     def self.say(msg)
-      t = PokeAccess.clean(msg.to_s)
+      raw = msg.to_s
+      return unless PokeAccess::Cursor.changed?(nil, :hud_raw, raw)
+      t = PokeAccess.clean(raw)
       return if t.nil? || t.strip.empty?
       PokeAccess::Cursor.announce(nil, :hud_text, t, false) { t }
     rescue StandardError

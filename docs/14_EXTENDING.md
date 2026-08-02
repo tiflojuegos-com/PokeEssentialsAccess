@@ -206,7 +206,9 @@ viva mientras dura el método del bucle y sondea el foco cada frame:
 
 ```ruby
 # games/awakening/glossary.rb -- Scene_Glosario bloquea dentro de main, así que nunca es $scene.
-# El bloque devuelve [key, texto]: una key nueva habla el texto; nil salta el frame.
+# El bloque devuelve [key, texto]: una key nueva habla el texto; nil salta el frame. Si construir el
+# texto cuesta algo (una llamada al juego, leer un fichero), devuelve un lambda en su lugar: solo se
+# invoca cuando la key ha cambiado de verdad, no en los 39 frames que el cursor pasa quieto.
 module PokeAccess
   AwakeningGlossary = SceneWatcher.reader("Scene_Glosario", :main, :aw_glossary) do |s|
     idx = PokeAccess.ivar(s, :@index)

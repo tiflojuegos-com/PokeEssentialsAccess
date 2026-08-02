@@ -13,8 +13,19 @@
 # what was missing is the choice itself and the score.
 module PokeAccess
   module AwakeningFatesExtra
+    @cards_class = nil
+
+    # FatesCartas is entered through self.main and keeps its whole state on the class, so there is no
+    # instance for SceneWatcher to hold and the reader has to poll. Polling means every frame of the
+    # entire game, forever, so the screen announces itself rather than being searched for: main is
+    # wrapped, and the poller's first line is then a nil check instead of a const lookup by name plus
+    # three ivar reads. Holding the class object is the other half -- it is resolved once, on open.
+    def self.watch_cards(klass); @cards_class = klass; end
+    def self.unwatch_cards; @cards_class = nil; end
+
     # Voices the focused relationship card: the character and their rank.
     def self.cards(_scene)
+      return unless @cards_class
       idx = PokeAccess::AwakeningFatesExtra.mod_ivar(:@posi)
       panels = PokeAccess::AwakeningFatesExtra.mod_ivar(:@paneles)
       return unless idx.is_a?(Integer) && panels.is_a?(Hash)
@@ -35,10 +46,9 @@ module PokeAccess
       nil
     end
 
-    # FatesCartas keeps its state on the class itself (its entry point is self.main), so the ivars are read
-    # from the class object rather than from an instance.
+    # The ivars come off the class object rather than off an instance, which is why watch_cards holds it.
     def self.mod_ivar(sym)
-      k = PokeAccess.const_at("FatesCartas")
+      k = @cards_class
       k ? (k.instance_variable_get(sym) rescue nil) : nil
     rescue StandardError
       nil
@@ -73,5 +83,13 @@ end
 PokeAccess::Game.define("awakening") do
   after("GachaScene", :update) { |s, _r, _a| PokeAccess::AwakeningFatesExtra.gacha(s) }
   after("Scene_HoraDelTe", :main) { |s, _r, _a| PokeAccess::AwakeningFatesExtra.tea(s) }
+  override("FatesCartas", :main) do |mod, original, _args|
+    PokeAccess::AwakeningFatesExtra.watch_cards(mod)
+    begin
+      original.call
+    ensure
+      PokeAccess::AwakeningFatesExtra.unwatch_cards
+    end
+  end
   poll_each_frame { PokeAccess::AwakeningFatesExtra.cards(nil) }
 end

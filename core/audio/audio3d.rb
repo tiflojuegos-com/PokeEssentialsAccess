@@ -450,9 +450,59 @@ module PokeAccess
       end
       @emitters = {}
       lists.each { |t, arr| @emitters[t] = cluster(arr).sort_by { |e| e[2] }[0, NEAR_MAX].map { |e| [e[0], e[1]] } }
-      st = (PokeAccess::Locator.surface_targets rescue [])
-      w = st.find { |s| (s.key.to_s.include?("water") rescue false) }
-      @near = { :water => (w && ((w.x - px).abs + (w.y - py).abs) <= r) ? [w.x, w.y] : nil }
+      @near = { :water => nearest_water(px, py, r) }
+    end
+
+    # The nearest water tile within r, or nil. This used to ask the locator for its surface targets, which
+    # meant scanning a 61-tile box for all eleven surface kinds, throwing ten of them away and then
+    # discarding whatever fell outside r anyway -- the sonar paying for the navigation menu's work every
+    # time the player takes a step. The two answer different questions and now compute their own: the
+    # sonar hears what is close (audio3d_range), the menu lists where you can walk to (route_reach).
+    #
+    # Scanning by rings means the first hit IS the nearest, so water underfoot costs a handful of lookups
+    # instead of a full box, and the walk outward stops at r whatever the map size.
+    def self.nearest_water(px, py, r)
+      mw = ($game_map.width rescue 0); mh = ($game_map.height rescue 0)
+      d = 0
+      while d <= r
+        ring_offsets(d).each do |off|
+          x = px + off[0]; y = py + off[1]
+          next if x < 0 || y < 0 || x >= mw || y >= mh
+          return [x, y] if water_at?(x, y)
+        end
+        d += 1
+      end
+      nil
+    rescue StandardError
+      nil
+    end
+
+    # Water as the sonar has always defined it: whatever surface label mentions water, which takes in
+    # still water, deep water and the foot of a waterfall.
+    def self.water_at?(x, y)
+      lbl = PokeAccess::Terrain.label(x, y)
+      !lbl.nil? && !lbl.to_s.index("water").nil?
+    rescue StandardError
+      false
+    end
+
+    # The offsets at exactly manhattan distance d. Memoized: the rings never change and d never exceeds
+    # the sonar range, so the whole table is a few hundred pairs built once.
+    def self.ring_offsets(d)
+      @rings ||= {}
+      return @rings[d] if @rings[d]
+      out = []
+      if d == 0
+        out.push([0, 0])
+      else
+        i = 0
+        while i < d
+          j = d - i
+          out.push([i, j], [j, -i], [-i, -j], [-j, i])
+          i += 1
+        end
+      end
+      @rings[d] = out
     end
 
     # Fires at most one discrete emitter per call. Within PING_GAP of the last ping, only candidates

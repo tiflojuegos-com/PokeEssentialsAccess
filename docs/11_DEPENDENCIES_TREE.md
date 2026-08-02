@@ -296,7 +296,9 @@ audio/audio3d
 ```
 nav/terrain          → label(x, y) y los predicados de terreno
 nav/pathfinder       → A* / JPS / HPA* + flood de alcanzabilidad; depende de passable? de Essentials
-nav/locator_surfaces → superficies (agua, hierba...); depende de Terrain.label
+nav/locator_surfaces → superficies (agua, hierba...); depende de Terrain.label y de
+                       Pathfinder.reachable_set (la lista es lo ALCANZABLE, no lo cercano:
+                       la acota route_reach, no un radio propio)
 nav/locator_naming   → nombres de evento; depende de Tags, Data, I18n
 nav/locator          → el centro: combina eventos, superficies y salidas
                        depende de pathfinder, locator_naming, locator_surfaces
@@ -373,7 +375,7 @@ Dos tests estáticos, sin motor ni stubs, convierten estas reglas en CI:
 | Test | Qué garantiza |
 |------|---------------|
 | `test/static/manifest_check.rb` | Todo `.rb` de `core/` y de cada `games/<perfil>/` está listado exactamente una vez, y toda entrada listada tiene fichero. Caza el lector nuevo sin registrar y la entrada renombrada |
-| `test/static/coupling_spec.rb` | Ninguna referencia cruzada entre capas: una versión no usa otra versión, un perfil no usa otro perfil, y `:shared` no usa una versión. Las excepciones conscientes viven en su whitelist, con motivo |
+| `test/static/coupling_spec.rb` | Ninguna referencia cruzada entre capas: una versión no usa otra versión, un perfil no usa otro perfil, y `:shared` no usa una versión. Las excepciones conscientes viven en su whitelist, con motivo. **Segundo candado**: ningún fichero de `core/` nombra una clase que solo exista en UN fangame, contrastado contra `test/static/fangame_classes.txt` (censo de 691 nombres exclusivos de los 13 volcados). Las 6 excepciones se declaran en el spec; el censo se regenera con `test/static/build_fangame_census.rb` y va commiteado a propósito, porque los volcados viven fuera del repo y en CI no existen |
 
 ## Extensión: Agregar Nuevo Módulo
 
