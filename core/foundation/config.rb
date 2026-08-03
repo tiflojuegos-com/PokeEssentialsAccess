@@ -67,8 +67,8 @@ module PokeAccess
       # push out: the wall probe and the alternation distance are short by design and widening them with
       # it would be a silent side effect of a slider that says "sonar".
       :sonar => [1, 30, 1, :tiles_unit],
-      :astar => [1500, 10000, 500, nil],
-      :ms    => [2, 30, 2, :ms_unit],
+      :astar => [1000, 10000, 500, nil],
+      :ms    => [2, 40, 2, :ms_unit],
       :gdist => [1, 6, 1, :tiles_unit],
       :reach => [32, 1024, 32, :tiles_unit],
       :desk  => [0, 3, 1, :tiles_unit]
