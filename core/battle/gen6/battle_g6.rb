@@ -46,10 +46,21 @@ end
 # queued so it does not cut the hp/turn lines; navigation interrupts.
 PokeAccess::Hooks.after_hook("CommandMenuDisplay", :index=) do |disp, _r, args|
   PokeAccess::Info.set_info(:battle_foe, nil)
-  cmds = disp.instance_variable_get(:@window).instance_variable_get(:@commands)
-  v = args[0]
-  opening = PokeAccess::Battle.cmd_opening_consume
-  PokeAccess.speak_clean(cmds[v], !opening) if cmds && cmds[v].is_a?(String)
+  PokeAccess::Battle.read_command(disp, args[0], !PokeAccess::Battle.cmd_opening_consume)
+end
+
+# Opening the command menu from v19 on: setIndexAndMode assigns @index DIRECTLY, so index= never runs and
+# the menu opened in silence -- and it opens on whatever command you chose last turn, so the only way to
+# learn where the cursor was would be to press a direction, which moves you off it. This is the same hole
+# the FightMenuDisplay block below already closes for the move list; the command menu never got it. The
+# flag is consumed here so the first real navigation still interrupts instead of being queued as if it
+# were the open. Pre-v19 has no such method, so this installs nowhere it is not needed.
+if PokeAccess::Engine.has?("CommandMenuDisplay#setIndexAndMode")
+  PokeAccess::Hooks.after_hook("CommandMenuDisplay", :setIndexAndMode) do |disp, _r, args|
+    PokeAccess::Info.set_info(:battle_foe, nil)
+    PokeAccess::Battle.cmd_opening_consume
+    PokeAccess::Battle.read_command(disp, args[0], false)
+  end
 end
 
 # The command menu opens at the start of the command phase via pbCommandMenu/Ex (which sets the initial

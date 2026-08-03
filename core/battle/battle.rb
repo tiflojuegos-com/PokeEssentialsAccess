@@ -166,6 +166,23 @@ module PokeAccess
     # so this is the defensive path, not the normal one.)
     # @param interrupt false for the opening read, so it queues behind the hp/turn lines instead of cutting
     #   them; true for navigation, which should cut the previous move
+    # The command menu's labels live ONLY inside its window, so unlike read_fight_move -- which goes to the
+    # battler's own data and is therefore immune to all of this -- the command reader has to find the
+    # widget. And Essentials renamed it: @window up to v17, @cmdWindow from v19 on (checked against the
+    # upstream tags v19 through v21.1). Tried in that order, so the pre-v19 games resolve on the first
+    # attempt and behave exactly as they always did.
+    def self.command_window(disp)
+      PokeAccess.ivar(disp, :@window) || PokeAccess.ivar(disp, :@cmdWindow)
+    end
+
+    # Speaks the focused battle command (fight/bag/pokemon/run), or nothing when the window cannot be read.
+    def self.read_command(disp, index, interrupt)
+      w = command_window(disp)
+      cmds = w ? PokeAccess.ivar(w, :@commands) : nil
+      return unless cmds && cmds[index].is_a?(String)
+      PokeAccess.speak_clean(cmds[index], interrupt)
+    end
+
     def self.read_fight_move(disp, interrupt = true)
       b = PokeAccess.ivar(disp, :@battler)
       idx = PokeAccess.ivar(disp, :@index)
