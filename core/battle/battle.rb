@@ -178,7 +178,12 @@ module PokeAccess
     # Speaks the focused battle command (fight/bag/pokemon/run), or nothing when the window cannot be read.
     def self.read_command(disp, index, interrupt)
       w = command_window(disp)
-      cmds = w ? PokeAccess.ivar(w, :@commands) : nil
+      # From v19 there is usually NO window to find: CommandMenuDisplay sets USE_GRAPHICS = true, so
+      # setTexts stores the labels in @texts on the display and RETURNS before building any window -- the
+      # four options are button sprites. So the widget is the old path and @texts the new one. Verified in
+      # the upstream tags v19..v21.1, and USE_GRAPHICS is still true in v21.1, so this is not a v19 quirk.
+      # Harmless on v16-17: none of the seven gen-6 games has @texts at all, and @window resolves first.
+      cmds = (w ? PokeAccess.ivar(w, :@commands) : nil) || PokeAccess.ivar(disp, :@texts)
       return unless cmds && cmds[index].is_a?(String)
       PokeAccess.speak_clean(cmds[index], interrupt)
     end

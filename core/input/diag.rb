@@ -37,6 +37,17 @@ module PokeAccess
     # Yields a value for a diagnostics line, returning "ERR(class)" if it raises.
     def self.dv; yield; rescue Exception => e; "ERR(#{e.class})"; end
 
+    # The installed mod version, straight off the version.json the installer ships. Without this the whole
+    # report is unattributable: a tester says "still broken", and there is no way to tell whether they ran
+    # the build with the fix or the one before it -- which cost a full round trip the first time it
+    # happened. Parsed by hand rather than with a JSON library, since the mod runs under Ruby 1.8.7.
+    def self.mod_version
+      txt = File.read(File.join(PokeAccess::Paths::ROOT, "version.json")) rescue nil
+      return "?" if txt.nil?
+      m = txt.match(/"version"\s*:\s*"([^"]+)"/)
+      m ? m[1] : "?"
+    end
+
     # Caps a diagnostics field, SAYING SO when it cuts. The caps keep the dump readable; without the mark
     # a cut line is indistinguishable from a complete one, and a reader counts entries that were never
     # there -- a real recording ended a hash at ":roc", which reads as a value rather than as a cut.
@@ -131,6 +142,7 @@ module PokeAccess
       caps.push("PokeBattle_Scene") if dv { !PokeAccess.const_at("PokeBattle_Scene").nil? }
       caps.push("$player") if defined?($player) && $player
       caps.push("$Trainer") if defined?($Trainer) && $Trainer
+      o.push("mod: #{dv { mod_version }}")
       o.push("engine: kind=#{dv { e.kind }} version=#{dv { e.version }} fork=#{dv { e.fork.inspect }} caps=[#{caps.join(', ')}]")
       o.push("voice: prism=#{dv { !PokeAccess::PEA_SPEAK.nil? }} ready=#{dv { PokeAccess.speech_ready? }} backend=#{dv { PokeAccess.speech_backend.inspect }} speaking=#{dv { PokeAccess.speaking?.inspect }}")
       diag_timing(o)

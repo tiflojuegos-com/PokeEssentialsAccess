@@ -44,3 +44,32 @@ Suite.define("battle: the command menu is read whichever name the engine gives i
   PokeAccess::Battle.read_command(modern, 99, true)
   silent "and an index past the end says nothing rather than guessing"
 end
+
+# The shape that actually ships. From v19 the command menu has NO window: USE_GRAPHICS is true, so setTexts
+# stores the labels in @texts and returns before building one, and the four options are drawn as button
+# sprites. Looking for a widget there finds nothing at all -- which is why the first fix, teaching the
+# reader the v19 NAME of the window (@cmdWindow), changed nothing: the rename was real but the widget it
+# renamed is not created. Still true in v21.1, so this is the modern shape and not a v19 detour.
+Suite.define("battle: the command menu is read when the engine draws it with no window at all") do
+  gfx = Object.new
+  gfx.instance_variable_set(:@texts, ["Luchar", "Mochila", "Pokemon", "Huir"])
+
+  SpeakCapture.clear
+  PokeAccess::Battle.read_command(gfx, 0, true)
+  spoke "the labels are found on the display itself", /Luchar/
+
+  SpeakCapture.clear
+  PokeAccess::Battle.read_command(gfx, 2, true)
+  spoke "and moving reads the new one", /Pokemon/
+
+  # A window, when there is one, still wins: the seven gen-6 games must keep their original path even if
+  # some fork ever grew a @texts alongside it.
+  both = Object.new
+  win = Object.new
+  win.instance_variable_set(:@commands, ["DesdeVentana"])
+  both.instance_variable_set(:@window, win)
+  both.instance_variable_set(:@texts, ["DesdeTexts"])
+  SpeakCapture.clear
+  PokeAccess::Battle.read_command(both, 0, true)
+  spoke "the window is preferred over the texts when both exist", /DesdeVentana/
+end
