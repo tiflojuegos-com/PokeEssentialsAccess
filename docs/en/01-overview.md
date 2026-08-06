@@ -10,11 +10,11 @@ the game as it was.
 
 | | |
 |---|---|
-| Core modules | 126, in `core/manifest.rb` |
+| Core modules | 127, in `core/manifest.rb` |
 | Game profiles | 14, in `games/` |
 | Plugin readers | 30, in `plugins/` |
 | Languages | `lang/es.txt`, `lang/en.txt` |
-| Suite | 1521 (gen-6) + 136 (gamedata) |
+| Suite | 1532 (gen-6) + 136 (gamedata) |
 | Ruby | 1.8.7 in the game; the system one in tests |
 
 ## Layers

@@ -218,4 +218,6 @@ own sentences.
 | `i18n_refs_spec.rb` | the code references a key absent from `lang/en.txt`, the SCHEMA's `lbl_`/`help_` included |
 | `check187.py` | modern syntax in `core/`, `plugins/`, `loader/` or a gen-6 profile |
 | `mts_mutator_guard_spec.rb` | there is a `CONST + array` or `x - array` in code that loads under Pokémon Z, whose engine redefines `Array#+` and `Array#-` as in-place mutators |
+| `ivars_spec.rb` | a reader takes an ivar off a game object that the game does not have anywhere, or that the census does not know yet |
+| `blocking_hooks_spec.rb` | an `after` hook hangs off a method that IS the screen's blocking loop, so it would speak on the way out |
 | `twins_spec.rb` | two twins declared in `test/static/twins.rb` have stopped being identical |

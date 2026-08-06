@@ -217,4 +217,6 @@ replican al juego, no son frases del mod.
 | `i18n_refs_spec.rb` | el código referencia una clave que no está en `lang/en.txt`, incluidas las `lbl_`/`help_` del SCHEMA |
 | `check187.py` | sintaxis moderna en `core/`, `plugins/`, `loader/` o un perfil gen-6 |
 | `mts_mutator_guard_spec.rb` | hay `CONST + array` o `x - array` en código que carga bajo Pokémon Z, cuyo motor redefine `Array#+` y `Array#-` como mutadores in-place |
+| `ivars_spec.rb` | un lector toma de un objeto del juego un ivar que ese juego no tiene en ninguna parte, o que el censo aún no conoce |
+| `blocking_hooks_spec.rb` | un hook `after` cuelga de un método que ES el bucle bloqueante de la pantalla, así que hablaría al salir |
 | `twins_spec.rb` | dos gemelos declarados en `test/static/twins.rb` han dejado de ser idénticos |

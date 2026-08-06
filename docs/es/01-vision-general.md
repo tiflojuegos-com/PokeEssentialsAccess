@@ -10,11 +10,11 @@ como estaba.
 
 | | |
 |---|---|
-| Módulos de core | 126, en `core/manifest.rb` |
+| Módulos de core | 127, en `core/manifest.rb` |
 | Perfiles de juego | 14, en `games/` |
 | Lectores de plugin | 30, en `plugins/` |
 | Idiomas | `lang/es.txt`, `lang/en.txt` |
-| Suite | 1521 (gen-6) + 136 (gamedata) |
+| Suite | 1532 (gen-6) + 136 (gamedata) |
 | Ruby | 1.8.7 en el juego; el del sistema en los tests |
 
 ## Capas

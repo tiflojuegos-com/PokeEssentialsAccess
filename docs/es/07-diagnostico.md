@@ -9,7 +9,7 @@ qué motor se detectó, qué hooks se ataron y qué plugins hay, antes de tocar 
 | Tecla | Qué hace | Salida |
 |---|---|---|
 | Ctrl+Alt+F8 | Activa/desactiva el mod; al reactivar reintenta el arranque de la voz | Voz |
-| Ctrl+Alt+F9 | Volcado completo, las 10 secciones | `<DATA>/diag.txt`, en modo append. `DATA` es `accessibility/data`, o la carpeta AppData del juego si aquella no admite escritura |
+| Ctrl+Alt+F9 | Volcado completo, las 11 secciones | `<DATA>/diag.txt`, en modo append. `DATA` es `accessibility/data`, o la carpeta AppData del juego si aquella no admite escritura |
 | Ctrl+Alt+F10 | Diagnóstico hablado corto | Solo voz |
 
 Los tres acordes están fijos en `core/input/keyboard.rb` y no se reasignan; lo reconfigurable vive en
@@ -40,6 +40,7 @@ es el subconjunto del menú de depuración que copia esa sección **al portapape
 | 8 | `diag_scene` | Escena y runtime | Batalla, sprite del jugador, imágenes, elecciones, ventanas de comandos vivas |
 | 9 | `diag_runtime` | Escena y runtime | Introspección de la escena viva: métodos e ivars propios |
 | 10 | `diag_polls` | Rendimiento | Capas de `Input.update` y nº de pollers por frame |
+| 11 | `diag_silence` | Escena y runtime | Pantallas que aparecieron y no dijeron nada en dos segundos |
 
 Cada sección va bajo `rescue`: si una falla se escribe `<seccion>: ERR <clase>: <mensaje>` y el resto sigue;
 un campo suelto sale como `ERR(<clase>)` y los largos se recortan con `...[cortado]`. Un perfil añade su

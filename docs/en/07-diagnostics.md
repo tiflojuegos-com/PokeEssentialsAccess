@@ -10,7 +10,7 @@ so the Spanish field names below are the code's own.
 | Key | What it does | Output |
 |---|---|---|
 | Ctrl+Alt+F8 | Toggles the mod; re-enabling also retries speech init | Spoken |
-| Ctrl+Alt+F9 | Full dump, all 10 sections | `<DATA>/diag.txt`, appended. `DATA` is `accessibility/data`, or the game's AppData folder when that one is not writable |
+| Ctrl+Alt+F9 | Full dump, all 11 sections | `<DATA>/diag.txt`, appended. `DATA` is `accessibility/data`, or the game's AppData folder when that one is not writable |
 | Ctrl+Alt+F10 | Short spoken diagnostic | Voice only |
 
 The three chords are fixed in `core/input/keyboard.rb` and are not rebindable; what the player rebinds lives
@@ -41,6 +41,7 @@ menu subset that copies that section **to the clipboard**; the full dump goes to
 | 8 | `diag_scene` | Scene and runtime | Battle, player sprite, pictures, choices, live command windows |
 | 9 | `diag_runtime` | Scene and runtime | Introspection of the live scene: its own methods and ivars |
 | 10 | `diag_polls` | Performance | `Input.update` layers and per-frame poller count |
+| 11 | `diag_silence` | Scene and runtime | Screens that came up and said nothing for two seconds |
 
 Every section runs under `rescue`: a failing one writes `<section>: ERR <class>: <message>` and the rest
 continues. A single failing field reads `ERR(<class>)`, and long ones are truncated with `...[cortado]`. A
