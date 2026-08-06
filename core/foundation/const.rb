@@ -10,6 +10,11 @@ module PokeAccess
   # @param name a constant name string (may be nested with "::")
   # @return the constant, or nil if any segment is undefined
   def self.const_at(name)
+    # An empty name is not Object. inject over an empty segment list returns the seed, so "" resolved to
+    # Object itself: a hook registered under a blank class name bound nothing and then recorded a permanent
+    # entry in the typo list, because Object almost never has the method. era_scene answers "" by design for
+    # a reader whose era is not running, so this is reached on every such reader, in every game.
+    return nil if name.nil? || name.to_s.empty?
     name.to_s.split("::").inject(Object) do |mod, seg|
       return nil unless mod.const_defined?(seg)
       mod.const_get(seg)

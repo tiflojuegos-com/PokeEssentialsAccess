@@ -662,6 +662,7 @@ sm_char_29=Tiene mal genio
 pk_none=Sin género
 pk_fainted=debilitado
 pty_member=%{name}%{sex}, nivel %{level}, %{hp} de %{tot} PS
+pty_egg=Huevo
 pc_cancel=Cancelar
 pc_confirm=Confirmar
 pc_back=Atrás
@@ -854,7 +855,7 @@ ap_girl=Chica
 # logros
 ach_done=completado
 ach_pending=pendiente
-ach_hidden=oculto
+ach_locked=no disponible
 
 # comandos del menu de combate (anil, multi-idioma)
 bt_cmd_fight=Luchar
@@ -992,3 +993,4 @@ quest_stage=Etapa %{n} de %{tot}
 quest_giver=La da %{who}
 quest_reward=Recompensa: %{what}
 quest_hidden=aún sin revelar
+quest_unset=???

@@ -101,16 +101,24 @@ Suite.define("field: book page reader") do
   truthy "nil book is nil", PokeAccess.book_text(nil, 0).nil?
 end
 
-# Indexed achievements (name + status): hidden hides the description. Status constants are absent in the
-# harness, so the helper falls back to 3/2/1 (done / pending / hidden).
+# Indexed achievements: name, status and description, whatever the entry hands over. Status constants are
+# absent in the harness, so the helper falls back to 3/2/1 (done / pending / locked).
+#
+# The locked case keeps its description ON PURPOSE. Hiding it here was the bug: whether an unearned
+# achievement withholds its text is the game's decision, and each copy has already taken it inside
+# name/desc -- one substitutes a placeholder there, the others hand over the real strings and paint them.
+# A second layer of hiding in the reader silenced the copies that hide nothing.
 Suite.define("field: indexed achievement status") do
   flogro = Struct.new(:name, :status, :desc)
   eq "completed shows description",
      PokeAccess.logro_indexed_text(flogro.new("Campeon", 3, "Vence a la Liga.")),
      "Campeon, #{PokeAccess::I18n.t(:ach_done)}. Vence a la Liga."
-  eq "hidden hides the description",
-     PokeAccess.logro_indexed_text(flogro.new("???", 1, "secreto")),
-     "???, #{PokeAccess::I18n.t(:ach_hidden)}"
+  eq "locked keeps the description the screen is showing",
+     PokeAccess.logro_indexed_text(flogro.new("Primera medalla", 1, "Consigue tu primera medalla.")),
+     "Primera medalla, #{PokeAccess::I18n.t(:ach_locked)}. Consigue tu primera medalla."
+  eq "and repeats the placeholder when the game is the one hiding it",
+     PokeAccess.logro_indexed_text(flogro.new("????", 1, "Logro no disponible.")),
+     "????, #{PokeAccess::I18n.t(:ach_locked)}. Logro no disponible."
   eq "active is pending with description",
      PokeAccess.logro_indexed_text(flogro.new("Pescador", 2, "Pesca 10.")),
      "Pescador, #{PokeAccess::I18n.t(:ach_pending)}. Pesca 10."

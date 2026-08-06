@@ -31,7 +31,12 @@
   :music_book        => "Window_MusicBook",
   :quest_ui          => "Window_Quest",
   :logros            => "Logros_Scene",
-  :easy_questing     => "Questlog",
+  # A METHOD probe, and it has to be: one more game defines a class called Questlog for a quest system of
+  # its own, rewritten from scratch, sharing nothing with this plugin but the name. Probing the bare class
+  # made the census record that game as shipping the plugin, the declaration check then REQUIRED it to
+  # declare a reader that can bind to none of its methods, and the diagnostic reported the screen as
+  # covered. The method the reader actually hooks is what tells the two apart.
+  :easy_questing     => "Questlog#pbMain",
   :tip_cards         => "TipCard_Scene",
   :bag_screen_party  => "PokemonBagPartyPanel",
   :item_find         => "PokemonItemFind_Scene",

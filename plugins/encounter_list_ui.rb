@@ -1,4 +1,6 @@
-# Encounter List UI: the screen listing the species on the current map, drawn as icons with no text. WHAT to
+# Encounter List UI: the screen listing the species on the current map, drawn as icons with no text. The
+# header beside them -- map name, encounter type and total -- IS written out, so what this covers is the
+# species, which are the part with nothing to read. WHAT to
 # say lives in the shared EncounterList reader in core, because a profile builds its own encounter screen on
 # the same summary; only WHEN to say it is the plugin's, so only that is here.
 #

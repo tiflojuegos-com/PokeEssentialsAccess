@@ -19,6 +19,21 @@ module PokeAccess
       entry.is_a?(Array) ? entry[1] : entry
     end
 
+    # The opened card: what the viewer prints on it.
+    def self.viewer(scene)
+      cards = PokeAccess.ivar(scene, :@cards)
+      idx = PokeAccess.ivar(scene, :@index)
+      c = (cards.is_a?(Array) && idx.is_a?(Integer)) ? cards[idx] : nil
+      return unless c
+      title = PokeAccess.clean((c.title rescue "").to_s).to_s.strip
+      desc = PokeAccess.clean((c.description rescue "").to_s).to_s.strip
+      parts = [title, desc].reject { |p| p.nil? || p.empty? }
+      return if parts.empty?
+      PokeAccess.speak(parts.join(". "), true)
+    rescue StandardError
+      nil
+    end
+
     # The focused card: its title, and where it sits in the album.
     def self.card(scene)
       cards = PokeAccess.ivar(scene, :@cards)
@@ -46,4 +61,10 @@ end
 
 PokeAccess::Hooks.after_hook("WonderCardAlbumScene", :updateCursorPosition, :optional => true) do |scene, _r, _a|
   PokeAccess::BWMysteryGift.card(scene)
+end
+
+# Opening a card was silent: the viewer is a scene of its own, and nothing here reached it. It paints its
+# title and description once in pbStartScene and then waits for BACK, so that one call is the whole read.
+PokeAccess::Hooks.after_hook("WonderCardScene", :pbStartScene, :optional => true) do |scene, _r, _a|
+  PokeAccess::BWMysteryGift.viewer(scene)
 end

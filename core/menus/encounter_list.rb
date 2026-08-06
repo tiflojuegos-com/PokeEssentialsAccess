@@ -1,6 +1,7 @@
 module PokeAccess
   # Encounter List UI (a fangame addon: the Sky base ships one, other games their own overrides): shows the
-  # species on the current map as icons with no text. Both the Sky-base scene and the overrides redraw the
+  # species on the current map as icons with no text. The header beside them -- map name, encounter type and
+  # total -- IS written out; the species are the part with nothing to read, and the part this covers. Both the Sky-base scene and the overrides redraw the
   # focused encounter type via drawPresent on each left/right change (an override may lack the pbEncounter
   # loop), so drawPresent is the single universal hook; drawAbsent fires for a type with no encounters.
   # Reads the focused type's species list (name + Pokedex status), deduped per scene instance via

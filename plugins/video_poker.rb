@@ -79,6 +79,18 @@ module PokeAccess
       nil
     end
 
+    # What the round paid, in the screen's own words: both result methods put their line into the message
+    # window, so it is read straight from there rather than recomposed. That keeps the wording, the amount
+    # and the language identical to what a sighted player sees, with nothing for this reader to get wrong.
+    def self.result(scene)
+      win = PokeAccess.sprite(scene, "message_window")
+      t = PokeAccess.clean((win.text rescue "").to_s).to_s.strip if win
+      return if t.nil? || t.empty?
+      PokeAccess.speak(t, true)
+    rescue StandardError
+      nil
+    end
+
     def self.cursor_index(scene)
       cur = PokeAccess.ivar(scene, :@cursor)
       i = (cur.index rescue nil)
@@ -116,6 +128,15 @@ PokeAccess::Hooks.around_hook("VideoPoker::Scene", :double_or_nothing_cursor_sel
   PokeAccess::VideoPokerRead.hold(:pick)
   PokeAccess::VideoPokerRead.reference(scene)
   begin; nxt.call; ensure; PokeAccess::VideoPokerRead.release; end
+end
+
+# The result of the round. It is painted into the message window from two named methods, and the frame it
+# lands on has no mode held -- the scene is in its confirm loop, not in a cursor loop -- so the per-frame
+# poll cannot see it. Without these the player bets, draws, and never learns whether they won.
+["show_result", "show_result_as_draw"].each do |meth|
+  PokeAccess::Hooks.after_hook("VideoPoker::Scene", meth.to_sym, :optional => true) do |scene, _r, _a|
+    PokeAccess::VideoPokerRead.result(scene)
+  end
 end
 
 # update_all is the one call all three loops make every frame, so one poll serves them all.

@@ -22,5 +22,5 @@
     fusion_preview
     storage_fusion
   ],
-  :plugins => %w[berrydex easy_questing multi_save]
+  :plugins => %w[berrydex multi_save]
 }

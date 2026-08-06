@@ -32,13 +32,17 @@ Suite.define("town map v22: names the focused location once, stays quiet on blan
   PokeAccess::TownMapV22.announce(vis)
   spoke_once "the next town after the blank IS named", /Ciudad Verde/
 
-  # The blank must not have consumed the dedup slot in a way that loses a RETURN to the first town.
+  # Off a town and straight back ONTO IT -- not via a third town, which is what made the old walk pass
+  # either way. The blank has to consume the dedup key: if it does not, the last key is still that same town
+  # and the return is silent, which on a map you navigate by sweeping is the whole screen going quiet.
+  vis.point = "Pueblo Paleta"
+  PokeAccess::TownMapV22.announce(vis)
   vis.point = nil
   PokeAccess::TownMapV22.announce(vis)
   vis.point = "Pueblo Paleta"
   SpeakCapture.clear
   PokeAccess::TownMapV22.announce(vis)
-  spoke_once "coming back to the first town names it again", /Pueblo Paleta/
+  spoke_once "sweeping off a town and back onto it names it again", /Pueblo Paleta/
 
   other = Object.new
   def other.get_point_data; { :real_name => "Pueblo Paleta" }; end

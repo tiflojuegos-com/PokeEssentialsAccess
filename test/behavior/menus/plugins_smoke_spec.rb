@@ -276,8 +276,11 @@ Suite.define("plugins: the window extractors are dispatched to, not just registe
     book.define_singleton_method(:instruments) { { 0 => [[:POTION], [:REPEL]] } }
     tunes = mk.call("Window_MusicBook", { :@music_book => book, :@instrument => 0, :@filterlist => nil })
     tunes.define_singleton_method(:item) { :POTION }
-    truthy "a tune is read through the window's own item accessor",
-           !PokeAccess::Menus.focused_text(tunes).to_s.empty?
+    # The NAME, not merely something: asserting non-emptiness let a reader that ignored the window's own
+    # accessor and named one hardcoded item pass on every row, which is the whole reason this window needs a
+    # dedicated extractor.
+    eq "a tune is read through the window's own item accessor",
+       PokeAccess::Menus.focused_text(tunes).to_s, PokeAccess::Data.item_name(:POTION).to_s
     tunes.index = 2
     eq "and the trailing row is the close button the plugin paints",
        PokeAccess::Menus.focused_text(tunes), PokeAccess::I18n.t(:mn_close_bag)

@@ -24,8 +24,18 @@ module PokeAccess
       nil
     end
 
-    # The focused row, read off the list window the scene keeps. Both the opening read and every move come
-    # through here, because the scene calls pbSwitchOutfit once while setting up and once per step.
+    @scene = nil
+
+    def self.watch(scene); @scene = scene; end
+    def self.unwatch; @scene = nil; end
+    def self.poll; announce(@scene) if @scene; end
+
+    # The focused row, read off the list window the scene keeps.
+    #
+    # Polled from the loop rather than hung off pbSwitchOutfit. That method runs on UP and DOWN and nowhere
+    # else: the constructor never calls it, so there was no opening read, and CONFIRM moves the "worn" mark
+    # without going through it -- which is the one piece of state this reader exists to expose. The worn slot
+    # is in the dedup key for exactly that reason.
     def self.announce(scene)
       win = PokeAccess.sprite(scene, "outfitlist")
       return unless win
@@ -33,7 +43,8 @@ module PokeAccess
       return unless i.is_a?(Integer)
       t = text(win, i)
       return if t.nil? || t.to_s.empty?
-      PokeAccess::Cursor.announce(scene, :wardrobe_row, [i, t], true) { t }
+      worn = PokeAccess.ivar(win, :@outfit_selected)
+      PokeAccess::Cursor.announce(scene, :wardrobe_row, [i, worn, t], true) { t }
     rescue StandardError
       nil
     end
@@ -42,6 +53,9 @@ end
 
 PokeAccess::Menus.def_extractor("Window_Wardrobe") { |win, i| PokeAccess::Wardrobe.text(win, i) }
 
-PokeAccess::Hooks.after_hook("WardrobeScene", :pbSwitchOutfit, :optional => true) do |scene, _r, _a|
-  PokeAccess::Wardrobe.announce(scene)
+PokeAccess::Hooks.around_hook("WardrobeScene", :pbMain, :optional => true) do |scene, nxt, _a|
+  PokeAccess::Wardrobe.watch(scene)
+  begin; nxt.call; ensure; PokeAccess::Wardrobe.unwatch; end
 end
+
+PokeAccess::Keys.on_frame { PokeAccess::Wardrobe.poll }

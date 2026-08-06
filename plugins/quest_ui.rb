@@ -54,7 +54,7 @@ module PokeAccess
       stage = (quest.stage rescue nil)
       [($quest_data.getQuestDescription(id) rescue nil),
        ($quest_data.getStageDescription(id, stage) rescue nil),
-       ($quest_data.getStageLocation(id, stage) rescue nil)]
+       shown(($quest_data.getStageLocation(id, stage) rescue nil))]
     end
 
     # Page two: progress, who gave it, where and when it started, and the reward. The reward is hidden while
@@ -65,10 +65,18 @@ module PokeAccess
       stage = (quest.stage rescue nil)
       lines = []
       lines.push(PokeAccess::I18n.t(:quest_stage, :n => stage, :tot => total)) if stage && total
-      lines.push(PokeAccess::I18n.t(:quest_giver, :who => ($quest_data.getQuestGiver(id) rescue nil)))
+      lines.push(PokeAccess::I18n.t(:quest_giver, :who => shown(($quest_data.getQuestGiver(id) rescue nil))))
       lines.push((quest.location rescue nil))
       lines.push(PokeAccess::I18n.t(:quest_reward, :what => reward(id)))
       lines
+    end
+
+    # What the screen puts on the line when a field is blank. The data stores the literal string "nil" for
+    # an unset giver or location, and the plugin swaps it for "???" before painting; reading the field raw
+    # made the reader pronounce the word "nil" out loud.
+    def self.shown(v)
+      s = v.to_s
+      (s.empty? || s == "nil") ? PokeAccess::I18n.t(:quest_unset) : s
     end
 
     def self.reward(id)
@@ -103,6 +111,12 @@ PokeAccess::Menus.def_extractor("Window_Quest") { |win, i| PokeAccess::QuestUI.t
 PokeAccess::Hooks.after_hook("QuestList_Scene", :swapQuestType, :optional => true) do |scene, _r, _a|
   PokeAccess::QuestUI.category(scene)
   PokeAccess::Cursor.reset(PokeAccess.sprite(scene, "itemlist"), :cmd_focus)
+end
+
+# The category is painted by pbStartScene itself, and swapQuestType only runs once the player has already
+# pressed LEFT or RIGHT -- so opening the journal never said which tab it landed on.
+PokeAccess::Hooks.after_hook("QuestList_Scene", :pbStartScene, :optional => true) do |scene, _r, _a|
+  PokeAccess::QuestUI.category(scene)
 end
 
 # The two pages of the detail view. Each draw method is called once when its page comes up -- on opening, and

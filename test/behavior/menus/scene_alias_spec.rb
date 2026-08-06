@@ -67,8 +67,13 @@ Suite.define("scene aliases: hook the ancestral name, and let the ERA pick the c
 
   eq "off its era, every modern reader targets nothing",
      modern.map { |n| n.empty? }, [gen6, gen6, gen6]
-  eq "and off its era, so does every gen-6 one",
-     legacy.map { |n| n.empty? && !gen6 }, [!gen6, !gen6, !gen6]
+  # The old form -- `n.empty? && !gen6` against `[!gen6, ...]` -- compared [false, false, false] with itself
+  # under the only engine this file runs on, and never read a single SCENE value. What can be pinned without
+  # a stand-in for every class is the invariant era_scene exists for: a gen-6 reader that DOES resolve must
+  # never resolve to its modern twin's name, which is the cross-era bind that reads a v21 screen with a
+  # gen-6 reader and says nothing.
+  eq "no gen-6 reader resolves to its modern twin's name",
+     legacy.each_with_index.map { |n, i| !n.empty? && n == modern[i] }, [false, false, false]
 
   # On its own era a reader still needs the class to BE there. The stub only carries the summary scene, so
   # that is the one where "right era" can be shown to actually resolve to a name -- the gen-6 relearner and
@@ -76,6 +81,10 @@ Suite.define("scene aliases: hook the ancestral name, and let the ERA pick the c
   eq "on the gen-6 engine the summary resolves to a real scene name",
      (gen6 ? !PokeAccess::SummaryGen6::SCENE.empty? : PokeAccess::SummaryGen6::SCENE.empty?), true
 
-  eq "an empty name registers nothing at all",
-     (PokeAccess::Hooks.after_hook("", :whatever) { |_s, _r, _a| } ; true), true
+  # The old form asserted the literal `true`, so only an exception could fail it -- and an exception is
+  # reported as "suite raised", not as this assertion. What must hold is that an empty name leaves no trace:
+  # it is not a typo to be recorded, it is a reader whose era simply is not running.
+  before_missing = PokeAccess::Hooks.missing.length
+  PokeAccess::Hooks.after_hook("", :whatever) { |_s, _r, _a| }
+  eq "an empty name registers nothing at all", PokeAccess::Hooks.missing.length, before_missing
 end

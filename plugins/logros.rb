@@ -1,5 +1,10 @@
-# Achievements (Logros_Scene), a common fangame addon. showTexts(index)
-# runs as the list is navigated; installs only where the class exists and reads defensively.
+# Achievements (Logros_Scene), a common fangame addon.
+#
+# Two shapes. The one below reads showTexts(index), which runs as the list is navigated. Every copy surveyed
+# so far turns out to use the OTHER shape -- an indexed pbUpdate loop, handled by LogrosIndexed further down,
+# which stands this hook down while it owns the scene -- so this path is the fallback for a copy that has
+# showTexts without @indexSel rather than something in daily use. Installs only where the class exists and
+# reads defensively.
 PokeAccess::Hooks.after_hook("Logros_Scene", :showTexts, :optional => true) do |scene, _r, args|
   next if (PokeAccess::LogrosIndexed.watching? rescue false)
   logros = scene.instance_variable_get(:@logros)
@@ -21,14 +26,20 @@ module PokeAccess
     # on games whose Logros_Scene has BOTH @indexSel and showTexts).
     def self.watching?; !@scene.nil?; end
 
-    # Reads the focused achievement when the cursor moves.
+    # Reads the focused achievement when the cursor moves, and again when its description is scrolled.
+    #
+    # The scroll offset belongs in the key. A long description does not fit the panel, so the screen pages
+    # through it with a key that redraws the SAME entry at a new offset; keyed on the index alone, every page
+    # after the first was silent -- and one game's very first achievement is a tutorial telling the player to
+    # press that key.
     def self.poll
       s = @scene
       return unless s
       idx = PokeAccess.ivar(s, :@indexSel)
       logros = PokeAccess.ivar(s, :@logros)
-      return if idx.nil? || logros.nil? || idx == @last
-      @last = idx
+      key = [idx, PokeAccess.ivar(s, :@descOffset)]
+      return if idx.nil? || logros.nil? || key == @last
+      @last = key
       l = (logros[idx] rescue nil)
       PokeAccess.speak(PokeAccess.logro_indexed_text(l), true) if l
     rescue StandardError
@@ -36,14 +47,22 @@ module PokeAccess
     end
   end
 
-  # Name + status (done/pending/hidden) and, unless hidden, the description. Status constants are
-  # top-level in the game (default to the standard 3/2/1 if absent).
+  # Name, status and description, exactly as the entry hands them over.
+  #
+  # The description is NEVER suppressed. Whether an unearned achievement hides its text is the game's call,
+  # and every copy has already made it inside name/desc: one substitutes a placeholder there, the others
+  # return the real strings and paint them. Adding a second layer of hiding on top only broke the copies
+  # that hide nothing -- their entire list read as "hidden" with the description withheld, on a screen that
+  # was showing both.
+  #
+  # State 1 is not "secret" either: it is what every achievement is declared with before it is unlocked.
+  # The constants come from the game, top level in some copies and inside its Logros class in others -- so
+  # the :: lookup fails on the latter and the standard 3/2/1 fallback is what actually answers there.
   def self.logro_indexed_text(l)
     nm = (l.name rescue nil)
     st = (l.status rescue nil)
     comp = (::LOGRO_COMPLETADO rescue 3); ocul = (::LOGRO_OCULTO rescue 1)
-    status = (st == comp) ? I18n.t(:ach_done) : ((st == ocul) ? I18n.t(:ach_hidden) : I18n.t(:ach_pending))
-    return "#{nm}, #{status}" if st == ocul
+    status = (st == comp) ? I18n.t(:ach_done) : ((st == ocul) ? I18n.t(:ach_locked) : I18n.t(:ach_pending))
     d = (l.desc rescue nil)
     (d && !d.to_s.empty?) ? "#{nm}, #{status}. #{clean(d)}" : "#{nm}, #{status}"
   rescue StandardError
@@ -79,7 +98,7 @@ PokeAccess::Keys.register_diag_section(:logros_poll, :perf) do |o|
   # the 5000 iterations would announce an entry. Pressing the diagnostic key must not change what the
   # player hears. The other 4999 take the same early-return path, so the number stays comparable.
   last0 = (PokeAccess::LogrosIndexed.instance_variable_get(:@last) rescue nil)
-  (PokeAccess::LogrosIndexed.instance_variable_set(:@last, PokeAccess.ivar(lg, :@indexSel)) rescue nil) if lg && lg != :none
+  (PokeAccess::LogrosIndexed.instance_variable_set(:@last, [PokeAccess.ivar(lg, :@indexSel), PokeAccess.ivar(lg, :@descOffset)]) rescue nil) if lg && lg != :none
   t0 = PokeAccess.clock
   5000.times { (PokeAccess::LogrosIndexed.poll rescue nil) }
   (PokeAccess::LogrosIndexed.instance_variable_set(:@last, last0) rescue nil)

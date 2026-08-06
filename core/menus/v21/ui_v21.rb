@@ -25,6 +25,14 @@ module PokeAccess
     # param annotation the panel's annotation text, or nil/blank when none applies
     def self.party_member(pk, annotation = nil)
       return nil unless pk
+      # An egg is a surprise the panel is deliberately keeping: it hides the HP bar, the HP numbers and the
+      # level, and Pokemon#name answers with the species for an unnicknamed one. Reading the usual line there
+      # handed over the species, the level and the HP of something the screen shows as an egg.
+      if (pk.egg? rescue false)
+        t = PokeAccess::I18n.t(:pty_egg)
+        t += ", " + annotation.to_s if annotation && !annotation.to_s.empty?
+        return t
+      end
       sex = PokeAccess::Party.gender_phrase(pk)
       t = PokeAccess::I18n.t(:pty_member, :name => pk.name, :sex => sex, :level => pk.level, :hp => pk.hp, :tot => pk.totalhp)
       t += PokeAccess::Party.fainted_suffix(pk)

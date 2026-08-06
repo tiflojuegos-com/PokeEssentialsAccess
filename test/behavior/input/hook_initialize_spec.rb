@@ -13,5 +13,11 @@ Suite.define("hooks: before/after bind to a private method (initialize)") do
   obj = PaHookInitProbe.new
   truthy "the original initialize still ran (object constructed)", obj.made?
   eq "the after-hook fired on a private initialize", [:after], fired
-  truthy "initialize stayed private", PaHookInitProbe.private_method_defined?(:initialize)
+  # NOT initialize for this one: Ruby forces that private however it is defined, including through the
+  # define_method wrap uses, so asserting it proves nothing about the mod. Re-privatisation is only really
+  # tested on an ordinary private method.
+  PaHookInitProbe.send(:define_method, :secret) { :kept }
+  PaHookInitProbe.send(:private, :secret)
+  PokeAccess::Hooks.after_hook("PaHookInitProbe", :secret) { |_i, _r, _a| }
+  truthy "a wrapped private method stays private", PaHookInitProbe.private_method_defined?(:secret)
 end

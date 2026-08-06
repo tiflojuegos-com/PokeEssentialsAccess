@@ -18,11 +18,20 @@ module PokeAccess
       nil
     end
 
-    # Announces the focused location when it changes, so holding a direction across a run of blank
-    # points (or re-entering the same town) does not repeat it.
+    # Announces the focused location when it changes, so holding a direction across a run of blank points
+    # does not repeat it.
+    #
+    # A blank point still CONSUMES the dedup key, with a marker no place name can equal. Guarding the whole
+    # call on `if name` left the last town recorded while the cursor was off it, so sweeping off a town and
+    # back onto it matched the old key and said nothing -- on a map whose entire purpose is finding places by
+    # sweeping. The gen-6 screen never had this because it keys on the cursor's coordinates; here the name is
+    # the only thing available, so the absence of one has to be a value rather than a skipped call.
+    BLANK = :tm_blank
+
     def self.announce(vis)
       name = name_at(vis)
-      PokeAccess::Cursor.announce(vis, :tm_name, name) { name } if name
+      spoken = PokeAccess::Cursor.on_change(vis, :tm_name, name || BLANK) { name }
+      PokeAccess.speak(spoken, true) if spoken && !spoken.to_s.empty?
     end
   end
 end

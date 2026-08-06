@@ -662,6 +662,7 @@ sm_char_29=Somewhat stubborn
 pk_none=Genderless
 pk_fainted=fainted
 pty_member=%{name}%{sex}, level %{level}, %{hp} of %{tot} HP
+pty_egg=Egg
 pc_cancel=Cancel
 pc_confirm=Confirm
 pc_back=Back
@@ -854,7 +855,7 @@ ap_girl=Girl
 # achievements
 ach_done=completed
 ach_pending=pending
-ach_hidden=hidden
+ach_locked=not available
 
 # battle menu commands (anil, multi-language)
 bt_cmd_fight=Fight
@@ -992,3 +993,4 @@ quest_stage=Stage %{n} of %{tot}
 quest_giver=Given by %{who}
 quest_reward=Reward: %{what}
 quest_hidden=not revealed yet
+quest_unset=???

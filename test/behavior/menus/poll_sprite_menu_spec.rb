@@ -40,8 +40,16 @@ Suite.define("menus: poll_sprite_menu tolerates a legacy @-prefixed dedup slot")
   spoke_once "a legacy @ slot reads the cursor move exactly once", /Ready two/
   not_spoke "a legacy @ slot does not repeat the previous entry", /Ready one/
 
+  # Sharing has to be shown where the two spellings DISAGREE. Moving back to index 0 and reading once says
+  # "Ready one" whether the slot is shared or separate -- in one world because the key changed, in the other
+  # because the slot is empty. Asking the bare spelling to re-read the index the @ spelling just recorded is
+  # the only probe that tells them apart: shared means silence.
+  SpeakCapture.clear
+  2.times { PokeAccess::Menus.poll_sprite_menu(scene, :@commands, :access_ready_last) { |e| (e[1] rescue nil) } }
+  not_spoke "the bare spelling shares the @ spelling's dedup state, so it repeats nothing", /Ready two/
+
   SpeakCapture.clear
   scene.instance_variable_set(:@index, 0)
-  2.times { PokeAccess::Menus.poll_sprite_menu(scene, :@commands, :access_ready_last) { |e| (e[1] rescue nil) } }
-  spoke_once "the bare spelling shares the same dedup state and re-reads the change once", /Ready one/
+  PokeAccess::Menus.poll_sprite_menu(scene, :@commands, :access_ready_last) { |e| (e[1] rescue nil) }
+  spoke_once "and still reads a real move through either spelling", /Ready one/
 end

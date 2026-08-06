@@ -9,8 +9,9 @@
 # there because a name can be present in the game and still sit on the WRONG OBJECT, which is a
 # silent nil just the same, and this turns finding out into one grep.
 # surveyed profiles (13): africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal
-# names read: 227 / never found: 15
+# names read: 229 / never found: 15
 @active = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  CompatBits, DexNavPokemonSpeciesIconSprite, PokeSelectionSprite, PokemonBagPartyPanel, PokemonIconSprite, PokemonPartyPanel, PoketchMarkingMap, Show, +2 more
+@activecmd = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  PokemonBag_Scene, PokemonParty_Scene, PokemonScreen_Scene
 @adapter = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  BattlePointShopScreen, BattlePointShop_Scene, BuyAdapter, BuyAdapter_BattlePoints, ClothesShopPresenter, ClothesShopView, Ekans_Interface_Game, HairShopPresenter, +21 more
 @added = royal  |  MenuSelectorRandomScene
 @age = infinitefusion, infinitefusion_hoenn  |  CharacterSelectMenuPresenter
@@ -65,6 +66,7 @@
 @cursor_y = emerald, royal  |  PlaceDecoration_Scene
 @cursorpos = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  NameEntryCursor
 @data = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  BetterRegionMap, Clipboard, Game_Map, Game_SelfSwitches, Game_Switches, Game_Variables, MTS_Element_BG1, Map, +9 more
+@descOffset = africanus, awakening, pokemon_z, reminiscencia, royal  |  Logros_Scene
 @dex = africanus, armonia, awakening, opalo, pokemon_z, realidea, reminiscencia  |  Words
 @dexlist = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  BerrydexInfo_Scene, PokedexListSprite, PokedexSearcher, PokemonBerrydex_Scene, PokemonCurrydex_Scene, PokemonPokedexInfo_Scene, PokemonPokedexScene, PokemonPokedex_Scene
 @difficulties = relict  |  PickDifficulty

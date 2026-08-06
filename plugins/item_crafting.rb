@@ -6,8 +6,8 @@
 # The two copies seen so far genuinely differ, which is why this reader asks what the scene HAS instead of
 # assuming a shape:
 #   * redraw is pbRedrawItem in one and pbRedrawMenu (+ refreshNumbers for the detail) in the other
-#   * one exposes an @adapter that resolves names AND stock quantities; the other has none, so the item
-#     name comes from the engine-agnostic Data provider and the ingredient lines are simply not offered
+#   * every copy exposes an @adapter that resolves names and stock quantities, so the guards that fall back
+#     to the engine-agnostic Data provider are belt and braces rather than a live path
 # Every hook is :optional, as every hook in plugins/ must be: the plugin may be absent, or be a version
 # that never had this method.
 module PokeAccess
@@ -116,15 +116,33 @@ module PokeAccess
       out.empty? ? nil : out
     end
 
-    # Whether every ingredient is in stock, or nil when this copy cannot tell.
+    # Whether every ingredient is in stock, or nil when this copy cannot tell. Counts through the same stock
+    # helper the detail uses: asking the adapter directly answers 0 for a category flag, so the list would
+    # warn "you are short" about a recipe whose detail, one keypress away, says you have twelve.
     def self.craftable?(scene, pairs, volume)
       ad = PokeAccess.ivar(scene, :@adapter)
       return nil unless ad && ad.respond_to?(:getQuantity)
       ok = true
       pairs.each_slice(2) do |item, qty|
-        ok = false if qty && (ad.getQuantity(item) rescue 0) < (volume * qty)
+        have = stock(ad, item)
+        ok = false if qty && have && have < (volume * qty)
       end
       ok
+    end
+
+    # How many items one craft produces. The GameData-era copy multiplies the volume by a per-recipe yield
+    # and prints "name x5", so saying the volume alone understates what the recipe makes by that factor. The
+    # yield is reached the same way the recipe itself is -- through @stock, whose row is the recipe id in
+    # that copy and the inline data in the others, which have no yield at all.
+    def self.made(scene, index, vol)
+      stock = PokeAccess.ivar(scene, :@stock)
+      return vol unless stock.is_a?(Array) && index && index >= 0 && index < stock.length
+      row = stock[index]
+      return vol if row.is_a?(Array)
+      y = (GameData::Recipe.get(row).yield rescue nil)
+      (y.is_a?(Integer) && y > 0) ? vol * y : vol
+    rescue StandardError
+      vol
     end
 
     # The focused recipe in the LIST: its name, plus a warning when the materials are short. Deduped per
@@ -164,7 +182,8 @@ module PokeAccess
         name = item_name(scene, r[0], vol > 1)
         next nil if name.nil? || name.to_s.empty?
         ings = ingredients(scene, r[1], vol)
-        head = (vol > 1) ? PokeAccess::I18n.t(:craft_amount, :name => name, :n => vol) : name.to_s
+        n = made(scene, index, vol)
+        head = (n > 1) ? PokeAccess::I18n.t(:craft_amount, :name => name, :n => n) : name.to_s
         ings ? PokeAccess::I18n.t(:craft_detail, :head => head, :list => ings.join(", ")) : head
       end
     rescue StandardError

@@ -47,8 +47,11 @@ Suite.define("pathfinder: HPA* reaches a blocking target by routing adjacent, no
   $game_map.events.values.find { |e| e.x == tx && e.y == ty }.blocking = true
   PokeAccess::Config.path_algorithm = :astar
   astar = pf.find_path(tx, ty)
-  truthy "A* also reaches the blocking target adjacently", astar && !astar.empty?
   aok, aex, aey = astar ? hpa_walk(astar, sx, sy) : [false, -1, -1]
+  # "Adjacently" was in the label and nowhere in the assertion: the walk was computed and dropped, so a route
+  # ending ON the solid tile, or nowhere near it, passed. Same check the HPA* branch already makes.
+  truthy "A* also reaches the blocking target adjacently",
+         astar && !astar.empty? && aok && pf.target_reached?(aex, aey, tx, ty)
   truthy "the HPA* route is near-optimal versus A* to the blocking target",
          astar && route.is_a?(Array) && route.length <= astar.length * 1.5 + 4
 
