@@ -9,7 +9,7 @@
 # there because a name can be present in the game and still sit on the WRONG OBJECT, which is a
 # silent nil just the same, and this turns finding out into one grep.
 # surveyed profiles (13): africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal
-# names read: 229 / never found: 15
+# names read: 231 / never found: 15
 @active = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  CompatBits, DexNavPokemonSpeciesIconSprite, PokeSelectionSprite, PokemonBagPartyPanel, PokemonIconSprite, PokemonPartyPanel, PoketchMarkingMap, Show, +2 more
 @activecmd = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  PokemonBag_Scene, PokemonParty_Scene, PokemonScreen_Scene
 @adapter = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  BattlePointShopScreen, BattlePointShop_Scene, BuyAdapter, BuyAdapter_BattlePoints, ClothesShopPresenter, ClothesShopView, Ekans_Interface_Game, HairShopPresenter, +21 more
@@ -211,6 +211,8 @@
 @stock = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  BattlePointShopScreen, BattlePointShop_Scene, ClothesShopPresenter, ClothesShopView, HairShopPresenter, HatShopView, ItemCraft_Scene, ItemCraft_Screen, +12 more
 @storage = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  BoxAutoSortOverride, BoxSorter, PokemonBoxSprite, PokemonDebugMixin, PokemonStorageScene, PokemonStorageScreen, StorageTransferBox
 @sumPoints = africanus  |  TheArcherScene
+@tableData = royal  |  PokemonRegionMap_Scene
+@tableIndex = royal  |  PokemonRegionMap_Scene
 @talismans = awakening  |  EquipScreen
 @target = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  AI, AnimationCanvas, ColorTween, Confusion, FLTween, Move, MoveOXYTween, MoveTween, +10 more
 @targets = 

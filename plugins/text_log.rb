@@ -21,6 +21,17 @@ module PokeAccess
   module TextLog
     # The index of the focused entry, clamped, or nil when there is no log. Deduping on this rather than on
     # raw @pos matters at the ends of the list, where @pos still moves but the focused entry does not.
+    #
+    # KNOWN GAP, traced and deliberately left. The screen's pager starts @w at 0 on all three paths. Scrolling
+    # UP (and opening) walks backward and ends with @pos += 1, so the newest entry on screen is @pos - 1 --
+    # what this returns. Scrolling DOWN walks forward and ends with @pos += @w - 1, and there the answer
+    # depends on WHY the loop stopped: on the height limit the last iteration counted an entry it did not
+    # draw, so the newest shown is again @pos - 1; on running out of log every iteration drew, so the newest
+    # shown is @pos itself, and this reads one entry too old.
+    #
+    # It is not fixed because the two cases leave IDENTICAL state -- same @pos, same @lines -- so the reader
+    # cannot tell them apart, and the wrong guess in the other direction would announce an entry the screen
+    # is not showing, which this project treats as worse than announcing an older one it is.
     def self.focus_index(scene)
       pos = PokeAccess.ivar(scene, :@pos)
       log = ($PokemonGlobal.log rescue nil)

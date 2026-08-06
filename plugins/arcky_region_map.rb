@@ -24,11 +24,49 @@ module PokeAccess
       end
       return if spoken.nil? || spoken.empty?
       PokeAccess.speak(spoken, true)
+      # The panel's own content -- type, catch rate and the encounter chance per level band -- goes to the
+      # info key rather than into this line. It is the reason for opening the grid, but the grid is swept
+      # cell by cell, and reading four facts on every arrow would make sweeping unusable. One key away is
+      # where the rest of the mod puts detail like this.
+      PokeAccess::Info.set_info(:text, panel_detail(scene, list[i]))
       # The same redraw writes the cell position into the bottom bar, and that reader interrupts with a line
       # that changes on every move, so it would cut this one off mid-word. Marking its slot with what it is
       # about to see keeps it quiet here without disabling it, which matters: on the plain map screen it is
       # the only reader that speaks.
       PokeAccess::Cursor.changed?(nil, :regionmap, PokeAccess.clean(bar_text(i, list.length)))
+    rescue StandardError
+      nil
+    end
+
+    # The panel beside the grid, rebuilt from the same table the screen paints it from: the entry keyed by
+    # species in the focused encounter table.
+    def self.panel_detail(scene, species)
+      table = PokeAccess.ivar(scene, :@tableData)
+      idx = PokeAccess.ivar(scene, :@tableIndex)
+      entry = (table.values[idx][species] rescue nil) if table.respond_to?(:values) && idx
+      return nil unless entry.is_a?(Hash)
+      parts = []
+      parts.push(PokeAccess::I18n.t(:arm_type, :t => entry[:type])) if entry[:type]
+      parts.push(PokeAccess::I18n.t(:arm_catch, :n => entry[:catchRate])) if entry[:catchRate]
+      bands = encounter_bands(entry[:entries])
+      parts.push(PokeAccess::I18n.t(:arm_rate, :list => bands)) unless bands.nil? || bands.empty?
+      parts.empty? ? nil : parts.join(". ")
+    rescue StandardError
+      nil
+    end
+
+    # "Nv. 3 a 7, 20 percent" per band, collapsing a band whose bounds match into a single level.
+    def self.encounter_bands(entries)
+      return nil unless entries.is_a?(Array)
+      out = []
+      entries.each do |data|
+        lo = (data[:level][:min] rescue nil)
+        hi = (data[:level][:max] rescue nil)
+        next if lo.nil?
+        band = (lo == hi) ? lo.to_s : PokeAccess::I18n.t(:arm_band, :lo => lo, :hi => hi)
+        out.push(PokeAccess::I18n.t(:arm_chance, :band => band, :pct => data[:chance]))
+      end
+      out.join(", ")
     rescue StandardError
       nil
     end
