@@ -67,14 +67,28 @@ end
 # wrap_global: the shared helper that replaced six copy-pasted Object-method wraps. :after runs after the
 # original and sees its return value; :before runs first with a nil result; the original's return is
 # preserved; it never double-wraps. Throwaway Object methods stand in for the real (stubbed-away) sites.
-Suite.define("hooks: wrap_global timing, return value and no double-wrap") do
+# A SECOND hook on the same function chains onto the first instead of vanishing. It used to vanish: the
+# installer returned early once the alias existed, so whichever reader registered second bound nothing, with
+# no entry in missing and nothing in the diagnostic to show for it. The original still runs exactly once --
+# that is what the early return was protecting, and it is protected here by installing the wrapper once and
+# keeping the bodies in a list beside it.
+Suite.define("hooks: wrap_global timing, return value and chained bodies") do
   wg = []
   Object.send(:define_method, :pa_wg_after) { |x| wg.push([:orig, x]); x * 2 }
   PokeAccess::Hooks.wrap_global("pa_wg_after", "hook_t1", :after) { |args, r| wg.push([:after, args[0], r]) }
   PokeAccess::Hooks.wrap_global("pa_wg_after", "hook_t1", :after) { |args, r| wg.push([:dup, r]) }
   res = pa_wg_after(5)
   eq "after preserves the return value", res, 10
-  eq "after runs once, after the original", wg, [[:orig, 5], [:after, 5, 10]]
+  eq "the original runs once and BOTH after-bodies run, in order",
+     wg, [[:orig, 5], [:after, 5, 10], [:dup, 10]]
+
+  # A broken body must not take its neighbours down with it, nor the function.
+  wg3 = []
+  Object.send(:define_method, :pa_wg_chain) { |x| x }
+  PokeAccess::Hooks.wrap_global("pa_wg_chain", "hook_t5", :after) { |_a, _r| raise "boom" }
+  PokeAccess::Hooks.wrap_global("pa_wg_chain", "hook_t5", :after) { |_a, r| wg3.push(r) }
+  eq "a throwing body does not stop the next one", pa_wg_chain(3), 3
+  eq "and the next one still ran", wg3, [3]
 
   wg2 = []
   Object.send(:define_method, :pa_wg_before) { |x| wg2.push([:orig, x]); x }

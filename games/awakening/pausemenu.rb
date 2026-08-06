@@ -19,10 +19,33 @@ module PokeAccess
       nil
     end
 
-    # Speaks a panel's name.
+    # Speaks a panel's name, and remembers it so the return below has something to repeat.
     def self.say_panel(panel)
       nm = PokeAccess.ivar(panel, :@nombre)
-      PokeAccess.speak_clean(nm.to_s, true) if nm && !nm.to_s.empty?
+      return if nm.nil? || nm.to_s.empty?
+      @last = nm.to_s
+      PokeAccess.speak_clean(@last, true)
+    rescue StandardError
+      nil
+    end
+
+    @depth = 0
+    @last = nil
+
+    def self.open!; @depth += 1; end
+
+    def self.close!
+      @depth -= 1 if @depth > 0
+      @last = nil if @depth == 0
+    end
+
+    # Coming back from a submenu. The menu opens the party, the bag, the cards and the rest from inside its
+    # own loop and then carries on: cambio never fires again, so the menu returned silent with the cursor on
+    # a panel the player could no longer hear. Every one of those options is wrapped in pbFadeOutIn, which
+    # makes the fade the exact return signal -- gated on the menu still being up, because that fade is the
+    # engine's fade for everything.
+    def self.returned
+      PokeAccess.speak_clean(@last, true) if @depth > 0 && @last
     rescue StandardError
       nil
     end
@@ -36,4 +59,10 @@ PokeAccess::Game.define("awakening") do
   after("FatesMenuPanels", :cambio) do |panel, _r, args|
     PokeAccess::AwakeningPause.panel_changed(panel, args[0])
   end
+  # JessFatesMenu runs its whole screen from the constructor, so that is what is held.
+  around("JessFatesMenu", :initialize, :optional => true) do |_s, nxt, _a|
+    PokeAccess::AwakeningPause.open!
+    begin; nxt.call; ensure; PokeAccess::AwakeningPause.close!; end
+  end
+  kernel("pbFadeOutIn", :after) { |_args, _r| PokeAccess::AwakeningPause.returned }
 end

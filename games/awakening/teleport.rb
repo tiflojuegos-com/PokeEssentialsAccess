@@ -10,24 +10,33 @@ module PokeAccess
     def self.unwatch; @scene = nil; end
     def self.poll; focus(@scene) if @scene; end
 
-    # Voices the focused destination once per change: its name, its description, and that it is still locked.
+    # Voices the focused destination once per change: its name and its description, or that it is locked.
+    #
+    # A locked destination is drawn as "???" and nothing else -- the screen paints the name and the
+    # description behind pbTpUnlocked?. Saying the real name and appending "locked" told the player where
+    # they could eventually go, which is precisely what the screen is hiding.
+    #
+    # Each MAP_DESCS entry is an ARRAY of text fragments rather than a string, as the game's own commented
+    # template shows. Ruby 1.8.7 happens to flatten it on to_s, which is why this never misbehaved in the
+    # game, but the same line on any newer interpreter would speak the brackets and quotes out loud.
     def self.focus(scene)
       idx = PokeAccess.ivar(scene, :@select)
       names = PokeAccess.ivar(scene, :@mapnames)
       return unless idx.is_a?(Integer) && names.is_a?(Array) && idx >= 0 && idx < names.length
-      # Each MAP_DESCS entry is an ARRAY of text fragments, not a string -- the game's own commented template
-      # shows the shape. Ruby 1.8.7 happens to flatten it on to_s, which is why this never misbehaved in the
-      # game, but the same line on any newer interpreter would speak the brackets and quotes out loud.
       descs = PokeAccess.ivar(scene, :@map_descs)
       name = PokeAccess.clean(names[idx].to_s).to_s.strip
       return if name.empty?
       PokeAccess::Cursor.announce(scene, :awk_tp, idx, true) do
-        parts = [PokeAccess::I18n.t(:list_entry, :name => name, :n => idx + 1, :tot => names.length)]
-        d = (descs.is_a?(Array) ? descs[idx] : nil)
-        d = d.join(" ") if d.is_a?(Array)
-        parts.push(PokeAccess.clean(d.to_s)) if d && !d.to_s.strip.empty?
-        parts.push(PokeAccess::I18n.t(:awk_tp_locked)) unless (scene.pbTpUnlocked?(idx) rescue true)
-        parts.join(". ")
+        if (scene.pbTpUnlocked?(idx) rescue true)
+          parts = [PokeAccess::I18n.t(:list_entry, :name => name, :n => idx + 1, :tot => names.length)]
+          d = (descs.is_a?(Array) ? descs[idx] : nil)
+          d = d.join(" ") if d.is_a?(Array)
+          parts.push(PokeAccess.clean(d.to_s)) if d && !d.to_s.strip.empty?
+          parts.join(". ")
+        else
+          PokeAccess::I18n.t(:list_entry, :name => PokeAccess::I18n.t(:awk_tp_locked),
+                             :n => idx + 1, :tot => names.length)
+        end
       end
     rescue StandardError
       nil

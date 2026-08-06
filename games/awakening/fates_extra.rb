@@ -24,26 +24,31 @@ module PokeAccess
     def self.unwatch_cards; @cards_class = nil; end
 
     # Voices the focused relationship card: the character and their rank.
+    #
+    # The panel is keyed by @posi directly, exactly as the screen keys it (`@paneles["#{@posi}"]`). The
+    # panels are built with a sequential counter, while @master_index holds each card's own slot in
+    # $Trainer.lista_cartas -- a different number, since the build loop skips empty slots. Going through it
+    # meant that as soon as one earlier card was locked, row and key drifted apart and the screen named
+    # another card, or nothing.
+    #
+    # The dedup key carries the panel table's IDENTITY as well as the index, because this screen has no
+    # instance to hang the dedup on: it lands in Cursor's module-wide table, which outlives the screen.
+    # Reopening always starts at @posi = 0, so on the plain index it matched what was left from last time
+    # and the screen opened SILENT. The game rebuilds @paneles on every open, which is what makes it a new
+    # key.
+    #
+    # The name and rank come through the panel's CHARACTER, not off the panel. A panel is a CartasPaneles --
+    # a sprite holder, with neither on it -- and the character it draws carries both, hanging off its pj
+    # accessor. Read straight off the panel this produced an empty string every time, so announce aborted
+    # after having already consumed the key: silent, and silent again on the way back.
     def self.cards(_scene)
       return unless @cards_class
       idx = PokeAccess::AwakeningFatesExtra.mod_ivar(:@posi)
       panels = PokeAccess::AwakeningFatesExtra.mod_ivar(:@paneles)
       return unless idx.is_a?(Integer) && panels.is_a?(Hash)
-      # Keyed by @posi directly, exactly as the screen does (`@paneles["#{@posi}"]`). The panels are built
-      # with a sequential counter, while @master_index holds each card's own slot in $Trainer.lista_cartas --
-      # a different number, and the build loop skips empty slots. Going through it meant that as soon as one
-      # earlier card was still locked, row and key drifted apart: either another card was named or nothing.
       panel = panels[idx.to_s]
       return unless panel
-      # Keyed on the panel table's identity as well as the index: this screen has no instance to hang the
-      # dedup on, so it lands in Cursor's module-wide table, which outlives the screen. Reopening always
-      # starts at @posi = 0, so on the plain index it matched what was left from last time and the screen
-      # opened SILENT. The game rebuilds @paneles on every open, which is what makes it a new key.
       PokeAccess::Cursor.announce(nil, :awk_cards, [idx, panels.__id__], true) do
-        # Through the panel's character, not off the panel. A panel is a CartasPaneles -- a sprite holder,
-        # with neither a name nor a rank on it -- and the character it draws is what carries both, hanging
-        # off its pj accessor. Read straight off the panel this produced an empty string every time, so the
-        # announce aborted after having already consumed the key: silent, and silent again on the way back.
         pj = (panel.pj rescue nil)
         name = PokeAccess.clean((pj.nombre rescue "").to_s).to_s.strip
         rank = (pj.rango_letras rescue nil)

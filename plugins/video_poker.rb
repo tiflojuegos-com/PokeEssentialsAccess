@@ -34,15 +34,41 @@ module PokeAccess
       nil
     end
 
-    # The bet, whenever it moves. It belongs to the screen, not the scene: the scene only ever reads it back
-    # as @screen.wager, which is also what it prints.
+    # The bet, whenever it moves, and what is left in the purse.
+    #
+    # Both belong to the screen, not the scene: the scene only ever reads them back as @screen.wager and
+    # @screen.coins, which is also what it prints -- the coin total into its own window, permanently on
+    # display. Without it the bet was the one number a blind player had, so there was no way to know how many
+    # rounds were left, and the balance is also what moves after a win.
     def self.wager(scene)
       screen = PokeAccess.ivar(scene, :@screen)
-      w = (screen.wager rescue nil) if screen
+      return unless screen
+      w = (screen.wager rescue nil)
       return unless w
-      PokeAccess::Cursor.announce(scene, :vp_wager, w, true) do
-        PokeAccess::I18n.t(:vp_wager, :n => w.to_i)
+      c = (screen.coins rescue nil)
+      PokeAccess::Cursor.announce(scene, :vp_wager, [w, c], true) do
+        line = PokeAccess::I18n.t(:vp_wager, :n => w.to_i)
+        c ? "#{line}. #{PokeAccess::I18n.t(:vp_coins, :n => c.to_i)}" : line
       end
+    end
+
+    # The payout table, which is a whole window of the screen and pure reference: every combination with the
+    # multiplier it pays and what it takes to make it. Too long to speak on a cursor move, so it goes to the
+    # info key, refreshed whenever the wager line is -- the table's own numbers scale with the bet.
+    def self.payout_table(scene)
+      list = PokeAccess.ivar(scene, :@combination_array)
+      return nil unless list.is_a?(Array) && !list.empty?
+      rows = list.map do |c|
+        nm = PokeAccess.clean((c.name rescue "").to_s).to_s.strip
+        next nil if nm.empty?
+        d = PokeAccess.clean((c.description rescue "").to_s).to_s.strip
+        row = PokeAccess::I18n.t(:vp_payout_row, :name => nm, :n => (c.bonus rescue 0).to_i)
+        d.empty? ? row : "#{row}, #{d}"
+      end
+      rows = rows.compact
+      rows.empty? ? nil : rows.join(". ")
+    rescue StandardError
+      nil
     end
 
     # The focused card and whether it is being kept. The Hold/Draw wording is the screen's own -- the scene
@@ -114,8 +140,9 @@ module PokeAccess
   end
 end
 
-PokeAccess::Hooks.around_hook("VideoPoker::Scene", :select_wager_loop, :optional => true) do |_s, nxt, _a|
+PokeAccess::Hooks.around_hook("VideoPoker::Scene", :select_wager_loop, :optional => true) do |scene, nxt, _a|
   PokeAccess::VideoPokerRead.hold(:wager)
+  PokeAccess::Info.set_info(:text, PokeAccess::VideoPokerRead.payout_table(scene))
   begin; nxt.call; ensure; PokeAccess::VideoPokerRead.release; end
 end
 

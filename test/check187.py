@@ -51,7 +51,14 @@ RUNTIME = [
 
 flagged = []
 # Lint the files passed as arguments, or the whole dual/gen-6 tree when none are given.
-paths = sys.argv[1:] or (glob.glob("core/**/*.rb", recursive=True) + glob.glob("games/**/*.rb", recursive=True) + glob.glob("plugins/**/*.rb", recursive=True) + glob.glob("loader/*.rb"))
+# Anchored to the repo, not to the caller's directory. Relative globs scanned NOTHING when the suite was
+# started from anywhere but the repo root, and said OK about it: the real-interpreter pass below is absolute
+# and still ran, so the only thing silently lost was the pattern list -- the half that catches code which
+# parses fine under 1.8.7 and behaves differently.
+REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+def tree(pat):
+    return glob.glob(os.path.join(REPO, pat), recursive=True)
+paths = sys.argv[1:] or (tree("core/**/*.rb") + tree("games/**/*.rb") + tree("plugins/**/*.rb") + tree("loader/*.rb"))
 for f in paths:
     if is_modern(f): continue
     try:

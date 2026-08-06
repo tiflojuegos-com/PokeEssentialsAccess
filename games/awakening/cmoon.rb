@@ -101,9 +101,9 @@ PokeAccess::Game.define("awakening") do
       end
     end
   end
-  # The same, for the children that are classes rather than top-level functions. Two of them are opened with
-  # .new and run their whole screen from the constructor, so that is where the frame has to go.
-  [["FatesCartas", :main], ["Fates_Menu_Personajes", :initialize], ["Logros_Scene", :initialize]].each do |cname, meth|
+  # The same, for the children that are classes rather than top-level functions. Both are opened with .new
+  # and run their whole screen from the constructor, so that is where the frame has to go.
+  [["Fates_Menu_Personajes", :initialize], ["Logros_Scene", :initialize]].each do |cname, meth|
     around(cname, meth) do |_s, nxt, _a|
       PokeAccess::AwakeningCMoon.open(nil)
       begin
@@ -111,6 +111,19 @@ PokeAccess::Game.define("awakening") do
       ensure
         PokeAccess::AwakeningCMoon.close
       end
+    end
+  end
+  # FatesCartas.main is a SINGLETON method, and around cannot see one: wrap tests method_defined?, which asks
+  # about instance methods only, so this hook silently bound nothing and logged a phantom typo on every boot.
+  # The frame it was meant to open never opened either, leaving the hub's own row poller armed while the card
+  # screen was up -- and the cards move with UP and DOWN, so every keypress also announced a hub row on top
+  # of them. override resolves the singleton (fates_extra.rb wraps the same method that way).
+  override("FatesCartas", :main) do |_mod, original, _args|
+    PokeAccess::AwakeningCMoon.open(nil)
+    begin
+      original.call
+    ensure
+      PokeAccess::AwakeningCMoon.close
     end
   end
   kernel("pbDrawOutlineText", :before) { |args, _r| PokeAccess::AwakeningCMoon.label(args[5]) }

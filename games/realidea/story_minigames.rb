@@ -36,6 +36,10 @@ module PokeAccess
     end
 
     # Speaks the focused reply, and the hearts left on each side whenever one is lost.
+    #
+    # The TURN is in the dedup key, not just the index and the length. Which of the two lists is showing --
+    # the comebacks or the insults -- is @turno, and both start at two entries and grow together, so with the
+    # same cursor on a same-sized list the line changed from one to the other and the reader said nothing.
     def self.mankey(scene)
       lives = PokeAccess.ivar(scene, :@vidasprota)
       elives = PokeAccess.ivar(scene, :@vidasenemigo)
@@ -46,10 +50,6 @@ module PokeAccess
       idx = PokeAccess.ivar(scene, :@seleccion)
       list = mankey_list(scene)
       return unless idx.is_a?(Integer) && list.is_a?(Array) && idx >= 0 && idx < list.length
-      # The turn is in the key, not just the index and the length. Which of the two lists is showing -- the
-      # comebacks or the insults -- is @turno, and both start at two entries and grow together, so with the
-      # same cursor on the same-sized list the line changed from one to the other and the reader said
-      # nothing at all.
       PokeAccess::Cursor.announce(scene, :rea_mankey, [idx, list.length, PokeAccess.ivar(scene, :@turno)], true) do
         PokeAccess::I18n.t(:list_entry, :name => PokeAccess.clean(list[idx].to_s),
                            :n => idx + 1, :tot => list.length)

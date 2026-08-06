@@ -2,31 +2,53 @@ module PokeAccess
   # Character appearance selection. pbChangePlayer(id) previews an appearance sprite (visual-only), so
   # this announces its number and gender to choose blind.
   module Appearance
+    # True where appearance ids start at 1 rather than 0. v21+ replaced the MetadataPlayerA block with
+    # GameData::PlayerMetadata and moved the first appearance to id 1 -- its pbChangePlayer rejects id < 1 --
+    # so the +1 that makes a 0-based id readable turns a v21+ id into the NEXT one along: the screen previews
+    # character 1 and the reader says "number 2". The gen-6 games and both Infinite Fusions stay 0-based, and
+    # the presence of the class is what separates them, not a version number.
+    def self.one_based?
+      defined?(GameData) && GameData.const_defined?(:PlayerMetadata)
+    rescue StandardError
+      false
+    end
+
     # Speaks the appearance number and gender after a preview change.
     def self.announce(id)
       g = gender_word(id)
-      base = PokeAccess::I18n.t(:ap_number, :n => id + 1)
+      base = PokeAccess::I18n.t(:ap_number, :n => one_based? ? id : id + 1)
       PokeAccess.speak("#{base}#{g ? ', ' + g : ''}", true)
     rescue StandardError
       nil
     end
 
     # The gender word of an appearance (0 male, 1 female, else nil). Reads the trainer type from the
-    # appearance metadata so it works before $Trainer exists, falling back to $Trainer.gender.
+    # appearance metadata so it works before the trainer exists, falling back to the player's own gender.
     def self.gender_word(id)
       gv = trainertype_gender(id)
-      gv = ($Trainer.gender rescue nil) if gv.nil?
+      gv = (PokeAccess::Engine.player.gender rescue nil) if gv.nil?
       case gv
       when 0 then PokeAccess::I18n.t(:ap_boy)
       when 1 then PokeAccess::I18n.t(:ap_girl)
       end
     end
 
-    # Gender of the trainer type bound to an appearance id, via the engine helper, or nil.
-    def self.trainertype_gender(id)
+    # The trainer type bound to an appearance id. v21+ keeps it on GameData::PlayerMetadata and the gen-6
+    # games in the MetadataPlayerA block; only the second was consulted, so the four v21+ games never named
+    # a gender here and fell through to the player's own -- which on the character-choice screen is exactly
+    # the thing not decided yet.
+    def self.trainer_type(id)
+      return (GameData::PlayerMetadata.get(id).trainer_type rescue nil) if one_based?
       return nil unless defined?(pbGetMetadata) && defined?(MetadataPlayerA)
       meta = (pbGetMetadata(0, MetadataPlayerA + id) rescue nil)
-      tt = meta ? meta[0] : nil
+      meta ? meta[0] : nil
+    rescue StandardError
+      nil
+    end
+
+    # Gender of the trainer type bound to an appearance id, via the engine helper, or nil.
+    def self.trainertype_gender(id)
+      tt = trainer_type(id)
       return nil if tt.nil?
       return nil unless defined?(pbGetTrainerTypeGender)
       g = (pbGetTrainerTypeGender(tt) rescue nil)

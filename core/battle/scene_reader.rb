@@ -29,17 +29,27 @@ module PokeAccess
     # special-cased. param interrupt whether this read may cut current speech (true for navigation; false
     # on open, so it does not cut the hp/turn lines just spoken)
     def self.read_menu(menu, interrupt = true)
-      t = nil; foe = false
+      t = nil; foe = false; move = nil
       if defined?(::Battle::Scene::CommandMenu) && menu.is_a?(::Battle::Scene::CommandMenu)
         t = command_label(menu); foe = true
       elsif defined?(::Battle::Scene::FightMenu) && menu.is_a?(::Battle::Scene::FightMenu)
-        m = fight_move(menu)
-        t = move_text(m, (menu.battler rescue nil)) if m
+        move = fight_move(menu)
+        t = move_text(move, (menu.battler rescue nil)) if move
       elsif defined?(::Battle::Scene::TargetMenu) && menu.is_a?(::Battle::Scene::TargetMenu)
         t = target_label(menu)
       end
       if t && !t.to_s.empty?
-        foe ? PokeAccess::Info.set_info(:battle_foe, nil) : PokeAccess::Info.set_info(:text, t)
+        # The MOVE and not the line just spoken. Storing the line made the info key an echo: it read back,
+        # word for word, what the cursor had already said, so in a modern battle the key that exists to add
+        # detail added nothing. With the move object it answers through Info.move_info, which is the same
+        # fields plus the category and the move's description -- the part no cursor line carries.
+        if foe
+          PokeAccess::Info.set_info(:battle_foe, nil)
+        elsif move
+          PokeAccess::Info.set_info(:move, move)
+        else
+          PokeAccess::Info.set_info(:text, t)
+        end
         PokeAccess.speak(t, interrupt)
       end
     rescue StandardError => e

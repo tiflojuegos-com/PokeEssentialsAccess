@@ -27,20 +27,18 @@ Suite.define("static: every ivar a reader takes off a game object exists in that
   end
   truthy "and it has entries", census.length > 50
 
-  # Two exemptions, both structural rather than a list of awkward names.
+  # One exemption, structural rather than a list of awkward names: the diagnostic and the recorder introspect
+  # the MOD's own modules by ivar -- that is what they are for, and those modules expose no accessors on
+  # purpose. Nothing in a game has to have those names.
   #
-  # The diagnostic and the recorder introspect the MOD's own modules by ivar -- that is what they are for,
-  # and those modules expose no accessors on purpose. Nothing in a game has to have those names.
-  #
-  # The v22 readers target an Essentials generation no surveyed game runs, so the census cannot answer for
-  # them either way. They are reported below rather than silently skipped, and the exemption disappears by
-  # itself the day a v22 dump joins the survey.
+  # The v22 readers used to need a second exemption, because no fangame here runs v22 and the census could
+  # not answer for them either way. It is gone: the census now surveys the upstream Essentials tree as a
+  # source of its own, so those reads are checked against the engine they were written for.
   self_introspection = ["core/input/diag.rb", "core/util/recorder.rb"]
-  unsurveyed = %r{/v22/}
 
   declarations = ReaderSites.declarations
   missing_from_census = []
-  unverifiable = []
+  partial = []
   offenders = []
 
   ReaderSites.ivars_by_file.each do |path, names|
@@ -50,12 +48,12 @@ Suite.define("static: every ivar a reader takes off a game object exists in that
       have = census[n]
       if have.nil?
         missing_from_census.push("#{path}: @#{n}")
-      elsif path =~ unsurveyed
-        unverifiable.push("#{path}: @#{n}") if have.empty?
       elsif targets == :all
         offenders.push("#{path}: @#{n} is in no surveyed game") if have.empty?
       elsif (targets & have).empty?
         offenders.push("#{path}: @#{n} is in #{have.empty? ? 'no game' : have.join('/')}, not in #{targets.join('/')}")
+      elsif !(targets - have).empty?
+        partial.push("#{path}: @#{n} missing in #{(targets - have).sort.join('/')}")
       end
     end
   end
@@ -64,6 +62,13 @@ Suite.define("static: every ivar a reader takes off a game object exists in that
      missing_from_census.sort, []
   eq "and no reader takes an ivar its game does not have", offenders.sort, []
 
-  # Not a failure, and not hidden either: these are the reads the survey cannot speak to.
-  puts "  note: #{unverifiable.length} ivar reads target an engine no surveyed game runs" unless unverifiable.empty?
+  # A plugin reader declared by four profiles passes as long as ONE of them has the name, and that is
+  # deliberate: this layer is full of readers that branch between two copies of the same plugin, so requiring
+  # every target to carry every name would fail on the ones doing it right. The partial cases are printed
+  # instead of being invisible -- a name present in one game of four is either a branch or a bug, and the
+  # only way to tell is to look.
+  unless partial.empty?
+    puts "  note: #{partial.length} ivar reads are present in some of their target games but not all"
+    partial.sort.each { |p| puts "    #{p}" }
+  end
 end

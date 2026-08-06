@@ -35,11 +35,13 @@ module PokeAccess
       files(scene).find { |f| f.include?(tag) }
     end
 
-    # The dd/mm/yyyy stamp a capture filename ends with, or nil when it has none.
+    # The date a capture filename ends with, or nil when it has none. Read through to_i as the screen does:
+    # the filename pads to two digits and the screen prints the number, so a photo taken on the fifth shows
+    # 5/3/2026 and reading the raw field said "zero five, zero three".
     def self.date_of(file)
       parts = File.basename(file.to_s, ".png").split("_")
       return nil if parts.length < 3
-      "#{parts[-3]}/#{parts[-2]}/#{parts[-1]}"
+      "#{parts[-3].to_i}/#{parts[-2].to_i}/#{parts[-1].to_i}"
     end
 
     # What the focused slot is: a numbered photo with its date, or an empty slot, always with the page.

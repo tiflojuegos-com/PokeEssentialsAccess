@@ -24,6 +24,20 @@ if games.empty?
   exit 1
 end
 
+# Vanilla Essentials counts as a source here for one reason: a name UPSTREAM defines is not a name one
+# fangame has. UI::OptionsVisualsList is vanilla v22, and because only royal backports that UI among the
+# thirteen, the census called it single-game and the coupling check accused core of naming a royal class.
+VANILLA = File.expand_path("../../../../pokemon-essentials/Data/Scripts", File.dirname(__FILE__))
+vanilla = ENV["PA_VANILLA"] || VANILLA
+sources_of = {}
+games.each { |g| sources_of[g] = File.join(dumps, g) }
+if File.directory?(vanilla)
+  games = (games + ["vanilla"]).sort
+  sources_of["vanilla"] = vanilla
+else
+  puts "note: vanilla Essentials tree not found at #{vanilla}"
+end
+
 # Read binary: the dumps carry Latin-1 accents in comments, and a UTF-8 String would raise on the match.
 # Each name records its games and whether it ever came from a _PluginScripts/ folder: "only in royal" and
 # "only in royal, and only because royal installs that third-party plugin" call for different fixes (move
@@ -43,7 +57,7 @@ end
 owners = {}
 meth_owners = {}
 games.each do |g|
-  Dir.glob(File.join(dumps, g, "**", "*.rb")).each do |f|
+  Dir.glob(File.join(sources_of[g], "**", "*.rb")).each do |f|
     from_plugin = f.tr("\\", "/").include?("/_PluginScripts/")
     cur = nil
     cur_indent = nil
@@ -63,8 +77,12 @@ games.each do |g|
   end
 end
 
+# "Exclusive" means one FANGAME, and vanilla is not one: a name upstream Essentials defines is engine, and
+# naming it from core/ is what core/ is for. It earns its place in the survey by taking names OUT of this
+# list -- a class only royal happens to backport is still a vanilla class, not a royal one.
 exclusive = {}
 owners.each do |name, rec|
+  next if rec[:games]["vanilla"]
   next unless rec[:games].length == 1
   origin = rec[:plugin] > 0 ? (rec[:script] > 0 ? "script+plugin" : "plugin") : "script"
   exclusive[name] = "#{rec[:games].keys[0]}, #{origin}"

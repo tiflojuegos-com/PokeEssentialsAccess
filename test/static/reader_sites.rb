@@ -18,10 +18,12 @@ module ReaderSites
   # A dump folder is named after the game; a few do not match the profile that reads them.
   PROFILE_OF = { "africanvs" => "africanus", "z218" => "pokemon_z" }
 
-  # Reads through PokeAccess.ivar (first argument is the object, so the symbol comes after a comma) and
-  # through instance_variable_get (the symbol is the only argument). Both may wrap across lines.
+  # Reads through PokeAccess.ivar and its typed siblings (ivar_i and any future one -- the first argument is
+  # the object, so the symbol comes after a comma) and through instance_variable_get (the symbol is the only
+  # argument). Both may wrap across lines. Matching only the bare "ivar(" left every ivar_i read out of the
+  # census, and with it five names that nothing else reads.
   READ_FORMS = [
-    /PokeAccess\.ivar\(.{0,160}?:@([A-Za-z_]\w*)/m,
+    /PokeAccess\.ivar\w*\(.{0,160}?:@([A-Za-z_]\w*)/m,
     /\.instance_variable_get\(\s*:@([A-Za-z_]\w*)/m
   ]
   WRITE_FORM = /\.instance_variable_set\(\s*:@([A-Za-z_]\w*)/m
@@ -89,11 +91,22 @@ module ReaderSites
   # An after-style hook: it runs only once its method RETURNS. Bound to a method that is the screen's own
   # blocking loop, it therefore fires when the player leaves, and the screen is silent for as long as it is
   # open. before, around and :timing => :before are all fine, so only the after forms are collected.
+  # The trailing =? is not decoration: without it a hook on a SETTER was recorded as Class#selected while
+  # every dump defines selected=, so the lookup could never match and six sites -- every setter hook in the
+  # mod -- sat permanently unverifiable while printing exactly like a verified one.
   HOOK_FORMS = [
-    /after_hook\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!]*)(.*)/,
-    /^\s*after\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!]*)(.*)/,
-    /read_on_open\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!]*)(.*)/
+    /after_hook\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!]*=?)(.*)/,
+    /^\s*after\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!]*=?)(.*)/,
+    /read_on_open\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!]*=?)(.*)/
   ]
+
+  # An after-style registration whose CLASS or METHOD is computed -- a loop variable, a constant, an
+  # Engine.era_scene call, an interpolated name. There is no honest way to resolve those from the text, and
+  # the forms above simply did not match them, so a fifth of the mod's after hooks were absent from the
+  # census and looked exactly like sites that had been checked and found clean. They are counted instead, and
+  # the spec holds the count to a committed number so a new one cannot slip in unnoticed.
+  ANY_AFTER = /(?:Hooks\.after_hook|^\s*after|read_on_open)\(/
+  RESOLVED_AFTER = /(?:after_hook|^\s*after|read_on_open)\(\s*"[A-Za-z_:][\w:]*"\s*,\s*:\w[\w?!]*=?/
 
   # { relative path => [[Class, method], ...] } for hooks that only run after their method returns.
   def self.after_hooks_by_file(sources = nil)
@@ -131,6 +144,26 @@ module ReaderSites
         excused = false
       end
       out[path] = sites.keys.sort unless sites.empty?
+    end
+    out
+  end
+
+  # { relative path => [line, ...] } for after-style registrations the forms above cannot resolve. The DSL
+  # definitions in core/foundation/game.rb are the declarations of after/read_on_open themselves, not uses.
+  def self.unresolved_after_sites(sources = nil)
+    sources ||= self.sources
+    out = {}
+    sources.each do |path, body|
+      next if path == "core/foundation/game.rb"
+      lines = []
+      body.each_line do |line|
+        next if line =~ /\A\s*#/
+        next unless line =~ ANY_AFTER
+        next if line =~ RESOLVED_AFTER
+        next if line.include?(":hook_container")
+        lines.push(line.strip)
+      end
+      out[path] = lines unless lines.empty?
     end
     out
   end

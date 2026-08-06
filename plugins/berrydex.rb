@@ -21,7 +21,9 @@ module PokeAccess
       names
     end
 
-    # Whether an optional page is both offered by this copy and enabled for the focused berry.
+    # Whether an optional page exists at all in this copy of the plugin. It is a property of the INSTALL, not
+    # of the berry: the game answers it from PluginManager plus a Settings flag, so the page list is the same
+    # on every entry in the dex.
     def self.shows?(scene, meth)
       return false unless scene.respond_to?(meth, true)
       (scene.send(meth) ? true : false) rescue false

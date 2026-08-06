@@ -7,6 +7,12 @@
 # the cursor number exactly where it was. announce_pc's dedup key is the tuple that covers those, and it
 # lives on the SCENE, so reopening the PC reads the slot the cursor sits on instead of staying silent.
 
+# The trailing button sprites, named as both engine eras name them: the concrete class is the only place the
+# screen records which button a slot holds, since the label is drawn into a bitmap and thrown away.
+class PokeSelectionCancelSprite; end
+class PokeSelectionCancelSprite2; end
+class PokeSelectionConfirmSprite; end
+
 # A PC storage shaped as the gen-6 PokemonStorage the reader reads: storage[box] is the box (it has a name),
 # storage[box, index] the Pokemon in a slot, currentBox the open box.
 def pc_storage(box_names, mons)
@@ -142,8 +148,10 @@ Suite.define("party gen-6: the slot is read on a move, and a fainted one says so
   healthy = Poke.build(:name => "Bulba", :level => 5, :hp => 20, :totalhp => 20, :gender => 0)
   ko = Poke.build(:name => "Char", :level => 9, :hp => 0, :totalhp => 24, :gender => 1)
   party = [healthy, ko]
+  scene = Object.new
+  scene.instance_variable_set(:@sprites, { "pokemon2" => PokeSelectionCancelSprite.new })
 
-  PokeAccess::Party.announce_party(party, 0, -1)
+  PokeAccess::Party.announce_party(scene, party, 0, -1)
   eq "moving onto a slot reads name, sex, level and hp",
      SpeakCapture.lines,
      [PokeAccess::I18n.t(:pty_member, :name => "Bulba", :sex => " " + PokeAccess::I18n.t(:pk_male),
@@ -152,22 +160,38 @@ Suite.define("party gen-6: the slot is read on a move, and a fainted one says so
             /#{Regexp.escape(PokeAccess::I18n.t(:pk_fainted))}/
 
   SpeakCapture.clear
-  PokeAccess::Party.announce_party(party, 0, 0)
+  PokeAccess::Party.announce_party(scene, party, 0, 0)
   silent "the same index twice is not a move, so nothing is said"
 
   SpeakCapture.clear
-  PokeAccess::Party.announce_party(party, 1, 0)
+  PokeAccess::Party.announce_party(scene, party, 1, 0)
   eq "the next slot is read, and a fainted Pokemon says so",
      SpeakCapture.lines,
      [PokeAccess::I18n.t(:pty_member, :name => "Char", :sex => " " + PokeAccess::I18n.t(:pk_female),
                          :level => 9, :hp => 0, :tot => 24) + ", " + PokeAccess::I18n.t(:pk_fainted)]
 
   SpeakCapture.clear
-  PokeAccess::Party.announce_party(party, 2, 1)
+  PokeAccess::Party.announce_party(scene, party, 2, 1)
   eq "the button past the last Pokemon is the cancel label",
      SpeakCapture.lines, [PokeAccess::I18n.t(:pc_cancel)]
 
   SpeakCapture.clear
-  PokeAccess::Party.announce_party(party, 0, 2)
+  PokeAccess::Party.announce_party(scene, party, 0, 2)
   spoke_once "and coming back up re-reads the first slot", /Bulba/
+end
+
+# With multiselect the screen swaps the single CANCEL for a CONFIRM at slot 6 and a CANCEL at 7, and both
+# were read as "cancel": on the Battle Challenge entry screen the button that commits the team and the one
+# that throws it away were indistinguishable. Which button it is comes from the sprite, whose concrete class
+# is named for what it does in both engine eras.
+Suite.define("party: the multiselect buttons are told apart, not both called cancel") do
+  party = [Poke.build(:name => "Bulba", :level => 5, :hp => 20, :totalhp => 20, :gender => 0)]
+  scene = Object.new
+  scene.instance_variable_set(:@sprites, { "pokemon6" => PokeSelectionConfirmSprite.new,
+                                           "pokemon7" => PokeSelectionCancelSprite2.new })
+  eq "slot 6 is the confirm button", PokeAccess::Party.party_button(scene, 6), PokeAccess::I18n.t(:pc_confirm)
+  eq "slot 7 is the cancel button", PokeAccess::Party.party_button(scene, 7), PokeAccess::I18n.t(:pc_cancel)
+
+  PokeAccess::Party.announce_party(scene, party, 6, 5)
+  eq "and moving onto it says so", SpeakCapture.lines, [PokeAccess::I18n.t(:pc_confirm)]
 end

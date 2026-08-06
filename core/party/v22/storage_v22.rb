@@ -58,5 +58,7 @@ end
 PokeAccess::V22.on_nav("UI::PokemonStorageVisuals", :set_index) { |vis| PokeAccess::StorageV22.line(vis) }
 # Cycling boxes calls go_to_next_box/go_to_previous_box directly without touching @index, so set_index
 # never fires: hook them too, through box_line so the new box is always named (see there).
+# blocks-on-purpose: both hold a quarter-second slide animation, and @storage.currentBox is assigned AFTER
+# it. Reading any earlier names the box the player just left.
 PokeAccess::V22.on_nav("UI::PokemonStorageVisuals", :go_to_next_box) { |vis| PokeAccess::StorageV22.box_line(vis) }
 PokeAccess::V22.on_nav("UI::PokemonStorageVisuals", :go_to_previous_box) { |vis| PokeAccess::StorageV22.box_line(vis) }

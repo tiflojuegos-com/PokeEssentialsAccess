@@ -18,12 +18,24 @@ Suite.define("static: no after hook is bound to a method that blocks until the p
   census_path = File.join(ReaderSites::ROOT, "test", "static", "loop_census.txt")
   truthy "the blocking-loop census is committed", File.file?(census_path)
 
+  # A site no dump defines is recorded as NO-DUMP rather than as an empty list. It is not an offender -- there
+  # is nothing to accuse it of -- but it is not a pass either, and the count below is what keeps the two
+  # apart. Left as an empty list, a sixth of the file read as evidence of safety it never carried.
   census = {}
+  no_dump = []
   File.read(census_path).each_line do |line|
     next if line =~ /\A\s*#/ || line.strip.empty?
-    site, profiles = line.split("=", 2)
+    # " = " and not "=": a hook on a setter is keyed Class#selected=, and splitting on the first "=" cut the
+    # key in half so the site could never be found again.
+    site, profiles = line.split(" = ", 2)
     next unless profiles
-    census[site.strip] = profiles.split(",").map { |p| p.strip }.reject { |p| p.empty? }
+    key = site.strip
+    if profiles.strip == "NO-DUMP"
+      census[key] = []
+      no_dump.push(key)
+    else
+      census[key] = profiles.split(",").map { |p| p.strip }.reject { |p| p.empty? }
+    end
   end
 
   declarations = ReaderSites.declarations
@@ -46,4 +58,11 @@ Suite.define("static: no after hook is bound to a method that blocks until the p
   eq "the census covers every after hook (else: ruby test/static/build_reader_census.rb)",
      missing_from_census.sort, []
   eq "and none of them is the screen's own loop", offenders.sort, []
+
+  # Two ceilings on what the check cannot see. Neither is a bug on its own; both are ways for a real one to
+  # hide, so they are held to a number instead of being left to drift. Raise a ceiling only after looking at
+  # what the new entry is -- for a v22 class, adding the vanilla tree to the census is the real answer.
+  unresolved = ReaderSites.unresolved_after_sites.values.flatten.length
+  truthy "no new after hook with a computed class or method (was #{unresolved}, ceiling 40)", unresolved <= 40
+  truthy "no new after hook that no dump can corroborate (was #{no_dump.length}, ceiling 30)", no_dump.length <= 30
 end

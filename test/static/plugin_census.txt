@@ -6,7 +6,7 @@
 # format: <DetectionProbe> = <profile>, <profile>...   (empty = no surveyed game ships it)
 # A probe is a class name, or Class#method for a plugin that brings no class of its own and is
 # only given away by a method it adds to one the engine already has.
-# surveyed profiles (13): africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal
+# surveyed profiles (14): africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla
 AlbumFotos_Scene = anil, royal
 EggMoveLearner_Scene = anil
 Ekans_Interface_Main = royal

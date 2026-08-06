@@ -17,11 +17,25 @@ end
 
 # --- Slot Machine ---------------------------------------------------------------------------------------
 
-Suite.define("minigames: slot reel stop voices the centre-row symbol") do
+# stopSpinning only ASKS the reel to stop; it keeps turning for up to four more symbols. The reel is read on
+# the frame @spinning actually goes false, so the symbol named is the one the machine paid on.
+Suite.define("minigames: slot reel voices the symbol it lands on, not the one it was asked to stop at") do
   reel = Object.new
-  def reel.showing; [0, 3, 5]; end # top cherry, middle Pikachu, bottom red-seven
-  PokeAccess::Minigames.slot_reel_stop(reel)
-  spoke "the reel's centre symbol is spoken as it stops", /Pikachu/
+  def reel.showing; @showing; end
+  reel.instance_variable_set(:@showing, [0, 5, 1])
+  reel.instance_variable_set(:@spinning, true)
+  PokeAccess::Minigames.slot_reel_update(reel)
+  silent "a reel still turning says nothing, however long it has been asked to stop"
+
+  SpeakCapture.clear
+  reel.instance_variable_set(:@showing, [0, 3, 5]) # top cherry, middle Pikachu, bottom red-seven
+  reel.instance_variable_set(:@spinning, false)
+  PokeAccess::Minigames.slot_reel_update(reel)
+  spoke "the centre symbol is spoken on the frame the reel lands", /Pikachu/
+
+  SpeakCapture.clear
+  PokeAccess::Minigames.slot_reel_update(reel)
+  silent "and not again on every frame it stays stopped"
 end
 
 Suite.define("minigames: slot wager is voiced once per change") do
@@ -40,25 +54,29 @@ Suite.define("minigames: slot wager is voiced once per change") do
   spoke "raising the wager announces the new amount", /2/
 end
 
+# The prize is the CREDIT delta across pbPayout. Reading the payout counter after the method returned always
+# answered zero -- its own counting loop drains it into the credit before it gets there -- so every win in
+# every game was announced as a loss. The fixture reproduces that: the payout sprite reads 0 in all three
+# cases, exactly as it does in play once the animation has run.
 Suite.define("minigames: slot payout voices a win, a loss and a free game") do
   won = Object.new
-  won.instance_variable_set(:@sprites, { "payout" => FakeSlotSprite.new(15) })
+  won.instance_variable_set(:@sprites, { "payout" => FakeSlotSprite.new(0), "credit" => FakeSlotSprite.new(65) })
   won.instance_variable_set(:@replay, false)
-  PokeAccess::Minigames.slot_payout(won)
-  spoke "a paying spin announces the coins won", /15/
+  PokeAccess::Minigames.slot_payout(won, 50)
+  spoke "a paying spin announces the coins the credit actually gained", /15/
 
   SpeakCapture.clear
   lost = Object.new
-  lost.instance_variable_set(:@sprites, { "payout" => FakeSlotSprite.new(0) })
+  lost.instance_variable_set(:@sprites, { "payout" => FakeSlotSprite.new(0), "credit" => FakeSlotSprite.new(50) })
   lost.instance_variable_set(:@replay, false)
-  PokeAccess::Minigames.slot_payout(lost)
+  PokeAccess::Minigames.slot_payout(lost, 50)
   spoke "a losing spin says there was no win", /#{PokeAccess::I18n.t(:mg_slot_lost)}/
 
   SpeakCapture.clear
   free = Object.new
-  free.instance_variable_set(:@sprites, { "payout" => FakeSlotSprite.new(0) })
+  free.instance_variable_set(:@sprites, { "payout" => FakeSlotSprite.new(0), "credit" => FakeSlotSprite.new(50) })
   free.instance_variable_set(:@replay, true)
-  PokeAccess::Minigames.slot_payout(free)
+  PokeAccess::Minigames.slot_payout(free, 50)
   spoke "three replay symbols announce a free game", /#{PokeAccess::I18n.t(:mg_slot_replay_win)}/
 end
 

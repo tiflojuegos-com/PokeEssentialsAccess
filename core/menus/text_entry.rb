@@ -53,8 +53,10 @@ module PokeAccess
   # by @cursorpos/@mode with no command window, so the generic reader never sees it. gen-6 uses
   # Window_CharacterEntry (already covered), so this hook simply does not fire there.
   module CursorNaming
-    CONTROLS = { -6 => :nm_upper, -5 => :nm_lower, -4 => :nm_accents, -3 => :nm_symbols,
-                 -2 => :nm_back, -1 => :nm_ok }
+    # The mode tabs by layout size. The modern screen has four (upper, lower, accents, symbols); the gen-6
+    # one has three and drops the accents tab, which is why the size decides and not a fixed table.
+    MODE_KEYS = { 3 => [:nm_upper, :nm_lower, :nm_symbols],
+                  4 => [:nm_upper, :nm_lower, :nm_accents, :nm_symbols] }
 
     # Announces the focused grid character or control on cursor/mode change, and echoes an inserted
     # character or a deletion when the entered text changes.
@@ -81,10 +83,29 @@ module PokeAccess
 
     # The spoken label of the focused element: a control name, or the grid character at the cursor.
     def self.focus_text(scene, mode, pos)
-      return PokeAccess::I18n.t(CONTROLS[pos]) if CONTROLS.key?(pos)
+      if pos.to_i < 0
+        k = control_key(scene, pos)
+        return k ? PokeAccess::I18n.t(k) : ""
+      end
       chars = (scene.class.send(:class_variable_get, :@@Characters)[mode][0] rescue nil)
       c = chars ? chars[pos].to_s : ""
       c == " " ? PokeAccess::I18n.t(:key_space) : c
+    end
+
+    # The i18n key for a control, from its negative cursor position. BACK and OK are always the last two;
+    # the mode tabs sit before them and their COUNT is the divergence -- four in the modern layout at -6..-3,
+    # three in the gen-6 one at -5..-3. A table fixed at -6 therefore named every gen-6 tab as the next one
+    # along: standing on UPPER the screen said "lowercase". Only awakening reaches this screen among the
+    # gen-6 games (the other six force the keyboard entry mode), and there only if the player picks the
+    # cursor mode in the options. Counting the game's own @@Characters serves both layouts.
+    def self.control_key(scene, pos)
+      return :nm_back if pos == -2
+      return :nm_ok if pos == -1
+      n = (scene.class.send(:class_variable_get, :@@Characters).length rescue 4)
+      keys = MODE_KEYS[n]
+      return nil unless keys
+      i = pos + n + 2
+      (i >= 0 && i < n) ? keys[i] : nil
     end
   end
 end

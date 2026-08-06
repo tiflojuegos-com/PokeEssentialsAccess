@@ -6,7 +6,7 @@ module PokeAccess
   # menu except the world map, whose destination resolves to the real map name.
   module ReminMenu
     LOAD_MAIN  = ["Continuar", "Opciones", "Salir"]
-    LOAD_MODES = ["Modo historia", "Capítulo extra", "Modo Masmorra",
+    LOAD_MODES = ["Modo historia", "Capítulo extra", "Modo Mazmorra",
                   "Modo Infinito", "Modo Simulación", "Modo???"]
     @stack = []
 

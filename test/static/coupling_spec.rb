@@ -148,7 +148,11 @@ Suite.define("static: no core/ file names a class only one fangame has") do
   Dir.glob(File.join(root, "core", "**", "*.rb")).sort.each do |f|
     rel = f[(root.length + 1)..-1].tr("\\", "/")
     code = File.read(f).gsub(/#(?!\{).*/, "")
-    code.scan(/"([A-Z][A-Za-z0-9_]*)"/).flatten.uniq.each do |name|
+    # Both quote styles, and namespaced names too: the scan only saw "Foo" in double quotes, so 'Foo' in
+    # single quotes and "VideoPoker::Window_Combination" walked straight past it. A qualified name is
+    # compared on its LAST segment, which is how the census keys it.
+    code.scan(/["']([A-Z][A-Za-z0-9_:]*)["']/).flatten.uniq.each do |raw|
+      name = raw.split("::").last
       next unless census[name]
       found[[rel, name]] = true
       next if declared[[rel, name]]

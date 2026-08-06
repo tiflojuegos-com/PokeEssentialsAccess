@@ -55,9 +55,9 @@ module PokeAccess
     #
     # The name USUALLY decides, and deliberately so: where a game ships only one of the aliases, this
     # answers exactly what the reader hooked before, so nothing changes anywhere that already worked. That
-    # matters because era and class name are INDEPENDENT in the wild -- Reminiscencia has GameData and the
-    # v16 class names with a gen-6 scene shape, so gating on the era alone would have left it with neither
-    # reader bound and the summary silent.
+    # matters because era and class name are INDEPENDENT in the wild -- both Infinite Fusions have GameData
+    # under the gen-6 class names (PokeBattle_Scene, and a party screen with pbChangeSelection), so gating on
+    # the era alone would have left them with neither reader bound and the summary silent.
     #
     # The era only breaks the tie when BOTH aliases exist, which is what a compatibility layer produces
     # (Awakening and Africanus declare the v16 names as empty subclasses of the v17 ones and instantiate

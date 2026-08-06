@@ -253,8 +253,12 @@ try {
         if (-not $compat.Preload) {
             Fail "Ni mkxp.json ni soporte de 'preloadScript' en el ejecutable: este juego no usa mkxp-z."
         }
+        # Two lines and not "{}": the register step below inserts its block in place of the first opening
+        # brace, so a one-line "{}" came out as {\n  "preloadScript": [...],} -- a trailing comma, which is
+        # not valid JSON. mkxp-z tolerates it and the game boots, but the launcher and anything else that
+        # parses strictly does not, and the file stays that way until the next reinstall.
         # No accents here on purpose: mkxp-z has a known bug parsing non-ASCII in this file.
-        [System.IO.File]::WriteAllText($json, "{}", $utf8)
+        [System.IO.File]::WriteAllText($json, "{`n}", $utf8)
         Write-Host "[OK] Creado mkxp.json (el juego no traia; su ejecutable si acepta preloadScript)." -ForegroundColor Green
     }
     if (-not $compat.Preload -and -not $Force) {
@@ -434,12 +438,39 @@ try {
             [System.IO.File]::WriteAllText($json, ($parts -join ""), $src.Encoding)
             Write-Host "[OK] preloadScript creado en mkxp.json." -ForegroundColor Green
         }
-        # releer y comprobar de verdad: si el cargador no acabo en una linea viva, el juego arrancaria
-        # sin mod y el instalador habria cantado un [OK] falso.
-        $written = [regex]::Split((Read-TextFile $json).Text, '(\r?\n)')
-        if ((Find-LiveLine $written ([regex]::Escape($marker))) -lt 0) {
-            Fail "No he podido registrar el cargador en mkxp.json. Tienes el original en '$bak': copialo encima de mkxp.json y avisa del fallo."
+    }
+
+    # Coma colgante antes de la llave de cierre: la deja el propio bloque de arriba cuando el JSON no tenia
+    # ninguna otra clave (juego sin mkxp.json, que creamos vacio). mkxp-z la traga y el juego arranca, pero no
+    # es JSON valido y el launcher -- o cualquier lector estricto -- se atraganta. FUERA del else, para que
+    # una reinstalacion sobre un juego que ya tiene el cargador tambien lo repare.
+    # Se busca por LINEAS VIVAS y no con un patron sobre todo el texto: el mkxp.json de serie lleva decenas
+    # de lineas de ejemplo comentadas, algunas detras de la llave de cierre y otras acabadas en coma, asi que
+    # un patron global tocaria comentarios o no llegaria al final. Se corrige solo la ultima linea viva
+    # acabada en coma cuando lo unico que queda viva detras es la llave de cierre.
+    $after = (Read-TextFile $json)
+    $lines = [regex]::Split($after.Text, '(\r?\n)')
+    $lastComma = -1
+    $onlyBrace = $true
+    for ($k = $lines.Count - 1; $k -ge 0; $k--) {
+        $t = $lines[$k].Trim()
+        if ($t -eq "" -or $t.StartsWith("//")) { continue }
+        if ($lastComma -lt 0) {
+            if ($t -eq "}") { continue }
+            if ($t.EndsWith(",")) { $lastComma = $k } else { $onlyBrace = $false }
+            break
         }
+    }
+    if ($onlyBrace -and $lastComma -ge 0) {
+        $lines[$lastComma] = $lines[$lastComma] -replace ',\s*$', ''
+        [System.IO.File]::WriteAllText($json, ($lines -join ""), $after.Encoding)
+        Write-Host "[OK] Corregida una coma sobrante en mkxp.json." -ForegroundColor Green
+    }
+    # releer y comprobar de verdad: si el cargador no acabo en una linea viva, el juego arrancaria
+    # sin mod y el instalador habria cantado un [OK] falso.
+    $written = [regex]::Split((Read-TextFile $json).Text, '(\r?\n)')
+    if ((Find-LiveLine $written ([regex]::Escape($marker))) -lt 0) {
+        Fail "No he podido registrar el cargador en mkxp.json. Tienes el original en '$bak': copialo encima de mkxp.json y avisa del fallo."
     }
 
     # 3) Sellar installed.json en data\: que version del mod y que perfil quedo instalado, mas el hash

@@ -31,7 +31,19 @@ module PokeAccess
 
     #builders
 
-    # Describes a move: type, power, accuracy, pp and description. This method only RESOLVES the fields
+    # Physical / special / status, spoken. The number means the same in both engine eras (0/1/2); a move
+    # object that does not answer at all is left out rather than guessed.
+    MOVE_CATS = [:cat_physical, :cat_special, :cat_status]
+
+    def self.move_category(m)
+      c = (m.category rescue nil)
+      return nil unless c.is_a?(Integer) && MOVE_CATS[c]
+      PokeAccess::I18n.t(:mv_category, :c => PokeAccess::I18n.t(MOVE_CATS[c]))
+    rescue StandardError
+      nil
+    end
+
+    # Describes a move: type, category, power, accuracy, pp and description. This method only RESOLVES the fields
     # (from the move object, falling back to PokeAccess::Data per field); the spoken assembly and the
     # power/accuracy wording are MoveInfo.line's, the single assembler -- this was the divergent copy that
     # treated accuracy 0 differently and skipped the no-power phrasing. Total pp answers to either
@@ -48,7 +60,12 @@ module PokeAccess
       ty   = (m.type rescue nil)
       tipo = ty ? (PokeAccess::Data.type_name(ty) rescue nil) : nil
       tipo = PokeAccess::Data.move_type_name(mid) if tipo.nil? || tipo.to_s.empty?
-      PokeAccess::MoveInfo.line(name.to_s, tipo, bd, acc, :pp => pp, :total_pp => tot, :desc => desc)
+      # The category joins the description as the part that is HERE and not on the cursor line. A battle
+      # cursor already says name, type, power, accuracy and pp, so without these two the info key repeated
+      # itself word for word and cost a keypress for nothing.
+      cat = move_category(m)
+      d = cat ? [cat, desc].compact.reject { |s| s.to_s.empty? }.join(". ") : desc
+      PokeAccess::MoveInfo.line(name.to_s, tipo, bd, acc, :pp => pp, :total_pp => tot, :desc => d)
     rescue StandardError
       (PokeAccess::Data.move_name((m.id rescue 0)) || PokeAccess::I18n.t(:info_move))
     end

@@ -12,7 +12,7 @@
 # WHICH object reports the move, and a game that has PokemonPartyPanel is read by the panel hook whatever
 # its scene is called. See Engine.era_scene for the screens where the same name really did decide wrong.
 PokeAccess::Hooks.after_hook("PokemonScreen_Scene", :pbChangeSelection) do |scene, ret, args|
-  PokeAccess::Party.announce_party(scene.instance_variable_get(:@party), ret, args[1])
+  PokeAccess::Party.announce_party(scene, scene.instance_variable_get(:@party), ret, args[1])
 end
 
 # PC storage cursor (pbUpdateOverlay runs whenever the focused slot changes).

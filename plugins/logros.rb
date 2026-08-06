@@ -37,10 +37,13 @@ module PokeAccess
       return unless s
       idx = PokeAccess.ivar(s, :@indexSel)
       logros = PokeAccess.ivar(s, :@logros)
-      key = [idx, PokeAccess.ivar(s, :@descOffset)]
+      l = (logros[idx] rescue nil)
+      # The STATUS is in the key too. Collecting a reward changes it in place -- the cursor has not moved and
+      # neither has the scroll -- so keyed on those two alone the one moment the player is waiting to hear
+      # about, the achievement flipping to claimed, was the one moment this stayed quiet.
+      key = [idx, PokeAccess.ivar(s, :@descOffset), (l.status rescue nil)]
       return if idx.nil? || logros.nil? || key == @last
       @last = key
-      l = (logros[idx] rescue nil)
       PokeAccess.speak(PokeAccess.logro_indexed_text(l), true) if l
     rescue StandardError
       nil
@@ -64,7 +67,21 @@ module PokeAccess
     comp = (::LOGRO_COMPLETADO rescue 3); ocul = (::LOGRO_OCULTO rescue 1)
     status = (st == comp) ? I18n.t(:ach_done) : ((st == ocul) ? I18n.t(:ach_locked) : I18n.t(:ach_pending))
     d = (l.desc rescue nil)
-    (d && !d.to_s.empty?) ? "#{nm}, #{status}. #{clean(d)}" : "#{nm}, #{status}"
+    line = (d && !d.to_s.empty?) ? "#{nm}, #{status}. #{clean(d)}" : "#{nm}, #{status}"
+    r = reward_note(st)
+    r ? "#{line}. #{r}" : line
+  rescue StandardError
+    nil
+  end
+
+  # "Press USE to collect" -- the line the screen paints over the description of an achievement that is
+  # earned but unclaimed, and the only thing on it a player can act on. Gated on the copy that HAS that
+  # state: it keeps its constants inside a Logros module of its own, and its ACTIVO means earned-and-owed
+  # rather than not-yet-earned, which is the opposite of what the bare number means elsewhere.
+  def self.reward_note(st)
+    active = (::Logros::LOGRO_ACTIVO rescue nil)
+    return nil if active.nil? || st != active
+    I18n.t(:ach_reward)
   rescue StandardError
     nil
   end

@@ -54,7 +54,11 @@ module PokeAccess
       nil
     end
 
-    # Archery: same idea on the "selector" sprite; the bullseye is the middle of its travel.
+    # Archery: same idea on the "selector" sprite -- except that the bullseye is NOT the midpoint of the
+    # travel, so the game's own PERFECT_SHOT_Y is what the pitch peaks on. The scene builds the range as
+    # PERFECT_SHOT_Y - CURSOR_MOVEMENT * CURSOR_STEPS .. PERFECT_SHOT_Y + 6 + CURSOR_MOVEMENT * CURSOR_STEPS,
+    # so the bottom half is six pixels longer and (lo + hi) / 2 lands three below the spot that actually
+    # scores -- three pixels of telling the player to release in the wrong place.
     def self.archer(scene)
       spr = PokeAccess.sprite(scene, "selector")
       return unless spr
@@ -63,11 +67,6 @@ module PokeAccess
       scene.instance_variable_set(:@pa_arch_y, y)
       lo = PokeAccess.ivar(scene, :@cursorMinY).to_i
       hi = PokeAccess.ivar(scene, :@cursorMaxY).to_i
-      # The perfect shot is NOT the midpoint of the travel: the scene builds the range as
-      # PERFECT_SHOT_Y - CURSOR_MOVEMENT * CURSOR_STEPS .. PERFECT_SHOT_Y + 6 + CURSOR_MOVEMENT *
-      # CURSOR_STEPS, so the bottom half is six pixels longer and (lo + hi) / 2 lands three below the spot
-      # that actually scores. The pitch has to peak where the game says, or it is telling the player to
-      # release in the wrong place.
       mid = (PokeAccess.const_at("TheArcherScene::PERFECT_SHOT_Y") || ((lo + hi) / 2.0)).to_f
       span = [(mid - lo).abs, (hi - mid).abs].max
       span = 1.0 if span <= 0

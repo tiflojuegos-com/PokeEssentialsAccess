@@ -5,8 +5,13 @@
 # call. An after hook on one of those runs when the player LEAVES the screen, so the reader is
 # silent the whole time it is open. A non-empty list is the bug; the answer is around + a poll.
 #
+#
 # format: Class#method = <profile>, <profile>...
-# after-style hook sites: 162 / blocking somewhere: 0
+# A row marked NO-DUMP is one no surveyed game defines: it was not checked and found clean, it
+# could not be checked at all. The two used to print identically, which made a sixth of the file
+# read as evidence it was not.
+# after-style hook sites: 168 / blocking somewhere: 0 / no dump defines it: 5
+# after-style sites the extractor cannot resolve (computed class or method): 39
 AdvancedPokedexScene#displayPage = 
 AdvancedPokedexScene#pbStartScene = 
 AlbumScene#showPage = 
@@ -23,15 +28,15 @@ Battle::Scene#pbUpdateBattlerInfo =
 Battle::Scene#pbUpdateBattlerSelection = 
 Battle::Scene#pbUpdateMoveInfoWindow = 
 Battle::Scene#rewriteArcyPlates = 
-Battle::Scene::FightMenu#shiftMode = 
-Battle::Scene::MenuBase#index = 
-Battle::Scene::MenuBase#mode = 
+Battle::Scene::FightMenu#shiftMode= = 
+Battle::Scene::MenuBase#index= = 
+Battle::Scene::MenuBase#mode= = 
 Battle::Scene::MenuBase#setIndexAndMode = 
 BerrydexInfo_Scene#drawPage = 
 BookScene#texto = 
 ColorCodeDoor#handle_input = 
-CommandMenuDisplay#index = 
-CommandMenuDisplay#setIndexAndMode = 
+CommandMenuDisplay#index= = 
+CommandMenuDisplay#setIndexAndMode = NO-DUMP
 CommandMenuDisplay#setTexts = 
 DP_PauseMenu#update = 
 DatingSimMainScreen#setText = 
@@ -50,13 +55,17 @@ EncounterList_Scene#drawPresent =
 EquipScreen#update_description = 
 FatesMenuPanels#cambio = 
 FatesMenuPanels#initialize = 
-FightMenuDisplay#battler = 
-FightMenuDisplay#setIndexAndMode = 
+FightMenuDisplay#battler= = 
+FightMenuDisplay#setIndexAndMode = NO-DUMP
 GachaScene#refresh = 
 Game_Picture#erase = 
 Game_Picture#show = 
-Game_Temp#in_battle = 
-Game_Temp#in_menu = 
+Game_Temp#in_battle= = NO-DUMP
+Game_Temp#in_menu= = NO-DUMP
+Glosario_Historia#update = 
+Glosario_Historia_Secciones#dibujar_lista = 
+Glosario_Historia_Secciones#mover_cursor = 
+Glosario_Personajes#dibujar_lista = 
 Glosario_Personajes#mover_cursor = 
 HallOfFameScene#writePokemonData = 
 HallOfFameScene#writeWelcome = 
@@ -72,7 +81,7 @@ ItemInfog_Scene#pbRedrawMenu =
 LocationWindow#initialize = 
 Logros_Scene#showTexts = 
 Mankey#inputs = 
-MapBottomSprite#maplocation = 
+MapBottomSprite#maplocation= = 
 Menu2#pbActualizarIconosMenu = 
 MiningGameCursor#update = 
 MiningGameScene#pbHit = 
@@ -90,14 +99,16 @@ PokeBattle_Scene#pbLevelUp =
 PokeNavAppScene#hover = 
 PokeNavAppScene#pbStartScene = 
 PokedexFormScene#pbRefresh = 
-PokegearButton#selected = 
-PokemonEntryScene2#pbUpdate = 
+PokegearButton#selected= = 
+PokemonChallenges_Scene#pbUpdate = 
+PokemonEntryScene2#pbUpdate = NO-DUMP
 PokemonGenderSelection#input = 
 PokemonMGift_Scene#pbUpdate = 
 PokemonMenu_Scene#selectButton = 
 PokemonMenu_Scene#update = 
 PokemonNestMapScene#pbStartScene = 
-PokemonPartyPanel#selected = 
+PokemonPartyPanel#selected= = 
+PokemonParty_Scene#pbSelect = 
 PokemonPauseMenu_Scene#update_button = 
 PokemonPhone_Scene#pbEndScene = 
 PokemonPhone_Scene#pbStartScene = 
@@ -131,7 +142,7 @@ RSESTarterChoice#pbUpdate =
 ScrollTree#positionSelector = 
 ScrollTree#raiseStat = 
 SelectMoveMenu_Scene#refresh_buttons = 
-SlotMachineReel#stopSpinning = 
+SlotMachineReel#update = 
 SlotMachineScene#update = 
 SpriteWindow_Selectable#update = 
 StarterMenu_Scene#pbRedrawList = 
@@ -158,14 +169,55 @@ UI::TownMapVisuals#refresh_on_cursor_move =
 UI::TrainerCard#start_screen = 
 VideoPoker::Scene#update_all = 
 VoltorbFlip#getInput = 
-Window_AdvancedTextPokemon#text = 
-Window_AdvancedTextPokemonCentro#text = 
+Window_AdvancedTextPokemon#text= = 
+Window_AdvancedTextPokemonCentro#text= = 
 Window_DrawableCommand#update = 
 Window_InputNumberPokemon#update = 
 Window_PokemonOption#update = 
 Window_PokemonOption_Sky#update = 
 Window_TextEntry#delete = 
 Window_TextEntry#insert = 
-Window_UnformattedTextPokemon#text = 
+Window_UnformattedTextPokemon#text= = 
 WonderCardAlbumScene#updateCursorPosition = 
 WonderCardScene#pbStartScene = 
+
+# UNRESOLVED: registered with a computed class or method, so the blocking check never saw them.
+# core/battle/gen6/battle_g6.rb: PokeAccess::Hooks.after_hook("FightMenuDisplay",
+# core/battle/gen6/battle_g6.rb: PokeAccess::Hooks.after_hook("FightMenuDisplay", mega_setter.to_sym) do |disp, _r, args|
+# core/battle/v22/battle_v22.rb: PokeAccess::Hooks.after_hook("Battle::Scene::#{name}", meth, :optional => true, &blk)
+# core/battle/v22/pokedex_v22.rb: PokeAccess::Hooks.after_hook("UI::PokedexEntryVisuals", m) do |vis, _ret, _args|
+# core/input/hooks.rb: def self.read_on_open(cname, meth = :pbStartScene, opts = {}, &blk)
+# core/menus/character_creator.rb: PokeAccess::Hooks.after_hook("CharacterSelectMenuPresenter", meth.to_sym) do |pres, _r, _a|
+# core/menus/gen6/move_relearner_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbDrawMoveList) do |scene, _r, _a|
+# core/menus/load.rb: PokeAccess::Hooks.after_hook(PokeAccess::Engine.era_scene(:gen6, "PokemonLoadScene", "PokemonLoad_Scene"), :pbStartScene) do |_s, _r, args|
+# core/menus/load.rb: PokeAccess::Hooks.after_hook(PokeAccess::Engine.era_scene(:gamedata, "PokemonLoad_Scene", "PokemonLoadScene"), :pbStartScene) do |_s, _r, args|
+# core/menus/load_screen.rb: PokeAccess::Hooks.after_hook(PokeAccess::Engine.scene_class("PokemonLoad_Scene", "PokemonLoadScene").to_s, :pbDrawSaveCommands, :optional => true) do |_s, _r, args|
+# core/menus/load_screen.rb: PokeAccess::Hooks.after_hook(PokeAccess::Engine.scene_class("PokemonLoad_Scene", "PokemonLoadScene").to_s, :pbMoveSaveSel, :optional => true) do |scene, _r, args|
+# core/menus/number_entry.rb: PokeAccess::Hooks.after_hook(cn, :text=) do |_w, _r, args|
+# core/menus/option_help.rb: PokeAccess::Hooks.after_hook(cn, meth.to_sym, :optional => true) do |scene, _r, _a|
+# core/menus/text_entry.rb: PokeAccess::Hooks.after_hook(cn, :update) do |win, _r, _a|
+# core/menus/trainer_card.rb: PokeAccess::Hooks.read_on_open(PokeAccess::TrainerCard::SCENE) { |_s| PokeAccess::TrainerCard.text }
+# core/menus/v21/move_relearner_v21.rb: PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerV21::SCENE, :pbDrawMoveList) do |scene, _r, _a|
+# core/menus/v21/trainer_card_v21.rb: PokeAccess::Hooks.read_on_open(PokeAccess::TrainerCardV21::SCENE) { |_s| PokeAccess::TrainerCardData.text }
+# core/menus/v22/screen_v22.rb: PokeAccess::Hooks.after_hook(class_name, method) do |vis, _ret, _args|
+# core/nav/region_map.rb: PokeAccess::Hooks.after_hook(cn, :pbGetMapLocation) do |s, ret, args|
+# core/nav/region_map.rb: PokeAccess::Hooks.after_hook(cn, :pbEndScene) do |s, _r, _a|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageOne) do |s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageTwo) do |s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageThree) do |s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFour) do |s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFive) do |s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawSelectedMove) do |s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :pbUpdate) do |scene, _r, _a|
+# core/party/v21/ribbons_v21.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :drawSelectedRibbon) do |_s, _r, args|
+# core/party/v21/summary_v21.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :drawPage) do |scene, _r, args|
+# core/party/v21/summary_v21.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :drawSelectedMove) do |scene, _r, args|
+# core/party/v22/summary_v22.rb: PokeAccess::Hooks.after_hook("UI::PokemonSummaryVisuals", m) do |vis, _ret, _args|
+# games/awakening/compendium.rb: after(cname, :update) { |s, _r, _a| PokeAccess::AwakeningCompendium.focus(s) }
+# games/royal/curry_result.rb: read_on_open("ResultadosCurry_Scene") do |scr|
+# games/royal/curry_result.rb: read_on_open("ResultadosCurryPuntos_Scene") do |scr|
+# games/royal/iconos_leyenda.rb: read_on_open("IconosLeyenda_Scene") { |_s| PokeAccess::RoyalIconLegend::TEXT }
+# games/royal/selectors.rb: after(cls, meth.to_sym) { |_s, _r, _a| PokeAccess.speak(label, true) }
+# games/royal/tarjeta_entrenador.rb: read_on_open("TarjetaEntrenador_Scene") { |_s| PokeAccess::RoyalTrainerCard.text }
+# plugins/easy_questing.rb: PokeAccess::Hooks.after_hook("Questlog", m, :optional => true) { |ql, _r, _a| PokeAccess::Quests.announce(ql) }
+# plugins/video_poker.rb: PokeAccess::Hooks.after_hook("VideoPoker::Scene", meth.to_sym, :optional => true) do |scene, _r, _a|

@@ -281,29 +281,51 @@ module PokeAccess
       fn_absent << name.to_s unless fn_absent.include?(name.to_s)
     end
 
+    # The bodies hooked onto each wrapped function, keyed "name|timing". They live here rather than being
+    # closed over by the wrapper because the wrapper is installed ONCE per function: the installer used to
+    # return early when the alias already existed, so a second hook on the same function vanished -- no
+    # binding, no entry in missing, nothing in the diagnostic. Two readers wanting the same function is not
+    # exotic (a pause menu and a glossary both want pbFadeOutIn), and it only worked so far because the
+    # colliding pairs happened to sit in profiles that never load together.
+    def self.fn_bodies; @fn_bodies ||= {}; end
+
+    def self.add_fn_body(name, timing, body)
+      (fn_bodies["#{name}|#{timing}"] ||= []).push(body)
+    end
+
+    # Runs the before/after bodies for a function. Each is swallowed and logged once on its own, so one
+    # broken reader cannot take the others down with it, nor the game's function.
+    def self.run_fn_bodies(name, timing, tag, args, result)
+      list = fn_bodies["#{name}|#{timing}"]
+      return if list.nil?
+      list.each do |b|
+        begin; b.call(args, result); rescue StandardError => e; PokeAccess.log_once(tag, e); end
+      end
+    end
+
     # The one installer behind wrap_global and wrap_kernel: defines the wrapper for sym on receiver (Object,
-    # or Kernel's singleton class), delegating to the ali alias. timing :before/:after bodies are swallowed
-    # and logged once (a reader bug must not crash the game's function); :around gets (args, call_next),
-    # keeps control of the call and is NOT swallowed -- its first failure is logged then re-raised, the same
-    # contract as around_hook (it may legitimately choose not to run the original). 1.8.7-safe.
-    def self.define_fn_wrapper(receiver, sym, ali, tag, timing, body)
+    # or Kernel's singleton class), delegating to the ali alias. :before and :after bodies chain, each
+    # swallowed and logged once (a reader bug must not crash the game's function); :around gets
+    # (args, call_next), keeps control of the call and is NOT swallowed -- its first failure is logged then
+    # re-raised, the same contract as around_hook (it may legitimately choose not to run the original).
+    # Only the FIRST :around runs: nesting two of them would need one to know about the other, and nothing
+    # in the mod wants that. 1.8.7-safe.
+    def self.define_fn_wrapper(receiver, sym, ali, tag, name)
       receiver.send(:define_method, sym) do |*args, &blk|
-        case timing
-        when :around
+        PokeAccess::Hooks.run_fn_bodies(name, :before, tag, args, nil)
+        around = PokeAccess::Hooks.fn_bodies["#{name}|around"]
+        if around && !around.empty?
           begin
-            body.call(args, lambda { send(ali, *args, &blk) })
+            r = around[0].call(args, lambda { send(ali, *args, &blk) })
           rescue StandardError => e
             PokeAccess::Hooks.log_body_failure("fn #{tag}", e)
             raise e
           end
-        when :after
-          r = send(ali, *args, &blk)
-          begin; body.call(args, r); rescue StandardError => e; PokeAccess.log_once(tag, e); end
-          r
         else
-          begin; body.call(args, nil); rescue StandardError => e; PokeAccess.log_once(tag, e); end
-          send(ali, *args, &blk)
+          r = send(ali, *args, &blk)
         end
+        PokeAccess::Hooks.run_fn_bodies(name, :after, tag, args, r)
+        r
       end
     end
 
@@ -317,9 +339,10 @@ module PokeAccess
         note_fn_absent(name)
         return
       end
+      add_fn_body(name, timing, body)
       return if Object.private_method_defined?(ali) || Object.method_defined?(ali)
       Object.send(:alias_method, ali, sym)
-      define_fn_wrapper(Object, sym, ali, "global_#{name}", timing, body)
+      define_fn_wrapper(Object, sym, ali, "global_#{name}", name)
       Object.send(:private, sym, ali)
     rescue StandardError => e
       PokeAccess.write_marker("#{tag}: #{e.message}\n")
@@ -334,9 +357,10 @@ module PokeAccess
       if Kernel.respond_to?(sym)
         ali = "#{name}__pa".to_sym
         sc = (class << Kernel; self; end)
+        add_fn_body(name, timing, body)
         return if sc.method_defined?(ali) || sc.private_method_defined?(ali)
         sc.send(:alias_method, ali, sym)
-        define_fn_wrapper(sc, sym, ali, "kernel_#{name}", timing, body)
+        define_fn_wrapper(sc, sym, ali, "kernel_#{name}", name)
       else
         wrap_global(name, tag, timing, &body)
       end

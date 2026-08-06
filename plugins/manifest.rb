@@ -56,7 +56,7 @@
   :better_summary    => "PokemonSummary_Scene#showAbilityDescription",
   :arcky_region_map  => "PokemonRegionMap_Scene#updateSpeciesInfo",
   # The payout-table window rather than the scene: the census indexes a class by its LAST namespace segment,
-  # so the scene would key on the bare "Scene" -- a name four of the surveyed games define for something
+  # so the scene would key on the bare "Scene" -- a name three of the surveyed games define for something
   # else entirely. Written qualified because BOTH readers of this table need it that way: the census still
   # keys it on Window_Combination, and the runtime gate resolves it segment by segment, which the bare name
   # cannot do for a class that lives inside a module.

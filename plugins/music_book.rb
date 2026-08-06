@@ -19,7 +19,12 @@ module PokeAccess
       id = (win.item rescue nil)
       return nil if id.nil?
       nm = (PokeAccess::Data.item_name(id) rescue nil)
-      (nm.nil? || nm.to_s.empty?) ? nil : nm.to_s
+      return nil if nm.nil? || nm.to_s.empty?
+      # The favourite mark. The book keeps its own list and the window paints a star beside a tune that is on
+      # it -- the only thing distinguishing two rows that otherwise read identically, and invisible to a
+      # reader that says the name alone.
+      fav = (book.favorited?(id) rescue false)
+      fav ? "#{nm}, #{PokeAccess::I18n.t(:mb_favourite)}" : nm.to_s
     rescue StandardError
       nil
     end

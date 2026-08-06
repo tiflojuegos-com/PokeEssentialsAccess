@@ -7,16 +7,17 @@ module PokeAccess
     MAX = 20
 
     # The spoken encounter summary for the just-opened screen, from its @encarray of species ids, or nil.
+    #
+    # A map with no encounters does not get an empty array: getEncData fills it with the sentinel [7], and
+    # the screen decides by popping the last entry and comparing it to 7 before writing "Sin encuentros
+    # disponibles". Reading the array as-is turned that sentinel into species 7 and announced one wild
+    # Squirtle on a map the screen says is empty -- and the none key was unreachable.
+    #
+    # The empty array is the one place this deliberately does NOT mirror the screen: there the screen prints
+    # a total of zero, which says the same thing in a worse way for someone listening.
     def self.text(scene)
       arr = PokeAccess.ivar(scene, :@encarray)
       map = ($game_map.name rescue nil)
-      # A map with no encounters does not get an empty array: getEncData fills it with the sentinel [7], and
-      # the screen decides by popping the last entry and comparing it to 7 before writing "Sin encuentros
-      # disponibles". Reading the array as-is turned that sentinel into species 7 and announced one wild
-      # Squirtle on a map the screen says is empty -- and the none key below was unreachable.
-      #
-      # The empty case is the one place this deliberately does NOT mirror the screen: with an empty array
-      # the screen prints a total of zero, which says the same thing in a worse way for someone listening.
       if !arr.is_a?(Array) || arr.empty? || arr.last == 7
         return map ? PokeAccess::I18n.t(:aw_dexnav_none, :map => map.to_s) : nil
       end
@@ -45,5 +46,9 @@ PokeAccess::Game.define("awakening") do
   # loop, so an after-hook on the constructor only returns once the player has already closed the screen --
   # the summary arrived after it was of any use. A before-hook on the loop itself fires at the one moment
   # that counts: everything is built and nothing has been drawn yet.
-  before("EncounterListUI", :main) { |scene, _a| PokeAccess::AwakeningDexNav.text(scene) }
+  # read_on_open and not before(): before() yields the block's value nowhere, so returning the summary from
+  # it built the whole line and dropped it, and the screen was silent from the day it was written -- with
+  # aw_dexnav_head and aw_dexnav_none sitting unreachable in the language files. read_on_open speaks what the
+  # block returns, and :timing => :before keeps the moment this hook was chosen for.
+  read_on_open("EncounterListUI", :main, :timing => :before) { |scene| PokeAccess::AwakeningDexNav.text(scene) }
 end

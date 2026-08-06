@@ -15,12 +15,22 @@ module PokeAccess
       nil
     end
 
-    # Reads the focused place when the horizontal index changes.
+    # Reads the focused place when the strip moves, or when a different character brings a different place
+    # with it.
+    #
+    # Queued rather than interrupting in that second case, and that is the whole point: UP and DOWN update
+    # the command window -- which voices the character -- and THEN re-derive @index from whoever is now
+    # focused. Interrupting there cut the name mid-word every time, so moving down the list announced only
+    # the place and never whose it was. A move along the strip itself still interrupts, because there the
+    # place is the only thing that changed and arrowing fast must not queue up a backlog.
     def self.announce(scene)
       idx = PokeAccess.ivar(scene, :@index)
-      return unless PokeAccess::Cursor.changed?(scene, :place_idx, idx)
+      row = (PokeAccess.ivar(scene, :@cmdwindow).index rescue nil)
+      moved = PokeAccess::Cursor.changed?(scene, :place_row, row)
+      changed = PokeAccess::Cursor.changed?(scene, :place_idx, idx)
+      return unless changed || moved
       t = place_name(idx)
-      PokeAccess.speak_clean(t, true) if t && !t.to_s.empty?
+      PokeAccess.speak_clean(t, !moved) if t && !t.to_s.empty?
     rescue StandardError
       nil
     end

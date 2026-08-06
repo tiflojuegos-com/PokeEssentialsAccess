@@ -45,7 +45,14 @@ module PokeAccess
       # cursor where it was, so the slot now holds a DIFFERENT card at the same index -- the one moment on
       # this screen where staying quiet is worst, since the player just destroyed something.
       PokeAccess::Cursor.announce(scene, :mgift_card, [idx, title], true) do
-        PokeAccess::I18n.t(:list_entry, :name => title, :n => idx + 1, :tot => cards.length)
+        line = PokeAccess::I18n.t(:list_entry, :name => title, :n => idx + 1, :tot => cards.length)
+        # The album is a GRID paged in blocks, and the page is the one number it puts on screen ("Page n / m")
+        # -- so a player moving with the arrows could hear the card change but never that the album had
+        # turned over. The card's place in the whole album stays too: it is what says how far in you are.
+        per = (WonderCardAlbumScene::CARDS_PER_PAGE rescue nil)
+        return line unless per.is_a?(Integer) && per > 0
+        pages = ((cards.length.to_f / per).ceil rescue nil)
+        (pages && pages > 1) ? "#{line}. #{PokeAccess::I18n.t(:mgift_page, :n => (idx / per) + 1, :tot => pages)}" : line
       end
     rescue StandardError
       nil

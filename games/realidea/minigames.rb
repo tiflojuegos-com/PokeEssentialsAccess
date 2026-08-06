@@ -36,18 +36,19 @@ module PokeAccess
     # Dance: copy the move the partner shows. It looked like a timing game, but the direction to copy is kept
     # as a plain string in @direccionmelo, so it is simply spoken when it changes -- no cue needed. The hit
     # count is spoken too, which is the only feedback on whether the copy landed.
+    #
+    # The STEP COUNTER belongs in the signature. Danza picks the next direction at random without excluding
+    # the previous one, so roughly one step in four repeats; keyed on the direction alone, a repeat looked
+    # identical to the last announcement and was swallowed -- in a memory game whose sequence grows by one
+    # each round, that handed the player a sequence shorter than the real one. @direcciones is the sequence
+    # being shown and is cleared once the player has copied it, so its length is the position WITHIN the
+    # round, which is exactly the discriminator a repeated direction needs.
+    #
+    # The opening value is skipped: the scene initialises the direction to a placeholder that is not a step,
+    # so announcing it named a move the partner never made.
     def self.baile(scene)
       dir = PokeAccess.ivar(scene, :@direccionmelo)
       hits = PokeAccess.ivar(scene, :@numaciertos)
-      # The step counter belongs in the signature: danza picks the next direction at random WITHOUT excluding
-      # the previous one, so roughly one step in four repeats. Keyed on the direction alone, a repeat looked
-      # identical to the last announcement and was swallowed -- in a memory game where the sequence grows by
-      # one each round, that handed the player a sequence shorter than the real one. @direcciones is the
-      # sequence being shown; it is cleared once the player has copied it, so its length is the position
-      # WITHIN the round, which is exactly the discriminator a repeated direction needs.
-      #
-      # The opening value is skipped. The scene initialises the direction to a placeholder that is not a
-      # step, so announcing it named a move the partner never made.
       steps = PokeAccess.ivar(scene, :@direcciones)
       sig = [(steps.is_a?(Array) ? steps.length : nil), dir, hits]
       return if dir.nil? || dir.to_s == "Normal" || PokeAccess.ivar(scene, :@pa_baile) == sig

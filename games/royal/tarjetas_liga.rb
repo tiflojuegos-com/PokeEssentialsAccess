@@ -16,7 +16,14 @@ PokeAccess::Game.define("royal") do
     end
     card = (TarjetasLiga.tarjetas[i] rescue nil)
     next unless card.is_a?(Array)
-    parts = [card[1], card[3]].compact.reject { |s| s.to_s.empty? }
-    PokeAccess.speak_clean(parts.join(". "), true) unless parts.empty?
+    name = card[1].to_s
+    next if name.empty?
+    # Only the name and the position, which is all the list paints. The lore in card[3] is a paragraph of
+    # some five hundred characters that lives on the card VIEW, opened with USE -- read here it interrupted
+    # itself on every arrow and made the grid impossible to sweep. It goes to the info key instead, which is
+    # where the rest of the mod puts detail a keypress away.
+    total = (TarjetasLiga.tarjetas.length rescue 0)
+    PokeAccess.speak_clean(PokeAccess::I18n.t(:list_entry, :name => name, :n => i + 1, :tot => total), true)
+    PokeAccess::Info.set_info(:text, card[3].to_s)
   end
 end

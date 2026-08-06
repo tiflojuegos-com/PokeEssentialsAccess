@@ -17,7 +17,7 @@ Suite.define("photo album: the slot's file is found by whichever route the plugi
   with = FakeAlbumWithHelper.new(["Fotos/Partida 1/capture000_04_07_2026.png", nil, "Fotos/Partida 1/capture002_09_09_2026.png"])
   [[:@page, 0], [:@photo, 0], [:@numpages, 2], [:@numcapturas, 2]].each { |k, v| with.instance_variable_set(k, v) }
   eq "the copy with the helper uses it", pa.file_for(with, 2), "Fotos/Partida 1/capture002_09_09_2026.png"
-  eq "the date comes off the filename", pa.date_of("Fotos/capture002_09_09_2026.png"), "09/09/2026"
+  eq "the date comes off the filename", pa.date_of("Fotos/capture002_09_09_2026.png"), "9/9/2026"
   eq "a name with no stamp has no date", pa.date_of("Fotos/capture002.png"), nil
 
   # The other copy: no helper at all. The listing is seeded here because the real one globs the disk once
@@ -30,7 +30,7 @@ Suite.define("photo album: the slot's file is found by whichever route the plugi
 
   eq "a filled slot is numbered, dated and placed on its page",
      pa.text(without),
-     "#{PokeAccess::I18n.t(:alb_photo, :n => 2, :tot => 2)}, 03/04/2026, #{PokeAccess::I18n.t(:alb_page, :n => 1, :tot => 1)}"
+     "#{PokeAccess::I18n.t(:alb_photo, :n => 2, :tot => 2)}, 3/4/2026, #{PokeAccess::I18n.t(:alb_page, :n => 1, :tot => 1)}"
 
   without.instance_variable_set(:@photo, 3)
   eq "an empty slot says so and still says where it is",

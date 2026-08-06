@@ -3,9 +3,12 @@
 # redraws after every one of those -- and once from pbStartScene -- so it is both the opening read and the
 # cursor read.
 #
-# The two copies were compared method by method: they diverge only in cosmetics (one keeps its layout in a
-# constants class, the other inlines the numbers; one wraps the index with modulo, the other with an if).
-# Everything this reader touches is the same in both, including the entry number, which is not @hallIndex
+# The two copies diverge a long way outside this screen -- 464 lines against 290, with different function
+# sets around it (one adds the Elite Four and Champion end-of-battle hooks and a "is this Pokemon in the
+# Hall" query, the other adds per-entry lookup, time and date accessors and debug commands). What was
+# compared, and what matters here, is the VIEWER: @hallEntry, @pokemonIndex, @hallIndex, update_display,
+# hallOfFameLastNumber and speciesName are present and mean the same thing in both.
+# That includes the entry number, which is not @hallIndex
 # but the game's own formula -- hallOfFameLastNumber + @hallIndex - hallOfFame.size + 1 -- because entries
 # are stored newest-last while the plugin numbers them by when they happened.
 module PokeAccess

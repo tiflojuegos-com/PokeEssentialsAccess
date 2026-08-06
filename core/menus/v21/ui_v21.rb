@@ -85,6 +85,19 @@ PokeAccess::Hooks.after_hook("PokemonPartyPanel", :selected=) do |panel, _r, arg
   end
 end
 
+# The trailing button row. It is NOT a PokemonPartyPanel: Cancel and Confirm are PokemonPartyConfirmCancelSprite
+# subclasses, so the panel hook above never saw them and the screen went silent the moment the cursor left the
+# last member -- with nothing to say the cursor had left the list at all. pbSelect is the one call that knows
+# the new index, and it marks every sprite, so gating on "this slot is not a Pokemon" keeps the two apart:
+# the panel hook still voices the members and this one only the buttons.
+PokeAccess::Hooks.after_hook("PokemonParty_Scene", :pbSelect, :optional => true) do |scene, _r, args|
+  idx = args[0]
+  party = PokeAccess.ivar(scene, :@party)
+  unless PokeAccess::Party.party_slot?(party, idx)
+    PokeAccess::UIV21.speak_changed(:party, PokeAccess::Party.party_button(scene, idx))
+  end
+end
+
 # Clear the party dedup when the party screen opens, so reopening reads the first member even when it is
 # the same one focused last time.
 PokeAccess::Hooks.before_hook("PokemonParty_Scene", :pbStartScene) do |_s, _a|

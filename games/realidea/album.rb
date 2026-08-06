@@ -25,12 +25,12 @@ module PokeAccess
     end
 
     # The spoken line for the current focus.
+    #
+    # The page numbers go through positive_or and not through a `rescue 1`, which would not cover them: an
+    # ivar that was never assigned reads as nil rather than raising, and the scene only assigns @paginas once
+    # the album holds a photo. With an empty album it stayed nil and the line came out as "page 1 of ,".
     def self.line(scene)
       sel = (scene.instance_variable_get(:@selec) rescue 0).to_i
-      # `rescue 1` does NOT cover these: an ivar that was never assigned reads as nil rather than raising,
-      # and the scene only assigns @paginas when the album already holds a photo. With an empty album it
-      # stayed nil and the line came out as "page 1 of ," -- the guard has to be against nil, not against an
-      # exception.
       page = positive_or(PokeAccess.ivar(scene, :@pagina))
       pages = positive_or(PokeAccess.ivar(scene, :@paginas))
       sprites = PokeAccess.ivar(scene, :@sprites)

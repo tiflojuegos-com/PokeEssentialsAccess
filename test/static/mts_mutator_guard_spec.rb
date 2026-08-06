@@ -64,11 +64,17 @@ module MtsGuard
     MODERN.any? { |m| p.include?(m) }
   end
 
-  # The dual/gen-6 Ruby files this guard scans: all of core/, every game adapter, and the loader, minus the
-  # modern-only subtrees.
+  # The dual/gen-6 Ruby files this guard scans: all of core/, every game adapter, every plugin reader and the
+  # loader, minus the modern-only subtrees.
+  #
+  # plugins/ was missing, and it is not a hypothetical gap: pokemon_z -- the one game with the mutator
+  # redefinition -- declares three of them (incubator, item_crafting, logros), so a CONST + extra in any of
+  # those corrupts the constant for the rest of the session with nothing in CI to see it. check187.py already
+  # scanned the layer; this one did not.
   def self.scanned_files
     globs = Dir.glob(File.join(ROOT, "core", "**", "*.rb")) +
             Dir.glob(File.join(ROOT, "games", "**", "*.rb")) +
+            Dir.glob(File.join(ROOT, "plugins", "**", "*.rb")) +
             Dir.glob(File.join(ROOT, "loader", "*.rb"))
     globs.reject { |f| modern?(f) }.sort
   end

@@ -37,10 +37,16 @@ Suite.define("locator: field-move obstacle labelling") do
   truthy "no false positive", PokeAccess::Locator.fieldmove_label(fme.new("Rockstar")).nil?
 end
 
-# The on-screen-keyboard scene the naming reader inspects: it exposes the character rows via a class
-# variable @@Characters (upper / lower), exactly as the gen-6 Window_TextEntry does.
+# The two on-screen-keyboard layouts, both real: the modern PokemonEntryScene2 has FOUR mode tabs (upper,
+# lower, accents, other) at -6..-3, and the gen-6 one has THREE (upper, lower, other) at -5..-3. Both expose
+# their rows the same way, through the class variable @@Characters.
 class FakeNamingScene
-  @@Characters = [[("ABCDEFGHIJ ,.").scan(/./), "UPPER"], [("abcdefghij ,.").scan(/./), "lower"]]
+  @@Characters = [[("ABCDEFGHIJ ,.").scan(/./), "UPPER"], [("abcdefghij ,.").scan(/./), "lower"],
+                  [("áéíóúàèìòù ,.").scan(/./), "accents"], [(",.:;!?   ♂♀  ").scan(/./), "other"]]
+end
+class FakeNamingSceneGen6
+  @@Characters = [[("ABCDEFGHIJ ,.").scan(/./), "UPPER"], [("abcdefghij ,.").scan(/./), "lower"],
+                  [(",.:;!?   ♂♀  ").scan(/./), "other"]]
 end
 
 # Cursor-mode naming: focus_text maps a grid position to its character (upper/lower by mode) or to the
@@ -51,5 +57,18 @@ Suite.define("locator: cursor-mode naming grid") do
   eq "lowercase by mode", PokeAccess::CursorNaming.focus_text(fn, 1, 2), "c"
   eq "gap reads as space", PokeAccess::CursorNaming.focus_text(fn, 0, 10), PokeAccess::I18n.t(:key_space)
   eq "OK control", PokeAccess::CursorNaming.focus_text(fn, 0, -1), PokeAccess::I18n.t(:nm_ok)
+  eq "back control", PokeAccess::CursorNaming.focus_text(fn, 0, -2), PokeAccess::I18n.t(:nm_back)
   eq "uppercase control", PokeAccess::CursorNaming.focus_text(fn, 0, -6), PokeAccess::I18n.t(:nm_upper)
+  eq "symbols control", PokeAccess::CursorNaming.focus_text(fn, 0, -3), PokeAccess::I18n.t(:nm_symbols)
+end
+
+# The tab positions shift with the number of tabs, and a table nailed to the four-tab layout named every
+# gen-6 tab as the next one along -- "lowercase" while standing on UPPER, which is where a player picking a
+# name goes wrong without ever being told why.
+Suite.define("locator: three-tab keyboards name their own tabs, not the four-tab ones") do
+  g6 = FakeNamingSceneGen6.new
+  eq "uppercase sits at -5 here", PokeAccess::CursorNaming.focus_text(g6, 0, -5), PokeAccess::I18n.t(:nm_upper)
+  eq "lowercase at -4", PokeAccess::CursorNaming.focus_text(g6, 0, -4), PokeAccess::I18n.t(:nm_lower)
+  eq "symbols at -3", PokeAccess::CursorNaming.focus_text(g6, 0, -3), PokeAccess::I18n.t(:nm_symbols)
+  eq "OK and back do not move", PokeAccess::CursorNaming.focus_text(g6, 0, -1), PokeAccess::I18n.t(:nm_ok)
 end

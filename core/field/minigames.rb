@@ -105,9 +105,19 @@ module PokeAccess
       nil
     end
 
-    # Voices a reel's centre-row symbol the moment it is told to stop, so the player learns each reel's result
-    # as it lands (showing => [top, middle, bottom]; the centre row is the one a single coin always plays).
-    def self.slot_reel_stop(reel)
+    # Voices a reel's centre-row symbol on the frame it actually lands (showing => [top, middle, bottom]; the
+    # centre row is the one a single coin always plays).
+    #
+    # Polled from the reel's own update rather than hung off stopSpinning, which was naming the wrong symbol
+    # on every spin: stopSpinning only raises @stopping and picks a random slip, and the reel keeps advancing
+    # inside update until @toppos is 0 with no slip left -- up to four symbols further on, and the modern copy
+    # widens the slip by difficulty. The landing is the frame @spinning goes false, which is exactly what the
+    # remembered flag detects. Both eras share @spinning, showing and update, so one reader serves them.
+    def self.slot_reel_update(reel)
+      spinning = PokeAccess.ivar(reel, :@spinning) ? true : false
+      was = PokeAccess.ivar(reel, :@access_spin) ? true : false
+      reel.instance_variable_set(:@access_spin, spinning)
+      return unless was && !spinning
       mid = (reel.showing[1] rescue nil)
       return if mid.nil?
       PokeAccess.speak(slot_symbol(mid), false)
@@ -115,12 +125,23 @@ module PokeAccess
       nil
     end
 
-    # Voices the payout once the reels have stopped: the coins won (credited to the payout counter) or that the
-    # spin lost. Read after pbPayout has set @sprites["payout"].score. @replay means all three 7s replay symbol.
-    def self.slot_payout(scene)
-      replay = scene.instance_variable_get(:@replay)
-      won = (scene.instance_variable_get(:@sprites)["payout"].score rescue 0).to_i
-      if replay
+    # The credit counter, which is where the winnings actually end up.
+    def self.slot_credit(scene)
+      (scene.instance_variable_get(:@sprites)["credit"].score rescue nil)
+    end
+
+    # Voices the result of a spin: the coins won, the free replay, or the loss. param before the credit
+    # counter as it stood before pbPayout ran.
+    #
+    # The prize is the CREDIT delta, not the payout counter. Reading @sprites["payout"].score after pbPayout
+    # returns always answered zero -- the method sets it to the prize and then its own counting loop drains it
+    # one coin at a time into the credit, so every win, in all thirteen games, was announced as a loss. Only
+    # pbPayout adds to the credit (the wager is deducted elsewhere), so the difference IS the prize, whether
+    # the player let the count run or skipped it.
+    def self.slot_payout(scene, before)
+      after = slot_credit(scene)
+      won = (before && after) ? (after.to_i - before.to_i) : 0
+      if scene.instance_variable_get(:@replay)
         PokeAccess.speak(PokeAccess::I18n.t(:mg_slot_replay_win), false)
       elsif won > 0
         PokeAccess.speak(PokeAccess::I18n.t(:mg_slot_won, :n => won), false)
@@ -205,10 +226,13 @@ PokeAccess::Hooks.after_hook("MiningGameScene", :pbHit) { |scene, _result, _args
 # Slot Machine (SlotMachineScene, its reels SlotMachineReel): wager as coins go in, each reel's symbol as it
 # stops, and the win/loss once paid out. No-op where the classes are absent.
 PokeAccess::Hooks.after_hook("SlotMachineScene", :update) { |scene, _r, _a| PokeAccess::Minigames.slot_wager(scene) }
-PokeAccess::Hooks.after_hook("SlotMachineReel", :stopSpinning) { |reel, _r, _a| PokeAccess::Minigames.slot_reel_stop(reel) }
-# blocks-on-purpose: pbPayout IS the coin-counting animation, and the number it announces is the total that
-# animation lands on. Reading before it would name a payout the machine has not decided yet.
-PokeAccess::Hooks.after_hook("SlotMachineScene", :pbPayout) { |scene, _r, _a| PokeAccess::Minigames.slot_payout(scene) }
+PokeAccess::Hooks.after_hook("SlotMachineReel", :update) { |reel, _r, _a| PokeAccess::Minigames.slot_reel_update(reel) }
+# pbPayout is the coin-counting animation: the prize exists only while it runs, and by the time it returns
+# the counter it was read from is back to zero. Wrapped instead, so the credit is sampled on both sides.
+PokeAccess::Hooks.around_hook("SlotMachineScene", :pbPayout) do |scene, nxt, _a|
+  before = PokeAccess::Minigames.slot_credit(scene)
+  begin; nxt.call; ensure; PokeAccess::Minigames.slot_payout(scene, before); end
+end
 
 # Tile Puzzle (TilePuzzleScene): the cursor cell as it moves and the win when solved, polled on the scene's
 # per-frame update. The cursor and board live in the scene's ivars, so no around-hook is needed.

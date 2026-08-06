@@ -33,10 +33,29 @@ module PokeAccess
       t + fainted_suffix(pk)
     end
 
-    # Speaks the party slot being focused (name, level, hp, fainted).
-    def self.announce_party(party, idx, oldidx)
+    # The label for a slot past the last party member. The screen puts a button row there, and WHICH button
+    # has to come from the sprite rather than from the index: with multiselect the screen swaps the single
+    # CANCEL for a CONFIRM plus a CANCEL, and answering "cancel" for both made the button that commits the
+    # selection sound exactly like the one that abandons it -- on the Battle Challenge entry screen, where
+    # that is the whole decision. The concrete sprite classes are named for what they are in both eras
+    # (PokeSelection*/PokemonParty* + Confirm/Cancel); only the shared base carries both words.
+    def self.party_button(scene, idx)
+      cn = (PokeAccess.ivar(scene, :@sprites)["pokemon#{idx}"].class.to_s rescue "")
+      return nil unless cn.include?("Cancel") || cn.include?("Confirm")
+      confirm = cn.include?("Confirm") && !cn.include?("ConfirmCancel")
+      PokeAccess::I18n.t(confirm ? :pc_confirm : :pc_cancel)
+    end
+
+    # True when this slot holds a Pokemon rather than one of the trailing buttons.
+    def self.party_slot?(party, idx)
+      party && idx.is_a?(Integer) && idx >= 0 && idx < party.length && party[idx]
+    end
+
+    # Speaks the party slot being focused (name, level, hp, fainted), or the button past the last member.
+    def self.announce_party(scene, party, idx, oldidx)
       return if idx == oldidx
-      PokeAccess.speak(party_line(party, idx), true)
+      t = party_slot?(party, idx) ? party_line(party, idx) : (party_button(scene, idx) || PokeAccess::I18n.t(:pc_cancel))
+      PokeAccess.speak(t, true)
     end
 
     # Speaks the pc storage cursor: held pokemon, controls, or the slot's pokemon. param selection the

@@ -13,6 +13,8 @@ module PokeAccess
     # numbers of a different stat, and arrows moved a value the player had not been told they were on. The
     # order is read from the scene's own constant rather than copied here, so a fangame patch that reorders
     # the rows cannot leave this quietly mislabelling again.
+    # The stat name comes from the engine's own table rather than a hand-written list: six stats in a fixed
+    # order is exactly the shape that mislabels everything, silently, if the list is off by one.
     def self.evs(scene)
       row = PokeAccess.ivar(scene, :@selected_stat)
       cur = PokeAccess.ivar(scene, :@current_evs)
@@ -22,8 +24,6 @@ module PokeAccess
       stat = (order.is_a?(Array) ? order[row] : nil) || row
       return unless stat >= 0 && stat < cur.length
       ivs = PokeAccess.ivar(scene, :@ivs)
-      # Six stats here, so the name comes from the engine's own stat table rather than a hand-written list
-      # (which would silently mislabel everything if the order were off by one).
       name = (PokeAccess::Data.stat_name(stat) rescue nil)
       name = stat.to_s if name.nil? || name.to_s.empty?
       PokeAccess::Cursor.announce(scene, :awk_evs, [row, cur[stat]], true) do

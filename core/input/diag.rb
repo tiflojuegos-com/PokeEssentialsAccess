@@ -42,10 +42,16 @@ module PokeAccess
     # the build with the fix or the one before it -- which cost a full round trip the first time it
     # happened. Parsed by hand rather than with a JSON library, since the mod runs under Ruby 1.8.7.
     def self.mod_version
-      txt = File.read(File.join(PokeAccess::Paths::ROOT, "version.json")) rescue nil
-      return "?" if txt.nil?
-      m = txt.match(/"version"\s*:\s*"([^"]+)"/)
-      m ? m[1] : "?"
+      # installed.json first, because that is the one that EXISTS in a played game: version.json lives at the
+      # repo root and the installer does not deploy it, so every real recording said "mod: ?" -- the one line
+      # that tells which build a report came from. version.json stays as the answer when running from source.
+      [["#{PokeAccess::Paths::DATA}/installed.json", /"mod_version"\s*:\s*"([^"]+)"/],
+       [File.join(PokeAccess::Paths::ROOT, "version.json"), /"version"\s*:\s*"([^"]+)"/]].each do |path, re|
+        txt = (File.read(path) rescue nil)
+        m = txt ? txt.match(re) : nil
+        return m[1] if m
+      end
+      "?"
     end
 
     # Caps a diagnostics field, SAYING SO when it cuts. The caps keep the dump readable; without the mark
@@ -300,7 +306,10 @@ module PokeAccess
     # Battle/trainer state, player-sprite selection, on-screen pictures, choices and live command windows.
     def self.diag_scene(o)
       o.push("battle_ref=#{dv { PokeAccess::Battle.instance_variable_get(:@battle_ref) ? 'present' : 'nil' }} trainer=#{dv { p = PokeAccess::Engine.player; p ? p.name : 'nil' }}")
-      o.push("player_sel: playerID=#{dv { $PokemonGlobal.playerID }} charset='#{dv { $game_player.character_name }}' tt=#{dv { pl_attr(:trainertype) || pl_attr(:trainer_type) }} outfit=#{dv { pl_attr(:outfit) }} gender=#{dv { pl_attr(:gender) }}")
+      # character_ID first: playerID is the gen-6 name and raised NoMethodError on every modern game, so the
+      # field that says which appearance is selected read ERR in exactly the games where it is 1-based and
+      # therefore the one worth checking.
+      o.push("player_sel: playerID=#{dv { pl_attr(:character_ID) || ($PokemonGlobal.playerID rescue nil) }} charset='#{dv { $game_player.character_name }}' tt=#{dv { pl_attr(:trainertype) || pl_attr(:trainer_type) }} outfit=#{dv { pl_attr(:outfit) }} gender=#{dv { pl_attr(:gender) }}")
       o.push("pictures=" + dv { (1..50).map { |i| n = ($game_screen.pictures[i].name rescue nil); (n && !n.to_s.empty?) ? "#{i}:#{n}" : nil }.compact.join(",") }.to_s)
       o.push("choice=#{dv { $game_temp.respond_to?(:choice_max) ? $game_temp.choice_max : 'n/a' }} choices=#{dv { $game_temp.respond_to?(:choices) ? $game_temp.choices.inspect : 'n/a' }}")
       o.push("scene=#{dv { $scene.class }}")
