@@ -29,17 +29,24 @@ module PokeAccess
       idx = PokeAccess::AwakeningFatesExtra.mod_ivar(:@posi)
       panels = PokeAccess::AwakeningFatesExtra.mod_ivar(:@paneles)
       return unless idx.is_a?(Integer) && panels.is_a?(Hash)
-      order = PokeAccess::AwakeningFatesExtra.mod_ivar(:@master_index)
-      key = (order.is_a?(Array) && order[idx]) ? order[idx].to_s : nil
-      panel = key ? panels[key] : nil
+      # Keyed by @posi directly, exactly as the screen does (`@paneles["#{@posi}"]`). The panels are built
+      # with a sequential counter, while @master_index holds each card's own slot in $Trainer.lista_cartas --
+      # a different number, and the build loop skips empty slots. Going through it meant that as soon as one
+      # earlier card was still locked, row and key drifted apart: either another card was named or nothing.
+      panel = panels[idx.to_s]
       return unless panel
       # Keyed on the panel table's identity as well as the index: this screen has no instance to hang the
       # dedup on, so it lands in Cursor's module-wide table, which outlives the screen. Reopening always
       # starts at @posi = 0, so on the plain index it matched what was left from last time and the screen
       # opened SILENT. The game rebuilds @paneles on every open, which is what makes it a new key.
       PokeAccess::Cursor.announce(nil, :awk_cards, [idx, panels.__id__], true) do
-        name = PokeAccess.clean((panel.instance_variable_get(:@nombre) rescue "").to_s).to_s.strip
-        rank = (panel.instance_variable_get(:@rango_letras) rescue nil)
+        # Through the panel's character, not off the panel. A panel is a CartasPaneles -- a sprite holder,
+        # with neither a name nor a rank on it -- and the character it draws is what carries both, hanging
+        # off its pj accessor. Read straight off the panel this produced an empty string every time, so the
+        # announce aborted after having already consumed the key: silent, and silent again on the way back.
+        pj = (panel.pj rescue nil)
+        name = PokeAccess.clean((pj.nombre rescue "").to_s).to_s.strip
+        rank = (pj.rango_letras rescue nil)
         rank ? "#{name}, #{rank}" : name
       end
     rescue StandardError
@@ -67,13 +74,19 @@ module PokeAccess
       nil
     end
 
-    # Voices the affinity score whenever it moves, so the player can tell a gift landed well.
-    def self.tea(scene)
-      pts = PokeAccess.ivar(scene, :@puntos)
-      return if pts.nil? || PokeAccess.ivar(scene, :@pa_tea) == pts
-      scene.instance_variable_set(:@pa_tea, pts)
-      who = PokeAccess.clean(PokeAccess.ivar(scene, :@personaje_nombre).to_s).to_s.strip
-      PokeAccess.speak(PokeAccess::I18n.t(:awk_tea, :who => who, :n => pts.to_i), false)
+    # Voices affinity points as they are awarded, so the player can tell an answer or a gift landed well.
+    #
+    # Read from the award call, not from the scene. Scene_HoraDelTe sets @puntos to 0 once at setup and never
+    # touches it again -- the running score lives in locals -- so the old reader said "0 affinity points"
+    # however the conversation went, and only once, because it hung off `main`, which IS the whole minigame.
+    # All three award moments call j_addExp(character, points), which is where the number actually exists,
+    # and the character index it carries names the recipient from the game's own card list.
+    def self.affinity(pj, pts)
+      n = pts.to_i
+      return if n == 0
+      card = ($Trainer.lista_cartas[pj.to_i] rescue nil)
+      who = PokeAccess.clean((card.nombre rescue "").to_s).to_s.strip
+      PokeAccess.speak(PokeAccess::I18n.t(:awk_tea, :who => who, :n => n), false)
     rescue StandardError
       nil
     end
@@ -81,8 +94,12 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("awakening") do
-  after("GachaScene", :update) { |s, _r, _a| PokeAccess::AwakeningFatesExtra.gacha(s) }
-  after("Scene_HoraDelTe", :main) { |s, _r, _a| PokeAccess::AwakeningFatesExtra.tea(s) }
+  # refresh, not update. GachaScene#update IS the screen's blocking loop -- it opens with `loop do` and is
+  # the last method of the class -- so an after-hook on it fired once, on the way out, and the whole screen
+  # was silent to navigate. refresh is what the loop calls after every LEFT/RIGHT and after each banner
+  # change, which is exactly the moment the focus moves.
+  after("GachaScene", :refresh) { |s, _r, _a| PokeAccess::AwakeningFatesExtra.gacha(s) }
+  kernel("j_addExp", :before) { |args, _r| PokeAccess::AwakeningFatesExtra.affinity(args[0], args[1]) }
   override("FatesCartas", :main) do |mod, original, _args|
     PokeAccess::AwakeningFatesExtra.watch_cards(mod)
     begin

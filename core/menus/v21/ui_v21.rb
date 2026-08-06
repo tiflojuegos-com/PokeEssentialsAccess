@@ -104,10 +104,19 @@ PokeAccess::Hooks.after_hook("MapBottomSprite", :maplocation=) do |_s, _r, args|
   PokeAccess::UIV21.speak_changed(:regionmap, PokeAccess.clean(args[0].to_s))
 end
 
-# Clear the region-map dedup when the map screen opens, so reopening reads the location even when the
-# cursor starts on the same place as last time.
-PokeAccess::Hooks.before_hook("PokemonRegionMap_Scene", :pbStartScene) do |_s, _a|
-  PokeAccess::UIV21.reset(:regionmap)
+# Clear the region-map dedup when the map screen opens, so reopening reads the location even when the cursor
+# starts on the same place as last time.
+#
+# Bound under both names, not the modern one alone: gen-6 calls the scene PokemonRegionMapScene, without the
+# underscore, so those games never got this reset at all -- reopen the map on the same spot and it stayed
+# quiet, because the dedup still held the location from last time. Resetting a dedup slot is the same act in
+# either era, so this is scene_classes and not era_scene: era_scene answers "which of these two names does
+# the reader for MY data API bind to" and returns nothing when its own era's name is absent, which would
+# leave every modern game unbound -- the exact silence this reset exists to prevent.
+PokeAccess::Engine.scene_classes("PokemonRegionMapScene", "PokemonRegionMap_Scene").each do |cn|
+  PokeAccess::Hooks.before_hook(cn, :pbStartScene) do |_s, _a|
+    PokeAccess::UIV21.reset(:regionmap)
+  end
 end
 
 # Pokegear: each option button is (re)selected every frame; read the focused one's name (deduped).

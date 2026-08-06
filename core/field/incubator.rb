@@ -38,5 +38,9 @@ module PokeAccess
   end
 end
 
+# refresh runs on every cursor move, which covers navigating the grid. update does NOT: it is the screen's
+# blocking loop, so an after-hook on it spoke once the player had already closed the incubator. Bound before
+# it instead, which is the one moment the screen is built and nothing has been said yet -- the opening read
+# the loop never produces on its own, because it only calls refresh when a key is pressed.
 PokeAccess::Hooks.after_hook("Hatcher", :refresh) { |scene, _result, _args| PokeAccess::Incubator.announce(scene) }
-PokeAccess::Hooks.after_hook("Hatcher", :update) { |scene, _result, _args| PokeAccess::Incubator.announce(scene) }
+PokeAccess::Hooks.before_hook("Hatcher", :update) { |scene, _args| PokeAccess::Incubator.announce(scene) }

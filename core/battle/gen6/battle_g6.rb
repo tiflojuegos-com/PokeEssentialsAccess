@@ -42,6 +42,14 @@ PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbShowCommands) do |_s, args|
   PokeAccess.speak_clean(args[0], false)
 end
 
+# The four command labels, kept as they go past. On the seven gen-6 games this is redundant -- setTexts
+# fills a real command window and the reader finds it there -- but on both Infinite Fusion the display
+# draws buttons instead and discards them, so this call is the only moment the labels ever exist. It runs
+# before setIndexAndMode in the engine's own command loop, so the stash is ready by the time anything reads.
+PokeAccess::Hooks.after_hook("CommandMenuDisplay", :setTexts) do |disp, _r, args|
+  PokeAccess::Battle.stash_command_texts(disp, args[0])
+end
+
 # Command menu (also resets the info key to read the foe here). The first read after the menu opens is
 # queued so it does not cut the hp/turn lines; navigation interrupts.
 PokeAccess::Hooks.after_hook("CommandMenuDisplay", :index=) do |disp, _r, args|
@@ -119,10 +127,14 @@ if mega_setter
   end
 end
 
-# Level-up stat gains (gen-6): the panel is graphic-only. Old-stat arg order here is hp,atk,def,speed,
-# spatk,spdef, so speed is a[5] and spatk/spdef are a[6]/a[7].
+# Level-up stat gains: the panel is graphic-only. This scene class spans two argument orders -- the seven
+# v16-17 games put SPEED before spatk/spdef, the two v18 hybrids put it last -- and the era is the only
+# thing that separates them, so it is asked once here rather than guessed per call. See levelup_from_args.
+# A local and not a constant: this file is evaluated at top level, so a constant here would be defined on the
+# fangame's own Object in all thirteen games. The block closes over it, which costs nothing and leaks nothing.
+levelup_modern_order = PokeAccess::Engine.gamedata?
 PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbLevelUp) do |_s, _r, a|
-  PokeAccess.speak(PokeAccess::Battle.levelup_text(a[0], a[2], a[3], a[4], a[6], a[7], a[5]), false)
+  PokeAccess.speak(PokeAccess::Battle.levelup_from_args(a, levelup_modern_order), false)
 end
 
 # Damage number (not a message, so it is read here).

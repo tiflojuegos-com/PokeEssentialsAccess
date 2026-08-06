@@ -82,7 +82,7 @@ module PokeAccess
 
     # Internal/structural config (not user settings, not in the menu).
     OTHER = [:keys, :bump_cooldown, :rebinds, :rebind_labels, :categories,
-             :status_names, :weather_names, :gender_numbers, :money_label]
+             :status_names, :weather_names, :field_weather_names, :gender_numbers, :money_label]
 
     class << self
       attr_accessor(*(SCHEMA.map { |row| row[0] } + OTHER))
@@ -134,5 +134,10 @@ module PokeAccess
       1 => :w_sun, 2 => :w_rain, 3 => :w_sandstorm, 4 => :w_hail,
       5 => :w_harsh_sun, 6 => :w_heavy_rain, 7 => :w_strong_winds, 8 => :w_shadow_sky
     }
+    # Overworld weather is a SEPARATE enum from battle weather (PBFieldWeather in gen-6), and its vanilla
+    # range lives in Battle::FIELD_WEATHER. This table holds only what a game adds on top, consulted first,
+    # because fangames extend the enum with entries that clash: 8 is ShadowSky in one game and Charco in
+    # another, so a single shared table could not be right for both. Empty means "vanilla only".
+    self.field_weather_names = {}
   end
 end

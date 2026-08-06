@@ -43,7 +43,7 @@ module PokeAccess
       acc  = (m.accuracy rescue nil);   acc = PokeAccess::Data.move_accuracy(mid) if acc.nil?
       name = (m.name rescue nil); name = (PokeAccess::Data.move_name(mid) || PokeAccess::I18n.t(:info_move)) if name.nil? || name.to_s.empty?
       pp   = (m.pp rescue nil)
-      tot  = (m.totalpp rescue nil); tot = (m.total_pp rescue nil) if tot.nil?
+      tot  = PokeAccess.attr_of(m, :totalpp, :total_pp)
       desc = PokeAccess::Data.move_description(mid)
       ty   = (m.type rescue nil)
       tipo = ty ? (PokeAccess::Data.type_name(ty) rescue nil) : nil
@@ -181,10 +181,8 @@ module PokeAccess
         own  = ($Trainer.pokedexOwned rescue nil)
         parts.push(PokeAccess::I18n.t(:tr_pokedex, :owned => own, :seen => seen)) if seen && own
       end
-      if $PokemonGlobal && $PokemonGlobal.respond_to?(:playTime)
-        hm = PokeAccess::Util.playtime_parts(($PokemonGlobal.playTime.to_i rescue 0))
-        parts.push(PokeAccess::I18n.t(:tr_playtime, :h => hm[0], :m => hm[1])) if hm
-      end
+      hm = PokeAccess::Util.playtime_parts(PokeAccess::Util.playtime_seconds)
+      parts.push(PokeAccess::I18n.t(:tr_playtime, :h => hm[0], :m => hm[1])) if hm
       parts.join(". ")
     rescue StandardError
       nil
@@ -204,7 +202,7 @@ module PokeAccess
       if dex && (dex.respond_to?(:owned_count) rescue false)
         parts.push(PokeAccess::I18n.t(:tr_pokedex, :owned => dex.owned_count, :seen => dex.seen_count))
       end
-      hm = PokeAccess::Util.playtime_parts(($stats.play_time.to_i rescue nil))
+      hm = PokeAccess::Util.playtime_parts(PokeAccess::Util.playtime_seconds)
       parts.push(PokeAccess::I18n.t(:tr_playtime, :h => hm[0], :m => hm[1])) if hm
       parts.join(". ")
     rescue StandardError

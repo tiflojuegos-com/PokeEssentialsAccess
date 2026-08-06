@@ -5,9 +5,10 @@
 # straight from the source, another kept its own @pa_last dedup, the third watched the scene. The three
 # copies agreed on what matters, and the dumps confirm it: same four methods, same @select values, with
 # 2/3 the boy, 4/5 the girl and 1 the neutral start.
-# The runner loads one profile, and this plugin is not the one it declares, so the spec pulls the reader
-# in itself -- it needs the module, not the games classes.
-require File.expand_path("../../../plugins/gender_selection", File.dirname(__FILE__))
+# The harness loads every plugin reader, so this spec does not pull it in itself. It used to, back
+# when only the running profile's declared plugins were loaded -- and once the harness started
+# loading them all, that require became a SECOND load of the same file: require does not know
+# about a file already brought in with eval, so every constant in it was reassigned.
 
 Suite.define("gender selection: the highlighted choice is spoken, and the neutral start is not") do
   scene = Object.new

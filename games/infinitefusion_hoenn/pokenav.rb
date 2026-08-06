@@ -23,8 +23,8 @@ module PokeAccess
       return unless idx.is_a?(Integer) && btns.is_a?(Array) && idx >= 0 && idx < btns.length
       label = button_text(btns[idx])
       return if label.nil? || label.empty?
-      PokeAccess::Cursor.announce(scene, :if2_pokenav, idx, true) do
-        PokeAccess::I18n.t(:if2_pokenav, :name => label, :n => idx + 1, :tot => btns.length)
+      PokeAccess::Cursor.announce(scene, :list_entry, idx, true) do
+        PokeAccess::I18n.t(:list_entry, :name => label, :n => idx + 1, :tot => btns.length)
       end
     rescue StandardError
       nil

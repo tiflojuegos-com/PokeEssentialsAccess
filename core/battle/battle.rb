@@ -144,7 +144,7 @@ module PokeAccess
     # is also a valid chooser and would otherwise mislabel itself as ally and its partner as self). nil when
     # it cannot be read, so the caller keeps the slot-0 assumption as a fallback.
     def self.target_chooser_index(scene)
-      cw = PokeAccess.sprite(scene, "fightwindow")
+      cw = PokeAccess.sprite(scene, "fightwindow") || PokeAccess.sprite(scene, "fightWindow")
       b = (cw.battler rescue nil)
       (b.index rescue nil)
     rescue StandardError
@@ -175,15 +175,29 @@ module PokeAccess
       PokeAccess.ivar(disp, :@window) || PokeAccess.ivar(disp, :@cmdWindow)
     end
 
-    # Speaks the focused battle command (fight/bag/pokemon/run), or nothing when the window cannot be read.
+    # Keeps the four command labels setTexts was handed, because on some games the engine throws them away.
+    # The call is [message, label0, label1, label2, label3], so only the last four are kept and a slot index
+    # then means the same thing it does in a window's command list. param value the setTexts argument
+    def self.stash_command_texts(disp, value)
+      return unless value.is_a?(Array)
+      disp.instance_variable_set(:@access_cmd_texts, value[1, 4])
+    rescue StandardError
+      nil
+    end
+
+    # Speaks the focused battle command (fight/bag/pokemon/run), or nothing when neither source has it.
+    #
+    # There are two shapes of CommandMenuDisplay and nothing outside the class tells them apart. The seven
+    # gen-6 games keep a real Window_CommandPokemon and setTexts always fills its command list, so the
+    # widget answers. Both Infinite Fusion set USE_GRAPHICS = true: setTexts writes the message box and
+    # RETURNS before touching any window, drawing the four options as button sprites -- the labels arrive
+    # and are discarded. Nothing is left on the display to read afterwards, which is why hunting for a
+    # differently-named widget found nothing and shipped twice without fixing anything. So the labels are
+    # kept on the way past instead (stash_command_texts). A window still wins when there is one, so the
+    # seven games that always worked take the same path as before, byte for byte.
     def self.read_command(disp, index, interrupt)
       w = command_window(disp)
-      # From v19 there is usually NO window to find: CommandMenuDisplay sets USE_GRAPHICS = true, so
-      # setTexts stores the labels in @texts on the display and RETURNS before building any window -- the
-      # four options are button sprites. So the widget is the old path and @texts the new one. Verified in
-      # the upstream tags v19..v21.1, and USE_GRAPHICS is still true in v21.1, so this is not a v19 quirk.
-      # Harmless on v16-17: none of the seven gen-6 games has @texts at all, and @window resolves first.
-      cmds = (w ? PokeAccess.ivar(w, :@commands) : nil) || PokeAccess.ivar(disp, :@texts)
+      cmds = (w ? PokeAccess.ivar(w, :@commands) : nil) || PokeAccess.ivar(disp, :@access_cmd_texts)
       return unless cmds && cmds[index].is_a?(String)
       PokeAccess.speak_clean(cmds[index], interrupt)
     end
@@ -195,12 +209,35 @@ module PokeAccess
       PokeAccess::Cursor.on_change(disp, :fight_move, ok ? idx : nil) do
         m = b.moves[idx]
         t = m.name.to_s
-        t += ". " + PokeAccess::I18n.t(:mv_pp, :pp => m.pp, :tot => m.totalpp) if m.respond_to?(:pp)
+        t += ". " + PokeAccess::I18n.t(:mv_pp, :pp => m.pp, :tot => PokeAccess.attr_of(m, :totalpp, :total_pp)) if m.respond_to?(:pp)
         PokeAccess.speak_clean(t, interrupt)
         PokeAccess::Info.set_info(:move, m)
       end
     rescue StandardError
       nil
+    end
+
+    # levelup_text straight from the raw pbLevelUp arguments, picking the old-stat order the era uses.
+    #
+    # Both orders are eight arguments of the same types, so nothing in the call tells them apart: v16-17
+    # pass hp, atk, def, SPEED, spatk, spdef, while the v18 hybrids that kept the gen-6 scene class pass
+    # hp, atk, def, spatk, spdef, SPEED. Reading the wrong one does not go quiet -- it announces three real
+    # numbers under the wrong stat names, which is worse than saying nothing.
+    # param modern true for the v18+ order
+    def self.levelup_from_args(a, modern)
+      spatk, spdef, speed = modern ? [a[5], a[6], a[7]] : [a[6], a[7], a[5]]
+      levelup_text(a[0], a[2], a[3], a[4], spatk, spdef, speed)
+    end
+
+    # Whether this is a double battle, under either engine's name for the question. gen-6 answers a
+    # doublebattle flag; from v18 on it is pbSideSize(0) instead, and neither name exists in the other era,
+    # so asking for only one silences target announcements on half the games.
+    def self.doubles?(battle)
+      d = (battle.doublebattle rescue nil)
+      return (d ? true : false) unless d.nil?
+      (battle.pbSideSize(0) rescue 1).to_i > 1
+    rescue StandardError
+      false
     end
 
     # Announces the battler under the target cursor while choosing a move's target in doubles (gen-6
@@ -213,7 +250,7 @@ module PokeAccess
       end
       battle = PokeAccess.ivar(scene, :@battle)
       return unless battle
-      return unless (battle.doublebattle rescue false)
+      return unless doubles?(battle)
       return if index == @last_target
       @last_target = index
       b = (battle.battlers ? battle.battlers[index] : nil) rescue nil
@@ -253,7 +290,7 @@ module PokeAccess
         return n if n && !n.to_s.empty?
         k = WEATHER_SYMS[wid]; return k ? PokeAccess::I18n.t(k) : wid.to_s
       end
-      key = FIELD_WEATHER[wid]
+      key = (PokeAccess::Config.field_weather_names[wid] rescue nil) || FIELD_WEATHER[wid]
       key ? PokeAccess::I18n.t(key) : nil
     end
 
@@ -422,6 +459,34 @@ module PokeAccess
       return nil unless v == 1 || v == 2
       return nil if last.nil? || last == v
       v == 2 ? :bt_mega_on : :bt_mega_off
+    end
+
+    # Spoken names for the battle mechanics the Deluxe Battle Kit puts behind the SAME fight-menu button.
+    SPECIAL_NAMES = { :dynamax => :bt_m_dynamax, :zmove => :bt_m_zmove,
+                      :ultra => :bt_m_ultra, :tera => :bt_m_tera }
+
+    # Remembers which mechanic the fight menu was opened for. DBK routes every one of them through the same
+    # mode= toggle, and the mechanic is a PARAMETER of pbFightMenu(idxBattler, specialAction) -- a local the
+    # menu never stores -- so the toggle hook cannot see it and has to be told.
+    def self.note_special_action(action)
+      @special_action = action
+    end
+
+    # The line for toggling the special-action button, named for the mechanic actually behind it. Without
+    # DBK the button is only ever Mega Evolution and the mechanic is nil, which keeps the original wording.
+    # With DBK the same 1/2 toggle drives Dynamax, Z-moves, Ultra Burst or Terastallization, and announcing
+    # all of them as "Mega Evolution" told the player they had armed something they had not.
+    # An action this table does not name still must not fall back to the mega wording: the kit grows (primal
+    # reversion, and one fangame adds its own), and calling those "Mega Evolution" is the same false claim
+    # the named cases exist to avoid. Only the absence of ANY special action means the button really is the
+    # plain mega toggle.
+    def self.special_key(last, v)
+      k = mega_key(last, v)
+      return nil unless k
+      return k unless @special_action
+      name = SPECIAL_NAMES[@special_action]
+      return (v == 2 ? :bt_special_other_on : :bt_special_other_off) unless name
+      [(v == 2 ? :bt_special_on : :bt_special_off), name]
     end
 
     # The per-stat increases on level up: diffs the new stats (already on pkmn) against the old values

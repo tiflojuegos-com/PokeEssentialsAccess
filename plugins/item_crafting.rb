@@ -59,7 +59,34 @@ module PokeAccess
         n = (ad.getName(item) rescue nil)
         return n if n && !n.to_s.empty?
       end
-      (PokeAccess::Data.item_name(item) rescue nil)
+      n = (PokeAccess::Data.item_name(item) rescue nil)
+      return n if n && !n.to_s.empty?
+      # A recipe ingredient is not always a concrete item: some copies of the plugin write a CATEGORY flag
+      # there instead, as a plain String ("berry" for "any berry"). Asking GameData for it answers nothing,
+      # and the caller drops a nameless ingredient -- so the recipe was read with a line missing and no hint
+      # that anything was missing.
+      #
+      # The screen does not print the raw flag either: it looks the flag up in the scene's own table and
+      # prints what that says ("Any Berry"). Reading the table is what keeps the spoken word and the printed
+      # word the same; the raw flag is the fallback for a copy that has no table.
+      return nil unless item.is_a?(String)
+      table = (ItemCraft_Scene::FLAG_TO_TEXT rescue nil)
+      label = (table.is_a?(Hash) ? table[item.downcase] : nil) || item
+      (_INTL(label) rescue label)
+    end
+
+    # How many the player has of an ingredient. A category flag has no single item to ask about, so the
+    # screen adds up every item carrying the flag -- and asking the adapter for the flag itself answers 0,
+    # which would state a shortage the screen is not showing.
+    def self.stock(ad, item)
+      return (ad.getQuantity(item) rescue 0) unless item.is_a?(String)
+      total = 0
+      GameData::Item.each do |it|
+        total += (ad.getQuantity(it) rescue 0) if (it.has_flag?(item) rescue false)
+      end
+      total
+    rescue StandardError
+      nil
     end
 
     # Which of the plugin's two screens is showing, when the copy tracks it. It joins both dedup keys
@@ -77,10 +104,14 @@ module PokeAccess
       out = []
       pairs.each_slice(2) do |item, qty|
         next unless qty
-        have = (ad.getQuantity(item) rescue 0)
+        have = stock(ad, item)
         name = item_name(scene, item)
         next if name.nil? || name.to_s.empty?
-        out.push(PokeAccess::I18n.t(:craft_ingredient, :name => name, :have => have, :need => volume * qty))
+        out.push(if have
+                   PokeAccess::I18n.t(:craft_ingredient, :name => name, :have => have, :need => volume * qty)
+                 else
+                   PokeAccess::I18n.t(:craft_ingredient_need, :name => name, :need => volume * qty)
+                 end)
       end
       out.empty? ? nil : out
     end
@@ -97,11 +128,13 @@ module PokeAccess
     end
 
     # The focused recipe in the LIST: its name, plus a warning when the materials are short. Deduped per
-    # scene, so a redraw that changed nothing stays silent.
+    # scene, so a redraw that changed nothing stays silent. The screen is NOT part of the key: it reads 0
+    # both before entering the detail and on the way back, so it never distinguished anything -- what makes
+    # the list speak again on return is announce_detail clearing this slot.
     def self.announce_list(scene, index)
       r = recipe(scene, index)
       return unless r
-      PokeAccess::Cursor.announce(scene, :craft_list, [index, screen_of(scene)], true) do
+      PokeAccess::Cursor.announce(scene, :craft_list, index, true) do
         name = item_name(scene, r[0])
         next nil if name.nil? || name.to_s.empty?
         can = craftable?(scene, r[1], 1)
@@ -112,12 +145,22 @@ module PokeAccess
     end
 
     # The focused recipe in DETAIL: name, amount, and the ingredients where the plugin can report them.
+    #
+    # Leaving the detail runs this same redraw, and one copy of the plugin switches the screen back BEFORE
+    # redrawing -- so the reader was describing a screen the player had just backed out of. That call is
+    # exactly the "we just left" signal, so it is used for the one thing that was missing instead: clearing
+    # the list's dedup, which otherwise holds the same key it had on the way in and leaves the list mute on
+    # return.
     def self.announce_detail(scene, index, volume)
       r = recipe(scene, index)
       return unless r
+      if screen_of(scene) == 0
+        PokeAccess::Cursor.reset(scene, :craft_list)
+        return
+      end
       vol = (volume || 1).to_i
       vol = 1 if vol < 1
-      PokeAccess::Cursor.announce(scene, :craft_detail, [index, vol, screen_of(scene)], true) do
+      PokeAccess::Cursor.announce(scene, :craft_detail, [index, vol], true) do
         name = item_name(scene, r[0], vol > 1)
         next nil if name.nil? || name.to_s.empty?
         ings = ingredients(scene, r[1], vol)

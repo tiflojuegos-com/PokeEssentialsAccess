@@ -5,7 +5,10 @@
 # once, on the way out. One copy also has drawLines (called per scroll) and the other inlines that painting
 # into the loop, so no shared method fires per scroll. Both loops do call Input.update every iteration,
 # which is what makes the per-frame poll work in either.
-require File.expand_path("../../../plugins/text_log", File.dirname(__FILE__))
+# The harness loads every plugin reader, so this spec does not pull it in itself. It used to, back
+# when only the running profile's declared plugins were loaded -- and once the harness started
+# loading them all, that require became a SECOND load of the same file: require does not know
+# about a file already brought in with eval, so every constant in it was reassigned.
 
 Suite.define("text log: the focused history entry is the one BEFORE @pos, and it is read on change") do
   saved = ($PokemonGlobal.log rescue nil)

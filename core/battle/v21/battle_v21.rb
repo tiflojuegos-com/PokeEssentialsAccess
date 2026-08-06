@@ -61,15 +61,25 @@ PokeAccess::Hooks.after_hook("Battle::Scene", :pbShowAbilitySplash) do |_s, _r, 
   PokeAccess.speak(PokeAccess::BattleScene.ability_text(args[0]), false)
 end
 
-# Mega button toggle: mode= is shared by MenuBase subclasses, so gate to the FightMenu and announce only
-# a real available(1)<->registered(2) toggle, not the initial open. :optional because v22 uses
+# Which mechanic the fight menu is being opened for, remembered before the toggle below can be asked about
+# it. :optional because only the Deluxe Battle Kit takes this second parameter.
+PokeAccess::Hooks.before_hook("Battle::Scene", :pbFightMenu, :optional => true) do |_s, args|
+  PokeAccess::Battle.note_special_action(args[1])
+end
+
+# Special-action button toggle: mode= is shared by MenuBase subclasses, so gate to the FightMenu and announce
+# only a real available(1)<->registered(2) toggle, not the initial open. :optional because v22 uses
 # mega_evolution_state= instead (handled in battle_v22), so its absence is variance, not a typo.
 PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :mode=, :optional => true) do |menu, _r, args|
   if defined?(::Battle::Scene::FightMenu) && menu.is_a?(::Battle::Scene::FightMenu)
     v = args[0]
-    k = PokeAccess::Battle.mega_key(menu.instance_variable_get(:@access_mega), v)
+    k = PokeAccess::Battle.special_key(menu.instance_variable_get(:@access_mega), v)
     menu.instance_variable_set(:@access_mega, v) if v == 1 || v == 2
-    PokeAccess.speak(PokeAccess::I18n.t(k), true) if k
+    if k.is_a?(Array)
+      PokeAccess.speak(PokeAccess::I18n.t(k[0], :name => PokeAccess::I18n.t(k[1])), true)
+    elsif k
+      PokeAccess.speak(PokeAccess::I18n.t(k), true)
+    end
   end
 end
 
@@ -81,8 +91,8 @@ PokeAccess::Hooks.after_hook("Battle::Scene::FightMenu", :shiftMode=, :optional 
   menu.instance_variable_set(:@access_shift, v)
 end
 
-# Level-up stat gains (modern): the panel is graphic-only. Old-stat arg order is hp,atk,def,spatk,spdef,
-# speed (a[5]=spatk, a[6]=spdef, a[7]=speed).
+# Level-up stat gains (modern): the panel is graphic-only. Every game with this scene class uses the v18+
+# argument order, so the era question the gen-6 binding has to ask is already answered here.
 PokeAccess::Hooks.after_hook("Battle::Scene", :pbLevelUp) do |_s, _r, a|
-  PokeAccess.speak(PokeAccess::Battle.levelup_text(a[0], a[2], a[3], a[4], a[5], a[6], a[7]), false)
+  PokeAccess.speak(PokeAccess::Battle.levelup_from_args(a, true), false)
 end

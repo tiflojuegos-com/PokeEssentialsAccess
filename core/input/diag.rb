@@ -136,16 +136,24 @@ module PokeAccess
     # whether the player global is the old or the new one -- the facts that decide which readers can bind.
     def self.diag_engine(o)
       e = PokeAccess::Engine
-      caps = []
-      caps.push("battle_scene") if dv { e.has?(:battle_scene) }
-      caps.push("ui_rework") if dv { e.has?(:ui_rework) }
-      caps.push("PokeBattle_Scene") if dv { !PokeAccess.const_at("PokeBattle_Scene").nil? }
-      caps.push("$player") if defined?($player) && $player
-      caps.push("$Trainer") if defined?($Trainer) && $Trainer
       o.push("mod: #{dv { mod_version }}")
-      o.push("engine: kind=#{dv { e.kind }} version=#{dv { e.version }} fork=#{dv { e.fork.inspect }} caps=[#{caps.join(', ')}]")
+      o.push("engine: kind=#{dv { e.kind }} version=#{dv { e.version }} fork=#{dv { e.fork.inspect }} caps=[#{dv { visible_caps(e).join(', ') }}]")
       o.push("voice: prism=#{dv { !PokeAccess::PEA_SPEAK.nil? }} ready=#{dv { PokeAccess.speech_ready? }} backend=#{dv { PokeAccess.speech_backend.inspect }} speaking=#{dv { PokeAccess.speaking?.inspect }}")
       diag_timing(o)
+    end
+
+    # Every registered capability that answers true, plus the raw globals no capability covers. Built from
+    # the registry rather than listed by hand so a capability added later -- a third-party plugin probe, say
+    # -- turns up in recordings without anyone remembering to come back here. The three the engine line
+    # already states (:gamedata and :gen6 as kind=, :sky_fork as fork=) are left out instead of repeated.
+    def self.visible_caps(e)
+      stated = [:gamedata, :gen6, :sky_fork]
+      caps = PokeAccess::Engine::CAPABILITIES.keys.reject { |k| stated.include?(k) }
+      out = caps.map { |k| k.to_s }.sort.select { |k| e.has?(k.to_sym) }
+      out.push("PokeBattle_Scene") unless PokeAccess.const_at("PokeBattle_Scene").nil?
+      out.push("$player") if defined?($player) && $player
+      out.push("$Trainer") if defined?($Trainer) && $Trainer
+      out
     end
 
     # The cue-pacing clock next to the engine clocks it is NOT built on, so "everything fires at once" or
@@ -183,6 +191,8 @@ module PokeAccess
       # sin_declarar names a third-party plugin this game HAS whose reader the profile never declared: the
       # screen is mute and nothing else would say so.
       o.push("plugins: cargados=#{cut(dv { PokeAccess::Plugins.loaded.inspect }, 200)} sin_declarar=#{cut(dv { PokeAccess::Plugins.undeclared.inspect }, 200)}")
+      gp = dv { PokeAccess::Plugins.game_plugins }
+      o.push("plugins_juego: #{gp.is_a?(Array) ? (gp.empty? ? 'ninguno registrado' : cut(gp.join(', '), 400)) : 'sin PluginManager'}")
       c = PokeAccess::Config
       o.push("config: sound_nav=#{dv { c.sound_nav }} auto_guide=#{dv { c.auto_guide }} radar=#{dv { c.proximity_radar }} surface_cues=#{dv { c.surface_cues }} vols=#{dv { c.footstep_volume }}/#{dv { c.wall_volume }}/#{dv { c.event_volume }}")
       o.push("filters: hide_unreachable=#{dv { c.hide_unreachable }} hide_noninteractive=#{dv { c.hide_noninteractive }}")
@@ -375,21 +385,11 @@ module PokeAccess
       }.inspect, 500))
     end
 
-    # The per-frame menu poller state plus a micro-benchmark of it, to tell whether the mod's per-frame
-    # work is what makes a custom menu lag. Run while inside the slow menu. Only LogrosIndexed polls per
-    # frame; EncounterList is hook-driven (drawPresent/drawAbsent), so it has nothing to bench here.
+    # The per-frame input layers. The poller BENCH that used to live here belonged to one third-party
+    # plugin's reader, and moved out with it: the core is what every Essentials game has, so it must not
+    # name a plugin. A plugin that wants a bench registers its own diagnostic section, exactly as a
+    # profile does.
     def self.diag_polls(o)
-      lg = (PokeAccess::LogrosIndexed.instance_variable_get(:@scene) rescue :none)
-      o.push("scene_polls: logros=#{lg.nil? ? 'idle' : (lg == :none ? 'absent' : 'ACTIVE')}")
-      # Pin @last to the live index first: poll SPEAKS when it differs, so with the screen open the first
-      # of the 5000 iterations announced an entry. Pressing the diagnostic key must not change what the
-      # player hears. The other 4999 always took this same early-return path, so the number is comparable.
-      last0 = (PokeAccess::LogrosIndexed.instance_variable_get(:@last) rescue nil)
-      (PokeAccess::LogrosIndexed.instance_variable_set(:@last, PokeAccess.ivar(lg, :@indexSel)) rescue nil) if lg && lg != :none
-      t0 = PokeAccess.clock
-      5000.times { (PokeAccess::LogrosIndexed.poll rescue nil) }
-      (PokeAccess::LogrosIndexed.instance_variable_set(:@last, last0) rescue nil)
-      o.push("poll_bench: 5000x LogrosIndexed.poll = #{sprintf('%.2f', (PokeAccess.clock - t0) * 1000)}ms (idle should be ~0)")
       aliases = ((class << Input; self; end).instance_methods(false).select { |m| m.to_s =~ /update__access/ } rescue [])
       o.push("input_update_layers: #{aliases.inspect} frame_pollers=#{(@frame_pollers || []).length}")
     rescue Exception => e

@@ -1,0 +1,39 @@
+# Census of the classes that give a third-party plugin away: which surveyed games ship each one,
+# by PROFILE name. Read by plugins_spec to check that every profile declaring a plugin has it and
+# every profile having one declares it -- a forgotten declaration is a silent screen, and that is
+# the failure this whole layer trades for. Regenerate with build_fangame_census.rb after adding a
+# plugin or refreshing a dump. Do not edit by hand.
+# format: <DetectionProbe> = <profile>, <profile>...   (empty = no surveyed game ships it)
+# A probe is a class name, or Class#method for a plugin that brings no class of its own and is
+# only given away by a method it adds to one the engine already has.
+# surveyed profiles (13): africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal
+AlbumFotos_Scene = anil, royal
+EggMoveLearner_Scene = anil
+Ekans_Interface_Main = royal
+EncounterList_Scene = anil, emerald, relict, royal
+HallOfFameViewerScene = anil, royal
+Incubadora = opalo, pokemon_z
+ItemCraft_Scene = awakening, emerald, pokemon_z
+Log = awakening, realidea, reminiscencia
+Logros_Scene = africanus, awakening, pokemon_z, reminiscencia, royal
+PokedexListSprite = emerald
+PokemonBagPartyPanel = anil, emerald, relict, royal
+PokemonGenderSelection = armonia, awakening, realidea
+PokemonItemFind_Scene = anil, emerald, reminiscencia, royal
+PokemonRegionMap_Scene#updateSpeciesInfo = royal
+PokemonSave_Scene#pbUpdateSlotInfo = anil, emerald, infinitefusion, infinitefusion_hoenn, royal
+PokemonSummary_Scene#showAbilityDescription = anil, royal
+Questlog = africanus, awakening, infinitefusion, infinitefusion_hoenn, realidea
+RC = emerald
+RSESTarterChoice = emerald
+SelectMoveMenu_Scene = anil
+StarterMenu_Scene = anil
+TipCard_Scene = relict, royal
+Window_BasePocketsList = emerald, royal
+Window_Berrydex = infinitefusion_hoenn, royal
+Window_Combination = emerald
+Window_CommandPokemon_Challenge = anil, emerald
+Window_MusicBook = anil
+Window_Quest = emerald
+Window_Wardrobe = emerald
+WonderCardAlbumScene = emerald

@@ -53,6 +53,13 @@ module PokeAccess
     # The outer>inner pairs the guard has dropped this session (see note_suppressed).
     def self.suppressed; @suppressed; end
 
+    # The class whose hooked method ran most recently. It is the only cheap answer to "which screen is the
+    # player on" that survives the case that matters: a screen running its own blocking loop is never
+    # assigned to $scene, so $scene still says Scene_Map while the player is deep inside a minigame. Set
+    # from the wrapper, which every hooked call goes through, and read by the silence watch.
+    def self.note_screen(cname); @screen = cname; end
+    def self.screen; @screen; end
+
     # Runs the original of an atomic after-hook for meth with its name pushed on the active stack, always
     # popping (ensure) so a throwing original never leaves nested hooks permanently muted.
     def self.guarded(meth)
@@ -95,6 +102,7 @@ module PokeAccess
       k.send(:alias_method, orig, meth) unless own.include?(orig)
       chains = @chains
       k.send(:define_method, meth) do |*args, &blk|
+        PokeAccess::Hooks.note_screen(cname)
         if PokeAccess::Hooks.nested_other?(meth)
           PokeAccess::Hooks.note_suppressed(key)
           return send(orig, *args, &blk)

@@ -45,31 +45,49 @@ Suite.define("battle: the command menu is read whichever name the engine gives i
   silent "and an index past the end says nothing rather than guessing"
 end
 
-# The shape that actually ships. From v19 the command menu has NO window: USE_GRAPHICS is true, so setTexts
-# stores the labels in @texts and returns before building one, and the four options are drawn as button
-# sprites. Looking for a widget there finds nothing at all -- which is why the first fix, teaching the
-# reader the v19 NAME of the window (@cmdWindow), changed nothing: the rename was real but the widget it
-# renamed is not created. Still true in v21.1, so this is the modern shape and not a v19 detour.
+# The shape that actually ships on both Infinite Fusion. CommandMenuDisplay sets USE_GRAPHICS = true, so
+# setTexts writes the message box and RETURNS before touching any window: the four options are button
+# sprites and the labels it was handed are dropped on the floor. There is no widget to find and nothing
+# left on the display either, which is why teaching the reader the v19 NAME of the window changed nothing,
+# and why a later guess at a @texts ivar changed nothing twice -- setTexts never writes one. The only
+# moment the labels exist is the call itself, so the reader keeps them as they go past.
+#
+# The offset is the part that goes wrong quietly: setTexts is handed [message, l0, l1, l2, l3], so slot 0
+# sits at position 1. Storing the array whole makes every option read one place early and the first one
+# say "What will X do?" -- believable enough in a recording to be missed.
 Suite.define("battle: the command menu is read when the engine draws it with no window at all") do
   gfx = Object.new
-  gfx.instance_variable_set(:@texts, ["Luchar", "Mochila", "Pokemon", "Huir"])
+  PokeAccess::Battle.stash_command_texts(gfx, ["Que hara Pikachu?", "Luchar", "Mochila", "Pokemon", "Huir"])
 
   SpeakCapture.clear
   PokeAccess::Battle.read_command(gfx, 0, true)
-  spoke "the labels are found on the display itself", /Luchar/
+  spoke "the first slot is the first LABEL, not the message the call carries with it", /Luchar/
+  not_spoke "and the message itself is never spoken as an option", /hara/
 
   SpeakCapture.clear
   PokeAccess::Battle.read_command(gfx, 2, true)
-  spoke "and moving reads the new one", /Pokemon/
+  spoke "moving reads the option at that slot", /Pokemon/
 
-  # A window, when there is one, still wins: the seven gen-6 games must keep their original path even if
-  # some fork ever grew a @texts alongside it.
+  SpeakCapture.clear
+  PokeAccess::Battle.read_command(gfx, 3, true)
+  spoke "including the last one, the one the mode decides (run/cancel/call)", /Huir/
+
+  # A window, when there is one, still wins: the seven gen-6 games fill a real command list and must keep
+  # taking that path, stash or no stash.
   both = Object.new
   win = Object.new
   win.instance_variable_set(:@commands, ["DesdeVentana"])
   both.instance_variable_set(:@window, win)
-  both.instance_variable_set(:@texts, ["DesdeTexts"])
+  PokeAccess::Battle.stash_command_texts(both, ["msg", "DesdeStash"])
   SpeakCapture.clear
   PokeAccess::Battle.read_command(both, 0, true)
-  spoke "the window is preferred over the texts when both exist", /DesdeVentana/
+  spoke "the window is preferred over the kept labels when both exist", /DesdeVentana/
+
+  # setTexts is engine-facing and a fork could hand it anything. Degrading quietly matters more here than
+  # almost anywhere, because this runs inside a battle.
+  odd = Object.new
+  PokeAccess::Battle.stash_command_texts(odd, "no soy un array")
+  SpeakCapture.clear
+  PokeAccess::Battle.read_command(odd, 0, true)
+  silent "a non-array argument is ignored instead of raising in a battle"
 end

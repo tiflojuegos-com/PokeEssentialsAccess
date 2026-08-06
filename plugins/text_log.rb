@@ -44,7 +44,7 @@ module PokeAccess
   end
 end
 
-PokeAccess::TextLogReader = PokeAccess::SceneWatcher.reader("Log", :update, :text_log) do |s|
+PokeAccess::TextLogReader = PokeAccess::SceneWatcher.reader("Log", :update, :text_log, :optional => true) do |s|
   i = PokeAccess::TextLog.focus_index(s)
   [i, lambda { PokeAccess::TextLog.entry_text(i) }]
 end

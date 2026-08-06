@@ -415,7 +415,7 @@ module PokeAccess
       # is re-attempted on every call -- each map change, each exit name, each diag line, each recorder
       # sample -- while no map is ever named and nothing is written anywhere.
       if @mapinfos.nil?
-        @mapinfos = (pbLoadRxData("Data/MapInfos") rescue nil)
+        @mapinfos = load_mapinfos
         if @mapinfos.nil?
           PokeAccess.log_once("mapinfos", "Data/MapInfos no cargable")
           @mapinfos = {}
@@ -423,6 +423,15 @@ module PokeAccess
       end
       return nil unless @mapinfos && @mapinfos[mapid]
       (@mapinfos[mapid].name rescue nil)
+    end
+
+    # MapInfos through whichever loader the engine ships. Gen-6 exposes the generic pbLoadRxData; v19+
+    # replaced it with pbLoadMapInfos, which caches into $game_temp. Both return the same id => RPG::MapInfo
+    # hash. Six of the thirteen games carry only the second one, and map_name memoises its failure, so asking
+    # for the wrong loader left those games with no zone, exit or coordinate name for the whole session.
+    def self.load_mapinfos
+      return (pbLoadMapInfos rescue nil) if respond_to?(:pbLoadMapInfos, true)
+      (pbLoadRxData("Data/MapInfos") rescue nil)
     end
 
     # Builds the spoken name for an event (person/object/exit/generic); a user tag wins over the auto name.

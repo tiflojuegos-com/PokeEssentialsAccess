@@ -9,6 +9,37 @@ module PokeAccess
       [s / 3600, (s % 3600) / 60]
     end
 
+    # Seconds of play time from whatever a screen was handed in its play-time slot. v19+ passes the stats
+    # object; both Infinite Fusion games kept the older signature -- pbStartScene(commands, show_continue,
+    # trainer, frame_count, map_id) -- and pass a raw Graphics frame count there, so asking it for play_time
+    # answered nothing and the Continue panel never said how long the save had been played.
+    def self.playtime_seconds_of(v)
+      return nil if v.nil?
+      s = (v.play_time rescue nil)
+      return s.to_i if s
+      return nil unless v.is_a?(Numeric)
+      fr = (Graphics.frame_rate rescue 0).to_i
+      fr > 0 ? v.to_i / fr : nil
+    rescue StandardError
+      nil
+    end
+
+    # Seconds of play time, asked the way each era actually stores it. v19+ keeps a real counter on $stats;
+    # gen-6 keeps none at all and every screen that shows the figure derives it from the saved frame count,
+    # which is exactly what all seven gen-6 games do. The reader used to ask $PokemonGlobal for a playTime
+    # accessor that exists in NONE of the thirteen, so the guard was never true and the line was simply never
+    # spoken on that half of the catalogue. nil when neither source answers.
+    def self.playtime_seconds
+      s = ($stats.play_time rescue nil)
+      return s.to_i if s
+      fr = (Graphics.frame_rate rescue 0).to_i
+      fc = (Graphics.frame_count rescue nil)
+      return nil unless fc && fr > 0
+      fc.to_i / fr
+    rescue StandardError
+      nil
+    end
+
     # Whether the player has seen (or owns) a species, tolerant of how each engine exposes the Pokedex:
     # gen-6 keeps plain seen/owned arrays on the trainer, while v18+ replaced them with seen?/owned?
     # predicates (on the player itself, or on a nested pokedex object -- one fangame's Player::Pokedex

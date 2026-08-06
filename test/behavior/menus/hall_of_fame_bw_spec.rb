@@ -1,7 +1,8 @@
 # The Hall of Fame PC viewer plugin. Entries are stored newest-last but NUMBERED by when they happened, so
 # the number on screen is not the index: it is hallOfFameLastNumber + index - size + 1, the plugin's own
 # formula, identical in both copies. Announcing the index instead would name the wrong run of the game.
-require File.expand_path("../../../plugins/hall_of_fame_bw", File.dirname(__FILE__))
+# The harness loads every plugin reader, so this spec does not pull it in itself: a require on a file
+# already brought in with eval loads it a SECOND time and reassigns its constants.
 
 class FakeHofGlobal
   attr_accessor :hallOfFame, :hallOfFameLastNumber

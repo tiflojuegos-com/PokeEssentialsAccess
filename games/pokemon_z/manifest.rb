@@ -8,10 +8,10 @@
     pause_menu
     battle_bag
     pokedex
-    recipe_infog
+    character_guide
     picture_cues
     encounter_list
     summary_extra
   ],
-  :plugins => %w[item_crafting incubator]
+  :plugins => %w[incubator item_crafting logros]
 }

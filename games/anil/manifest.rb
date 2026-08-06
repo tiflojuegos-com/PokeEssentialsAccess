@@ -9,5 +9,5 @@
     event_menus
     monotype
   ],
-  :plugins => %w[challenge_rules hall_of_fame_bw photo_album music_book]
+  :plugins => %w[advanced_items bag_screen_party better_summary challenge_rules encounter_list_ui hall_of_fame_bw item_find misc_scripts_anil multi_save music_book photo_album sv_summary_screen]
 }

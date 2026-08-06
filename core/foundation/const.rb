@@ -38,6 +38,26 @@ module PokeAccess
     fallback
   end
 
+  # The first of these accessors the object answers with something, or nil.
+  #
+  # Essentials renamed a handful of accessors between eras -- totalpp became total_pp, base_damage became
+  # power -- and every fangame kept whichever spelling it forked from, so the thirteen games we support
+  # split roughly down the middle on each one. Asking for a single name is the worst kind of wrong here: it
+  # does not raise anywhere it matters, because these reads are guarded already. It just answers nil, and a
+  # move with no pp or zero power reads as missing data rather than as a bug. Names are tried in order, so
+  # put the spelling most games use first.
+  # @param names accessor symbols to try, e.g. :totalpp, :total_pp
+  def self.attr_of(obj, *names)
+    names.each do |n|
+      next unless (obj.respond_to?(n) rescue false)
+      v = (obj.send(n) rescue nil)
+      return v unless v.nil?
+    end
+    nil
+  rescue StandardError
+    nil
+  end
+
   # A named sprite from a scene's @sprites hash, or nil when the hash or the key is absent. Essentials scenes
   # keep their windows in @sprites["name"], which the mod reads to introspect the focused window; this folds
   # the doubly-defensive ((ivar || {})["k"] rescue nil) idiom into one call. 1.8.7-safe.
@@ -47,5 +67,31 @@ module PokeAccess
     h.is_a?(Hash) ? h[key] : nil
   rescue StandardError
     nil
+  end
+
+  # Claims a window for a dedicated reader, so the generic command-window reader leaves it alone.
+  #
+  # Some screens draw a list the generic reader can see but only half understands: it announces the bare
+  # row name while a dedicated reader is already speaking the full detail, and the player hears the move
+  # twice. The flag is the mod's OWN (@access_dedicated) and deliberately not the engine's @ignore_input,
+  # which some Selectable windows use to gate their own navigation -- setting that to mute us freezes the
+  # cursor.
+  #
+  # It is a pair because it is a contract with two ends, and they used to sit far apart: four readers wrote
+  # the ivar by hand and menus.rb read it. A typo in any one writer un-mutes that screen, and the only
+  # symptom is the player hearing everything twice. Now the name is written once.
+  # @param win the window, or nil (a screen that has none is not an error)
+  def self.dedicate(win)
+    win.instance_variable_set(:@access_dedicated, true) if win
+    win
+  rescue StandardError
+    win
+  end
+
+  # True when a dedicated reader has claimed this window (see dedicate).
+  def self.dedicated?(win)
+    win ? (win.instance_variable_get(:@access_dedicated) ? true : false) : false
+  rescue StandardError
+    false
   end
 end

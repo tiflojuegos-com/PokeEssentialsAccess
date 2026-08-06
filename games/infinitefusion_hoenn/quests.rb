@@ -25,7 +25,7 @@ module PokeAccess
       title = ((modes[idx].title rescue nil) || (modes[idx].name rescue nil)).to_s
       return if title.empty?
       PokeAccess::Cursor.announce(scene, :if2_qcat, idx, true) do
-        PokeAccess::I18n.t(:if2_pokenav, :name => title, :n => idx + 1, :tot => modes.length)
+        PokeAccess::I18n.t(:list_entry, :name => title, :n => idx + 1, :tot => modes.length)
       end
     rescue StandardError
       nil
@@ -39,7 +39,7 @@ module PokeAccess
       line = quest_line(list[idx])
       return if line.nil?
       PokeAccess::Cursor.announce(scene, :if2_quest, idx, true) do
-        PokeAccess::I18n.t(:if2_pokenav, :name => line, :n => idx + 1, :tot => list.length)
+        PokeAccess::I18n.t(:list_entry, :name => line, :n => idx + 1, :tot => list.length)
       end
     rescue StandardError
       nil

@@ -28,5 +28,11 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("reminiscencia") do
-  after("DatingSimTaskScreen", :inputs) { |scene, _result, _args| PokeAccess::ReminDatingPlace.announce(scene) }
+  # hook_container because inputs DRIVES the readers of the rest of the screen from inside itself: it calls
+  # @cmdwindow.update, which is what voices the character list, and setGenderPage when the tab changes. As a
+  # plain atomic hook its original ran guarded, so both were dropped as nested and the only thing that ever
+  # spoke on this screen was the place strip below. The place reader still runs after, on its own dedup.
+  after("DatingSimTaskScreen", :inputs, :hook_container => true) do |scene, _result, _args|
+    PokeAccess::ReminDatingPlace.announce(scene)
+  end
 end

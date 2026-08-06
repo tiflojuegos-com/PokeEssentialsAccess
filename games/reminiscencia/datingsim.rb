@@ -2,13 +2,28 @@
 # subclass already read by the generic hook. The main hub is the exception: it shows its options as icon
 # sprites and writes the focused label to a help window via setText (@commands[@index]). Read that label
 # as the cursor moves. Guarded: a no-op where absent.
-PokeAccess::Game.define("reminiscencia") do
-  after("DatingSimMainScreen", :setText) do |scene, _r, _a|
-    cmds = scene.instance_variable_get(:@commands)
-    idx  = scene.instance_variable_get(:@index)
-    txt  = (cmds.is_a?(Array) && idx) ? cmds[idx] : nil
-    PokeAccess.speak_clean(txt, true) if txt && !txt.to_s.empty?
+module PokeAccess
+  module ReminDatingSim
+    # The hub's focused label, from the same pair the screen draws.
+    def self.focus(scene)
+      cmds = scene.instance_variable_get(:@commands)
+      idx  = scene.instance_variable_get(:@index)
+      txt  = (cmds.is_a?(Array) && idx) ? cmds[idx] : nil
+      PokeAccess.speak_clean(txt, true) if txt && !txt.to_s.empty?
+    rescue StandardError
+      nil
+    end
   end
+end
+
+PokeAccess::Game.define("reminiscencia") do
+  after("DatingSimMainScreen", :setText) { |s, _r, _a| PokeAccess::ReminDatingSim.focus(s) }
+  # setText covers every MOVE but not the opening: initialize writes the first label straight into the
+  # message window and only then enters the loop, so setText has not run yet and the hub opened silent.
+  # Hooking initialize would not help -- it calls main_loop from inside itself, so an after-hook on it would
+  # not fire until the whole screen closed. before main_loop is the moment the first label already exists
+  # and the loop has not started.
+  before("DatingSimMainScreen", :main_loop) { |s, _a| PokeAccess::ReminDatingSim.focus(s) }
 
   # Task screen: the gender tabs (@indexGender 0 male / 1 female / 2 unknown) are a sprite cursor with no
   # window; setGenderPage runs when the tab changes, so announce the selected gender there. The command
@@ -23,8 +38,10 @@ PokeAccess::Game.define("reminiscencia") do
   end
 
   # Support screen: @index selects a character whose name and friendship points are drawn to side windows;
-  # updatePoints runs on each up/down move, so read the focused character there (deduped by @index). The
-  # partner command window is read by the generic hook.
+  # updatePoints runs on each move, so read the focused character there (deduped by @index). The partner
+  # command window is read by the generic hook. The cursor does NOT move with the arrows: the scene watches
+  # two raw scancodes of its own, outside anything the mod's remapping can reach, so nothing here should be
+  # wired to a direction.
   after("DatingSimSupportScreen", :updatePoints) do |scene, _r, _a|
     chars = PokeAccess.ivar(scene, :@characters)
     idx   = PokeAccess.ivar(scene, :@index)

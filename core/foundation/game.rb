@@ -26,6 +26,13 @@ module PokeAccess
       # Merges per-game button relabels into the remap menu (added to the defaults, never replacing).
       def button_labels(map); PokeAccess::Config.rebind_labels.merge!(map); end
 
+      # Merges a game's own entries into one of the core name tables -- :status_names, :weather_names,
+      # :field_weather_names -- added to the defaults, never replacing them. Fangames extend these engine
+      # enums past the vanilla range, and the ids they add CLASH between games (field weather 8 is ShadowSky
+      # in one and Charco in another), so each profile declares only its own; an unmapped id reads as nothing
+      # rather than as somebody else's weather. Values are i18n symbols, or literals for a Spanish-only game.
+      def names(table, map); PokeAccess::Config.send(table).merge!(map); end
+
       # Registers a focused-option reader for a command window. Yields (window, index) -> option text.
       def screen_reader(cname, &blk); PokeAccess::Menus.def_extractor(cname, &blk); end
 

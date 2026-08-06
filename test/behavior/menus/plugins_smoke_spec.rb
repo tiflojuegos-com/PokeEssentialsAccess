@@ -52,12 +52,11 @@ PLUGIN_SCENES = {
   "PokemonPokedex_Scene" => lambda { Class.new { def pbRefresh; :dex_drawn; end } }
 }
 
-# The extractor-only plugins: no hook to replay, but the file still has to be LOADED for its registration
-# to exist, and nothing else in the suite pulls them in. Missing this is the same silent hole the whole
-# smoke is here to close -- an unloaded reader and a mis-registered one look identical from outside.
-%w[challenge_rules music_book quest_ui].each do |f|
-  require File.expand_path("../../../plugins/#{f}", File.dirname(__FILE__))
-end
+# The extractor-only plugins used to be required here, because nothing else pulled them in. The harness
+# loads every reader now, so requiring them again would only reload the file -- and require does not know
+# about a file already brought in with eval, so the second load reassigns whatever constants it defines.
+# What the smoke still does below is different and still needed: it RE-EVALUATES the hook-carrying files
+# after building fake scene classes, because a hook whose class did not exist at load time never bound.
 
 # The plugin files carrying hooks. The extractor-only ones above are absent on purpose: they bind nothing.
 PLUGIN_HOOK_FILES = %w[item_crafting gender_selection text_log incubator hall_of_fame_bw photo_album

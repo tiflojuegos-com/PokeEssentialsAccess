@@ -61,6 +61,7 @@ module PokeAccess
     text = text.to_s.gsub(/\s+/, " ").strip
     return if text.empty?
     @last_spoken = text
+    note_spoken
     (@on_speak.call(text, interrupt) rescue nil) if @on_speak
     PEA_SPEAK.call(text + "\0", interrupt ? 1 : 0)
   rescue StandardError => e
@@ -142,6 +143,14 @@ module PokeAccess
 
   # The last non-empty line spoken, for the spoken diagnostic ("last: ..."), or nil if nothing spoken yet.
   def self.last_spoken; @last_spoken; end
+
+  # How many lines have been spoken this session. A counter and not the text, because the same line spoken
+  # twice is still a screen that has a voice; the silence watch needs "did anything happen", not "what".
+  def self.spoken_seq; @spoken_seq || 0; end
+
+  # Bumps that counter. Public because the test harness replaces speak wholesale and has to keep its
+  # observable effects, this one included.
+  def self.note_spoken; @spoken_seq = (@spoken_seq || 0) + 1; end
 end
 
 PokeAccess.write_marker("cargado ruby=#{RUBY_VERSION rescue '?'} prism=#{!PokeAccess::PEA_SPEAK.nil?}\n")

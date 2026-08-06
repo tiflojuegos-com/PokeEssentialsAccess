@@ -15,18 +15,30 @@ Suite.define("awakening cards: reads while open, and does not go looking while c
   spoke_inside = nil
   made = false
   begin
+    # A panel is a sprite holder that carries no text of its own: the name and rank live on the CHARACTER it
+    # draws, reachable through its pj accessor. Reading them off the panel yields nothing, which is what the
+    # screen used to do -- so the fixture keeps the ivars out of reach on purpose.
+    character = Object.new
+    character.instance_variable_set(:@nombre, "Chrom")
+    character.instance_variable_set(:@rango_letras, "A")
+    character.define_singleton_method(:nombre) { @nombre }
+    character.define_singleton_method(:rango_letras) { @rango_letras }
     panel = Object.new
-    panel.instance_variable_set(:@nombre, "Chrom")
-    panel.instance_variable_set(:@rango_letras, "A")
+    panel.define_singleton_method(:pj) { character }
 
     klass = Class.new
     Object.const_set(:FatesCartas, klass) unless Object.const_defined?(:FatesCartas)
     made = true
     klass.define_singleton_method(:instance_variable_get) { |sym| reads += 1; super(sym) }
     klass.define_singleton_method(:main) do
+      # The real shapes. @paneles is keyed by the build loop's own sequential counter as a STRING, which is
+      # how the screen itself reads it (`@paneles["#{@posi}"]`). @master_index is a parallel list of each
+      # card's slot in $Trainer.lista_cartas, and the build loop skips empty slots -- so it is deliberately
+      # NOT 0 here: keying the panel through it, as this reader used to, drifts apart from the row the
+      # moment any earlier card is still locked.
       @posi = 0
-      @paneles = { "chrom" => panel }
-      @master_index = ["chrom"]
+      @paneles = { "0" => panel }
+      @master_index = [7]
       SpeakCapture.clear
       PokeAccess::AwakeningFatesExtra.cards(nil)
       spoke_inside = SpeakCapture.lines.join(" ")

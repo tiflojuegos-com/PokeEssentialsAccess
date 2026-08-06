@@ -13,5 +13,5 @@
     itemget
     extras
   ],
-  :plugins => %w[text_log]
+  :plugins => %w[item_find logros text_log]
 }

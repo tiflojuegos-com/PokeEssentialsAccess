@@ -67,24 +67,32 @@ module PokeAccessBoot
     nil
   end
 
-  # The plugin readers a profile declares, or an empty list. Read from the profile's own manifest, never
-  # inferred: a plugin reader must only run where someone decided it fits, because two games can ship the
-  # same plugin CLASS with different internals.
+  # The plugin readers a profile declares: a list of names, or :auto. Never inferred from anything else --
+  # a reader must only run where someone decided it fits, because two games can ship the same plugin CLASS
+  # with different internals, and only a person can check that.
+  #
+  # :auto is that same rule for the one profile it cannot apply to. The generic profile is the fallback for
+  # games nobody has written a profile for, so there is nobody who decided: naming plugins by hand there
+  # means either listing every plugin the mod knows (and an unknown game pays for all of them) or leaving a
+  # screen silent on every unsupported fangame until somebody remembers to edit that file. Asking the
+  # running game is the honest third answer, and silence is the failure a blind player cannot diagnose.
   def self.declared_plugins(dir)
     mf = "#{dir}/manifest.rb"
     return [] unless File.exist?(mf)
     value = read_manifest(mf)
     return [] unless value.is_a?(Hash)
     list = value[:plugins]
+    return :auto if list == :auto
     list.is_a?(Array) ? list : []
   end
 
-  # Loads the declared plugin readers. A declared file that is NOT there is logged and skipped, never
-  # fatal: an interrupted install, or a mod newer than the launcher that copied it, must cost the player
-  # one silent screen -- not the whole mod.
+  # Loads the plugin readers. A declared file that is NOT there is logged and skipped, never fatal: an
+  # interrupted install, or a mod newer than the launcher that copied it, must cost the player one silent
+  # screen -- not the whole mod.
   def self.load_plugins(names)
     table = read_manifest("#{ROOT}/plugins/manifest.rb") if File.exist?("#{ROOT}/plugins/manifest.rb")
     (PokeAccess::Plugins.table = table rescue nil) if table
+    names = detected_plugins(table) if names == :auto
     names.each do |name|
       path = "#{ROOT}/plugins/#{name}.rb"
       if File.exist?(path)
@@ -94,6 +102,19 @@ module PokeAccessBoot
         log("plugin declarado pero ausente: #{path}")
       end
     end
+  end
+
+  # The plugins this game actually has, asked of the running game through the same detection table the
+  # diagnostic already uses. No new data and no second probe: the table maps each plugin to the class (or
+  # the "Class#method") that gives it away, and the game itself answers.
+  def self.detected_plugins(table)
+    return [] unless table.is_a?(Hash)
+    found = table.keys.select { |name| (PokeAccess::Engine.has?(table[name].to_s) rescue false) }
+    found = found.map { |name| name.to_s }.sort
+    log("plugins detectados: #{found.join(', ')}") unless found.empty?
+    found
+  rescue StandardError
+    []
   end
 
   # Evaluates one module file, recording any error to the log instead of aborting the rest.

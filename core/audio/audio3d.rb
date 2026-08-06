@@ -168,6 +168,16 @@ module PokeAccess
       nil
     end
 
+    # Stops the soundscape AND forgets where it was built, for a screen that takes over without the map loop
+    # running. tick's busy branch does exactly this pair, and both halves matter: silence_all alone would
+    # leave the ambience muted after the screen closes, because only the "player reached a new tile" branch
+    # ever starts the looping emitters again.
+    def self.suspend
+      return unless @active
+      silence_all
+      @scan_pos = nil
+    end
+
     # Drops the per-map scan state (emitters, wall cache, near set, scan cursor) so a new map starts clean
     # and never inherits the previous map's emitters. The audio channels and engine boot state are kept.
     def self.reset_map_state
@@ -615,6 +625,16 @@ end
 # everything the moment battle begins. It resumes on its own when the map scene comes back.
 PokeAccess::Hooks.after_hook("Game_Temp", :in_battle=) do |_t, _r, args|
   PokeAccess::Audio3D.silence_all if args[0]
+end
+
+# Same for a menu, and reacting to the FLAG rather than waiting for tick to notice it. tick only runs from
+# Game_Player#update, which a pause menu reaches only if its own loop calls pbUpdateSceneMap every frame.
+# The vanilla menu does, so the soundscape went quiet there and the behaviour looked universal; royal's grid
+# menu has an empty update and only touches pbUpdateSceneMap inside its options screen, so the tick never
+# ran once while the menu was open and the wind and water kept playing straight over it. The flag is set by
+# Scene_Map#call_menu in every one of these games, so this needs no cooperation from the menu itself.
+PokeAccess::Hooks.after_hook("Game_Temp", :in_menu=) do |_t, _r, args|
+  PokeAccess::Audio3D.suspend if args[0]
 end
 
 # Drop the previous map's emitter/wall scan state on map change or load (Caches.reset_all).

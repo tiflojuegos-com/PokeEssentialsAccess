@@ -22,8 +22,15 @@ module PokeAccess
   end
 end
 
-# pbItemBall is the floor-item entry point; the FastItemGet plugin's version shows only a silent sprite, so
-# voice the pickup before it runs. No-op where pbItemBall is absent.
-PokeAccess::Hooks.wrap_kernel("pbItemBall", "hook_remi_itemget", :before) do |args, _r|
-  PokeAccess::ReminItemGet.say(args[0], args[1])
+# pbItemBall is the floor-item entry point; the FastItemGet plugin's version shows only a silent sprite on
+# SUCCESS, which is what needs a voice. No-op where pbItemBall is absent.
+#
+# Around, and only when it returns true. Announcing beforehand claimed the pickup before the bag had been
+# asked: with a full bag pbStoreItem fails and the plugin prints its own "<player> found <item>!" followed by
+# "But the bag is full...", so the player heard a line that was untrue, then the game's duplicate of it, then
+# the refusal. On that path the game speaks for itself and the message reader already carries it.
+PokeAccess::Hooks.wrap_kernel("pbItemBall", "hook_remi_itemget", :around) do |args, nxt|
+  got = nxt.call
+  PokeAccess::ReminItemGet.say(args[0], args[1]) if got
+  got
 end

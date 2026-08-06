@@ -28,7 +28,8 @@ module PokeAccess
       return nil unless data
       ty = (GameData::Type.get(data.type).name rescue nil)
       nm = (data.name rescue PokeAccess::I18n.t(:info_move)).to_s
-      line(nm, ty, (data.power rescue 0), (data.accuracy rescue 0), :desc => (data.description rescue ""))
+      pw = PokeAccess.attr_of(data, :power, :base_damage)
+      line(nm, ty, pw || 0, (data.accuracy rescue 0), :desc => (data.description rescue ""))
     rescue StandardError
       nil
     end

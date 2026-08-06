@@ -3,10 +3,14 @@ module PokeAccess
   # window is Window_PokemonOption_Sky, a Window_DrawableCommand of SliderOptions the generic reader skips
   # because it has @options/@values, not @commands).
   module RoyalPoints
-    # "name: value" for the focused option (lowest_value + the slider value), or "Cerrar" for the last row.
+    # "name: value" for the focused option (lowest_value + the slider value), or the closing row.
+    #
+    # That last row is spoken with the screen's own word. The generic :sm_exit key reads "Salir", but this
+    # screen draws _INTL("Cerrar") there, so the reader was naming a button that did not exist -- a small
+    # thing, except it is the row the player has to find to leave.
     def self.line(win, i)
       opts = win.instance_variable_get(:@options)
-      return PokeAccess::I18n.t(:sm_exit) if opts.is_a?(Array) && i && i >= opts.length
+      return "Cerrar" if opts.is_a?(Array) && i && i >= opts.length
       return nil unless opts.is_a?(Array) && i && opts[i]
       o = opts[i]
       name = (o.name rescue "").to_s

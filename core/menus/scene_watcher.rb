@@ -7,9 +7,14 @@ module PokeAccess
     # Wires a loop method to a reader module. cls/meth: the scene class and its blocking-loop method;
     # reader: a module responding to watch(scene), unwatch and poll. The hook self-gates on the class
     # existing, so it no-ops in games without that scene.
-    def self.wire(cls, meth, reader)
+    #
+    # opts go straight to the hook. A plugin reader passes :optional => true, because a third-party plugin
+    # shipping under the same class name with a renamed loop is variance and not a typo -- the rule that
+    # every plugin hook is optional applies here too, and it used to be missed because it is this helper
+    # that registers the hook rather than the plugin file the checker reads.
+    def self.wire(cls, meth, reader, opts = {})
       PokeAccess::Game.define do
-        around(cls, meth) do |scene, call_next, _a|
+        around(cls, meth, opts) do |scene, call_next, _a|
           reader.watch(scene)
           begin
             call_next.call
@@ -35,11 +40,12 @@ module PokeAccess
     # changed. Cursors sit still: the player picks an entry and stays on it, so the key matches on the
     # other 39 frames of every second and the text built on them is thrown away unread. That is free for
     # "#{name}" and not at all free for a reader that asks the game a question to word itself.
-    def self.reader(cls, meth, slot, &blk)
+    def self.reader(cls, meth, slot, opts = {}, &blk)
       holder = Object.new
       meta = class << holder; self; end
       meta.send(:define_method, :watch) do |scene|
         @scene = scene
+        @opening = true
         PokeAccess::Cursor.reset(self, slot)
       end
       meta.send(:define_method, :unwatch) do
@@ -55,12 +61,18 @@ module PokeAccess
           next unless PokeAccess::Cursor.changed?(self, slot, pair[0])
           t = pair[1]
           t = t.call if t.respond_to?(:call)
-          PokeAccess.speak(PokeAccess.clean(t.to_s), true) if t && !t.to_s.empty?
+          next if t.nil? || t.to_s.empty?
+          # The FIRST read after opening is queued, not interrupting. A screen often prints its own line as
+          # it opens -- royal's random-mode selector displays "press X when you are done" from inside the
+          # very method this polls -- and cutting that leaves the player without the one instruction the
+          # screen gives. Every later read interrupts, which is what a moving cursor needs.
+          PokeAccess.speak(PokeAccess.clean(t.to_s), !@opening)
+          @opening = false
         rescue StandardError => e
           PokeAccess.log_once("scene_watcher_#{slot}", e)
         end
       end
-      wire(cls, meth, holder)
+      wire(cls, meth, holder, opts)
       holder
     end
   end

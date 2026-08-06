@@ -2,7 +2,8 @@
 # ships four pages behind pbShowBattlePage?/pbShowMutationsPage?, the other only two and has neither
 # predicate. Rescuing a missing predicate into "true" would invent two sections the second game does not
 # have, so the section list is built from what the scene actually answers to.
-require File.expand_path("../../../plugins/berrydex", File.dirname(__FILE__))
+# The harness loads every plugin reader, so this spec does not pull it in itself: a require on a file
+# already brought in with eval loads it a SECOND time and reassigns its constants.
 
 class FakeBerryWindow
   def initialize(cmds); @commands = cmds; end

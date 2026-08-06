@@ -60,7 +60,11 @@ module PokeAccess
       prev = cursor.instance_variable_get(:@pa_mine)
       return if sig == prev
       cursor.instance_variable_set(:@pa_mine, sig)
-      w = (MiningGameScene::BOARD_WIDTH rescue 13)
+      # Both spellings ship: some games declare BOARD_WIDTH and others BOARDWIDTH, so asking for one alone
+      # silently fell through to the hand-written 13 on the rest. It happens to be 13 everywhere today, which
+      # is exactly why nobody noticed -- the first game to widen its board would have read a wrong grid.
+      w = (PokeAccess.const_at("MiningGameScene::BOARD_WIDTH") ||
+           PokeAccess.const_at("MiningGameScene::BOARDWIDTH") || 13).to_i
       parts = [PokeAccess::I18n.t(:mg_rowcol, :row => pos / w + 1, :col => pos % w + 1)]
       parts << (mode == 0 ? PokeAccess::I18n.t(:mg_pick) : PokeAccess::I18n.t(:mg_hammer)) if prev.nil? || prev[1] != mode
       PokeAccess.speak(parts.join(", "), true)
@@ -202,6 +206,8 @@ PokeAccess::Hooks.after_hook("MiningGameScene", :pbHit) { |scene, _result, _args
 # stops, and the win/loss once paid out. No-op where the classes are absent.
 PokeAccess::Hooks.after_hook("SlotMachineScene", :update) { |scene, _r, _a| PokeAccess::Minigames.slot_wager(scene) }
 PokeAccess::Hooks.after_hook("SlotMachineReel", :stopSpinning) { |reel, _r, _a| PokeAccess::Minigames.slot_reel_stop(reel) }
+# blocks-on-purpose: pbPayout IS the coin-counting animation, and the number it announces is the total that
+# animation lands on. Reading before it would name a payout the machine has not decided yet.
 PokeAccess::Hooks.after_hook("SlotMachineScene", :pbPayout) { |scene, _r, _a| PokeAccess::Minigames.slot_payout(scene) }
 
 # Tile Puzzle (TilePuzzleScene): the cursor cell as it moves and the win when solved, polled on the scene's

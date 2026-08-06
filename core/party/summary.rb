@@ -17,8 +17,7 @@ module PokeAccess
         nm = (PokeAccess::Data.move_name(m.id) rescue nil) if nm.nil? || nm.to_s.empty?
         nm = PokeAccess::I18n.t(:info_move) if nm.nil? || nm.to_s.empty?
         pp = (m.pp rescue nil)
-        tot = (m.totalpp rescue nil)
-        tot = (m.total_pp rescue nil) if tot.nil?
+        tot = PokeAccess.attr_of(m, :totalpp, :total_pp)
         yield(nm.to_s, pp, tot)
       end
     end

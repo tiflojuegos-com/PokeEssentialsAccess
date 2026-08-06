@@ -20,9 +20,11 @@ module SpeakCapture
       t = PokeAccess.clean(text)
       next if t.to_s.empty?
       @last_spoken = t
-      # The on_speak observer is part of speak's contract (the session recorder rides on it), so the
-      # stand-in must honour it too -- otherwise anything built on the observer is untestable here.
+      # The observer and the counter are part of speak's contract -- the session recorder rides on the
+      # first, the silence watch on the second -- so the stand-in honours both. Anything built on an effect
+      # the capture drops is untestable here, and worse, looks tested.
       (@on_speak.call(t, interrupt) rescue nil) if @on_speak
+      PokeAccess.note_spoken
       log.push([t, interrupt])
       nil
     end

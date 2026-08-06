@@ -24,7 +24,7 @@ module PokeAccess
       name = PokeAccess.clean(name.to_s).to_s.strip
       return if name.empty?
       PokeAccess::Cursor.announce(scene, :awk_comp, idx, true) do
-        PokeAccess::I18n.t(:if2_pokenav, :name => name, :n => idx + 1, :tot => rows.length)
+        PokeAccess::I18n.t(:list_entry, :name => name, :n => idx + 1, :tot => rows.length)
       end
     rescue StandardError
       nil

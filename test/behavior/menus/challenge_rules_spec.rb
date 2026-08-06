@@ -2,7 +2,8 @@
 # are identical; they differ only in the label the game PAINTS beside each rule ("ACTIVADO"/"DESACTIVADO"
 # in one, "ON"/"OFF" in another). The reader takes the state from the NUMBER and speaks it through the
 # mod's own i18n, so both come out in the player's language rather than the game's.
-require File.expand_path("../../../plugins/challenge_rules", File.dirname(__FILE__))
+# The harness loads every plugin reader, so this spec does not pull it in itself: a require on a file
+# already brought in with eval loads it a SECOND time and reassigns its constants.
 
 class FakeRuleWindow
   def initialize(cmds, keys = nil); @commands = cmds; @text_key = keys; end

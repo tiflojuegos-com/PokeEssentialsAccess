@@ -9,8 +9,11 @@ module PokeAccess
     # STAT_ORDER (PS, Ataque, Defensa, At. Esp., Def. Esp., Velocidad).
     STAT_LABELS = ["PS", "Ataque", "Defensa", "Velocidad", "At. Esp.", "Def. Esp."]
     STAT_ORDER  = [0, 1, 2, 4, 5, 3]
-    # Scene bonus ivar per PBStats index (Reminiscencia's per-species stat bonus, shown as a %).
-    BONUS_IVARS = { 0 => :@bonusHP, 1 => :@bonusATK, 2 => :@bonusDEF,
+    # Scene bonus ivar per PBStats index (Reminiscencia's per-species stat bonus, shown as a %). HP is left
+    # out on purpose: the screen's line for it is commented out in the game and replaced with "---", so the
+    # scene still carries @bonusHP but never shows it. Reading it handed the player a number nobody else can
+    # see. The other five are drawn and are read.
+    BONUS_IVARS = { 1 => :@bonusATK, 2 => :@bonusDEF,
                     3 => :@bonusSPD, 4 => :@bonusSPATK, 5 => :@bonusSPDEF }
 
     # The spoken text for the scene's current state, or nil when nothing relevant changed.
@@ -70,9 +73,11 @@ module PokeAccess
 
     # One spoken line of the six stats in screen order, each label followed by its value. param title the
     # line heading (Estadisticas / IVs / EVs / Bonus); param suffix appended to each value (e.g. "%")
+    # A "title. label value, label value" line in the screen's own row order. A stat with no value is skipped
+    # rather than read as an empty one, which is what lets the bonus line leave HP out.
     def self.stat_line(title, vals, suffix = "")
-      stats = STAT_ORDER.map { |i| "#{STAT_LABELS[i]} #{vals[i]}#{suffix}" }.join(", ")
-      "#{title}. #{stats}"
+      stats = STAT_ORDER.map { |i| vals[i].nil? ? nil : "#{STAT_LABELS[i]} #{vals[i]}#{suffix}" }
+      "#{title}. #{stats.compact.join(', ')}"
     end
 
     # The current value of each stat, by PBStats index (HP shown as current of max).

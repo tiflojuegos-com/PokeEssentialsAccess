@@ -4,6 +4,7 @@
 # plugins/ and is declared below instead of being copied into this profile. See plugins/manifest.rb.
 {
   :modules => %w[
+    constants
     pausemenu
     dexnav
     glossary
@@ -15,5 +16,5 @@
     cmoon
     fates_extra
   ],
-  :plugins => %w[item_crafting gender_selection text_log]
+  :plugins => %w[easy_questing gender_selection item_crafting logros text_log]
 }

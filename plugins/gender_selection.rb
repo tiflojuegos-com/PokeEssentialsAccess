@@ -36,6 +36,12 @@ end
 
 # The controls, once, before the picker takes over the screen: with two unlabelled pictures the player has
 # no way to learn that left and right are the choice.
+#
+# The help names no direction on purpose. The three games do NOT agree on which side is which: armonia and
+# realidea map RIGHT to the boy, awakening maps LEFT to him, and the mapping lives inside the method body
+# where nothing can introspect it -- so a help line that picked a side was dictating the controls backwards
+# in one game, as the very first sentence of a new save. Moving the cursor announces the choice anyway,
+# which is the part that actually tells the player where they are.
 PokeAccess::Hooks.before_hook("PokemonGenderSelection", :main_method, :optional => true) do |_s, _a|
   PokeAccess.speak(PokeAccess::I18n.t(:gsel_help), true)
 end

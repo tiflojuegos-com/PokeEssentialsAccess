@@ -16,11 +16,23 @@ module PokeAccess
       nil
     end
 
+    # A page counter as a number the sentence can carry: anything nil, zero or negative becomes 1.
+    def self.positive_or(v)
+      n = v.to_i
+      n > 0 ? n : 1
+    rescue StandardError
+      1
+    end
+
     # The spoken line for the current focus.
     def self.line(scene)
-      sel = (scene.instance_variable_get(:@selec) rescue 0)
-      page = (scene.instance_variable_get(:@pagina) rescue 1)
-      pages = (scene.instance_variable_get(:@paginas) rescue 1)
+      sel = (scene.instance_variable_get(:@selec) rescue 0).to_i
+      # `rescue 1` does NOT cover these: an ivar that was never assigned reads as nil rather than raising,
+      # and the scene only assigns @paginas when the album already holds a photo. With an empty album it
+      # stayed nil and the line came out as "page 1 of ," -- the guard has to be against nil, not against an
+      # exception.
+      page = positive_or(PokeAccess.ivar(scene, :@pagina))
+      pages = positive_or(PokeAccess.ivar(scene, :@paginas))
       sprites = PokeAccess.ivar(scene, :@sprites)
       detail = (sprites && sprites["foto"].visible rescue false)
       card = (sel + 1) + (page - 1) * 6

@@ -3,9 +3,11 @@
 # change, so read the focused button there (banner announced only when it actually changes), deduped.
 module PokeAccess
   module GachaRoyal
-    # Verbatim from the buttons the game draws (002_Gacha_Scene.rb:305/316/328/341/350). Index 3 is the
-    # ULTRA ticket, not a reward chooser: a label invented by the reader sends the player to the wrong item.
-    BUTTONS = ["Información", "Tirar x1", "Tirar x10", "Ticket ULTRA", "Salir"]
+    # Verbatim from the buttons the game draws (Magic Gachapon/002_Gacha_Scene.rb:313, 325, 336, 347, 358,
+    # in cursor order -- the sprites are numbered 1, 2, 4, 5, 3, which is not the order they are read in).
+    # Index 3 is the ULTRA ticket, not a reward chooser: a label invented by the reader sends the player to
+    # the wrong item. The first one is drawn "Info.", not "Informacion", and verbatim means verbatim.
+    BUTTONS = ["Info.", "Tirar x1", "Tirar x10", "Ticket ULTRA", "Salir"]
   end
 end
 

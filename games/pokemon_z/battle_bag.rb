@@ -2,8 +2,10 @@
 # Z-specific reader never collides with a core namespace, matching the ZSummary/ZPokedex convention.
 module PokeAccess
   module ZBattleBag
-    # Speaks the battle bag depending on its state (pocket choice vs item list).
+    # Speaks the battle bag depending on its state: an item just confirmed, the pocket chooser, or the item
+    # list.
     def self.announce(bag)
+      return if announce_chosen(bag)
       selp = bag.instance_variable_get(:@selPocket)
       if selp == 0
         announce_pockets(bag)
@@ -12,6 +14,25 @@ module PokeAccess
       end
     rescue StandardError
       nil
+    end
+
+    # Confirming an item calls intoPocket from INSIDE update, and intoPocket puts @selPocket back to 0 before
+    # update returns. The after-hook therefore landed on what looks like the pocket chooser and named the
+    # pocket the cursor happened to be over: press C on "Pocion, 5" and hear "Medicinas". @ret is what the
+    # scene's own loop reads to know an item was picked, so it is the honest signal here too. Returns true
+    # when it owns the frame, so the state readers below stay out of the way.
+    # Nothing clears @ret when the game refuses an item it cannot use on the chosen target: the bag reopens
+    # its dialogue every frame with the same value still set. The dedup keeps that from being repeated, but
+    # it also means the frame stays silent -- a dead end of the game's own, inherited rather than caused.
+    def self.announce_chosen(bag)
+      ret = bag.instance_variable_get(:@ret)
+      return false if ret.nil? || ret.to_i <= 0
+      key = "ret#{ret}"
+      return true if key == (bag.instance_variable_get(:@access_key) rescue nil)
+      bag.instance_variable_set(:@access_key, key)
+      name = PBItems.getName(ret).to_s
+      PokeAccess.speak(name, true) unless name.empty?
+      true
     end
 
     # Speaks the pocket-selection screen entry (pocket, last item or back).

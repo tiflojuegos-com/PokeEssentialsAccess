@@ -33,12 +33,7 @@ module PokeAccess
     # Maps a 0.0-1.0 closeness (1.0 = dead on the perfect point) to a playback pitch and plays the tick.
     # The range spans roughly an octave so the target is unmistakable by ear.
     def self.tick(closeness)
-      c = closeness
-      c = 0.0 if c < 0
-      c = 1.0 if c > 1
-      PokeAccess::Spatial.earcon(:minigame_tick, 60, 80 + (c * 100).to_i)
-    rescue StandardError
-      nil
+      PokeAccess::Spatial.gauge(closeness)
     end
 
     # Cage kick: the "kickpoint" sprite slides between @cursorMinY and @cursorMaxY, perfect at PERFECT_KICK_Y.
@@ -68,8 +63,13 @@ module PokeAccess
       scene.instance_variable_set(:@pa_arch_y, y)
       lo = PokeAccess.ivar(scene, :@cursorMinY).to_i
       hi = PokeAccess.ivar(scene, :@cursorMaxY).to_i
-      mid = (lo + hi) / 2.0
-      span = ((hi - lo).abs / 2.0)
+      # The perfect shot is NOT the midpoint of the travel: the scene builds the range as
+      # PERFECT_SHOT_Y - CURSOR_MOVEMENT * CURSOR_STEPS .. PERFECT_SHOT_Y + 6 + CURSOR_MOVEMENT *
+      # CURSOR_STEPS, so the bottom half is six pixels longer and (lo + hi) / 2 lands three below the spot
+      # that actually scores. The pitch has to peak where the game says, or it is telling the player to
+      # release in the wrong place.
+      mid = (PokeAccess.const_at("TheArcherScene::PERFECT_SHOT_Y") || ((lo + hi) / 2.0)).to_f
+      span = [(mid - lo).abs, (hi - mid).abs].max
       span = 1.0 if span <= 0
       tick(1.0 - ((y - mid).abs / span))
     rescue StandardError

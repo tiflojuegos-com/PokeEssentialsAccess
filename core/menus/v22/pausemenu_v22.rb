@@ -5,8 +5,7 @@
 # focused command here on the visuals' per-frame update, deduped by index. @commands is [[ids], [names]].
 if PokeAccess::Engine.has?("UI::PauseMenuVisuals")
   PokeAccess::Hooks.after_hook("UI::PauseMenuVisuals", :set_commands) do |vis, _ret, _args|
-    win = (vis.instance_variable_get(:@sprites)[:commands] rescue nil)
-    win.instance_variable_set(:@access_dedicated, true) if win
+    PokeAccess.dedicate((vis.instance_variable_get(:@sprites)[:commands] rescue nil))
   end
 
   PokeAccess::Hooks.after_hook("UI::PauseMenuVisuals", :update_visuals) do |vis, _ret, _args|

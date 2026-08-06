@@ -17,6 +17,29 @@ module Harness
 
   # Evaluates the modules listed in <rel>/manifest.rb, in that order -- the same manifest the real loader
   # uses, so the test exercises the real load order, not a glob.
+  # Every plugin reader the harness profile did NOT declare, loaded once after it.
+  #
+  # A game loads only what its profile declares -- that is the whole point of the layer. A test run is not
+  # a game: it runs under ONE profile (anil / pokemon_z) and has to be able to exercise any reader, or a
+  # plugin would lose its coverage the moment it moved out of core and into a profile the harness does not
+  # use. Loading is idempotent because every hook in plugins/ is :optional and the modules are reopened,
+  # and the declare-only rule is still checked -- by the static specs, which read the manifests directly.
+  def self.load_remaining_plugins
+    return if @remaining_done
+    @remaining_done = true
+    @plugins_loaded ||= {}
+    Dir.glob(File.join(ROOT, "plugins", "*.rb")).sort.each do |f|
+      name = File.basename(f, ".rb")
+      next if name == "manifest" || @plugins_loaded[name]
+      @plugins_loaded[name] = true
+      begin
+        eval(File.read(f), TOPLEVEL_BINDING, f)
+      rescue Exception => e
+        @errors << "plugins/#{name}.rb: #{e.class}: #{e.message}"
+      end
+    end
+  end
+
   def self.load_dir(rel)
     dir = File.join(ROOT, rel)
     mf = File.join(dir, "manifest.rb")
@@ -27,12 +50,17 @@ module Harness
     # profile, in the real order -- a harness that skipped them would test a mod the player never runs.
     list = value.is_a?(Hash) ? value[:modules] : value
     if value.is_a?(Hash)
-      (value[:plugins] || []).each do |name|
+      declared = value[:plugins]
+      declared = [] unless declared.is_a?(Array)
+      declared.each do |name|
         f = File.join(ROOT, "plugins", "#{name}.rb")
         unless File.file?(f)
           @errors << "#{rel}/manifest.rb: plugin declarado pero ausente: plugins/#{name}.rb"
           next
         end
+        @plugins_loaded ||= {}
+        next if @plugins_loaded[name]
+        @plugins_loaded[name] = true
         begin
           eval(File.read(f), TOPLEVEL_BINDING, f)
         rescue Exception => e
@@ -40,6 +68,7 @@ module Harness
         end
       end
     end
+    load_remaining_plugins if rel =~ %r{\Agames/}
     unless list.is_a?(Array)
       @errors << "#{rel}/manifest.rb: did not evaluate to an Array of module paths (got #{list.class})"
       return

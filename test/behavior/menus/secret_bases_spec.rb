@@ -2,7 +2,8 @@
 # piece? -- through methods of different ARITY: the fork added the tile's position within the piece as a
 # fourth argument. Calling with the wrong one raises on every frame, and "it fits" is precisely the part a
 # blind player has no other way to learn, so it would vanish without a symptom.
-require File.expand_path("../../../plugins/secret_bases", File.dirname(__FILE__))
+# The harness loads every plugin reader, so this spec does not pull it in itself: a require on a file
+# already brought in with eval loads it a SECOND time and reassigns its constants.
 
 class FakeDecoration
   attr_reader :tile_size

@@ -54,6 +54,16 @@ def pbGetMessage(type, id); "msg#{id}"; end
 def pbGetMessageFromHash(type, id); "place#{id}"; end
 module MessageTypes; REGION_LOCATION_NAMES = 13; end
 
+# MapInfos for Locator.map_name, same shape and same synthetic ids as the gen-6 stub so both engines can be
+# held to the same expectations. pbLoadRxData is deliberately ABSENT: v19+ replaced it with pbLoadMapInfos,
+# six of the thirteen games have only the latter, and a stub that offered both would keep hiding a reader
+# that asks for the gen-6 loader -- which is exactly how every modern game ended up with no map name at all.
+class TestMapInfo; attr_reader :name; def initialize(id); @name = "Mapa #{id}"; end; end
+MAPINFO_IDS = [1, 35, 40, 999]
+def pbLoadMapInfos
+  MAPINFO_IDS.inject({}) { |h, id| h[id] = TestMapInfo.new(id); h }
+end
+
 class Table; def self._load(s); allocate; end; def _dump(d); ""; end; end
 class Color; def self._load(s); allocate; end; def _dump(d); ""; end; end
 class Tone;  def self._load(s); allocate; end; def _dump(d); ""; end; end

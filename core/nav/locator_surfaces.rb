@@ -69,13 +69,26 @@ module PokeAccess
       if MapFactoryHelper.respond_to?(:eachConnectionForMap)
         list = []
         (MapFactoryHelper.eachConnectionForMap(id) { |c| list.push(c) } rescue nil)
-        list
-      else
-        c = (MapFactoryHelper.getMapConnections rescue nil)
-        c.is_a?(Array) ? c : []
+        return list
       end
+      c = (MapFactoryHelper.getMapConnections rescue nil)
+      return [] unless c.is_a?(Array)
+      # Two shapes answer to the same method name. Gen-6 returns ONE flat list, each entry a connection row.
+      # Both Infinite Fusion games return an array INDEXED BY MAP ID whose entries are the lists of
+      # connections touching that map, with nil in every unused id -- and they have no eachConnectionForMap
+      # to give the shape away. Read flat, that compared a nested list against an integer so nothing ever
+      # matched, and the nil holes raised: those two games had no route-edge connections at all.
+      indexed?(c) ? (c[id].is_a?(Array) ? c[id] : []) : c
     rescue StandardError
       []
+    end
+
+    # True when the connection table is indexed by map id: its entries are lists OF connection rows rather
+    # than connection rows themselves.
+    def self.indexed?(table)
+      table.any? { |e| e.is_a?(Array) && e[0].is_a?(Array) }
+    rescue StandardError
+      false
     end
 
     # The map id reached by stepping onto off-map (ox, oy) via a connection, or nil. Uses the engine's

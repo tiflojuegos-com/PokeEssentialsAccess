@@ -1,11 +1,15 @@
 # Load order for the generic game modules (no .rb), loaded after core. Edit to add/reorder.
-# Crafting, the challenge rule editor and the secret bases are third-party plugins: their readers live in
-# plugins/ and are declared here. This profile is also the fallback for games with no profile of their own,
-# so a declaration here is what gives an unknown game those screens for free.
+# This profile is the FALLBACK for games nobody has written a profile for, so unlike every other manifest
+# it cannot name the plugins it wants: it does not know which game it is running on. :auto asks the running
+# game instead -- each plugin reader is loaded when the class that gives its plugin away is present.
+#
+# Naming them by hand here was the alternative and it was worse in both directions: the list had to grow to
+# every plugin the mod knows (so an unknown game paid for all of them), and a plugin added later was silent
+# on every unsupported fangame until somebody remembered this file.
 {
   :modules => %w[
     constants
     pausemenu
   ],
-  :plugins => %w[item_crafting challenge_rules secret_bases regicode rse_starters hgss_dexlist quest_ui]
+  :plugins => :auto
 }

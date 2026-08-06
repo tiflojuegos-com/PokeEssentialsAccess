@@ -3,10 +3,11 @@
 # album and the text log) need their own readers here.
 {
   :modules => %w[
+    constants
     system_scene
     album
     minigames
     story_minigames
   ],
-  :plugins => %w[gender_selection text_log]
+  :plugins => %w[easy_questing gender_selection text_log]
 }

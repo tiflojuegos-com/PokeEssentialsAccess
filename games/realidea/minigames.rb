@@ -27,6 +27,7 @@ module PokeAccess
       when :timon   then timon(@active)
       when :baile   then baile(@active)
       when :postres then postres(@active)
+      when :postres_baya then postres_baya(@active)
       end
     rescue StandardError
       nil
@@ -38,8 +39,18 @@ module PokeAccess
     def self.baile(scene)
       dir = PokeAccess.ivar(scene, :@direccionmelo)
       hits = PokeAccess.ivar(scene, :@numaciertos)
-      sig = [dir, hits]
-      return if dir.nil? || PokeAccess.ivar(scene, :@pa_baile) == sig
+      # The step counter belongs in the signature: danza picks the next direction at random WITHOUT excluding
+      # the previous one, so roughly one step in four repeats. Keyed on the direction alone, a repeat looked
+      # identical to the last announcement and was swallowed -- in a memory game where the sequence grows by
+      # one each round, that handed the player a sequence shorter than the real one. @direcciones is the
+      # sequence being shown; it is cleared once the player has copied it, so its length is the position
+      # WITHIN the round, which is exactly the discriminator a repeated direction needs.
+      #
+      # The opening value is skipped. The scene initialises the direction to a placeholder that is not a
+      # step, so announcing it named a move the partner never made.
+      steps = PokeAccess.ivar(scene, :@direcciones)
+      sig = [(steps.is_a?(Array) ? steps.length : nil), dir, hits]
+      return if dir.nil? || dir.to_s == "Normal" || PokeAccess.ivar(scene, :@pa_baile) == sig
       scene.instance_variable_set(:@pa_baile, sig)
       name = PokeAccess.clean(dir.to_s).to_s.strip
       return if name.empty?
@@ -60,16 +71,64 @@ module PokeAccess
       nil
     end
 
-    # Type duel: the focused type, plus both HP totals whenever they move.
+    # Berry parfait: a DIFFERENT game from the one above, despite the near-identical class name. Berries fall
+    # into three columns and the player slides a cursor between them to catch the ones the recipe asks for.
+    # It has no @barra at all -- that ivar belongs to Postresjuego -- so pointing the shared reader at this
+    # class aimed it at state that does not exist and the whole minigame was silent. The column is the only
+    # thing the player controls, and the recipe is the target, so those are what get said.
+    def self.postres_baya(scene)
+      cur = PokeAccess.ivar(scene, :@cursor)
+      return unless cur.is_a?(Integer)
+      PokeAccess::Cursor.announce(scene, :rea_baya, cur, true) do
+        PokeAccess::I18n.t(:rea_baya, :n => cur + 1, :recipe => recipe_text)
+      end
+    rescue StandardError
+      nil
+    end
+
+    # This game renames four berries when it paints the example jars, and only there. Reading the recipe
+    # straight off the trainer named the berries by their engine names while the jars the player has to match
+    # showed the renamed ones -- two different words for the same berry, and no way to tell they were the
+    # same. The names on screen win.
+    BERRY_NAMES = { "Chesto" => "Atania", "Cheri" => "Zreza", "Pecha" => "Meloc", "Rawst" => "Safre" }
+
+    # The three berries the parfait needs, named as the jars name them.
+    def self.recipe_text
+      r = ($Trainer.receta rescue nil)
+      return "" unless r.is_a?(Array)
+      r.compact.map { |b| BERRY_NAMES[b.to_s] || b.to_s }.join(", ")
+    rescue StandardError
+      ""
+    end
+
+    # Type duel: whatever the selector is over, plus both HP totals whenever they move.
     def self.ppt(scene)
       sel = PokeAccess.ivar(scene, :@selector)
-      comb = PokeAccess.ivar(scene, :@comb)
-      return unless sel.is_a?(Integer) && comb.is_a?(Array) && sel >= 0 && sel < comb.length
+      return unless sel.is_a?(Integer) && sel >= 0
+      name = focus_name(scene, sel)
+      return if name.nil? || name.empty?
       hp = PokeAccess.ivar(scene, :@protahp)
       ehp = PokeAccess.ivar(scene, :@enemhp)
-      PokeAccess::Cursor.announce(scene, :rea_ppt, [sel, hp, ehp], true) do
-        PokeAccess::I18n.t(:rea_ppt, :name => comb[sel].to_s, :hp => hp.to_i, :ehp => ehp.to_i)
+      PokeAccess::Cursor.announce(scene, :rea_ppt, [sel, name, hp, ehp], true) do
+        PokeAccess::I18n.t(:rea_ppt, :name => name, :hp => hp.to_i, :ehp => ehp.to_i)
       end
+    rescue StandardError
+      nil
+    end
+
+    # What the selector is sitting on. Phase 0 runs it across the type icons in @comb, but phase 2 is a
+    # different row entirely -- the two buttons the scene names Ataca and Defiende -- and reading @comb there
+    # announced a type the screen was not showing at all.
+    #
+    # Phase 3 counts as phase 2 as well: choosing does not move the selector, it just switches the phase and
+    # plays the resolution, some thirty frames during which the buttons are still what was chosen. Without
+    # this the reader spent that whole animation naming a type icon the screen had already hidden. The HP
+    # totals in the dedup key change during it, which turns the repeat into a report of the outcome.
+    def self.focus_name(scene, sel)
+      fase = PokeAccess.ivar(scene, :@fase)
+      return (sel == 0 ? "Ataca" : "Defiende") if fase == 2 || fase == 3
+      comb = PokeAccess.ivar(scene, :@comb)
+      (comb.is_a?(Array) && sel < comb.length) ? comb[sel].to_s : nil
     rescue StandardError
       nil
     end
@@ -96,7 +155,22 @@ module PokeAccess
     end
 
     # Ship's wheel: the headings entered so far against the target length.
+    # The wheel's live heading. @posiciones is a ROTATING list of compass points and the one being pointed at
+    # is always its first entry: LEFT and RIGHT shift the array rather than move an index. Reading only the
+    # registered combination meant turning the wheel said nothing, and the player learned the heading only
+    # after committing it with C -- too late to be the one choosing it. The points are the game's own text.
+    def self.heading(scene)
+      pos = PokeAccess.ivar(scene, :@posiciones)
+      return unless pos.is_a?(Array) && pos[0]
+      dir = PokeAccess.clean(pos[0].to_s).to_s.strip
+      return if dir.empty?
+      PokeAccess::Cursor.announce(scene, :rea_timon_dir, dir, true) { dir }
+    rescue StandardError
+      nil
+    end
+
     def self.timon(scene)
+      heading(scene)
       got = PokeAccess.ivar(scene, :@combinaciontimon)
       target = PokeAccess.ivar(scene, :@combinacion)
       return unless got.is_a?(Array) && target.is_a?(Array)
@@ -117,7 +191,7 @@ end
 PokeAccess::Game.define("realidea") do
   [["PPT", :update, :ppt], ["Morse", :actu, :morse], ["Timon", :actu, :timon],
    ["Bailedoki", :actu, :baile], ["Postresjuego", :actu, :postres],
-   ["Postresjuegobaya", :actu, :postres]].each do |cname, meth, kind|
+   ["Postresjuegobaya", :actu, :postres_baya]].each do |cname, meth, kind|
     around(cname, meth) do |scene, nxt, _a|
       PokeAccess::RealideaMinigames.hold(scene, kind)
       begin

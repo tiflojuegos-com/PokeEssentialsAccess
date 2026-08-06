@@ -13,7 +13,19 @@ module PokeAccess
       t = PokeAccess::Cursor.on_change(scene, :region_map, [x, y]) { name.to_s.strip }
       return if t.nil?
       remember_details(scene, x, y)
-      PokeAccess.speak(t, true) unless t.empty?
+      return if t.empty?
+      PokeAccess.speak(t, true)
+      # Every one of the thirteen games has BOTH this screen and a MapBottomSprite, so the bottom-bar reader
+      # in menus/v21/ui_v21 fires on the same cursor move with the same name and interrupts this line with an
+      # identical one. Inaudible today, and only because the two texts happen to match -- the day one of them
+      # gains a suffix the player hears the first cut off mid-word. Marking that reader's slot with the text
+      # just spoken makes it see no change and stay quiet. It is not removed: on Arcky's extended map screens
+      # nothing calls pbGetMapLocation, and the bottom bar is the only thing that speaks there.
+      #
+      # Cleaned before marking, because that reader keys on the CLEANED text: a place name carrying a colour
+      # code, a newline or a double space produces two different keys from the same name, and the mark then
+      # silences nothing.
+      PokeAccess::Cursor.changed?(nil, :regionmap, PokeAccess.clean(t))
     end
 
     # Keeps the focused place's description for the info key, or clears it where there is none -- most

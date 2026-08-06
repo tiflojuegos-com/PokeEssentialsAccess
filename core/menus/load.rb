@@ -40,7 +40,7 @@ PokeAccess::Hooks.after_hook(PokeAccess::Engine.era_scene(:gamedata, "PokemonLoa
     parts.push(PokeAccess::I18n.t(:tr_badges, :n => nb)) if nb
     seen = (trainer.pokedex.seen_count rescue nil)
     parts.push(PokeAccess::I18n.t(:load_dex, :n => seen)) if seen
-    hm = PokeAccess::Util.playtime_parts((stats.play_time.to_i rescue nil))
+    hm = PokeAccess::Util.playtime_parts(PokeAccess::Util.playtime_seconds_of(stats))
     parts.push(PokeAccess::I18n.t(:load_play, :h => hm[0], :m => hm[1])) if hm
     nm = (PokeAccess::Locator.map_name(mapid) rescue nil)
     parts.push(PokeAccess::I18n.t(:load_at, :map => nm)) if nm && !nm.to_s.empty?

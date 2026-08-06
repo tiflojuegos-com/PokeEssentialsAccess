@@ -7,16 +7,10 @@
 # Relearner plugin stores @moves as [id, "MT"] pairs; vanilla stores plain ids, so unwrap.
 module PokeAccess
   module MoveRelearnerGen6
-    # The move id under the focused list row, unwrapping a [id, tag] pair (BetterMoveRelearner) to its id.
+    # The move id under the focused list row. The traversal (and the [id, tag] unwrap this screen needs,
+    # because BetterMoveRelearner pairs each id with a tag) is shared with every other hand-drawn move list.
     def self.focused_id(scene)
-      moves = PokeAccess.ivar(scene, :@moves)
-      win = PokeAccess.sprite(scene, "commands")
-      idx = (win.index rescue nil)
-      return nil unless moves.is_a?(Array) && idx && idx >= 0 && idx < moves.length
-      m = moves[idx]
-      m.is_a?(Array) ? m[0] : m
-    rescue StandardError
-      nil
+      PokeAccess::MoveList.focused_id(scene)
     end
 
     # Speaks the focused move's full detail (or nothing when it cannot be resolved).
@@ -45,8 +39,7 @@ end
 # the one that announces. Guarded, that opening read is dropped as nested_other? and the screen opens
 # in silence; the guard only earns its keep when the outer hook is itself the announcer.
 PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbStartScene, :hook_container => true) do |scene, _r, _a|
-  w = PokeAccess.sprite(scene, "commands")
-  w.instance_variable_set(:@access_dedicated, true) if w
+  PokeAccess.dedicate(PokeAccess.sprite(scene, "commands"))
 end
 PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbDrawMoveList) do |scene, _r, _a|
   PokeAccess::MoveRelearnerGen6.detail(scene)

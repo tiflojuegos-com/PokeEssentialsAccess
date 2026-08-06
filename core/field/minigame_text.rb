@@ -73,9 +73,17 @@ module PokeAccess
       end
       if @choice != @last
         @last = @choice
-        t = card_text(idxs[@choice])
+        t = card_text(hand_species(idxs[@choice]))
         PokeAccess.speak(t, true) if t && !t.to_s.empty?
       end
+    end
+
+    # The species behind a hand position. @cardIndexes holds sprite slots, not species: the game resolves a
+    # slot through @playerCards itself (TriadCard.new(@playerCards[spriteIndex])) before building a card.
+    def self.hand_species(slot)
+      return nil if slot.nil?
+      cards = PokeAccess.ivar(@scene, :@playerCards)
+      cards.is_a?(Array) ? cards[slot] : nil
     end
 
     # Board placer: arrows wrap over the grid; speak the cell position and whether it is free or whose it is.

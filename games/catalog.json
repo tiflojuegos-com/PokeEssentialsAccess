@@ -145,6 +145,18 @@
       "engine": "gamedata"
     },
     {
+      "key": "emerald",
+      "display": "Pokemon Eternal Emerald",
+      "titles": [
+        "eternal emerald",
+        "pokemon eternal emerald",
+        "pokémon eternal emerald"
+      ],
+      "detect": "eternal ?emerald",
+      "exes": [],
+      "engine": "gamedata"
+    },
+    {
       "key": "generic",
       "display": "Perfil generico",
       "titles": [],

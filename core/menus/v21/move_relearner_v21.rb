@@ -2,8 +2,8 @@
 # plugin (those use UI::MoveReminderVisuals, read via screen_v22). Its move list is a Window_CommandPokemon
 # whose names the generic reader already voices, but the focused move's detail (type/power/accuracy/pp/desc)
 # is hand-drawn in pbDrawMoveList. The scene exposes the same @pokemon/@moves/@sprites["commands"] shape as
-# the egg-move tutor, so reuse SkyEggMove.detail (defined in menus/skyflyer/eggmove; referenced at runtime,
-# so load order does not matter). Mute the generic bare-name read and speak the full detail on each redraw.
+# the egg-move tutor, so both use the shared MoveList.detail (core/menus/move_list). Mute the generic
+# bare-name read and speak the full detail on each redraw.
 # hook_container: this body only STORES, it never speaks, and pbStartScene calls pbDrawMoveList -- whose hook is
 # the one that announces. Guarded, that opening read is dropped as nested_other? and the screen opens
 # in silence; the guard only earns its keep when the outer hook is itself the announcer.
@@ -18,9 +18,8 @@ module PokeAccess
 end
 
 PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerV21::SCENE, :pbStartScene, :hook_container => true) do |scene, _r, _a|
-  w = PokeAccess.sprite(scene, "commands")
-  w.instance_variable_set(:@access_dedicated, true) if w
+  PokeAccess.dedicate(PokeAccess.sprite(scene, "commands"))
 end
 PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerV21::SCENE, :pbDrawMoveList) do |scene, _r, _a|
-  PokeAccess::SkyEggMove.detail(scene)
+  PokeAccess::MoveList.detail(scene)
 end

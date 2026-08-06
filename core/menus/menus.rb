@@ -207,7 +207,7 @@ end
 # Window), so a reader must NOT set that to mute us or it freezes the cursor -- it sets @access_dedicated instead.
 PokeAccess::Hooks.after_hook("Window_DrawableCommand", :update) do |win, _r, _a|
   next if (win.instance_variable_get(:@ignore_input) rescue false)
-  next if (win.instance_variable_get(:@access_dedicated) rescue false)
+  next if PokeAccess.dedicated?(win)
   idx = win.instance_variable_get(:@index)
   next unless win.active && idx && idx >= 0
   pkt = (win.respond_to?(:pocket) ? (win.pocket rescue nil) : nil)
@@ -224,7 +224,7 @@ PokeAccess::Hooks.after_hook("SpriteWindow_Selectable", :update) do |win, _r, _a
   next unless (PokeAccess::Config.auto_detect rescue false)
   next if defined?(Window_DrawableCommand) && win.is_a?(Window_DrawableCommand)
   next if (win.instance_variable_get(:@ignore_input) rescue false)
-  next if (win.instance_variable_get(:@access_dedicated) rescue false)
+  next if PokeAccess.dedicated?(win)
   idx = (win.respond_to?(:index) ? (win.index rescue nil) : win.instance_variable_get(:@index))
   next unless (win.active rescue false) && idx && idx >= 0
   pkt = (win.respond_to?(:pocket) ? (win.pocket rescue nil) : nil)

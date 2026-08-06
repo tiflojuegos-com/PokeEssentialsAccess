@@ -62,6 +62,9 @@ end
 PokeAccess::Game.define("relict") do
   after("NextFloor", :setup) { |s, _r, _a| PokeAccess::RelictArcy.floor(s) }
   after("ArcyContest", :updateHearts) { |s, _r, _a| PokeAccess::RelictArcy.hearts(s) }
-  after("GivePlateMessage", :setup) { |s, _r, args| PokeAccess::RelictArcy.plate(s, args[0]) }
+  # Before, not after: setup is the whole plate presentation and it ends blocking on a loop that waits for a
+  # button, so an after-hook read the plate out once the player had already dismissed it. Nothing it needs is
+  # produced by the call -- the description comes from the plate symbol, which is the argument.
+  before("GivePlateMessage", :setup) { |s, args| PokeAccess::RelictArcy.plate(s, args[0]) }
   kernel("rewriteDungeonLayoutAll", :after) { |_a, _r| PokeAccess::RelictArcy.layout(nil) }
 end

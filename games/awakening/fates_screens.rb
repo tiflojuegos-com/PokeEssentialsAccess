@@ -22,7 +22,7 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :awk_talisman, idx, true) do
         name = PokeAccess.clean(t[:name].to_s).to_s.strip
         desc = PokeAccess.clean(t[:description].to_s).to_s.strip
-        parts = [PokeAccess::I18n.t(:if2_pokenav, :name => name, :n => idx + 1, :tot => list.length)]
+        parts = [PokeAccess::I18n.t(:list_entry, :name => name, :n => idx + 1, :tot => list.length)]
         parts.push(desc) unless desc.empty?
         parts.join(". ")
       end

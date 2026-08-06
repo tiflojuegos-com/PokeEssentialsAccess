@@ -22,7 +22,12 @@ module PokeAccess
     def self.text_for(s)
       enc, key = (s.send(:getEncData) rescue [nil, nil])
       return nil unless enc.is_a?(Array)
-      type_name = ((::USER_DEFINED_NAMES[key] rescue nil) || (GameData::EncounterType.get(key).real_name rescue nil) || key.to_s)
+      # The plugin's own lookup, tried where each build keeps it: royal nests the table inside
+      # EncounterListSettings, and asking only for the top-level constant left that game reading the engine's
+      # internal encounter-type name instead of the one the screen actually shows.
+      user_names = (PokeAccess.const_at("EncounterListSettings::USER_DEFINED_NAMES") ||
+                    PokeAccess.const_at("USER_DEFINED_NAMES"))
+      type_name = ((user_names[key] rescue nil) || (GameData::EncounterType.get(key).real_name rescue nil) || key.to_s)
       entries = enc.map do |sp|
         nm = (PokeAccess::Data.species_name(sp) || sp.to_s)
         dex = (PokeAccess::Engine.player.pokedex rescue nil)
@@ -46,10 +51,4 @@ module PokeAccess
       "#{head}: #{shown.join(', ')}#{more}"
     end
   end
-end
-
-PokeAccess::Hooks.before_hook("EncounterList_Scene", :pbStartScene) { |s, _a| PokeAccess::Cursor.reset(s, :encounter_list) }
-PokeAccess::Hooks.after_hook("EncounterList_Scene", :drawPresent) { |s, _r, _a| PokeAccess::EncounterList.read_present(s) }
-PokeAccess::Hooks.after_hook("EncounterList_Scene", :drawAbsent) do |_s, _r, _a|
-  PokeAccess.speak(PokeAccess::I18n.t(:enc_none, :loc => ($game_map.name rescue nil).to_s), true)
 end

@@ -47,12 +47,39 @@ module PokeAccess
       :radar_blip    => ["pa_guide_c", 150]
     }
 
-    # Plays a named earcon at a 0-100 volume; pitch overrides the table's default (the minigame tick maps
-    # closeness to pitch at its call sites).
+    # Plays a named earcon at a 0-100 volume; pitch overrides the table's default.
     def self.earcon(name, volume, pitch = nil)
       e = EARCONS[name]
       return unless e
       cue(e[0], volume, pitch || e[1])
+    end
+
+    # The pitch range a gauge sweeps: it starts at LOW and spans SPAN, reaching 180. Low enough to be
+    # clearly "far" and high enough to be clearly "now", without leaving the range where the 60 ms tick
+    # still reads as the same sound. Written as a base and a span rather than a low and a high on purpose,
+    # so the mapping below needs no subtraction: the MTS guard cannot prove a constant minus a constant is
+    # scalar, and it is right not to try -- a fangame that redefines Array#- destructively would turn any
+    # such expression into a landmine.
+    GAUGE_LOW = 80
+    GAUGE_SPAN = 100
+
+    # A cue whose PITCH carries a magnitude: 0.0 at the low end, 1.0 at the high end.
+    #
+    # Every timing minigame in the catalogue needs the same thing -- "how close am I to the good moment" --
+    # and each was open-coding the identical clamp and the identical 80..180 mapping at its call site. Two
+    # copies were already live and the three action minigames still to cover need the same, so it belongs
+    # here: a sound's meaning should be defined once, in the same place as the vocabulary it belongs to.
+    #
+    # A fraction outside 0..1 is clamped rather than refused. Callers derive it from live game state that
+    # can overshoot by a frame, and going quiet at exactly the moment the player most needs the cue is the
+    # worst possible failure for this particular sound.
+    def self.gauge(fraction, volume = 60, name = :minigame_tick)
+      f = fraction.to_f
+      f = 0.0 if f < 0.0
+      f = 1.0 if f > 1.0
+      earcon(name, volume, GAUGE_LOW + (f * GAUGE_SPAN).to_i)
+    rescue StandardError
+      nil
     end
 
     # True while the player is NOT under free control (message, menu, battle, selection/picture screen, a

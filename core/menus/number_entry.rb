@@ -9,8 +9,13 @@ module PokeAccess
     # ordinary dialogue is ignored.
     def self.on_text(raw)
       t = PokeAccess.clean(raw.to_s)
-      return unless t =~ /\A(?:x|\303\227)\s*(\d+)\s*(?:\$\s*(\d+))?\z/
+      # The price carries thousand separators: the mart builds it with to_s_formatted, so a total of a
+      # thousand or more arrives as "x5$ 1,000" (or "1.000"). Demanding bare digits made the whole line
+      # stop matching there -- so from the first four-figure total the amount went unread TOO, not just
+      # the price. Separators are stripped before the number is spoken.
+      return unless t =~ /\A(?:x|\303\227)\s*(\d+)\s*(?:\$\s*([\d.,]+))?\z/
       amount = $1.to_i; price = $2
+      price = price.gsub(/[.,]/, "") if price
       return if t == @last
       @last = t
       msg = amount.to_s

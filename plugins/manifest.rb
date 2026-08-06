@@ -29,5 +29,32 @@
   :rse_starters      => "RSESTarterChoice",
   :hgss_dexlist      => "PokedexListSprite",
   :music_book        => "Window_MusicBook",
-  :quest_ui          => "Window_Quest"
+  :quest_ui          => "Window_Quest",
+  :logros            => "Logros_Scene",
+  :easy_questing     => "Questlog",
+  :tip_cards         => "TipCard_Scene",
+  :bag_screen_party  => "PokemonBagPartyPanel",
+  :item_find         => "PokemonItemFind_Scene",
+  :advanced_items    => "SelectMoveMenu_Scene",
+  :misc_scripts_anil => "StarterMenu_Scene",
+  :encounter_list_ui => "EncounterList_Scene",
+  # Named for the plugin but probing one of its optional files: two games ship [SV] Summary Screen and only
+  # one of them includes the egg-move learner, which is the part this reader covers. The probe matches what
+  # is read, not what is installed -- so a game with the plugin but without that file correctly does not
+  # declare this reader.
+  :sv_summary_screen => "EggMoveLearner_Scene",
+  # A METHOD probe, not a class: this plugin ships under two names and adds no class of its own -- it
+  # reopens the engine's save scene. The method it adds there is what gives it away.
+  :multi_save        => "PokemonSave_Scene#pbUpdateSlotInfo",
+  :bw_mystery_gift   => "WonderCardAlbumScene",
+  :wardrobe          => "Window_Wardrobe",
+  :better_summary    => "PokemonSummary_Scene#showAbilityDescription",
+  :arcky_region_map  => "PokemonRegionMap_Scene#updateSpeciesInfo",
+  # The payout-table window rather than the scene: the census indexes a class by its LAST namespace segment,
+  # so the scene would key on the bare "Scene" -- a name four of the surveyed games define for something
+  # else entirely. Written qualified because BOTH readers of this table need it that way: the census still
+  # keys it on Window_Combination, and the runtime gate resolves it segment by segment, which the bare name
+  # cannot do for a class that lives inside a module.
+  :video_poker       => "VideoPoker::Window_Combination",
+  :ekans_snake       => "Ekans_Interface_Main"
 }

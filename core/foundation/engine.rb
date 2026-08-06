@@ -118,12 +118,21 @@ module PokeAccess
     # so a fork that backports a feature (or a future version that keeps it) works without edits. A version
     # folder (v21/v22/...) only says WHERE a capability was introduced; activation is by has?. Register the
     # few transversal ones here; one-off screens can pass their class name to has? directly.
+    #
+    # The last two are THIRD-PARTY plugins, not engine features, and they are here for the DIAGNOSTIC, not
+    # for gating: their readers bind per method with :optional, which is finer than one flag for the whole
+    # plugin and keeps a partial install working. They are not in the plugins/ detection table either, since
+    # that table lists plugins whose reader a PROFILE declares and these are read from core -- they reopen
+    # engine classes rather than adding their own, so a class check answers "present" on all thirteen games
+    # and detects nothing. What identifies them is a method, which is what a capability probe already is.
     CAPABILITIES = {
       :gamedata  => lambda { gamedata? },
       :gen6      => lambda { gen6? },
       :sky_fork  => lambda { fork == :sky },
       :ui_rework => "UI::BaseScreen",      # the v22 UI:: rework
-      :battle_scene => "Battle::Scene"     # the v19+ battle scene
+      :battle_scene => "Battle::Scene",    # the v19+ battle scene
+      :dbk => "Battle#pbToggleSpecialActions",  # Deluxe Battle Kit
+      :mui => "UIHandlers"                      # Modular UI Scenes
     }
 
     # True when a capability is present. Accepts a registered capability symbol (:ui_rework, :gamedata...),

@@ -2,10 +2,11 @@
 # games_src/reminiscencia/Data/export/1740 MoveRelearner.rb) draws the focused move's extra data directly
 # onto @sprites["overlay"] inside pbDrawMoveList instead of writing it into a standard text window.
 #
-# The visible list itself is a Window_CommandPokemon in @sprites["commands"], so the core command-window
-# reader already voices the focused move NAME when the player moves with the arrows. The problem is the
-# info key (T): because this scene never publishes its own info context, T keeps reading the PREVIOUS
-# context left by the Pokemon picker (the selected Pokemon), not the focused move's detail.
+# The visible list is a Window_CommandPokemon in @sprites["commands"], but the generic command-window reader
+# does NOT voice it: the core relearner marks that window dedicated (core/menus/gen6/move_relearner_g6.rb:42)
+# so the two do not talk over each other. What speaks the focused move name is the declared override at the
+# bottom of this file. The other problem is the info key (T): because this scene never publishes its own
+# info context, T keeps reading the PREVIOUS context left by the Pokemon picker, not the focused move.
 #
 # The game computes and redraws every relevant field inside MoveRelearnerScene#pbDrawMoveList:
 #   - the focused move id lives in @moves[@sprites["commands"].index]
@@ -20,15 +21,10 @@
 # only the move name, leaving the full detail for T.
 module PokeAccess
   module ReminMoveRelearner
-    # The move id currently focused by the custom relearner list, or nil.
+    # The move id currently focused by the custom relearner list, or nil. Same shape as every other
+    # hand-drawn move list, so the traversal is the shared one.
     def self.focused_id(scene)
-      moves = PokeAccess.ivar(scene, :@moves)
-      win = PokeAccess.sprite(scene, "commands")
-      idx = (win.index rescue nil)
-      return nil unless moves.is_a?(Array) && idx && idx >= 0 && idx < moves.length
-      moves[idx]
-    rescue StandardError
-      nil
+      PokeAccess::MoveList.focused_id(scene)
     end
 
     # The full line the info key should read for the focused move: name, type, power, accuracy,

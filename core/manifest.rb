@@ -60,10 +60,9 @@
   menus/dp_pausemenu
   menus/neo_pausemenu
   menus/ready_menu
-  menus/pokegear_theme
+  menus/skyflyer/pokegear_theme
   menus/screen_messages
   menus/command_help
-  menus/battle_point_shop
   menus/character_creator
   menus/sprite_button_menu
   menus/options
@@ -90,22 +89,18 @@
   menus/pokedex_entry
   battle/v21/pokedex_info_v21
   menus/purify_chamber
+  menus/battle_point_shop
   menus/encounter_list
-  field/v21/starters_v21
-  field/v21/fieldmoves_v21
   menus/v21/ui_v21
-  menus/v21/bag_party_v21
   menus/pokedex_search
   menus/v21/move_relearner_v21
   menus/gen6/move_relearner_g6
-  field/achievements
   field/hall_of_fame
   menus/v21/pausemenu_v21
   party/summary_gamedata
   party/v21/summary_v21
   party/v21/ribbons_v21
-  field/v21/itemfind_v21
-  menus/skyflyer/eggmove
+  menus/move_list
   menus/v22/screen_v22
   menus/v22/options_v22
   menus/v22/bag_v22
@@ -138,11 +133,10 @@
   field/mail
   field/fishing
   field/phone
-  field/tip_cards
   field/book
   field/itemfinder
-  field/quests
   menus/money_window
   menus/uihelper
   util/recorder
+  util/silence
 ]

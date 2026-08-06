@@ -67,16 +67,51 @@ module PokeAccess
     rescue StandardError
       nil
     end
+
+    # Six of the thirteen games ship an OLDER search screen behind the same method name, and its redraw takes
+    # only the params: pbRefreshDexSearch(params). There is no grid and no index argument -- the screen is a
+    # Window_ComplexCommandPokemon ("searchlist") whose rows already read "Nombre: X", "Color: Y". Reading
+    # args[1] there yielded nil, nil.to_i is 0, so the sort row was announced once and the entire rest of the
+    # screen was silent. The window owns its own cursor, so it is read straight off it.
+    # The window is claimed: it is a Window_DrawableCommand and it is active, so the generic command reader
+    # reads it too, and the game calls this refresh on every index change -- the same row spoken twice, the
+    # second one interrupting the first mid-word, because the two readers key on different dedup slots and
+    # neither can see the other.
+    def self.list(scene)
+      win = PokeAccess.dedicate(PokeAccess.sprite(scene, "searchlist"))
+      return unless win
+      txt = PokeAccess.clean(PokeAccess::Menus.focused_text(win).to_s)
+      return if txt.empty?
+      PokeAccess::Cursor.announce(scene, :dex_search, [(win.index rescue nil), txt], true) { txt }
+    rescue StandardError
+      nil
+    end
+
+    # Which of the two search screens this is, told by the arity the game shipped rather than by class name:
+    # both eras carry both variants, so the signature is the only honest discriminator.
+    def self.refresh(scene, args)
+      return main(scene, args[0], args[1]) if args.length >= 2
+      list(scene)
+    end
   end
 end
 
+# A general Essentials window whose commands are grouped ("category", [rows], "category", [rows]), so the
+# flat cursor index does not index the array: generic_focus found an Array at commands[i] and gave up. The
+# window resolves it itself with getText, header rows included. Registered here because the Pokedex search is
+# the screen that needed it, but it applies to any screen using this window class.
+PokeAccess::Menus.def_extractor("Window_ComplexCommandPokemon") do |win, i|
+  cmds = (win.commands rescue nil)
+  cmds ? win.getText(cmds, i).to_s : ""
+end
+
 PokeAccess::Hooks.after_hook("PokemonPokedex_Scene", :pbRefreshDexSearch) do |scene, _r, args|
-  PokeAccess::DexSearch.main(scene, args[0], args[1])
+  PokeAccess::DexSearch.refresh(scene, args)
 end
 PokeAccess::Hooks.after_hook("PokemonPokedex_Scene", :pbRefreshDexSearchParam) do |scene, _r, args|
   PokeAccess::DexSearch.param(scene, args[0], args[1], args[3])
 end
-# The gen-6 era names the same scene without the underscore; its search screen is the same shape.
+# The gen-6 era names the same scene without the underscore.
 PokeAccess::Hooks.after_hook("PokemonPokedexScene", :pbRefreshDexSearch) do |scene, _r, args|
-  PokeAccess::DexSearch.main(scene, args[0], args[1])
+  PokeAccess::DexSearch.refresh(scene, args)
 end

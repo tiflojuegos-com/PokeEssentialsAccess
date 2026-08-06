@@ -13,11 +13,14 @@ Suite.define("static: no undeclared coupling between versions, profiles, or shar
   versions = [:gen6, :v21, :v22, :skyflyer]
 
   # file => the referencing side may use the named module across layers (reason documented here).
-  whitelist = {
-    # v21's MoveRelearner_Scene exposes the same shape as Sky's egg-move tutor, so it reuses
-    # SkyEggMove.detail at runtime (documented in the file header). The one conscious version cross.
-    ["core/menus/v21/move_relearner_v21.rb", "SkyEggMove"] => true
-  }
+  #
+  # Empty, and worth keeping that way. Its one entry used to be v21's Move Relearner reaching into
+  # SkyEggMove, a module that sat in the fork's folder only because the egg-move tutor happened to need it
+  # first; nothing inside it was Sky's. Naming it after the job instead (MoveList, in the shared layer)
+  # turned the crossing into an ordinary core reference and the exception disappeared. That is the shape of
+  # fix to look for when something wants to be added here: a whitelist entry is usually a module wearing
+  # the name of whoever called it first.
+  whitelist = {}
 
   layer_of = lambda do |rel|
     if rel =~ %r{\Acore/}
@@ -125,24 +128,12 @@ Suite.define("static: no core/ file names a class only one fangame has") do
   # [file, class name] => why this one core file may name a single-game class.
   declared = {
     # royal's trainer-points Options scene (its "Puntos entrenador" plugin), listed as a third alias next
-    # to the two vanilla Options names. This is the case PENDIENTE 5.3 used to prove the census was blind;
-    # the move to a royal-only reader is still pending. Inert meanwhile: scene_classes drops the names the
-    # running game does not define.
+    # to the two vanilla Options names. This is the case that proved the census was blind, and it stays --
+    # the move to a separate reader was considered and rejected. It is one name in an alias list, not a
+    # second reader: the screen behaves identically under all three names, so splitting it would copy the
+    # whole reader into a plugin file to add a string. And it costs nothing where the plugin is absent,
+    # because scene_classes drops the names the running game does not define.
     ["core/menus/option_help.rb", "PokemonOptionPuntos_Scene"] => true,
-    # emerald's own Battle-Point mart window, registered beside the generic Window_BattlePointShop because
-    # both carry the same @stock/@adapter shape. The file header's "nothing here is game-specific" is
-    # contradicted by exactly this name (PENDIENTE 6.3).
-    ["core/menus/battle_point_shop.rb", "Window_PokemonMart_BattlePoints"] => true,
-    # Third-party "Tip Cards" addon: of the 13 dumps only royal installs this third scene (its siblings
-    # TipCard_Scene and TipCardGroups_Scene are in royal AND relict, so the census does not list them).
-    ["core/field/tip_cards.rb", "TipMenu_Scene"] => true,
-    # Sky's-base egg-move tutor; anil is the only surveyed dump on that base, so the name is exclusive by
-    # sample size. It names the LAYER's screen, not a game's.
-    ["core/menus/skyflyer/eggmove.rb", "EggMoveLearner_Scene"] => true,
-    # Third-party "Advanced Items - Field Moves" plugin, installed by anil alone among the 13 dumps.
-    ["core/field/v21/fieldmoves_v21.rb", "SelectMoveMenu_Scene"] => true,
-    # Third-party "Misc Scripts" starter menu, installed by anil alone among the 13 dumps.
-    ["core/field/v21/starters_v21.rb", "StarterMenu_Scene"] => true
   }
 
   census = {}
