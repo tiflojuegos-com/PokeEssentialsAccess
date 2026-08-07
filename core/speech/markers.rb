@@ -44,14 +44,10 @@ module PokeAccess
   # Seconds since the mod loaded, the source for all cue pacing. Plain wall time, because a cue cadence is
   # something a human hears: "a ping every 0.4 s" has to mean 0.4 real seconds in every game.
   #
-  # It used to prefer System.uptime and fall back to Graphics.frame_count / 40, and both branches proved
-  # unsafe. One fangame ships an mkxp-z whose System.uptime does NOT return seconds, so every interval
-  # was met on the very next frame and the whole soundscape fired at frame rate (its performance exe, which
-  # has no System.uptime, sounded correct -- that split is what pinned the bug down). The frame_count branch
-  # is only right while the game truly holds its nominal rate, and it jumps whenever loading a save rewrites
-  # frame_count. Time.now has neither failure mode and matches, to the millisecond, what the games that
-  # already sounded right were doing. FPS survives as the frames-to-seconds constant the tunables are
-  # expressed in (see freq_to_seconds), not as a clock.
+  # Neither engine clock is safe. One fangame ships an mkxp-z whose System.uptime does NOT return seconds,
+  # which meets every interval on the next frame and fires the whole soundscape at frame rate; frame_count
+  # is only right while the game holds its nominal rate, and it jumps when loading a save rewrites it.
+  # FPS survives as the frames-to-seconds constant the tunables are expressed in (see freq_to_seconds).
   def self.clock
     if @epoch.nil?
       @epoch = Time.now

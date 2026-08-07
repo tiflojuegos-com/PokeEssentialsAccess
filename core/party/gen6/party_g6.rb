@@ -24,7 +24,7 @@ end
 # stale :pokemon left over from the party screen or a previous battle).
 # hook_container: this body only STORES, it never speaks, and pbStartScene calls selectButton -- whose hook is
 # the one that announces. Guarded, that opening read is dropped as nested_other? and the screen opens
-# in silence; the guard only earns its keep when the outer hook is itself the announcer.
+# in silence; the guard is only useful when the outer hook is itself the announcer.
 PokeAccess::Hooks.after_hook("PokemonMenu_Scene", :pbStartScene, :hook_container => true) do |_s, _r, _a|
   PokeAccess::Info.set_info(:trainer, nil)
 end

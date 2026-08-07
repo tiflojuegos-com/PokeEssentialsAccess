@@ -19,11 +19,11 @@ module PokeAccess
   @ready = false
   @init_attempted = false
 
-  # Initialises the screen-reader bridge ONCE, honouring PeaInitialize's return value -- it used to be
-  # ignored, so a total failure (no speech backend could start) left the mod mute for the whole session
-  # with no trace and no way back. A failure logs once and stays failed: there is deliberately NO
-  # background retry loop (an init sweep per speak would be constant busywork); the player's gesture for
-  # "the voice is not up, reconnect" is toggling the mod off/on with Ctrl+Alt+F8, which calls retry_init!.
+  # Initialises the screen-reader bridge ONCE, honouring PeaInitialize's return value: a total failure, where
+  # no speech backend can start, would otherwise leave the mod mute for the whole session with no trace and
+  # no way back. A failure logs once and stays failed, with deliberately NO background retry loop, since an
+  # init sweep per speak would be constant busywork; the player's gesture for "the voice is not up" is
+  # toggling the mod off and on with Ctrl+Alt+F8, which calls retry_init!.
   # A reader started AFTER a successful init needs none of this: the bridge re-picks the best backend on
   # any Speak that fails.
   def self.init_speech!

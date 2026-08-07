@@ -27,10 +27,10 @@ Suite.define("diag: profile-registered sections run, group, and fail guarded") d
   end
 end
 
-# The caps list on the engine line. It used to be five hand-written pushes, so a capability registered later
-# was simply absent from every recording until somebody remembered this file -- the same forget-and-it-is-
-# silent failure the capability registry exists to avoid. Now it walks CAPABILITIES, which is what the spec
-# pins: not the exact contents (they change), but that the list COMES FROM the registry.
+# The caps list on the engine line. It walks CAPABILITIES rather than a hand-written set of pushes, where a
+# capability registered later would be absent from every recording until somebody remembered this file --
+# the same forget-and-it-is-silent failure the registry exists to avoid. What the spec pins is not the exact
+# contents, which change, but that the list COMES FROM the registry.
 Suite.define("diag: the caps line is built from the capability registry, not a hand list") do
   d = PokeAccess::Keys
   caps = PokeAccess::Engine::CAPABILITIES

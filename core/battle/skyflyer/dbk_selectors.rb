@@ -6,14 +6,19 @@ module PokeAccess
   # bind, and no-op on gen-6 (no Battle::Scene).
   module DBKSelectors
     # The focused ball line ("name, count") from the [item_id, count] entry, or the Back label.
-    def self.ball_text(items, index)
+    # param show_desc true while the panel is showing the ball's description, which is what the details key
+    #   toggles: the screen paints a whole paragraph and the index does not move
+    def self.ball_text(items, index, show_desc = false)
       e = (items[index] rescue nil)
       return nil unless e
       id = e.is_a?(Array) ? e[0] : e
       item = (GameData::Item.try_get(id) rescue nil)
       return PokeAccess::I18n.t(:dbk_back) unless item
       n = e.is_a?(Array) ? e[1] : nil
-      n ? PokeAccess::I18n.t(:dbk_ball, :name => item.name, :n => n) : item.name
+      line = n ? PokeAccess::I18n.t(:dbk_ball, :name => item.name, :n => n) : item.name.to_s
+      return line unless show_desc
+      d = (item.description rescue nil)
+      (d && !d.to_s.empty?) ? "#{line}. #{PokeAccess.clean(d.to_s)}" : line
     rescue StandardError
       nil
     end
@@ -39,30 +44,35 @@ module PokeAccess
 end
 
 # Poke Ball selector: pbUpdateBallSelection(items, index, showDesc) redraws on open and on each left/right
-# move; read the focused ball (deduped by index). The dedup ivar lives on the battle-long Scene, so reset
-# it when the selector (re)opens, or reopening on the same index would stay mute.
+# move; read the focused ball. The dedup ivar lives on the battle-long Scene, so reset it when the selector
+# (re)opens, or reopening on the same index would stay mute.
+#
+# The key is [index, showDesc], not the index alone: the details key toggles a full description panel open
+# and shut WITHOUT moving the cursor, so an index-only key never noticed that the screen had changed.
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbSelectBallInfo, :optional => true) do |scene, _a|
-  scene.instance_variable_set(:@access_ball_idx, nil)
+  PokeAccess::Cursor.reset(scene, :dbk_ball)
 end
 PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBallSelection, :optional => true) do |scene, _ret, args|
-  items = args[0]; index = args[1]
-  if index != PokeAccess.ivar(scene, :@access_ball_idx)
-    scene.instance_variable_set(:@access_ball_idx, index)
-    t = PokeAccess::DBKSelectors.ball_text(items, index)
-    PokeAccess.speak(t, true) if t && !t.to_s.empty?
+  PokeAccess::Cursor.announce(scene, :dbk_ball, [args[1], args[2]]) do
+    PokeAccess::DBKSelectors.ball_text(args[0], args[1], args[2])
   end
 end
 
 # Battler selection grid: pbUpdateBattlerSelection(idxSide, idxPoke, select) redraws on each cursor move;
 # read the highlighted battler (deduped by the [side, poke] pair). Reset on (re)open like the ball selector.
+#
+# BEFORE and not after, because this method is not just a redraw: called with select true, which is how the
+# key opens the panel, it ends in "pbSelectBattlerInfo if select" and that IS the panel's whole modal loop.
+# Hooked after, the call that opens the grid would not speak until the player closed it.
+#
+# Running before also settles the reentrancy question rather than working around it: a before hook does not
+# put the original under the guard at all, so pbUpdateBattlerInfo, the reset below and
+# pbUpdateMoveInfoWindow are never suppressed. Nothing here reads the return value, so before costs nothing.
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbSelectBattlerInfo, :optional => true) do |scene, _a|
-  scene.instance_variable_set(:@access_bsel, nil)
+  PokeAccess::Cursor.reset(scene, :dbk_bsel)
 end
-PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBattlerSelection, :optional => true) do |scene, _ret, args|
-  key = [args[0], args[1]]
-  if key != PokeAccess.ivar(scene, :@access_bsel)
-    scene.instance_variable_set(:@access_bsel, key)
-    t = PokeAccess::DBKSelectors.battler_text(scene, args[0], args[1])
-    PokeAccess.speak(t, true) if t && !t.to_s.empty?
+PokeAccess::Hooks.before_hook("Battle::Scene", :pbUpdateBattlerSelection, :optional => true) do |scene, args|
+  PokeAccess::Cursor.announce(scene, :dbk_bsel, [args[0], args[1]]) do
+    PokeAccess::DBKSelectors.battler_text(scene, args[0], args[1])
   end
 end

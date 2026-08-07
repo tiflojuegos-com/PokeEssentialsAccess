@@ -10,11 +10,11 @@ the game as it was.
 
 | | |
 |---|---|
-| Core modules | 127, in `core/manifest.rb` |
+| Core modules | 129, in `core/manifest.rb` |
 | Game profiles | 14, in `games/` |
-| Plugin readers | 30, in `plugins/` |
+| Plugin readers | 29, in `plugins/` |
 | Languages | `lang/es.txt`, `lang/en.txt` |
-| Suite | 1532 (gen-6) + 136 (gamedata) |
+| Suite | 1600 (gen-6, static checks included) + 137 (gamedata) |
 | Ruby | 1.8.7 in the game; the system one in tests |
 
 ## Layers
@@ -29,8 +29,8 @@ Inside `core/` the layout is **module first**: `core/<module>/` holds the engine
 `gen6/`, `v21/`, `v22/`, `skyflyer/` subfolders hold only what differs per era. Anything shared by several
 eras lives at the module root.
 
-Modules: `audio`, `battle`, `data`, `field`, `foundation`, `input`, `menus`, `nav`, `party`, `speech`,
-`util`.
+Modules: `audio`, `battle`, `data`, `dialogue`, `field`, `foundation`, `input`, `menus`, `nav`, `party`,
+`puzzles`, `speech`, `util`.
 
 ## Startup
 

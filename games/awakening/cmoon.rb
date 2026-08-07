@@ -1,22 +1,18 @@
-# The CMoon hub (pbDMoon, script 0221) and the screens it opens. This is the front door of the whole Fates
-# system -- diary, legendaries, compendium, miscellaneous and the summon creator -- and it was silent, which
-# made everything behind it unreachable even though those screens are now covered.
+# The CMoon hub (pbDMoon, script 0221) and the screens it opens: the entry point of the Fates system,
+# holding the diary, the legendaries, the compendium, the miscellaneous screen and the summon creator.
 #
 # Its cursor is a LOCAL variable (`select`), so no hook can read it. Same situation as the Triple Triad
-# pickers in the core, and the same answer: an around-hook holds the screen while its loop runs, and a
-# per-frame poll mirrors the very same navigation the loop does (DOWN while below the last row, UP while
-# above the first, no wrap) to know where the focus is. The labels are not hardcoded here either -- each
-# screen paints them once at setup with pbDrawOutlineText, so those calls are captured while it is opening
-# and the captured strings are what gets spoken. That keeps the conditional first entry ("Diario de D`" vs
-# "Diario de Personajes") correct without this file having to know why it varies.
+# pickers in core, and the same answer: an around-hook holds the screen while its loop runs and a per-frame
+# poll mirrors the very same navigation (DOWN while below the last row, UP while above the first, no wrap).
+# The labels are not hardcoded either -- each screen paints them once at setup with pbDrawOutlineText, so
+# those calls are captured while it opens and the captured strings are what gets spoken, which keeps the
+# conditional first entry right without this file having to know why it varies.
 #
-# Why a STACK of frames rather than one flag: the hub opens its submenus from INSIDE its own loop (the
-# `break` only runs once the submenu returns), so the hub's ensure has not fired yet. With a single flag the
-# hub's mirror stayed armed underneath, the submenu navigated with the very same UP/DOWN keys, and every
-# press moved the hub cursor too and announced an entry from the screen behind -- while pbDrawOutlineText
-# kept appending the submenu's labels to the hub's list, shifting those wrong entries further with each one.
-# Every one of these screens has the same shape and differs only in how many rows it holds, so a frame per
-# open screen reads the one that actually has focus and restores the one underneath on the way out.
+# A STACK of frames rather than one flag, because the hub opens its submenus from INSIDE its own loop: the
+# break only runs once the submenu returns, so the hub's ensure has not fired. With a single flag the hub's
+# mirror stays armed underneath, the submenu navigates with the very same UP/DOWN keys, and every press
+# moves the hub cursor too. All these screens have the same shape and differ only in how many rows they
+# hold, so a frame per open screen reads the one with focus and restores the one underneath on the way out.
 module PokeAccess
   module AwakeningCMoon
     @entries = nil

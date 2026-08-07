@@ -1,6 +1,5 @@
-# v22 town map: the ONE v22 screen that had no coverage, because its reading used to live inside the hook
-# body and a hook body cannot be reached from a spec (hooks bind at load, so a class defined later is never
-# wired). With the reading in TownMapV22 it is testable, and what it pins is the behaviour a blind player
+# v22 town map. Its reading lives in TownMapV22 and not inside the hook body, which a spec cannot reach
+# (hooks bind at load, so a class defined later is never wired). What it pins is the behaviour a blind player
 # depends on while sweeping the map with a held direction: the town is named when the cursor reaches it,
 # NOT repeated frame after frame, and blank points between towns stay silent without eating the next name.
 Suite.define("town map v22: names the focused location once, stays quiet on blanks") do

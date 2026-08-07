@@ -28,6 +28,7 @@ unless load_errors.empty?
   exit 1
 end
 SpeakCapture.install
+SpeakCapture.clear_all
 
 # Requires the spec files for this engine. gen6 runs unit + the gen6/agnostic behaviour; gamedata runs the
 # behaviour specs tagged _gd (the modern path). A path filter narrows the glob for focused local runs; a
@@ -63,8 +64,8 @@ specs.each do |f|
   end
 end
 
-# A suite that asserts NOTHING (an early return, a helper that stopped registering asserts) used to print
-# the same "ok" as one that verified twenty things, so silent coverage loss looked like success. Counting
+# A suite that asserts NOTHING (an early return, a helper that stopped registering asserts) prints the same
+# "ok" as one that verified twenty things, so silent coverage loss looks like success. Counting
 # the asserts it added names it -- a warning, not a failure: a suite may legitimately be a no-op on an
 # engine, and the run should say so rather than break.
 Suite.all.each do |name, body|
@@ -83,6 +84,13 @@ Suite.all.each do |name, body|
   puts "  #{status}  #{name}"
 end
 
+# The raw-code net (see test/support/speak_capture.rb). Checked once for the whole pass, because the
+# list accumulates across suites: a reader that hands speak a text the game has not had cleaned
+# sounds the control code out loud, and every assertion on the captured log sees that text already
+# cleaned, so nothing else in the harness can see it.
+Assert.suite = "speak capture"
+eq("no reader passes raw control codes to speak (use speak_clean)", SpeakCapture.raw_offenders, [])
+
 puts "\n[#{ENGINE}] #{Assert.pass} ok, #{Assert.fail} fail"
 Assert.failures.each { |f| puts "  #{f}" }
 engine_fail = Assert.fail
@@ -96,13 +104,41 @@ if ENGINE == :gen6
     puts "\n=== static checks skipped (filtered run) ==="
   else
     puts "\n=== static checks ==="
-    ok187 = system("python", File.join(File.dirname(__FILE__), "check187.py"))
-    puts "ruby187: #{ok187 ? 'OK' : 'FAIL'}"; extra_fail += 1 unless ok187
-    okman = system("ruby", File.join(File.dirname(__FILE__), "static", "manifest_check.rb"))
+    # The check's OWN last line, not a verdict invented from the exit code. It has three of them, and they
+    # do not mean the same thing: a real 1.8.7 parse of every file, a pattern-only pass when that
+    # interpreter is missing (CI, or a checkout without the sibling tools/ folder), or a failure. Printing
+    # "ruby187: OK" for all three turned a maybe into a promise.
+    out187 = `python "#{File.join(File.dirname(__FILE__), "check187.py")}" 2>&1`
+    ok187 = $?.success?
+    puts out187 unless ok187
+    puts "ruby187: #{ok187 ? out187.to_s.strip.split("\n").last.to_s.sub(/\AOK:\s*/, "") : 'FAIL'}"
+    extra_fail += 1 unless ok187
+    # Capturado y contado, no lanzado y olvidado. Como subproceso suelto su veredicto no entraba en
+    # Assert.pass/fail (el total de la suite lo subcontaba), sus problemas se imprimian sin decir de que
+    # comprobacion venian, y no aparecian en el resumen de fallos del final con los demas.
+    outman = `ruby "#{File.join(File.dirname(__FILE__), "static", "manifest_check.rb")}" 2>&1`
+    okman = $?.success?
+    Assert.suite = "static/manifiestos: manifiestos contra disco"
+    Assert.check("cada manifest.rb casa con los ficheros y con el catalogo", okman,
+                 outman.to_s.strip.split("
+").reject { |l| l =~ /\AOK/ }.first(10).join(" | "))
+    puts outman.to_s.strip.split("
+").first
     extra_fail += 1 unless okman
     par = (PokeAccess::I18n.parity_issues rescue [])
     puts(par.empty? ? "i18n parity: OK" : "i18n parity WARNING (no rompe CI): #{par.first(10).join(', ')}")
   end
+
+  # Los estaticos corren DESPUES del resumen de arriba, asi que sus aserciones no entran en aquel numero.
+  # En vez de reordenar el fichero, se reimprime el total ya completo: el de arriba cuenta las suites, este
+  # cuenta la pasada entera, y cualquier fallo estatico sale nombrado aqui.
+  # extra_fail cuenta aqui, no solo en el codigo de salida. Los estaticos que corren como subproceso
+  # (ruby187, manifest_check) no pasan por Assert, asi que un FAIL suyo dejaba la linea diciendo "0 fail"
+  # mientras el run salia con codigo 1: quien mira la consola y no el codigo se lo cree.
+  puts "
+[#{ENGINE}] total con estaticos: #{Assert.pass} ok, #{Assert.fail + extra_fail} fail"
+  Assert.failures[engine_fail..-1].to_a.each { |f| puts "  #{f}" }
+  engine_fail = Assert.fail
 
   puts "\n=== gamedata engine ==="
   ok_gd = system({ "PA_ENGINE" => "gamedata" }, "ruby", __FILE__, *ARGV)

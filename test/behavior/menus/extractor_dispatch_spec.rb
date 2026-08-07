@@ -1,6 +1,6 @@
 # Extractor dispatch: the MOST DERIVED matching class wins, regardless of registration order --
-# mirroring Ruby's own method dispatch. Before this, first-match-by-registration meant a core extractor
-# on a base window class captured every subclass forever, so a profile could never specialise one.
+# mirroring Ruby's own method dispatch. First-match-by-registration would let a core extractor on a base
+# window class capture every subclass forever, so a profile could never specialise one.
 Suite.define("menus: the most derived extractor wins over registration order") do
   base = Class.new do
     def index; 0; end

@@ -3,17 +3,12 @@ module PokeAccess
   # the focus lives in a hidden Window_CommandPokemon ("cmdwindow") that the scene rebuilds and re-indexes
   # every frame.
   #
-  # Read that window, not the @index it is mirrored into. Five of the six games that ship this screen split
-  # it into TWO lists -- field moves on one side, registered items on the other -- and their @index is
-  # [moveCursor, itemCursor, side], an Array. The old reader compared idx >= 0, which an Array does not
-  # answer, so it raised NoMethodError on the first frame and the rescue swallowed it. Only z218 kept the
-  # flat integer. The hidden window always carries whichever list has focus, so both shapes need no special
-  # case here.
-  #
-  # What that silence cost was NOT the item names: the window is a Window_CommandPokemon, which is born
-  # active, and the generic command reader gates on active rather than on visible, so it was already saying
-  # them. What was missing is the re-read when focus crosses to the other list, which is why the side is in
-  # the dedup key. The window is claimed so the two readers do not both speak the same row.
+  # That window is read, not the @index it is mirrored into. Five of the six games that ship this screen
+  # split it into TWO lists -- field moves on one side, registered items on the other -- and their @index is
+  # [moveCursor, itemCursor, side], an Array, where only z218 kept a flat integer. The hidden window always
+  # carries whichever list has focus, so both shapes need no special case. It is CLAIMED, since it is born
+  # active and the generic command reader gates on active rather than visible: what this reader adds over
+  # that one is the re-read when focus crosses to the other list, which is why the side is in the dedup key.
   module ReadyMenu
     def self.poll(scene)
       win = PokeAccess.dedicate(PokeAccess.sprite(scene, "cmdwindow"))

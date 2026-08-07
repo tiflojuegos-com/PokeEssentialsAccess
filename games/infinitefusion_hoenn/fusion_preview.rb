@@ -1,21 +1,19 @@
-# The fusion chooser (FusionPreviewScreen < DoublePreviewScreen, 048_Fusion/). This is the game's signature
-# screen -- the splicers show the two possible fusions (A head + B body, and the reverse) and you pick one --
-# and it is the least accessible: it draws two sprites, paints the types as images and the level into a
-# bitmap, and NEVER writes the resulting fusion's name anywhere. It even encodes whether a custom sprite
-# exists as a colour tint. Left/Right choose, Down moves to cancel (-1), Up returns.
+# The fusion chooser (FusionPreviewScreen < DoublePreviewScreen, 048_Fusion/). The game's signature screen
+# -- the splicers show the two possible fusions (A head + B body, and the reverse) and you pick one -- and
+# the least accessible: it draws two sprites, paints the types as images and the level into a bitmap, and
+# NEVER writes the resulting fusion's name anywhere, encoding even "a custom sprite exists" as a colour
+# tint. Left/Right choose, Down moves to cancel (-1), Up returns.
 #
 # Only initialize/getBackgroundPicture are overridden by the subclass, so hooking the parent's
-# updateSelectionGraphics -- which the loop calls whenever the choice actually changes -- covers both. That
-# call is the ONLY one, so nothing spoke on open: startSelection enters its loop on @selected = 0 and the
-# screen stayed mute until the first Left/Right. Hence the opening hook alongside it, sharing the dedup.
+# updateSelectionGraphics -- which the loop calls whenever the choice changes -- covers both. That call is
+# the ONLY one, and startSelection enters its loop on @selected = 0, so the opening hook alongside it
+# shares the dedup.
 #
-# @species_left/@species_right ARE filled, but with the two PARENT Pokemon: FusionPreviewScreen#initialize
-# calls super(poke1, poke2) and DoublePreviewScreen stores them as-is. Trusting them because they are not
-# nil was the bug -- the reader then said a parent's plain name and never a fusion, on the one screen whose
-# whole job is telling the two fusions apart. So the ivar is used only when it really holds a species, and
-# otherwise the fused id is rebuilt from the parents. GameData::Species.get is patched by the game to
-# resolve a fused id into a FusedSpecies, so the combined name and the head/body split come out right;
-# .name can still be nil where the game has no split name, hence the head/body fallback.
+# @species_left/@species_right are filled with the two PARENT Pokemon, since FusionPreviewScreen#initialize
+# calls super(poke1, poke2) and DoublePreviewScreen stores them as-is. So an ivar is used only when it
+# really holds a species, and otherwise the fused id is rebuilt from the parents: GameData::Species.get is
+# patched by the game to resolve a fused id into a FusedSpecies, so the combined name and the head/body
+# split come out right, with .name still nil where the game has no split name, hence the fallback.
 module PokeAccess
   module IFFusionPreview
     # The base the saga packs a fusion id with (head * nb + body). It has to come from the game and never

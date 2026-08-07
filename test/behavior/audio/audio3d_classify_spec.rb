@@ -180,3 +180,56 @@ Suite.define("audio3d: only a near service desk bypasses line of sight") do
     World.clear_events
   end
 end
+
+# The optional "only what the keys can reach" filter. The two classifiers agree on everything with a
+# dedicated predicate (doors, hazards, controls, tags) and disagree on exactly one shape: an event drawn
+# with a TILE graphic and a touch trigger, which pings here but is in no locator category. Those fire on
+# contact, so the default keeps pinging them; the filter is for a player who wants the two lists to match.
+Suite.define("audio3d: the locatable filter silences only the events the keys cannot reach") do
+  a3d = PokeAccess::Audio3D
+  prev = PokeAccess::Config.sonar_only_locatable
+  begin
+    World.clear_events
+    tile_pg = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(101, ["Hola"])])
+    touch = TestGameEvent.new(:id => 1, :x => 6, :y => 5, :pages => [tile_pg], :active_page => tile_pg)
+    def touch.tile_id; 384; end
+    $game_map.events[1] = touch
+    door = World.event(:kind => :door, :id => 2, :x => 7, :y => 5)
+
+    PokeAccess::Config.sonar_only_locatable = false
+    eq "off, a tile-graphic touch event pings as an object", a3d.type_of(touch), :object
+    falsy "even though the keys never list it", PokeAccess::Locator.in_category?(touch, :all)
+
+    PokeAccess::Config.sonar_only_locatable = true
+    eq "on, that same event goes quiet", a3d.type_of(touch), nil
+    eq "and a door is untouched by the filter, because the keys do reach it", a3d.type_of(door), :door
+  ensure
+    PokeAccess::Config.sonar_only_locatable = prev
+    World.clear_events
+  end
+end
+
+# The census the diagnostic prints. It must count with the filter OFF: a player who turns the filter on and
+# then opens the diagnostic needs to see how big the gap IS, not zero because they just silenced it.
+Suite.define("audio3d: the reach census measures the gap with the filter off") do
+  a3d = PokeAccess::Audio3D
+  prev = PokeAccess::Config.sonar_only_locatable
+  begin
+    World.clear_events
+    tile_pg = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(101, ["Hola"])])
+    touch = TestGameEvent.new(:id => 1, :x => 6, :y => 5, :pages => [tile_pg], :active_page => tile_pg)
+    def touch.tile_id; 384; end
+    $game_map.events[1] = touch
+    World.event(:kind => :door, :id => 2, :x => 7, :y => 5)
+
+    PokeAccess::Config.sonar_only_locatable = false
+    eq "off, two ping and one is out of reach", a3d.reach_census, "2 pingan, 1 fuera del localizador"
+
+    PokeAccess::Config.sonar_only_locatable = true
+    eq "on, the census still reports the same gap", a3d.reach_census, "2 pingan, 1 fuera del localizador"
+    eq "and the filter is left as the player set it", PokeAccess::Config.sonar_only_locatable, true
+  ensure
+    PokeAccess::Config.sonar_only_locatable = prev
+    World.clear_events
+  end
+end

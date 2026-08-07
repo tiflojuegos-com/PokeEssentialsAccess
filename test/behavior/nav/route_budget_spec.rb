@@ -1,8 +1,8 @@
 # One find_path is up to three searches -- the reachability probe, the walking route, then the route that
-# allows ledge hops -- and each one used to start its own clock. So route_budget_ms, the option that promises
-# "never spend more than this on a route", really spent it three times over. The interesting part is not the
-# arithmetic: running out of time makes a search return nil, and returning nil is precisely what fires the
-# NEXT search. The cut-off was feeding the work it was meant to cut.
+# allows ledge hops -- so a clock per search spends route_budget_ms, the option that promises "never spend
+# more than this on a route", three times over. The interesting part is not the arithmetic: running out of
+# time makes a search return nil, and returning nil is precisely what fires the NEXT search, so the cut-off
+# feeds the work it exists to cut.
 #
 # The clock is faked here so the assertions are exact rather than "these two floats differ by a hair".
 Suite.define("pathfinder: one route, one deadline") do

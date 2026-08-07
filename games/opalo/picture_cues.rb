@@ -19,8 +19,12 @@ module PokeAccess
 
     # Tracks which selector screen is active and, on the first screen, reads the option the pointer is on
     # (the difficulty screen reads itself via TEXTS). param y the picture y position
+    #
+    # Both tints arm the first screen. The opening shows the two options dimmed ("Osc") and only lights one
+    # ("Claro") once the player moves, so waiting for a lit one lost the opening read and the first move
+    # with it -- on the very first screen of a new game.
     def self.handle(name, y)
-      if name =~ /MenuNuzNormalClaro$/ || name =~ /MenuNuzNuzClaro$/
+      if name =~ /MenuNuz(Normal|Nuz)(Claro|Osc)$/
         @screen = :first
       elsif name =~ /MenuNuzNormalDif/
         @screen = :diff

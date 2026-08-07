@@ -54,21 +54,17 @@ ReaderSites.ivars_by_file.each_value { |names| names.each { |n| wanted[n] = {} }
 # reader needs answered: a name can be present in the game and still be on the wrong OBJECT, which is a
 # silent nil just the same. The check cannot decide that on its own -- it would have to know which object
 # each read is aimed at -- so the census names the classes instead, and the answer is one grep away rather
-# than an afternoon in the dumps.
+# than a manual search of the dumps.
 names = wanted.keys.sort
 owners = {}
 pattern = /@(#{names.map { |n| Regexp.escape(n) }.join("|")})\b/
 games.each do |g|
   profile = ReaderSites::PROFILE_OF[g] || g
   Dir.glob(File.join(sources_of[g], "**", "*.rb")).each do |f|
-    cur = nil
-    cur_indent = nil
+    stack = ReaderSites::ClassStack.new
     File.open(f, "rb") do |io|
       io.each_line do |line|
-        if line =~ /^(\s*)(?:class|module)\s+([A-Z][A-Za-z0-9_:]*)/
-          cur_indent = $1.length
-          cur = $2.split("::").last
-        end
+        cur = stack.feed(line)
         line.scan(pattern) do
           wanted[$1][profile] = true
           (owners[$1] ||= {})[cur] = true if cur
@@ -109,11 +105,22 @@ puts "never found in any dump (#{missing.length}): #{missing.join(', ')}" unless
 # correct, because it is: it is just being asked at the only moment nobody is listening.
 #
 # A method blocks when it both loops and pumps the frame: a loop alone is any bit of data processing, and
-# Graphics.update inside one is what makes it the screen's own turn-taking. One level of indirection counts
-# too, because the common shape is a constructor whose last statement is the loop method.
+# pumping inside one is what makes it the screen's own turn-taking. One level of indirection counts too,
+# because the common shape is a constructor whose last statement is the loop method.
+#
+# All three forms below started too narrow, and the narrowness was invisible: every row came out clean, so
+# the file read as thirteen games' worth of evidence when parts of it could not produce a finding at all.
+#
+# PUMP_FORM was Graphics.update alone. Every Battle::Scene modal loop pumps through pbUpdate or
+# pbGraphicsUpdate instead (royal's 002_Battle_Scene), so NO battle-scene loop was
+# detectable -- the ability splash, the level-up panels and the battler grid all reported clean.
+#
+# LOOP_FORM was loop/while true/until false. A plain conditional while is the same screen loop written
+# differently, and widening it adds 263 methods across the fourteen sources. `for` is deliberately left
+# out: it produced four false positives, all `for i in 0..2` next to an animation.
 LOOP_OUT = File.join(File.dirname(__FILE__), "loop_census.txt")
-LOOP_FORM = /^\s*(?:loop\s+do|while\s+true|until\s+false)\b/
-PUMP_FORM = /\bGraphics\.update\b/
+LOOP_FORM = /^\s*(?:loop\s+do|while\b|until\b)/
+PUMP_FORM = /\b(?:Graphics\.update|pbUpdate|pbGraphicsUpdate)\b/
 
 hooked = {}
 ReaderSites.after_hooks_by_file.each_value { |sites| sites.each { |s| hooked[s] = {} } }
@@ -131,24 +138,46 @@ end
 
 # Which sites any dump defines at all. A site nothing defines cannot be checked, and printing it with the
 # same empty list as a checked-and-clean one is the difference between "no bug" and "no evidence".
+# evidence is keyed by the DEFINING class; seen records the hook keys some game answered for, whether on
+# the class itself, an ancestor or Object.
 evidence = {}
+seen = {}
 
 games.each do |g|
   profile = ReaderSites::PROFILE_OF[g] || g
   direct = {}
   calls = {}
+  supers = {}
   Dir.glob(File.join(sources_of[g], "**", "*.rb")).each do |f|
-    cur = nil
+    stack = ReaderSites::ClassStack.new
     lines = File.open(f, "rb") { |io| io.readlines }
     lines.each_with_index do |line, i|
-      if line =~ /^\s*(?:class|module)\s+([A-Z][A-Za-z0-9_:]*)/
-        cur = $1.split("::").last
-        next
+      cur = stack.feed(line)
+      if line =~ /^\s*class\s+([A-Z][A-Za-z0-9_:]*)\s*<\s*([A-Z][A-Za-z0-9_:]*)/
+        supers[$1.split("::").last] = $2.split("::").last
       end
-      next unless cur && hooked_classes[cur]
+      # attr_accessor and friends define real methods with no body: a hooked getter or setter that comes
+      # from one would report NO-DUMP, which reads as "nothing to check" when the truth is "nothing that
+      # could ever block". Game_Temp#in_battle= and #in_menu= are both of these.
+      if cur && line =~ /^\s*attr_(accessor|reader|writer)\s+(.+)$/
+        kind = $1
+        $2.scan(/:([a-zA-Z_]\w*)/) do
+          evidence["#{cur}##{$1}"] = true unless kind == "writer"
+          evidence["#{cur}##{$1}="] = true unless kind == "reader"
+        end
+      end
+      next if line =~ /^\s*(?:class|module)\s+[A-Z]/
       next unless line =~ /^(\s*)def\s+(?:self\.)?([a-zA-Z_]\w*[?!=]?)/
       indent = $1.length
       meth = $2
+      # A def at file scope is not lost: Ruby makes it a private instance method of Object, so every class
+      # in the game inherits it, and three of the sites the mod hooks are written exactly that way (awakening
+      # closes Glosario_Historia and then defines update_cursor at column 0; likewise its EquipScreen and
+      # emerald's WonderCardAlbumScene). Filed under Object and resolved through it below, which is what the
+      # interpreter does. Reported as NO-DUMP before -- unfalsifiable rather than clean.
+      cur = stack.owner_at(indent) || cur
+      cur = "Object" if cur.nil? && indent == 0
+      next unless cur && (hooked_classes[cur] || cur == "Object")
       # The body ends at its own `end` OR at the next `def`, whichever comes first. The second terminator is
       # what makes this work on decompiled scripts: RPG Maker's editor lets a method sit at column 0 with its
       # closing `end` indented, and matching the `end` alone then ran straight past it -- one such method
@@ -169,18 +198,38 @@ games.each do |g|
       # Indirection counts only when the call is the method's LAST statement. That is the shape that matters
       # -- a constructor whose final act is to run the screen -- and stopping there is what keeps a method
       # that merely CAN reach a blocking animation down one branch from being called a blocking loop.
+      #
+      # A trailing if/unless modifier still counts. "pbSelectBattlerInfo if select" IS the last statement,
+      # and it is how DBK opens the battler panel from pbUpdateBattlerSelection -- demanding a bare call
+      # meant that whole screen was followed nowhere.
       tail = body.reverse.find { |l| l.strip != "" && l.strip != "end" }
-      calls[key] = (tail.to_s =~ /^\s*(?:self\.)?([a-z_]\w*)\s*$/) ? ["#{cur}##{$1}"] : []
+      m = tail.to_s.match(/^\s*(?:self\.)?([a-z_]\w*)\s*(?:(?:if|unless)\s+\S.*)?$/)
+      calls[key] = m ? ["#{cur}##{m[1]}"] : []
     end
   end
+  # Where to look for a method the class itself does not define: up its superclass chain, then Object,
+  # which is where a top-level def lands. Both are what the interpreter would do, and both were reported as
+  # NO-DUMP before -- unfalsifiable rather than clean. The chain is capped, so a cycle in a dump cannot
+  # spin here.
+  aliases = lambda do |s|
+    cls, meth = s.split("#", 2)
+    out = [s]
+    5.times do
+      cls = supers[cls]
+      break if cls.nil? || out.include?("#{cls}##{meth}")
+      out.push("#{cls}##{meth}")
+    end
+    out.push("Object##{meth}")
+    out
+  end
   hooked.each_key do |key|
-    s = short_key(key)
-    next unless direct[s] || (calls[s] || []).any? { |c| direct[c] }
-    hooked[key][profile] = true
+    names = aliases.call(short_key(key))
+    hooked[key][profile] = true if names.any? { |k| direct[k] || (calls[k] || []).any? { |c| direct[c] } }
+    seen[key] = true if names.any? { |k| evidence[k] }
   end
 end
 
-no_evidence = hooked.keys.sort.reject { |k| evidence[short_key(k)] }
+no_evidence = hooked.keys.sort.reject { |k| seen[k] }
 unresolved = ReaderSites.unresolved_after_sites
 
 File.open(LOOP_OUT, "wb") do |io|
@@ -193,6 +242,7 @@ File.open(LOOP_OUT, "wb") do |io|
   io.print("#\n")
   io.print("#\n")
   io.print("# format: Class#method = <profile>, <profile>...\n")
+  io.print("# surveyed sources (#{games.length}): #{games.map { |g| ReaderSites::PROFILE_OF[g] || g }.sort.join(', ')}\n")
   io.print("# A row marked NO-DUMP is one no surveyed game defines: it was not checked and found clean, it\n")
   io.print("# could not be checked at all. The two used to print identically, which made a sixth of the file\n")
   io.print("# read as evidence it was not.\n")

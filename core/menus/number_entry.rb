@@ -7,19 +7,32 @@ module PokeAccess
     # Announces the chosen amount (and price) when a number-window text changes. Matches a quantity line
     # only: it starts with "x" (gen-6) or "×" (v22's multiply sign), then digits and an optional price, so
     # ordinary dialogue is ignored.
+    #
+    # Separators are allowed in the price and stripped afterwards, since the mart builds it with
+    # to_s_formatted and a total of a thousand or more arrives as "x5$ 1,000" (or "1.000"). The alignment
+    # tag becomes a space before anything else, and the currency may be a leading "$" or a trailing word:
+    # the Battle Point shop writes "x1<r>100 PB", which without that space collapses to "x1100 PB".
+    LAYOUT = /<\s*\/?\s*(?:r|br)\s*\/?\s*>/i
+    LINE = /\A(?:x|\303\227)\s*(\d+)(?:(?:\s*\$\s*|\s+)([\d.,]+)(?:\s*([A-Za-z]{1,3}))?)?\s*\z/
+
+    # Suelta la ultima cantidad dicha, para que reabrir el mismo aviso con el mismo importe vuelva a
+    # hablar. El dedup es de MODULO -- estas ventanas de texto son de usar y tirar, no hay instancia donde
+    # colgarlo -- asi que sin este reset una cantidad repetida (cancelar y volver a entrar en el mismo
+    # objeto, que es el gesto normal al comparar precios) entra en silencio.
+    def self.forget; @last = nil; end
+
     def self.on_text(raw)
-      t = PokeAccess.clean(raw.to_s)
-      # The price carries thousand separators: the mart builds it with to_s_formatted, so a total of a
-      # thousand or more arrives as "x5$ 1,000" (or "1.000"). Demanding bare digits made the whole line
-      # stop matching there -- so from the first four-figure total the amount went unread TOO, not just
-      # the price. Separators are stripped before the number is spoken.
-      return unless t =~ /\A(?:x|\303\227)\s*(\d+)\s*(?:\$\s*([\d.,]+))?\z/
-      amount = $1.to_i; price = $2
+      t = PokeAccess.clean(raw.to_s.gsub(LAYOUT, " ")).to_s.strip
+      return unless t =~ LINE
+      amount = $1.to_i; price = $2; unit = $3
       price = price.gsub(/[.,]/, "") if price
       return if t == @last
       @last = t
       msg = amount.to_s
-      msg += ", " + PokeAccess::I18n.t(PokeAccess::Config.money_label, :n => price.to_i) if price
+      if price
+        msg += ", " + (unit ? "#{price.to_i} #{unit}" :
+                              PokeAccess::I18n.t(PokeAccess::Config.money_label, :n => price.to_i))
+      end
       PokeAccess.speak(msg, true)
     rescue StandardError
       nil
@@ -83,4 +96,10 @@ end
 # per-digit cursor (left/right) and digit change (up/down), so read the column you land on plus the total.
 PokeAccess::Hooks.after_hook("Window_InputNumberPokemon", :update) do |win, _r, _a|
   PokeAccess::NumberEntry.on_digit_window(win) if (win.active rescue false)
+end
+
+# Cada aviso de cantidad construye su propio selector, asi que su nacimiento es el limite entre un aviso y
+# el siguiente: es donde se olvida la cantidad dicha la vez anterior.
+PokeAccess::Hooks.after_hook("Window_InputNumberPokemon", :initialize) do |_w, _r, _a|
+  PokeAccess::NumberEntry.forget
 end

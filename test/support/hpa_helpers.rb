@@ -1,12 +1,11 @@
 # Shared HPA* spec helpers, loaded by the runner like the other support files so every spec that needs them
-# works standalone under a path filter (they used to live in hpa_blocking_target_spec, which made the
-# cache-readonly spec depend on that file having loaded first).
+# works standalone under a path filter. Inside one spec instead, another would depend on that file having
+# loaded first.
 #
 # TRAP when writing ASCII grids: build the rows with SINGLE quotes, or keep '@' away from a letter.
 # In a double-quoted string "#@A..." Ruby interpolates the instance variable @A -- which is nil -- so
 # load_grid silently receives a SHORTER row: wrong width, events misplaced, the player never positioned,
-# and the spec fails for a reason that has nothing to do with what it tests. It has already cost one
-# debugging session.
+# and the spec fails for a reason that has nothing to do with what it tests.
 
 # Loads an ASCII grid and resets the pathfinder's per-map caches so a fresh layout is searched from scratch.
 def hpa_fresh_grid(rows)

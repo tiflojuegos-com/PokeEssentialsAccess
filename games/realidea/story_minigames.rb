@@ -1,6 +1,6 @@
 # Realidea's two story-critical minigames. These are not optional content: Mankey is launched from the battle
-# code (0084_PokeBattle_Battle:3201) and from the pirates event, and Pesca is the game's general fishing
-# (0098_PField_Field:1667), so being unable to play them blocks progress outright.
+# code (0084_PokeBattle_Battle) and from the pirates event, and Pesca is the game's general fishing
+# (0098_PField_Field), so being unable to play them blocks progress outright.
 #
 # Both expose a method that runs once per frame from inside their own loop -- Pesca#input and Mankey#inputs,
 # which is where each reads its keys -- so hooking those directly is enough; no held-instance poller needed.

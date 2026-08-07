@@ -1,13 +1,10 @@
-# Pokedex search screen (PokemonPokedex_Scene#pbDexSearch and its per-parameter sub-screen). This is vanilla
-# Essentials (verified against the v21.1 reference in 016_UI/003_UI_Pokedex_Main.rb), and every one of the
-# supported fangames ships it, yet it was completely silent: the filter grid is painted straight onto the
-# overlay bitmap and the focus is a bare cursor sprite, so no window reader ever sees it.
-#
-# Both redraw methods receive the cursor index as their last argument, so the reader takes it from there
-# instead of introspecting the sprite -- one less thing to break when a game restyles the screen.
+# Pokedex search screen (PokemonPokedex_Scene#pbDexSearch and its per-parameter sub-screen). Vanilla
+# Essentials, verified against the v21.1 reference, and shipped by every supported fangame, yet invisible to
+# every window reader: the filter grid is painted straight onto the overlay bitmap and the focus is a bare
+# cursor sprite. Both redraw methods receive the cursor index as their last argument, so the reader takes it
+# from there rather than introspecting the sprite.
 #   pbRefreshDexSearch(params, index): the main grid. index 0..6 are the seven filters (order, name, type,
-#     height, weight, colour, shape) and 7/8/9 are the Clear / Search / Cancel buttons (verified in the
-#     vanilla input loop, `when 7` clears, `when 8` searches, `when 9` cancels).
+#     height, weight, colour, shape) and 7/8/9 are the Clear / Search / Cancel buttons.
 #   pbRefreshDexSearchParam(mode, cmds, sel, index): the sub-screen that picks one filter's value. mode is
 #     the same 0..6 field, cmds the option list, and a negative index means the OK/Cancel buttons.
 module PokeAccess
@@ -22,17 +19,37 @@ module PokeAccess
       key ? PokeAccess::I18n.t(key) : nil
     end
 
+    # Las ranuras de params que pinta cada FILA de la rejilla, y la lista de la que sale cada valor. La fila
+    # NO es el indice de params: tipo, altura y peso ocupan DOS ranuras cada una (dos tipos, y el minimo y
+    # el maximo de un rango), asi que de la fila 3 en adelante params[fila] es el filtro de al lado --
+    # "Altura" leyendo el segundo tipo, "Color" leyendo la altura maxima. params[8] y params[9], que son el
+    # color y la forma de verdad, no los leia nadie.
+    SLOTS = [[0], [1], [2, 3], [4, 5], [6, 7], [8], [9]]
+    LISTS = [:@orderCommands, :@nameCommands, :@typeCommands, :@heightCommands,
+             :@weightCommands, :@colorCommands, :@shapeCommands]
+
+    # Un elemento de una lista de comandos como lo dice la pantalla: los tipos, los colores y las formas son
+    # objetos de GameData y su to_s es el volcado del objeto; las alturas y los pesos son numeros crudos.
+    def self.option_text(item)
+      return nil if item.nil?
+      n = (item.name rescue nil)
+      return PokeAccess.clean(n.to_s) if n && !n.to_s.empty?
+      PokeAccess.clean(item.to_s)
+    end
+
     # Whether a filter currently holds a value. Vanilla stores -1 for "no filter" in every slot but the sort
     # order, which is always set.
     def self.field_value(scene, idx, params)
       return nil unless params.is_a?(Array) && idx >= 0 && idx < FIELDS.length
-      v = params[idx]
-      return PokeAccess::I18n.t(:dxs_unset) if v.nil? || v.to_i < 0
-      list = case idx
-             when 0 then PokeAccess.ivar(scene, :@orderCommands)
-             when 1 then PokeAccess.ivar(scene, :@nameCommands)
-             end
-      (list.is_a?(Array) && list[v.to_i]) ? list[v.to_i].to_s : PokeAccess::I18n.t(:dxs_set)
+      slots = SLOTS[idx]
+      list = PokeAccess.ivar(scene, LISTS[idx])
+      vals = slots.map do |s|
+        v = params[s]
+        next nil if v.nil? || v.to_i < 0
+        (list.is_a?(Array) && list[v.to_i]) ? option_text(list[v.to_i]) : PokeAccess::I18n.t(:dxs_set)
+      end
+      vals = vals.compact.reject { |v| v.to_s.empty? }
+      vals.empty? ? PokeAccess::I18n.t(:dxs_unset) : vals.join(" - ")
     rescue StandardError
       nil
     end
@@ -58,7 +75,7 @@ module PokeAccess
       opt = if i < 0
               PokeAccess::I18n.t(i <= -3 ? :dxs_cancel : :dxs_ok)
             elsif cmds.is_a?(Array) && cmds[i]
-              PokeAccess.clean(cmds[i].to_s)
+              option_text(cmds[i])
             end
       return if opt.nil? || opt.to_s.empty?
       PokeAccess::Cursor.announce(scene, :dex_search_param, [mode, i], true) do
@@ -68,15 +85,12 @@ module PokeAccess
       nil
     end
 
-    # Six of the thirteen games ship an OLDER search screen behind the same method name, and its redraw takes
+    # Six of the thirteen games ship an OLDER search screen behind the same method name, whose redraw takes
     # only the params: pbRefreshDexSearch(params). There is no grid and no index argument -- the screen is a
-    # Window_ComplexCommandPokemon ("searchlist") whose rows already read "Nombre: X", "Color: Y". Reading
-    # args[1] there yielded nil, nil.to_i is 0, so the sort row was announced once and the entire rest of the
-    # screen was silent. The window owns its own cursor, so it is read straight off it.
-    # The window is claimed: it is a Window_DrawableCommand and it is active, so the generic command reader
-    # reads it too, and the game calls this refresh on every index change -- the same row spoken twice, the
-    # second one interrupting the first mid-word, because the two readers key on different dedup slots and
-    # neither can see the other.
+    # Window_ComplexCommandPokemon ("searchlist") whose rows already read "Nombre: X", "Color: Y" -- so it is
+    # read straight off the window's own cursor. That window is CLAIMED, because it is an active
+    # Window_DrawableCommand the generic command reader also reads and the game calls this refresh on every
+    # index change: two readers on different dedup slots would speak the same row twice.
     def self.list(scene)
       win = PokeAccess.dedicate(PokeAccess.sprite(scene, "searchlist"))
       return unless win

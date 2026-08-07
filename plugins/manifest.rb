@@ -28,7 +28,6 @@
   :regicode          => "RC",
   :rse_starters      => "RSESTarterChoice",
   :hgss_dexlist      => "PokedexListSprite",
-  :music_book        => "Window_MusicBook",
   :quest_ui          => "Window_Quest",
   :logros            => "Logros_Scene",
   # A METHOD probe, and it has to be: one more game defines a class called Questlog for a quest system of

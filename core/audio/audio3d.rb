@@ -253,10 +253,14 @@ module PokeAccess
       @scan_pos = nil
     end
 
-    # One frame: keeps the listener on the player; on a tile change re-scans the nearby emitters, walls
-    # and water/wind loops; pings the discrete emitters on a timer. Called from the Game_Player#update hook.
-    # Opening the audio device at boot mutes the game's BGM until the next map change, so the first frame
-    # after a successful boot re-plays the map BGM (autoplay) to bring the music straight back.
+    # One frame: keeps the listener on the player, re-scans emitters, walls and the water and wind loops on
+    # a tile change, and pings the discrete emitters on a timer. Called from the Game_Player#update hook.
+    # Opening the audio device mutes the game's BGM until the next map change, so the first frame after a
+    # successful boot replays it.
+    #
+    # Going busy forgets WHERE the soundscape was built as well as silencing it: only the "moved to a new
+    # tile" branch starts the looping emitters, so keeping the scan position would leave the ambience muted
+    # until the player took a step.
     def self.tick
       gate(:total)
       unless $game_map && $game_player
@@ -277,16 +281,8 @@ module PokeAccess
       busy = (PokeAccess::Spatial.busy_reason rescue nil)
       if busy
         gate(busy)
-        if @active
-          silence_all
-          # Forget WHERE the soundscape was built. silence_all stopped the looping emitters (the winds,
-          # the water) and only the "the player moved to a new tile" branch below ever starts them
-          # again -- so without this, closing a message or a menu while standing still left the ambience
-          # muted until the next step, which is exactly the "it goes quiet and only comes back when I
-          # walk" the gate tally was added to chase. This used to live in a dedicated in_menu branch
-          # that was unreachable: busy_reason reports :in_menu itself, so this branch always won first.
-          @scan_pos = nil
-        end
+        silence_all if @active
+        @scan_pos = nil
         return
       end
       gate(:playing)
@@ -368,13 +364,12 @@ module PokeAccess
       nil
     end
 
-    # Classifies an event into a soundscape channel, or nil if it is not an emitter. This is a PROJECTION of
-    # the locator's single source of event classification (Locator's transfer_event?/hazard?/push_tile?/
-    # teleporter_event?/event_category and the player tag override) onto the sound vocabulary
-    # (npc/object/door/hazard/trap/control/push/teleporter). The classification rules live in Locator; this
-    # only maps them to channels, so the two never diverge -- do not re-derive event kinds here. Only
-    # interactable events ping as npc/object (a graphic alone is not enough, or decorative sprites would ping
-    # as phantom NPCs). A player tag override wins.
+    # Classifies an event into a soundscape channel, or nil when it is not an emitter. A PROJECTION of the
+    # locator's classification onto the sound vocabulary: the rules live in Locator and this only maps them
+    # to channels, so the two cannot diverge. Do not re-derive event kinds here.
+    #
+    # Only an interactable event pings as npc or object -- a graphic alone would make every decorative
+    # sprite a phantom NPC -- and a player tag override wins over all of it.
     def self.type_of(ev)
       return nil if (PokeAccess::Locator.tag_hidden?(ev) rescue false)
       ov = (PokeAccess::Locator.tag_override(ev) rescue nil)
@@ -394,7 +389,48 @@ module PokeAccess
       return :door if (PokeAccess::Locator.transfer_event?(ev) rescue false)
       return nil unless (PokeAccess::Locator.has_graphic?(ev) rescue false)
       return nil unless (PokeAccess::Locator.interactable?(ev) rescue true)
+      return nil unless reachable_by_keys?(ev)
       ((PokeAccess::Locator.event_category(ev) rescue :objects) == :people) ? :npc : :object
+    end
+
+    # Whether this event passes the optional "only what the keys can reach" filter.
+    #
+    # The two classifiers disagree on one shape only: an event with a TILE graphic and a touch trigger pings
+    # here, while the locator's :all wants a character sprite or a trigger-0 examine. Those fire on CONTACT,
+    # so the sonar is how they are used and the default keeps pinging them.
+    #
+    # Asked at this point and not earlier: doors, hazards, traps, controls, pushes, teleporters and tagged
+    # events all return above this line and each has its own locator category, so the filter can never
+    # silence something the keys would reach.
+    def self.reachable_by_keys?(ev)
+      return true unless (PokeAccess::Config.sonar_only_locatable rescue false)
+      (PokeAccess::Locator.in_category?(ev, :all) rescue true)
+    end
+
+    # How many events on this map ping, and how many of those the locator keys cannot reach: the size of the
+    # gap the filter above exists for, measured on the map in front of the player instead of guessed.
+    # Counted with the filter forced OFF, so the number does not change when the player turns it on.
+    def self.reach_census
+      return "sin mapa" unless $game_map
+      pings = 0
+      gap = 0
+      $game_map.events.values.each do |ev|
+        next if type_of_unfiltered(ev).nil?
+        pings += 1
+        gap += 1 unless (PokeAccess::Locator.in_category?(ev, :all) rescue true)
+      end
+      "#{pings} pingan, #{gap} fuera del localizador"
+    rescue StandardError
+      "?"
+    end
+
+    # type_of as if the filter were off, for the census.
+    def self.type_of_unfiltered(ev)
+      prev = (PokeAccess::Config.sonar_only_locatable rescue false)
+      PokeAccess::Config.sonar_only_locatable = false
+      type_of(ev)
+    ensure
+      (PokeAccess::Config.sonar_only_locatable = prev rescue nil)
     end
 
     # True if a straight-ish path from the player to a tile is not blocked by a wall. A cheap direct
@@ -463,14 +499,13 @@ module PokeAccess
       @near = { :water => nearest_water(px, py, r) }
     end
 
-    # The nearest water tile within r, or nil. This used to ask the locator for its surface targets, which
-    # meant scanning a 61-tile box for all eleven surface kinds, throwing ten of them away and then
-    # discarding whatever fell outside r anyway -- the sonar paying for the navigation menu's work every
-    # time the player takes a step. The two answer different questions and now compute their own: the
-    # sonar hears what is close (audio3d_range), the menu lists where you can walk to (route_reach).
+    # The nearest water tile within r, or nil. Its own scan and not the locator's surface targets: the two
+    # answer different questions -- the sonar hears what is close (audio3d_range), the menu lists where the
+    # player can walk to (route_reach) -- and sharing meant scanning a box for eleven surface kinds and
+    # throwing ten away on every step.
     #
-    # Scanning by rings means the first hit IS the nearest, so water underfoot costs a handful of lookups
-    # instead of a full box, and the walk outward stops at r whatever the map size.
+    # By rings, so the first hit IS the nearest: water underfoot costs a handful of lookups instead of a
+    # full box, and the walk outward stops at r whatever the map size.
     def self.nearest_water(px, py, r)
       mw = ($game_map.width rescue 0); mh = ($game_map.height rescue 0)
       d = 0
@@ -515,11 +550,10 @@ module PokeAccess
       @rings[d] = out
     end
 
-    # Fires at most one discrete emitter per call. Within PING_GAP of the last ping, only candidates
-    # within alt_dist of that ping's position are held back (a farther one still fires; HRTF panning
-    # already tells them apart). Among the types whose own frequency timer is due, it fires the MOST
-    # OVERDUE one (fair scheduling, so a high-frequency type cannot monopolise every slot); within a
-    # type it round-robins its nearest few so they alternate.
+    # Fires at most one discrete emitter per call. Within PING_GAP of the last ping only candidates within
+    # alt_dist of it are held back, since HRTF panning already separates a farther one. Among the types
+    # whose timer is due it fires the MOST OVERDUE, so a high-frequency type cannot monopolise every slot,
+    # and within a type it round-robins its nearest few.
     def self.ping_types
       now = PokeAccess.clock
       due = []
@@ -621,18 +655,18 @@ PokeAccess::Hooks.frame_hook("Game_Player", :update) do |_p, _a|
   PokeAccess::Perf.measure(:audio3d) { PokeAccess::Audio3D.tick }
 end
 
-# Battle suspends the map scene, so the looping channels would keep sounding through the fight; silence
-# everything the moment battle begins. It resumes on its own when the map scene comes back.
+# Battle suspends the map scene, so the looping channels would sound through the fight.
+#
+# suspend and not silence_all: silence_all leaves @scan_pos set, and the resume path only rebuilds the
+# soundscape when that position CHANGES, so the wind and the water would stay off until the player stepped.
 PokeAccess::Hooks.after_hook("Game_Temp", :in_battle=) do |_t, _r, args|
-  PokeAccess::Audio3D.silence_all if args[0]
+  PokeAccess::Audio3D.suspend if args[0]
 end
 
-# Same for a menu, and reacting to the FLAG rather than waiting for tick to notice it. tick only runs from
-# Game_Player#update, which a pause menu reaches only if its own loop calls pbUpdateSceneMap every frame.
-# The vanilla menu does, so the soundscape went quiet there and the behaviour looked universal; royal's grid
-# menu has an empty update and only touches pbUpdateSceneMap inside its options screen, so the tick never
-# ran once while the menu was open and the wind and water kept playing straight over it. The flag is set by
-# Scene_Map#call_menu in every one of these games, so this needs no cooperation from the menu itself.
+# Same for a menu, off the FLAG rather than waiting for tick to notice. tick only runs from
+# Game_Player#update, which a menu reaches only if its own loop calls pbUpdateSceneMap every frame -- and a
+# custom grid menu with an empty update never does, so the ambience would play straight over it. Scene_Map
+# sets the flag in every one of these games, so this needs no cooperation from the menu.
 PokeAccess::Hooks.after_hook("Game_Temp", :in_menu=) do |_t, _r, args|
   PokeAccess::Audio3D.suspend if args[0]
 end

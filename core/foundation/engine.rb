@@ -13,21 +13,15 @@ module PokeAccess
       !gamedata?
     end
 
-    # The names to hook out of a list of candidate class names for one screen, dropping any that another
-    # kept name already covers -- a name that INHERITS from another in the list, or a second name for the
-    # very same class.
+    # The names worth hooking out of a screen's candidate list: any name another kept one already covers --
+    # by inheritance, or by being a second name for the same class -- is dropped.
     #
-    # Two shapes in the wild make this necessary, and both fail silently:
+    # Two shapes make this necessary and both fail silently. A compatibility layer declares the OLD names as
+    # empty SUBCLASSES of the new ones and instantiates only the new one, so a hook on the old name binds to
+    # a class the game never builds and never reaches Hooks.missing either. The reverse, a game that builds
+    # the subclass with the same body registered on both names, reads the screen twice.
     #
-    #   * A fork declares the OLD class names as empty SUBCLASSES of the new ones -- Awakening's BES-T
-    #     compatibility file does it for 23 screens -- and then instantiates only the new name. A hook on
-    #     the old name binds to a class the game never builds: the reader says nothing, raises nothing, and
-    #     never reaches Hooks.missing either, because the class does exist.
-    #   * The reverse, when a game builds the SUBCLASS and the mod registered the same body on both names:
-    #     the hook fires twice and the screen is read double.
-    #
-    # Keeping only the ancestors answers both at once. Unrelated classes that merely appear in the same
-    # list (a fork's own variant screen) are all kept -- they cover different scenes.
+    # Unrelated classes in the same list are all kept: they cover different scenes.
     def self.scene_classes(*names)
       found = []
       names.each do |n|
@@ -49,23 +43,16 @@ module PokeAccess
       scene_classes(*names)[0]
     end
 
-    # The scene name for a reader written against ONE data API, or "" (which binds nothing, exactly as an
-    # absent class already does). own is the alias this reader has always hooked, other is the alias the
-    # reader for the other era hooks.
+    # The scene name for a reader written against ONE data API, or "", which binds nothing exactly as an
+    # absent class does.
     #
-    # The name USUALLY decides, and deliberately so: where a game ships only one of the aliases, this
-    # answers exactly what the reader hooked before, so nothing changes anywhere that already worked. That
-    # matters because era and class name are INDEPENDENT in the wild -- both Infinite Fusions have GameData
-    # under the gen-6 class names (PokeBattle_Scene, and a party screen with pbChangeSelection), so gating on
-    # the era alone would have left them with neither reader bound and the summary silent.
-    #
-    # The era only breaks the tie when BOTH aliases exist, which is what a compatibility layer produces
-    # (Awakening and Africanus declare the v16 names as empty subclasses of the v17 ones and instantiate
-    # only the v17 name). There the name has stopped discriminating: both readers match, the wrong one wins
-    # by load order, and it reads a gen-6 Pokemon through the GameData accessors -- or mutes the generic
-    # reader and replaces it with nothing. So the era picks the reader, and scene_class picks the ancestral
-    # name, the only one that sees every instance.
+    # The NAME decides where a game ships only one of the two aliases, because era and class name are
+    # independent in the wild: both Infinite Fusions have GameData under the gen-6 class names, so gating on
+    # the era alone would leave them with neither reader bound. The era only breaks the tie when BOTH
+    # aliases exist, which is what a compatibility layer produces: there the name has stopped
+    # discriminating, both readers match, and the wrong one would win by load order.
     # param era :gen6 or :gamedata
+    # param own the alias this reader hooks; param other the alias the other era's reader hooks
     def self.era_scene(era, own, other)
       mine = PokeAccess.const_at(own)
       twin = PokeAccess.const_at(other)
@@ -84,16 +71,14 @@ module PokeAccess
       (defined?($player) && $player) ? $player : (defined?($Trainer) ? $Trainer : nil)
     end
 
-    # Running Essentials version as a comparable Float, for the diagnostic line only -- real fangames mix
-    # eras (some fangames run v18 with backports, Sky is v21.1-plus-v22-UI), so code must gate on has?,
-    # never on this number. Gen-6 v16 has no constant, so it floors to 16.0. The gen-6 branch's
-    # `v < 1 ? 17.0 : v` is defensive with no documented originating game: some gen-6 forks write
-    # ESSENTIALSVERSION as a free string, and a parse that lands below 1 would otherwise report a
-    # nonsense "0.x era", so it snaps to 17.0 (the ESSENTIALSVERSION era).
-    # A GameData engine with no version constant is told apart structurally, never by a runtime global
-    # (the player object does not exist yet at the title screen, and the result is memoised): v19 renamed
-    # the battle scene to Battle::Scene, so its absence means the v18 transitional era -- GameData already
-    # in, but still PokeBattle_Scene and $Trainer (an era some fangames still ship).
+    # Running Essentials version as a comparable Float, for the DIAGNOSTIC line only: real fangames mix eras,
+    # so code gates on has? and never on this number. v16 has no constant and floors to 16.0, and a gen-6
+    # fork that writes ESSENTIALSVERSION as free text can parse below 1, which snaps to 17.0 rather than
+    # reporting a nonsense era.
+    #
+    # A GameData engine with no version constant is told apart structurally and never by a runtime global,
+    # since the player object does not exist at the title screen and the result is memoised: v19 renamed the
+    # battle scene, so its absence means the v18 transitional era.
     def self.version
       return @version if defined?(@version) && @version
       ev = (defined?(Essentials) && (Essentials::VERSION rescue nil)) ||
@@ -113,18 +98,15 @@ module PokeAccess
       @fork = (gamedata? && version < 21.9 && defined?(UI) && defined?(UI::BaseScreen)) ? :sky : nil
     end
 
-    # Named capabilities: a symbol => a probe (a "A::B::C" constant name string, or a lambda returning a
-    # bool). Readers should gate on a CAPABILITY (does the class/feature exist?), never on a version number,
-    # so a fork that backports a feature (or a future version that keeps it) works without edits. A version
-    # folder (v21/v22/...) only says WHERE a capability was introduced; activation is by has?. Register the
-    # few transversal ones here; one-off screens can pass their class name to has? directly.
+    # Named capabilities: symbol => a probe, either a "A::B::C" constant name or a lambda returning a bool.
+    # A reader gates on a CAPABILITY and never on a version number, so a fork that backports a feature works
+    # without edits; a version folder only says where a capability was introduced. Register the transversal
+    # ones here -- a one-off screen can pass its class name to has? directly.
     #
-    # The last two are THIRD-PARTY plugins, not engine features, and they are here for the DIAGNOSTIC, not
-    # for gating: their readers bind per method with :optional, which is finer than one flag for the whole
-    # plugin and keeps a partial install working. They are not in the plugins/ detection table either, since
-    # that table lists plugins whose reader a PROFILE declares and these are read from core -- they reopen
-    # engine classes rather than adding their own, so a class check answers "present" on all thirteen games
-    # and detects nothing. What identifies them is a method, which is what a capability probe already is.
+    # The last two are THIRD-PARTY plugins and are here for the DIAGNOSTIC, not for gating: their readers
+    # bind per method with :optional, which keeps a partial install working. They are not in the plugins/
+    # detection table because that lists plugins a PROFILE declares, and these reopen engine classes rather
+    # than adding their own, so only a method identifies them -- which is what a capability probe is.
     CAPABILITIES = {
       :gamedata  => lambda { gamedata? },
       :gen6      => lambda { gen6? },
@@ -135,14 +117,14 @@ module PokeAccess
       :mui => "UIHandlers"                      # Modular UI Scenes
     }
 
-    # True when a capability is present. Accepts a registered capability symbol (:ui_rework, :gamedata...),
-    # a "A::B::C" constant name string, or "A::B::C#method" to also require an instance method on that class
-    # (so a fork that backports the method activates, regardless of its version number). Constant lookup goes
-    # through PokeAccess.const_at, which is 1.8.7-safe. The single, uniform gate for "can this engine do X?".
+    # True when a capability is present: the single gate for "can this engine do X?". Takes a registered
+    # capability symbol, a "A::B::C" constant name, or "A::B::C#method" to also require an instance method,
+    # so a fork that backports it activates whatever its version says.
+    #
+    # An unregistered symbol is logged once. A typo answers false exactly like a real absence and would
+    # otherwise silence a family of readers with no noise at all; the answer stays false either way.
     def self.has?(cap)
       probe = cap.is_a?(Symbol) ? CAPABILITIES[cap] : cap
-      # A TYPO'd symbol answers false, exactly like a capability the engine really lacks, and silences a
-      # whole family of readers with no noise at all. Say so once; the answer stays false either way.
       PokeAccess.log_once("cap_#{cap}", "capacidad no registrada") if probe.nil? && cap.is_a?(Symbol)
       return false if probe.nil?
       return (probe.call ? true : false) if probe.respond_to?(:call)

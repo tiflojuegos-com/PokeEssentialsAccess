@@ -17,11 +17,10 @@ module PokeAccess
     @surf_pos = nil
     @lens_key = nil
 
-    # Drops everything tied to the map the player just left. Every ivar here is a "already said this" memo,
-    # and each one keyed on coordinates or on a terrain label -- neither of which means anything across a
-    # map change. Its twin Audio3D puts the map id inside its keys instead; this module cannot, because
-    # @surf_here holds a terrain LABEL and not a position, so walking through a door onto water would find
-    # the same label it had on the far side and say nothing. Registered below, like Audio3D's.
+    # Drops everything tied to the map the player just left: every ivar here is an "already said this" memo
+    # keyed on coordinates or on a terrain label, neither of which survives a map change. Its twin Audio3D
+    # puts the map id inside its keys instead, which this module cannot do, because @surf_here holds a
+    # LABEL and not a position and would match itself through a door onto water.
     def self.reset_map_state
       @radar_key = nil; @radar_pos = nil
       @surf_here = nil; @surf_front = nil; @surf_pos = nil
@@ -54,25 +53,20 @@ module PokeAccess
       cue(e[0], volume, pitch || e[1])
     end
 
-    # The pitch range a gauge sweeps: it starts at LOW and spans SPAN, reaching 180. Low enough to be
-    # clearly "far" and high enough to be clearly "now", without leaving the range where the 60 ms tick
-    # still reads as the same sound. Written as a base and a span rather than a low and a high on purpose,
-    # so the mapping below needs no subtraction: the MTS guard cannot prove a constant minus a constant is
-    # scalar, and it is right not to try -- a fangame that redefines Array#- destructively would turn any
-    # such expression into a landmine.
+    # The pitch range a gauge sweeps: it starts at LOW and spans SPAN, reaching 180. Low enough to read as
+    # "far" and high enough to read as "now" without leaving the range where the 60 ms tick still sounds
+    # like the same sound. A base and a span rather than a low and a high, so the mapping below needs no
+    # subtraction: the MTS guard cannot prove a constant minus a constant is scalar.
     GAUGE_LOW = 80
     GAUGE_SPAN = 100
 
-    # A cue whose PITCH carries a magnitude: 0.0 at the low end, 1.0 at the high end.
+    # A cue whose PITCH carries a magnitude: 0.0 at the low end, 1.0 at the high end. The shared answer to
+    # "how close am I to the good moment", which every timing minigame needs, defined here alongside the
+    # vocabulary it belongs to.
     #
-    # Every timing minigame in the catalogue needs the same thing -- "how close am I to the good moment" --
-    # and each was open-coding the identical clamp and the identical 80..180 mapping at its call site. Two
-    # copies were already live and the three action minigames still to cover need the same, so it belongs
-    # here: a sound's meaning should be defined once, in the same place as the vocabulary it belongs to.
-    #
-    # A fraction outside 0..1 is clamped rather than refused. Callers derive it from live game state that
-    # can overshoot by a frame, and going quiet at exactly the moment the player most needs the cue is the
-    # worst possible failure for this particular sound.
+    # A fraction outside 0..1 is clamped rather than refused: callers derive it from live game state that
+    # can overshoot by a frame, and going quiet at the moment the player most needs the cue is the worst
+    # failure this sound has.
     def self.gauge(fraction, volume = 60, name = :minigame_tick)
       f = fraction.to_f
       f = 0.0 if f < 0.0
@@ -127,7 +121,8 @@ module PokeAccess
       false
     end
 
-    # Runs once per map frame: footstep on movement, panned wall feedback, radar and surface cues.
+    # Runs once per map frame: footstep on movement, panned wall feedback, radar, surface cues and the
+    # hidden-area notice.
     def self.tick
       return unless $game_map && $game_player
       return if busy?
@@ -135,6 +130,7 @@ module PokeAccess
       wall_cue
       radar
       surfaces
+      announce_lens_tile
     end
 
     # The tile directly in front of the player, by facing direction.
@@ -196,12 +192,12 @@ module PokeAccess
         PokeAccess.speak(PokeAccess::I18n.t(:surf_ahead), true)
       end
       @surf_front = nil if !ahead || surfing
-      announce_lens_tile
     end
 
     # Announces a generic "hidden area" cue when the player steps onto a tile holding a Lens-of-Truth (#EOT)
-    # event, so a place that is invisible without the lens is still noticeable on foot. Deduped per tile;
-    # the wording is generic because the revealing item is named differently per game.
+    # event, so a place invisible without the lens is still noticeable on foot. Deduped per tile, and worded
+    # generically because the revealing item is named differently per game. Driven from tick and not from
+    # the terrain cues, which are off by default and whose help line promises terrain.
     def self.announce_lens_tile
       px = $game_player.x; py = $game_player.y
       ev = event_at(px, py)
@@ -260,7 +256,8 @@ module PokeAccess
       cooled = @bump_time.nil? || (PokeAccess.clock - @bump_time) >= cd
       if blocked && (!@was_blocked || cooled)
         fx, fy = front_tile
-        interact = !event_at(fx, fy).nil?
+        ev = event_at(fx, fy)
+        interact = !ev.nil? && (PokeAccess::Locator.interactable?(ev) rescue false)
         unless (PokeAccess::Audio3D.bump(dir, interact) rescue false)
           case dir
           when 4 then cue("pa3d_wall_l", v)

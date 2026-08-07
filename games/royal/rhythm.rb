@@ -11,10 +11,9 @@
 #   * SongNote#note is a STRING ("up"/"down"/"left"/"right", or "" for a rest beat), not an index. Treating
 #     it as one made note.to_i == 0 for every note, so the reader said "arriba" for all of them.
 #
-# The skipping-rope minigame (JumpMinigame::Play) used to be read from here and is not any more: its
-# @button array is filled with random directions by setButton but never read anywhere in the game, which is
-# only "press C to jump". The reader was announcing, once per rope turn, a direction the player must not
-# press. Timing that game by ear needs a cue designed against a live session, not a leftover ivar.
+# The skipping-rope minigame (JumpMinigame::Play) is deliberately not read here: its @button array is filled
+# with random directions by setButton and never read anywhere in the game, which is only "press C to jump",
+# so announcing one per rope turn would name a direction the player must not press.
 module PokeAccess
   module RoyalRhythm
     # The shared dir_* keys, not a royal-only copy: roy_up/down/left/right were byte-for-byte identical to

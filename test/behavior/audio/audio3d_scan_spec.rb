@@ -112,10 +112,9 @@ end
 # and a shore further out than the range must stop it. @near[:water] is the one value set_loop reads, so a
 # wrong nil here is a loop that never stops (or never starts).
 #
-# The sonar used to get this from the locator's surface list, which meant a 61-tile box scanned for all
-# eleven surface kinds so that ten could be thrown away -- and then re-filtered by the range that should
-# have bounded the scan in the first place. It looks for its own water now, which is why this drives real
-# terrain tags instead of stubbing the locator out.
+# The sonar looks for its own water rather than reusing the locator's surface list, which would scan a
+# 61-tile box for eleven surface kinds to throw ten away and then re-filter by the range that should have
+# bounded the scan. That is why this drives real terrain tags instead of stubbing the locator out.
 Suite.define("audio3d: the water loop follows the nearest water surface only") do
   a3d = PokeAccess::Audio3D
   prev_range = PokeAccess::Config.audio3d_range
@@ -203,7 +202,7 @@ Suite.define("audio3d: refresh_movers retracks the movers and touches nothing el
 end
 
 # On a map change the scan state MUST die (otherwise the previous map's people keep pinging from tiles that
-# no longer exist -- a blind player walking toward a ghost), while the engine and its loaded channels MUST
+# no longer exist, so a blind player walks toward nothing), while the engine and its loaded channels MUST
 # survive (re-opening the audio device on every door would stutter the game and mute the music).
 Suite.define("audio3d: a map change drops the scan state but never the loaded engine") do
   a3d = PokeAccess::Audio3D

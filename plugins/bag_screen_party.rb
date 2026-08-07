@@ -4,17 +4,32 @@ module PokeAccess
   # -- a Sprite subclass unrelated to the standard PokemonPartyPanel -- so the core party hook never sees
   # them.
   #
-  # Read off the SCENE's cursor, not off the panels' selected= setter. Two panels are selected at once here:
-  # the loop marks the one under the cursor, and then the screen marks the fusion partner as well -- last,
-  # and unconditionally. Hooking the setter therefore ended every cursor move by naming the partner, so the
-  # final thing heard was always the slot the player was NOT on. The scene's own @activecmd has no such
-  # ambiguity, and it is the same value the loop uses to decide which panel to mark.
+  # Read off the scene's @activecmd, not off the panels' selected= setter: two panels are selected at once
+  # here, because the screen marks the fusion partner last and unconditionally, so the setter would always
+  # end a move by naming the slot the player is not on.
   module BagParty
     @scene = nil
+    @depth = 0
 
-    def self.watch(scene); @scene = scene; end
-    def self.unwatch; @scene = nil; end
+    # Holds the scene for as long as ANY selection loop is running. They nest -- moving an item opens a
+    # second loop from inside the first -- so a depth counter is what keeps the outer one watched when the
+    # inner returns. The dedup slot is cleared on entry and exit because the screen puts @activecmd back to
+    # 0 each time, which is usually the member already announced.
+    def self.watch(scene)
+      @scene = scene
+      @depth += 1
+      PokeAccess::UIV21.reset(:party)
+    end
 
+    def self.unwatch
+      @depth = [@depth - 1, 0].max
+      @scene = nil if @depth == 0
+      PokeAccess::UIV21.reset(:party)
+    end
+
+    # The focused member, with the annotation that is the reason the bag opens the team at all: it says
+    # whether the item can be used on this one ("able" / "not able" / "learned"). The panel keeps it in the
+    # same place the standard party panel does.
     def self.poll
       s = @scene
       return unless s
@@ -25,17 +40,21 @@ module PokeAccess
       pk = PokeAccess.ivar(panel, :@pokemon)
       return unless pk
       PokeAccess::Info.set_info(:pokemon, pk)
-      # The annotation is the reason the bag opens the team at all: it is what says whether the item can be
-      # used on this member ("able" / "not able" / "learned"). The panel keeps it in the same place the
-      # standard party panel does.
       ann = PokeAccess.ivar(panel, :@text)
-      PokeAccess::UIV21.speak_changed(:party, PokeAccess::UIV21.party_member(pk, ann))
+      PokeAccess::UIV21.speak_changed(:party, PokeAccess::UIV21.party_member(pk, ann), i)
     rescue StandardError
       nil
     end
   end
 end
 
+# Both selection loops. pbChoosePokemon is the fusion picker, called only by the DNA splicers; the everyday
+# one, reached from Use, Give, Teach and Select, is pbChoosePoke(option, switching). They share @activecmd
+# and the same panel sprites, so one poller serves both.
+PokeAccess::Hooks.around_hook("PokemonBag_Scene", :pbChoosePoke, :optional => true) do |scene, nxt, _a|
+  PokeAccess::BagParty.watch(scene)
+  begin; nxt.call; ensure; PokeAccess::BagParty.unwatch; end
+end
 PokeAccess::Hooks.around_hook("PokemonBag_Scene", :pbChoosePokemon, :optional => true) do |scene, nxt, _a|
   PokeAccess::BagParty.watch(scene)
   begin; nxt.call; ensure; PokeAccess::BagParty.unwatch; end

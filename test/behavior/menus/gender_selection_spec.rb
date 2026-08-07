@@ -4,7 +4,7 @@
 # This was written three times, once per profile, with three different conventions -- one spoke Spanish
 # straight from the source, another kept its own @pa_last dedup, the third watched the scene. The three
 # copies agreed on what matters, and the dumps confirm it: same four methods, same @select values, with
-# 2/3 the boy, 4/5 the girl and 1 the neutral start.
+# 2 the boy, 4 the girl, 1 the neutral start and 3/5 the confirm step.
 # The harness loads every plugin reader, so this spec does not pull it in itself. It used to, back
 # when only the running profile's declared plugins were loaded -- and once the harness started
 # loading them all, that require became a SECOND load of the same file: require does not know
@@ -32,12 +32,14 @@ Suite.define("gender selection: the highlighted choice is spoken, and the neutra
   gs.announce(scene)
   silent "an unchanged cursor stays silent"
 
-  # The odd values are the confirm step of the SAME choice; they must not be read as a different one.
+  # The odd values are the confirm step, which runs the question, the player change and the fade inside the
+  # same input call: by the time the hook fires there is no picker left to describe.
   SpeakCapture.clear
   scene.instance_variable_set(:@select, 5)
   gs.announce(scene)
-  spoke "confirming the girl is still the girl", /#{PokeAccess::I18n.t(:gsel_girl)}/
-  eq "and the confirm step maps to the same side", gs.label_key(3), gs.label_key(2)
+  silent "confirming says nothing: the screen is gone by the time the hook fires"
+  eq "the boy's confirm value has no label", gs.label_key(3), nil
+  eq "nor the girl's", gs.label_key(5), nil
 
   eq "an unknown cursor value has no label", gs.label_key(99), nil
 end

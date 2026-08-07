@@ -1,28 +1,37 @@
 module PokeAccess
   # Item-received popup (Boonzeet's "Item Find" plugin, PokemonItemFind_Scene): shows the name, icon and
   # description of an item the first time it is found -- a notification, not a menu, so nothing reads it.
-  # Speaks the name and description of the item being shown.
   #
-  # Read from the item pbShow is GIVEN, not from the windows it draws. pbShow fills the two windows and then
-  # runs the popup's own blocking loop, and on the keypress that dismisses it calls pbEndScene -- which
-  # disposes the whole sprite hash -- BEFORE returning. An after-hook therefore arrived at a torn-down scene
-  # every single time and read nothing at all, in all four games that ship this plugin. The item id is the
-  # same thing the scene itself resolves its two lines from, and the data layer already answers it in both
-  # eras.
-  module ItemFindV21
-    def self.say(item)
-      return if item.nil?
-      name = (PokeAccess::Data.item_name(item) rescue nil)
-      desc = (PokeAccess::Data.item_description(item) rescue nil)
+  # Read off the two windows the popup fills, not off the item it is given. The copies compose those lines
+  # differently for a machine: one appends the move to the name and swaps in the move's description, one
+  # appends it after a colon and keeps the item's, and two have no machine branch at all -- so the item id
+  # alone does not say what is on screen. All four fill @sprites["titlewindow"] and @sprites["descwindow"]
+  # and then block in a loop that calls Input.update every frame, which is where this reads them; by the
+  # time pbShow returns, its own pbEndScene has disposed the sprite hash.
+  module ItemFind
+    @scene = nil
+
+    def self.watch(scene); @scene = scene; end
+    def self.unwatch; @scene = nil; PokeAccess::Cursor.reset(nil, :item_find); end
+
+    # The name and description the popup paints, once per popup.
+    def self.poll
+      s = @scene
+      return unless s
+      name = (PokeAccess.sprite(s, "titlewindow").text rescue nil)
+      desc = (PokeAccess.sprite(s, "descwindow").text rescue nil)
       parts = [name, desc].reject { |x| x.nil? || x.to_s.strip.empty? }
-      PokeAccess.speak_clean(parts.join(". "), false) unless parts.empty?
+      return if parts.empty?
+      PokeAccess::Cursor.announce(nil, :item_find, parts, false) { parts.join(". ") }
     rescue StandardError
       nil
     end
   end
 end
 
-# Before, not after: by the time pbShow returns its own pbEndScene has already disposed the sprites.
-PokeAccess::Hooks.before_hook("PokemonItemFind_Scene", :pbShow, :optional => true) do |_scene, args|
-  PokeAccess::ItemFindV21.say(args[0])
+PokeAccess::Hooks.around_hook("PokemonItemFind_Scene", :pbShow, :optional => true) do |scene, nxt, _a|
+  PokeAccess::ItemFind.watch(scene)
+  begin; nxt.call; ensure; PokeAccess::ItemFind.unwatch; end
 end
+
+PokeAccess::Keys.on_frame { PokeAccess::ItemFind.poll }

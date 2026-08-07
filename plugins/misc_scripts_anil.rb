@@ -20,9 +20,7 @@ module PokeAccess
     # Speaks the focused region when it changes.
     def self.read(scene)
       t = text(scene)
-      return if t.nil? || t == PokeAccess.ivar(scene, :@access_starter_last)
-      scene.instance_variable_set(:@access_starter_last, t)
-      PokeAccess.speak(t, true)
+      PokeAccess::Cursor.announce(scene, :starter_region, t, true) { t }
     rescue StandardError
       nil
     end
@@ -30,5 +28,13 @@ module PokeAccess
 end
 
 PokeAccess::Hooks.after_hook("StarterMenu_Scene", :pbRedrawList, :optional => true) do |scene, _r, _a|
+  PokeAccess::StartersV21.read(scene)
+end
+
+# The opening read belongs here and not to the redraw the constructor ends with: the screen's own caller
+# puts a pbMessage between the two, and the dialogue reader cuts whatever was said before it. The slot is
+# cleared first because that cut read already recorded the region.
+PokeAccess::Hooks.before_hook("StarterMenu_Scene", :pbSelectElement, :optional => true) do |scene, _a|
+  PokeAccess::Cursor.reset(scene, :starter_region)
   PokeAccess::StartersV21.read(scene)
 end

@@ -31,9 +31,9 @@ Suite.define("static: every ivar a reader takes off a game object exists in that
   # the MOD's own modules by ivar -- that is what they are for, and those modules expose no accessors on
   # purpose. Nothing in a game has to have those names.
   #
-  # The v22 readers used to need a second exemption, because no fangame here runs v22 and the census could
-  # not answer for them either way. It is gone: the census now surveys the upstream Essentials tree as a
-  # source of its own, so those reads are checked against the engine they were written for.
+  # No second exemption for the v22 readers, even though no fangame here runs v22: the census surveys the
+  # upstream Essentials tree as a source of its own, so those reads are checked against the engine they
+  # were written for.
   self_introspection = ["core/input/diag.rb", "core/util/recorder.rb"]
 
   declarations = ReaderSites.declarations

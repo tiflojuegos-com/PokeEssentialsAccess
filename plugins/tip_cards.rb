@@ -3,7 +3,11 @@ module PokeAccess
   # text, so a screen reader gets nothing. These read the focused card when shown or changed; the
   # title/body are localization tokens resolved through the game's own _INTL and cleaned of markup.
 
-  # The spoken title + body of the focused tip card, or nil.
+  # The spoken title + body of the focused tip card, plus which of the set it is, or nil.
+  #
+  # The position is the one thing the card itself does not carry: the screen paints "n/m" under it and it is
+  # the only sign there is more to read. @pages is the screen's own count, which is not always the length of
+  # the tip list, so it wins where it exists.
   def self.tip_card_text(scene)
     tips = PokeAccess.ivar(scene, :@tips)
     idx = PokeAccess.ivar(scene, :@index)
@@ -18,7 +22,10 @@ module PokeAccess
       s = (_INTL(v) rescue v).to_s
       parts.push(clean(s)) unless s.empty?
     end
-    parts.empty? ? nil : parts.join(". ")
+    return nil if parts.empty?
+    n = (idx.to_i + 1)
+    tot = (PokeAccess.ivar(scene, :@pages) || (tips.is_a?(Array) ? tips.length : nil)).to_i
+    (tot > 1) ? PokeAccess::I18n.t(:list_entry, :name => parts.join(". "), :n => n, :tot => tot) : parts.join(". ")
   rescue StandardError
     nil
   end

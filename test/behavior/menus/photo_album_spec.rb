@@ -1,10 +1,8 @@
 # The photo album plugin, and the divergence that decides whether it works at all: one copy resolves a
 # slot's file through obtener_archivo_captura, the other has no such method and matches the name against
-# its own directory listing. Calling the missing method would have reported every photo as an empty slot.
-# The harness loads every plugin reader, so this spec does not pull it in itself. It used to, back
-# when only the running profile's declared plugins were loaded -- and once the harness started
-# loading them all, that require became a SECOND load of the same file: require does not know
-# about a file already brought in with eval, so every constant in it was reassigned.
+# its own directory listing. Calling the missing method reports every photo as an empty slot. The harness
+# loads every plugin reader, so this spec does not require it: require does not know about a file already
+# brought in with eval, so a second load reassigns every constant it defines.
 
 class FakeAlbumWithHelper
   def initialize(files); @files = files; end

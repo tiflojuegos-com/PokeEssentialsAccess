@@ -4,10 +4,10 @@
 # this spec asserts the issue list is empty, so a release with a drifted string fails CI.
 #
 # The two guards before it exist because the empty list is ALSO what a check that read nothing returns, and
-# this spec used to pass in exactly that state: available_languages globs RELATIVE paths
+# this spec would pass in exactly that state: available_languages globs RELATIVE paths
 # ("accessibility/lang/*.txt" and "lang/*.txt"), so run from anywhere but the repo root it finds no file,
 # falls back to [:en], and parity_issues short-circuits on "return [] if langs.length < 2". Verified: from
-# C:\ the suite reported one green assert having compared nothing. parity_issues also swallows any
+# C:\ the suite reports one green assert having compared nothing. parity_issues also swallows any
 # exception into [], so two tables that failed to load would look identical to two tables in perfect sync
 # -- hence the size guard as well, the same shape as i18n_refs_spec's "lang/en.txt loaded".
 Suite.define("i18n: lang/ files are in parity (keys, duplicates, placeholders)") do

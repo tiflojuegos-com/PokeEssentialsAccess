@@ -1,17 +1,12 @@
 module PokeAccess
   # DarrylBD99's Wardrobe: pick an outfit from a list and the player sprite changes.
   #
-  # Window_Wardrobe IS a Window_DrawableCommand, but the generic reader could never voice a move here. Two
-  # separate reasons, and both had to be fixed. It looks for the option list under the handful of names it
-  # knows (@commands, @items, @list...) and this one keeps it in @outfits -- the Window_Quest / @quests case,
-  # answered the same way, with a per-class extractor so the generic net keeps working everywhere else. And
-  # the generic reader hangs off the window's update, which this screen never calls: its loop only ticks
-  # Graphics and Input and then assigns index directly, and the assignment repaints the cursor without going
-  # through update. So the move itself is hooked, on the one method the loop calls on every step.
+  # Window_Wardrobe is a Window_DrawableCommand the generic reader still cannot voice, for two reasons: its
+  # option list is in @outfits, which is not one of the names that reader knows, and the screen never calls
+  # the window's update -- its loop assigns index directly. Hence a per-class extractor plus a poll.
   #
-  # The entries are plain strings. @outfit_selected is the one currently worn, which the screen shows as a
-  # check mark beside the row -- the only thing on screen distinguishing "the outfit I am on" from "the
-  # outfit I am wearing", and invisible to a reader that only says the name.
+  # Entries are plain strings. @outfit_selected is the one worn, which the screen marks with a check: it is
+  # the only thing separating "the outfit I am on" from "the outfit I am wearing".
   module Wardrobe
     def self.text(win, i)
       outfits = win.instance_variable_get(:@outfits)
@@ -32,10 +27,8 @@ module PokeAccess
 
     # The focused row, read off the list window the scene keeps.
     #
-    # Polled from the loop rather than hung off pbSwitchOutfit. That method runs on UP and DOWN and nowhere
-    # else: the constructor never calls it, so there was no opening read, and CONFIRM moves the "worn" mark
-    # without going through it -- which is the one piece of state this reader exists to expose. The worn slot
-    # is in the dedup key for exactly that reason.
+    # Polled rather than hung off pbSwitchOutfit, which runs on UP and DOWN only: it gives no opening read,
+    # and CONFIRM moves the worn mark without going through it. The worn slot is in the dedup key for that.
     def self.announce(scene)
       win = PokeAccess.sprite(scene, "outfitlist")
       return unless win
@@ -52,6 +45,15 @@ module PokeAccess
 end
 
 PokeAccess::Menus.def_extractor("Window_Wardrobe") { |win, i| PokeAccess::Wardrobe.text(win, i) }
+
+# Claimed on the WINDOW's own constructor, not on the scene's loop. The scene builds the window and then
+# pumps the sprite hash, both inside its constructor, so by the time the loop runs the generic command
+# reader has already queued the row through the extractor above and the poller would repeat it. The flag
+# lives on the instance, and the scene builds a fresh window each time it opens, so nothing has to release
+# it.
+PokeAccess::Hooks.after_hook("Window_Wardrobe", :initialize, :optional => true) do |win, _r, _a|
+  PokeAccess.dedicate(win)
+end
 
 PokeAccess::Hooks.around_hook("WardrobeScene", :pbMain, :optional => true) do |scene, nxt, _a|
   PokeAccess::Wardrobe.watch(scene)

@@ -104,10 +104,10 @@ end
 # Indexed achievements: name, status and description, whatever the entry hands over. Status constants are
 # absent in the harness, so the helper falls back to 3/2/1 (done / pending / locked).
 #
-# The locked case keeps its description ON PURPOSE. Hiding it here was the bug: whether an unearned
-# achievement withholds its text is the game's decision, and each copy has already taken it inside
-# name/desc -- one substitutes a placeholder there, the others hand over the real strings and paint them.
-# A second layer of hiding in the reader silenced the copies that hide nothing.
+# The locked case keeps its description ON PURPOSE. Whether an unearned achievement withholds its text is
+# the game's decision, and each copy has already taken it inside name/desc -- one substitutes a placeholder
+# there, the others hand over the real strings and paint them -- so a second layer of hiding in the reader
+# would silence the copies that hide nothing.
 Suite.define("field: indexed achievement status") do
   flogro = Struct.new(:name, :status, :desc)
   eq "completed shows description",

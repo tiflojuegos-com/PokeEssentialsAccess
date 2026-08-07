@@ -1,0 +1,13 @@
+# Sesion sintetica limpia: sirve de control positivo del auditor de grabaciones.
+# Formato: <segundos>	<tipo>	<a>	<b>. Tipos usados: scene, sel, say, move.
+0.00	scene	Scene_Map	
+0.50	say	map	Ruta 3
+1.00	sel	party	0
+1.10	say	party	Pikachu, nivel 12, PS 30 de 30
+2.00	sel	party	1
+2.10	say	party	Bulbasaur, nivel 10, PS 26 de 26
+3.00	scene	PokemonBag_Scene	
+3.20	sel	bag	0
+3.30	say	bag	Pocion: 3
+4.00	sel	bag	1
+4.10	say	bag	Super Pocion: 1

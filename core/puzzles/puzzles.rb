@@ -11,7 +11,7 @@ module PokeAccess
     # State-puzzle runtime: last seen watched values and last solved flag.
     @sp_last = nil; @sp_solved = nil
     # Obstacle proximity runtime: last player tile checked and whether an obstacle was adjacent there.
-    @obs_pos = nil; @obs_adj = nil
+    @obs_pos = nil; @obs_adj = nil; @obs_events = nil; @obs_map = nil
     # Control-event cache: the player-toggleable events that flip a watched flag, paired with their watch
     # entry, cached per map since events are static.
     @controls = nil; @controls_map = nil
@@ -59,10 +59,14 @@ module PokeAccess
 
     # True when the current puzzle has something the locator's puzzles category should list (grid cells,
     # obstacle walls, or facing statues), so the category appears only when it is useful.
+    # Una lista VACIA no cuenta como algo que listar. d[:cells] y d[:obstacles] se declaran en el perfil y
+    # pueden venir a cero en un mapa concreto: con la comprobacion de presencia a secas la categoria del
+    # localizador aparecia igual y el jugador la recorria entera sin encontrar nada.
     def self.has_locator_targets?
       d = current
       return false unless d
-      return true if d[:cells] || d[:obstacles]
+      return true if (d[:cells].respond_to?(:empty?) ? !d[:cells].empty? : d[:cells])
+      return true if (d[:obstacles].respond_to?(:empty?) ? !d[:obstacles].empty? : d[:obstacles])
       kind(d) == :facing ? !facing_statues(d).empty? : false
     rescue StandardError
       false
@@ -72,7 +76,7 @@ module PokeAccess
     def self.reset_state
       @map = nil; @cell = nil; @settle = 0; @states = nil; @stage = nil; @solved = nil; @entered = false
       @sp_last = nil; @sp_solved = nil
-      @obs_pos = nil; @obs_adj = nil
+      @obs_pos = nil; @obs_adj = nil; @obs_events = nil; @obs_map = nil
       @controls = nil; @controls_map = nil
       @statues = nil; @statues_map = nil; @face_last = nil
     end
@@ -418,22 +422,41 @@ module PokeAccess
     # True if a puzzle obstacle event sits on tile (x,y).
     def self.obstacle_at?(x, y)
       return false unless $game_map
-      $game_map.events.values.any? { |ev| ev.x == x && ev.y == y && obstacle_kind(ev) }
+      obstacle_events.any? { |ev| ev.x == x && ev.y == y }
     rescue StandardError
       false
+    end
+
+    # Los eventos que el puzle declara como obstaculo, cacheados por mapa: los eventos de un mapa no se
+    # crean ni se destruyen, solo se mueven, asi que la lista es estable aunque las coordenadas no lo sean.
+    def self.obstacle_events
+      mid = ($game_map.map_id rescue 0)
+      if @obs_events.nil? || @obs_map != mid
+        @obs_map = mid
+        @obs_events = $game_map.events.values.select { |ev| obstacle_kind(ev) }
+      end
+      @obs_events
+    rescue StandardError
+      []
     end
 
     # Speaks a heads-up the moment the player becomes newly adjacent to a puzzle obstacle (debounced by
     # tile, so it fires once per approach). The spoken layer; the positional audio pans the obstacle in
     # 3D when enabled, but the warning works with positional audio off too.
+    # La firma incluye la ADYACENCIA, no solo la casilla del jugador. Un obstaculo movil se acerca a un
+    # jugador quieto -- que es precisamente lo que hay que avisar -- y sobre la posicion sola ese caso salia
+    # por el return de arriba sin comprobar nada. La lista de obstaculos se cachea por mapa, asi que mirar
+    # las cuatro casillas de al lado cada frame recorre unos pocos eventos y no los de todo el mapa.
     def self.obstacle_tick(d)
       px = $game_player.x; py = $game_player.y
-      pos = [px, py, ($game_map.map_id rescue 0)]
-      return if @obs_pos == pos
-      @obs_pos = pos
+      mid = ($game_map.map_id rescue 0)
       adj = [[px - 1, py], [px + 1, py], [px, py - 1], [px, py + 1]].any? { |x, y| obstacle_at?(x, y) }
-      PokeAccess.speak(label_of(d[:obstacle_warn] || :obstacle_near), false) if adj && !@obs_adj
+      sig = [px, py, mid, adj]
+      return if @obs_pos == sig
+      was = @obs_adj
+      @obs_pos = sig
       @obs_adj = adj
+      PokeAccess.speak(label_of(d[:obstacle_warn] || :obstacle_near), false) if adj && !was
     end
 
     # ---- controls (the invisible cranks/valves that flip a watched flag) ----

@@ -9,7 +9,7 @@ PokeAccess::Game.define("relict") do
       first = (scr.instance_variable_get(:@access_diff) rescue nil).nil?
       scr.instance_variable_set(:@access_diff, idx)
       line = [diffs[idx][0], diffs[idx][1]].compact.join(". ")
-      line = "Dificultad. #{line}" if first
+      line = "#{PokeAccess::I18n.t(:rel_difficulty)}. #{line}" if first
       PokeAccess.speak_clean(line, true) if line && !line.empty?
     end
   end

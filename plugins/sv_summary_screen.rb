@@ -7,12 +7,19 @@
 # flag is the mod's own @access_dedicated, not @ignore_input, which some Selectable windows already use to
 # gate their navigation.
 #
-# hook_container: this body only STORES, it never speaks, and pbStartScene calls pbDrawMoveList -- whose
-# hook is the one that announces. Guarded, that opening read is dropped as nested_other? and the screen
-# opens in silence; the guard only earns its keep when the outer hook is itself the announcer.
+# hook_container, because this body only STORES and pbStartScene calls pbDrawMoveList, whose hook is the
+# announcer; guarded, that opening read would be dropped as nested_other? and the screen would open silent.
 PokeAccess::Hooks.after_hook("EggMoveLearner_Scene", :pbStartScene, :optional => true, :hook_container => true) do |scene, _r, _a|
   PokeAccess.dedicate(PokeAccess.sprite(scene, "commands"))
 end
 PokeAccess::Hooks.after_hook("EggMoveLearner_Scene", :pbDrawMoveList, :optional => true) do |scene, _r, _a|
+  PokeAccess::MoveList.detail(scene)
+end
+
+# Y al ENTRAR en el bucle de eleccion, que el redibujado no cubre: pbChooseMove solo llama a pbDrawMoveList
+# cuando el indice cambia, y al reentrar -- rechazar la confirmacion devuelve aqui -- iguala oldcmd al indice
+# actual en la primera vuelta, asi que no redibuja y la pantalla se queda muda sobre el movimiento enfocado.
+# Before, porque pbChooseMove ES el bucle: enganchado despues hablaria al salir.
+PokeAccess::Hooks.before_hook("EggMoveLearner_Scene", :pbChooseMove, :optional => true) do |scene, _a|
   PokeAccess::MoveList.detail(scene)
 end

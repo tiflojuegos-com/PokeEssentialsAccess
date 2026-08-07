@@ -14,6 +14,14 @@ module PokeAccess
       @kind = nil if @kind == :move || @kind == :battle_foe || @kind == :text
     end
 
+    # Drops a ready STRING stashed for the info key, and only that. A screen that parks detail there owns it
+    # for as long as it is open: left behind, the key answers about a screen the player has already left --
+    # the lore of a card, a species off a map grid, a poker payout table read out in the overworld. The
+    # other kinds survive, because a Pokemon or an item stays meaningful after its screen closes.
+    def self.clear_text
+      @kind = nil if @kind == :text
+    end
+
     # Builds the text for the currently stored info kind.
     def self.info_text
       case @kind
@@ -47,7 +55,9 @@ module PokeAccess
     # (from the move object, falling back to PokeAccess::Data per field); the spoken assembly and the
     # power/accuracy wording are MoveInfo.line's, the single assembler -- this was the divergent copy that
     # treated accuracy 0 differently and skipped the no-power phrasing. Total pp answers to either
-    # engine's name (totalpp gen-6, total_pp modern).
+    # engine's name (totalpp gen-6, total_pp modern). The category joins the description as the part that is
+    # HERE and not on the cursor line: a battle cursor already says name, type, power, accuracy and pp, so
+    # without those two the info key repeated itself word for word and cost a keypress for nothing.
     def self.move_info(m)
       return nil unless m
       mid  = (m.id rescue nil)
@@ -60,9 +70,6 @@ module PokeAccess
       ty   = (m.type rescue nil)
       tipo = ty ? (PokeAccess::Data.type_name(ty) rescue nil) : nil
       tipo = PokeAccess::Data.move_type_name(mid) if tipo.nil? || tipo.to_s.empty?
-      # The category joins the description as the part that is HERE and not on the cursor line. A battle
-      # cursor already says name, type, power, accuracy and pp, so without these two the info key repeated
-      # itself word for word and cost a keypress for nothing.
       cat = move_category(m)
       d = cat ? [cat, desc].compact.reject { |s| s.to_s.empty? }.join(". ") : desc
       PokeAccess::MoveInfo.line(name.to_s, tipo, bd, acc, :pp => pp, :total_pp => tot, :desc => d)

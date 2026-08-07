@@ -123,20 +123,15 @@ module PokeAccess
       @ti = 0 if @ti >= @targets.length
     end
 
-    # Collapses a wide doorway -- adjacent transfer tiles whose destinations match -- into a single exit,
-    # keeping the tile nearest the player. Adjacency is 8-connected; two events merge only when their
-    # destinations are the same map AND the landing spot is within one tile, so a multi-tile door (its
-    # tiles land on the same or adjacent spot) groups while two distinct doors that merely share a map
-    # (but land far apart) stay separate. Only transfer events are clustered (others keep a nil descriptor
-    # and pass through untouched), so this is safe to call on the mixed :all list too. Destination-unknown
-    # doors fall back to grouping by script-map or sprite, so a sprite-less (g0) doorway still collapses.
-    # Union-find for transitive grouping (the doorway 11-12-13 merges as one chain).
-    # Only the DOORS are matched against each other. The merge test is O(n^2) and it used to be handed the
-    # WHOLE event list, so on a map with 25 events it ran 300 comparisons to answer 6 -- discarding 294 of
-    # them on the first condition, "this one is not a door". Everything else still comes back untouched,
-    # which is why the function takes the full list at all: its result IS the target list.
+    # Collapses a wide doorway -- adjacent transfer tiles landing on the same spot -- into one exit, keeping
+    # the tile nearest the player. Adjacency is 8-connected, and two events merge only when the destination
+    # map matches AND the landing spot is within a tile, so a multi-tile door groups while two doors that
+    # merely share a map stay separate. A door with an unknown destination falls back to its script-map or
+    # sprite. Union-find, so a 11-12-13 doorway merges as one chain.
     #
-    # Order is not preserved, and never was: rebuild_targets sorts by distance on the very next line.
+    # Only doors are matched against each other, since the merge test is O(n^2); everything else passes
+    # through untouched, which is why the function takes the whole list -- its result IS the target list.
+    # Order is not preserved: rebuild_targets sorts by distance on the next line.
     def self.cluster_exits(events, px, py)
       return events if events.length <= 1
       doors = []
@@ -191,11 +186,15 @@ module PokeAccess
       end
     end
 
-    # True if the player can walk to (a tile adjacent to) an event, for the hide-unreachable filter.
-    # Backed by one cached flood-fill per player tile instead of an A* per target (which was the
-    # seconds-long lag), reused across category changes. Reachable when the event's tile or a neighbour
-    # is in the flood set (find_path likewise routes to an adjacent tile); also handles cross-counter desks.
+    # True if the player can walk to a tile adjacent to an event, for the hide-unreachable filter. One
+    # cached flood-fill per player tile, shared across category changes, rather than an A* per target.
+    # Reachable when the event's tile or a neighbour is in the flood, as find_path also routes to an
+    # adjacent tile; cross-counter desks are handled too.
+    #
+    # A TRUNCATED flood answers yes to everything: it covers only part of the map, so absence from it is no
+    # proof of unreachability. Same rule the pathfinder's own fast reject already applies.
     def self.reachable?(ev)
+      return true unless (PokeAccess::Pathfinder.reachable_set_complete? rescue false)
       s = (PokeAccess::Pathfinder.reachable_set rescue {})
       tx = ev.x; ty = ev.y
       pf = PokeAccess::Pathfinder
@@ -289,7 +288,7 @@ module PokeAccess
 
     # Shows a choice message and returns the picked (or cancel) index, across engines: gen-6 exposes the
     # message function only as Kernel.pbMessage, modern as a global pbMessage. Calling the absent one
-    # raises NoMethodError (which the Ctrl+K menu used to swallow), so pick whichever the game provides.
+    # raises NoMethodError, so pick whichever the game provides.
     def self.show_menu(msg, choices, cancel)
       return Kernel.pbMessage(msg, choices, cancel) if Kernel.respond_to?(:pbMessage)
       pbMessage(msg, choices, cancel)
@@ -411,19 +410,14 @@ module PokeAccess
         PokeAccess::Pathfinder.find_path(@target.x, @target.y))), true)
     end
 
-    # Announces the map name once when entering a new map (orientation, no key needed), and is the single
-    # trigger for :map_changed -- so it is also what makes Caches.reset_all run.
+    # Announces the map name once on entering a new map, and is the single trigger for :map_changed, which
+    # is what makes Caches.reset_all run.
     #
-    # The map id alone is not enough to notice a LOAD. Loading a save can land on the very map the player
-    # was already standing on, and then the id has not changed: nothing was announced and, worse, no cache
-    # was reset, so the previous run's emitters and targets carried over. The load screens used to paper
-    # over this by calling forget_map, but only the two classic ones do -- v22 loads through UI::LoadVisuals
-    # and nobody called it there, and a future engine would go the same way.
-    #
-    # Loading rebuilds $game_map from the save, so it is a DIFFERENT object even for the same id, and the
-    # map factory hands back the cached instance when the player merely walks back to a map already visited.
-    # Comparing identity as well as id therefore catches every load, in any era, without knowing a single
-    # thing about which screen performed it.
+    # Identity is compared as well as the id, because the id alone cannot see a LOAD: a save can land on the
+    # map the player was already standing on, and then nothing resets and the previous run's emitters and
+    # targets carry over. Loading rebuilds $game_map, so it is a different object even for the same id,
+    # while merely walking back to a visited map returns the cached instance. That catches every load in
+    # any era without knowing which screen performed it.
     def self.announce_map_change
       mid = ($game_map.map_id rescue nil)
       ref = ($game_map.__id__ rescue nil)
@@ -444,13 +438,13 @@ module PokeAccess
       !!($game_player.jumping? rescue false)
     end
 
-    # Announces an internal teleport: a jump of more than one tile on the SAME map (a within-map warp,
-    # staircase or transfer), which announce_map_change never catches because the map id does not change --
-    # leaving the player silently relocated. Tracks the last position; a same-map jump beyond a step (and not
-    # a forced move route, i.e. a cutscene walk) is spoken with the destination's cardinal direction and the
-    # targets are rebuilt for the new spot. A ledge hop also moves two tiles in one frame with no forced
-    # route, so jumping? guards it out -- the announcement and the target rebuild are skipped, keeping the
-    # locator's selection alive across the jump. The first frame and any map change just seed the position.
+    # Announces an internal teleport: a jump of more than one tile on the SAME map, which announce_map_change
+    # cannot see because the id does not change. Spoken with the destination's cardinal direction, and the
+    # targets are rebuilt for the new spot.
+    #
+    # A forced move route is a cutscene walk and does not count. Neither does a ledge hop, which also covers
+    # two tiles in one frame: jumping? guards it out, which keeps the locator's selection alive across it.
+    # The first frame and any map change only seed the position.
     def self.announce_internal_teleport
       x = ($game_player.x rescue nil); y = ($game_player.y rescue nil); mid = ($game_map.map_id rescue nil)
       return if x.nil? || y.nil? || mid.nil?
@@ -471,27 +465,21 @@ module PokeAccess
       nil
     end
 
-    # Drops the target list and selection (NOT @last_map_id), so the locator never offers an event from the
-    # previous map. This is the cache reset run on :map_changed; it must NOT clear @last_map_id, or
-    # announce_map_change would see "changed" again next frame and re-announce/re-emit forever.
-    # Also drops the guide's route memo. @noroute_key is [px, py, tx, ty] with no map in it, so a "there is
-    # no route" answered on one map would be replayed verbatim on another at the same coordinates -- and
-    # replayed WITHOUT running A*, which is the part that makes it wrong rather than merely stale.
-    # The surface list goes with them: it is built from the pathfinder's reachability flood, which IS in
-    # this registry, so leaving it out meant the flood was recomputed on a map change while the list
-    # derived from it still held the previous map's tiles.
+    # Drops the target list and selection so the locator never offers an event from the previous map. The
+    # cache reset run on :map_changed.
+    #
+    # NOT @last_map_id: clearing it would have announce_map_change see a change again next frame and
+    # re-announce forever. The guide's route memo goes too -- @noroute_key is [px, py, tx, ty] with no map
+    # in it, so a "no route" would be replayed on another map at the same coordinates without running A*.
+    # So does the surface list, which is built from the reachability flood that this registry resets.
     def self.clear_targets
       @targets = []; @target = nil; @ti = 0
       @guide_path = nil; @guide_from = nil; @guide_target = nil; @noroute_key = nil
       @surface_cache = nil; @surface_cache_pos = nil
     end
 
-    # The surface list goes with them: it is built from the pathfinder's reachability flood, which IS in
-    # the reset registry, so leaving it out meant the flood was recomputed on a map change while the list
-    # derived from it kept the previous map's tiles.
-    #
-    # Forgets the current map so the next announce_map_change fires even on the same map_id. Used ONLY when
-    # loading a save (which may land on the map the player was already on); NOT wired to :map_changed.
+    # Forgets the current map so the next announce_map_change fires even on the same map_id. For loading a
+    # save, which may land on the map the player was already on; NOT wired to :map_changed.
     def self.forget_map
       @last_map_id = nil
       @last_map_ref = nil

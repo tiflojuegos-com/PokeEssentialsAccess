@@ -4,10 +4,10 @@
 # neighbour) and must read the trailing row as "Close bag", never as an item. The fake window mirrors the
 # real v21 API the extractor relies on: #pocket, #index, #item and #itemCount are filterlist-aware, and the
 # raw pocket lives in @bag.pockets. filter keeps pocket indices [1, 3], so visual 0 -> real 1, visual 1 ->
-# real 3, and visual 2 is the close row -- the exact mapping the pre-fix code got wrong.
-# The bag window stand-in, at file level: it used to be built inside the FIRST suite and used by the
-# second, so running them in any other order was a NameError. A fixture two suites share belongs to
-# neither of them.
+# real 3, and visual 2 is the close row.
+#
+# The bag window stand-in sits at FILE level: a fixture two suites share belongs to neither of them, and
+# building it inside the first would make any other running order a NameError.
 unless Object.const_defined?(:Window_PokemonBag)
   win_klass = Class.new do
     attr_accessor :index

@@ -1,8 +1,8 @@
-# Map naming on the modern path. This file exists because its absence was itself the bug: map_change_spec
-# carries no _gd suffix, so it only ever ran in the gen-6 pass, where the stub happens to define the gen-6
-# loader. Locator.map_name asked for pbLoadRxData, which v19+ removed in favour of pbLoadMapInfos, and six
-# of the thirteen games have only the latter. The failure is memoised on first use, so those six lost every
-# map name for the whole session -- zone, exits, coordinates, renaming -- with the suite fully green.
+# Map naming on the modern path. map_change_spec carries no _gd suffix, so it only runs in the gen-6 pass,
+# where the stub defines the gen-6 loader: a Locator.map_name that asks for pbLoadRxData, which v19+ removed
+# in favour of pbLoadMapInfos, would pass there while the six games that have only the latter lose every map
+# name -- zone, exits, coordinates, renaming -- for the whole session, since the failure is memoised on
+# first use.
 #
 # Any reader resting on an API only one engine ships needs a twin like this, or the green tick means nothing.
 

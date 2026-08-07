@@ -18,10 +18,16 @@ module PokeAccess
     @help = nil
 
     # Voices the focused stat of the upgrade tree with its current bonus and what the next level costs.
+    #
+    # The ROW is in the dedup key, not the cursor position. Buying an upgrade bumps the percentage and the
+    # price in place and redraws, without moving the cursor -- so keyed on the index alone the one thing the
+    # player pressed the button to hear, the numbers changing, was the one thing that stayed silent. The
+    # failure path already speaks, through the game's own message.
     def self.scroll_tree(scene)
       idx = PokeAccess.ivar(scene, :@selec)
       return unless idx.is_a?(Integer) && idx >= 0 && idx < STATS.length
-      PokeAccess::Cursor.announce(scene, :rem_tree, idx, true) do
+      key = [idx, ($Trainer.buffStatFriend[idx].dup rescue nil)]
+      PokeAccess::Cursor.announce(scene, :rem_tree, key, true) do
         row = ($Trainer.buffStatFriend[idx] rescue nil)
         name = PokeAccess::I18n.t(STATS[idx])
         if row.is_a?(Array)
@@ -38,8 +44,26 @@ module PokeAccess
     # reuses it for the same reason as the help screen: its drawInfo already composes the focused place's
     # name (or "???" when unvisited) and paints it, so capturing that call is both the simplest and the most
     # faithful reading -- it says exactly what a sighted player sees, including the unvisited placeholder.
-    def self.help_on(scene); @help = scene; end
-    def self.help_off; @help = nil; end
+    # Armed while one of the two capturing screens is painting. The dedup slot is cleared on entry, so
+    # opening the same help section twice in a row still reads it, while a repeat INSIDE one painting pass
+    # does not.
+    def self.help_on(scene)
+      @help = scene
+      PokeAccess::Cursor.reset(scene, :rem_help_info)
+    end
+
+    def self.help_off
+      PokeAccess::Cursor.reset(@list, :rem_help_list) if @list
+      @help = nil
+    end
+
+    # The section list is held rather than hooked: its update IS the screen's loop, so an after-hook would
+    # only fire on the way out. The loop pumps input every frame, which is what the poll rides.
+    @list = nil
+
+    def self.list_on(scene); @list = scene; end
+    def self.list_off; @list = nil; end
+    def self.list_poll; help_section(@list) if @list; end
 
     # The body of a help section. AyudasUI writes the paragraph the player opened the section for through
     # drawTextEx, whose text is argument 5, and its footer (and, in the controls section, its ten body lines)
@@ -60,6 +84,32 @@ module PokeAccess
       nil
     end
 
+    # The section list of the help screen: ten unlabelled images, or a padlock where the section has not
+    # been unlocked, so there is no text on screen to read. Each entry is named after the tag the section
+    # checks before it will open -- the only word the game itself attaches to them -- and the padlock is
+    # reported as the game reports it, by refusing to open with a buzzer.
+    HELP_SECTIONS = [[nil, :rem_help_controls], ["pokemon", :rem_help_pokemon], ["objetos", :rem_help_items],
+                     ["capturas", :rem_help_catching], ["phione", :rem_help_phione],
+                     ["ubicaciones", :rem_help_places], ["auxilio", :rem_help_rescue],
+                     ["alarmado", :rem_help_alarm], ["cartas", :rem_help_blessings],
+                     ["cartas", :rem_help_upgrades]]
+
+    # Speaks the focused section on every move, with its position and whether it is still locked.
+    def self.help_section(scene)
+      idx = PokeAccess.ivar(scene, :@index)
+      total = (numeroOpcionesAyudas rescue HELP_SECTIONS.length)
+      return unless idx.is_a?(Integer) && idx >= 0 && idx < HELP_SECTIONS.length
+      tag, key = HELP_SECTIONS[idx]
+      open = tag.nil? || ($Trainer.ayudasUI.include?(tag) rescue true)
+      name = PokeAccess::I18n.t(key)
+      name = "#{name}, #{PokeAccess::I18n.t(:rem_help_locked)}" unless open
+      PokeAccess::Cursor.announce(scene, :rem_help_list, idx, true) do
+        PokeAccess::I18n.t(:list_entry, :name => name, :n => idx + 1, :tot => total)
+      end
+    rescue StandardError
+      nil
+    end
+
     def self.help_text(rows)
       return unless @help && rows.is_a?(Array)
       lines = []
@@ -69,7 +119,8 @@ module PokeAccess
         lines.push(t) if t && !t.empty?
       end
       return if lines.empty?
-      PokeAccess.speak(lines.join(". "), true)
+      t = lines.join(". ")
+      PokeAccess::Cursor.announce(@help, :rem_help_info, t, true) { t }
     rescue StandardError
       nil
     end
@@ -95,6 +146,11 @@ PokeAccess::Game.define("reminiscencia") do
       end
     end
   end
+  around("AyudasUI", :update) do |s, nxt, _a|
+    PokeAccess::ReminExtras.list_on(s)
+    begin; nxt.call; ensure; PokeAccess::ReminExtras.list_off; end
+  end
+  poll_each_frame { PokeAccess::ReminExtras.list_poll }
   kernel("pbDrawTextPositions", :before) { |args, _r| PokeAccess::ReminExtras.help_text(args[1]) }
   kernel("drawTextEx", :before) { |args, _r| PokeAccess::ReminExtras.help_body(args[0], args[5]) }
 end

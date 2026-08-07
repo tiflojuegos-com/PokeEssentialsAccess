@@ -1,10 +1,10 @@
-# Regression over the real games/catalog.json autodetect patterns. Both consumers (the launcher's
+# Covers the real games/catalog.json autodetect patterns. Both consumers (the launcher's
 # catalog.rs and installer install.ps1) build the haystack as "folder + exe", lowercase it, and match each
 # profile's `detect` regex case-insensitively -- the LONGEST match wins, not the first in file order (the
 # layered detection decided 2026-08-01; modelling first-match here would test an algorithm neither
 # consumer runs any more, and a future collision that only surfaces under longest-match would pass).
-# The pokemon_z pattern used to include a bare \bz\b that matched a "Z:" drive letter and "mkxp-z.exe",
-# so pokemon_z shadowed every other game. This asserts the pattern still matches real Pokemon Z folders
+# A bare \bz\b in the pokemon_z pattern matches a "Z:" drive letter and "mkxp-z.exe", which makes pokemon_z
+# shadow every other game. This asserts the pattern still matches real Pokemon Z folders
 # but never a drive letter or mkxp-z, and that another profile still wins on such paths.
 CATALOG_JSON = File.join(File.expand_path("../..", __dir__), "games", "catalog.json")
 
@@ -73,12 +73,11 @@ end
 # Layer 1 matches the game's DECLARED title, and the declared title is written by a Spanish-speaking
 # author: Anil's live mkxp.json says "Pokémon Añil 4.0". Every candidate for it read "pokemon ...", so
 # the accent in Poke'mon -- not the one in Anil, which was covered -- made layer 1 miss, on both the
-# installer and the launcher. Nothing broke because layer 2 caught it by folder name; rename the folder
-# and both would have failed together, which is exactly the kind of fallback that hides a bug until the
-# day it cannot.
+# installer and the launcher. Layer 2 catches it by folder name, so a rename breaks both at once -- exactly
+# the kind of fallback that hides a fault until the day it cannot.
 #
-# The fix is data, not code: it is the one place both consumers already read, so no two-language port to
-# keep in sync. This keeps it that way as games are added.
+# Data and not code: catalog.json is the one place both consumers already read, so there is no two-language
+# port to keep in sync. This keeps it that way as games are added.
 Suite.define("catalog: every unaccented pokemon title carries its accented twin") do
   raw = File.read(CATALOG_JSON)
   # Only the titles arrays: the detect patterns are regexps and "pokemon ?z\b" is not a title.

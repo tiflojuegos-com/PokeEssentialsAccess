@@ -45,7 +45,9 @@ module PokeAccess
         rw = items[i]
         claimed = (got[rw[0]] == true)
         taken += 1 if claimed
-        parts.push("#{item_label(rw[1])} por #{rw[2]}#{claimed ? ', recibida' : ''}")
+        line = "#{item_label(rw[1])} por #{rw[2]}#{claimed ? ', recibida' : ''}"
+        z = zone_name(rw[0])
+        parts.push(z ? "#{z}: #{line}" : line)
       end
       final = item_label(items[items.length - 1])
       done = (got[-1] == true) ? ", recibida" : ""
@@ -54,8 +56,22 @@ module PokeAccess
       nil
     end
 
+    # An item's real name. The rewards table holds SYMBOLS and this game names items by numeric id, so the
+    # symbol is resolved first -- the same step the screen takes before it can load the icon.
     def self.item_label(item)
-      (PokeAccess::Data.item_name(item) rescue nil) || item.to_s
+      pair = (PokeAccess::Data.item_id(item) rescue nil)
+      name = pair.is_a?(Array) ? pair[1] : nil
+      return name.to_s if name && !name.to_s.empty?
+      (PokeAccess::Data.item_name(item) rescue nil).to_s
+    end
+
+    # The zone a reward belongs to, named as the encounter page names it. The reward row carries the same
+    # EncounterTypes value DEXNAV_ZONES is keyed by, and the screen paints that zone's base under the icon.
+    def self.zone_name(enc)
+      row = (::DEXNAV_ZONES.find { |z| z[0] == enc } rescue nil)
+      row ? ZONES[row[1]] : nil
+    rescue StandardError
+      nil
     end
   end
 end

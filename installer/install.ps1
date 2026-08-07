@@ -25,6 +25,17 @@ $utf8 = New-Object System.Text.UTF8Encoding($false)
 function Pause-Exit { Write-Host "`nPulsa una tecla para salir..."; try { [void][System.Console]::ReadKey($true) } catch {} }
 function Fail($msg) { Write-Host "`n[ERROR] $msg" -ForegroundColor Red; Pause-Exit; exit 1 }
 
+# Copia el CONTENIDO de una carpeta en otra, recursivo, sin pasar por el comodin. "Origen\*" es la forma
+# corta y es justo la que rompe la regla de arriba: el comodin obliga a -Path, y con -Path unos corchetes
+# en cualquier antepasado de la ruta se leen como clase de caracteres, no casa nada y la copia se salta
+# sin error. Get-ChildItem -LiteralPath enumera los hijos y cada uno viaja por PSPath, que Copy-Item ata
+# a -LiteralPath. Falla si el origen no existe: copiar cero ficheros y seguir es el modo de fallo que
+# esto viene a cerrar.
+function Copy-Tree($src, $dstDir) {
+    if (-not (Test-Path -LiteralPath $src)) { Fail "no existe la carpeta de origen: $src" }
+    Get-ChildItem -LiteralPath $src -Force | Copy-Item -Destination $dstDir -Recurse -Force
+}
+
 # opens the Windows folder picker (a standard dialog, easy with a screen reader); if it
 # cannot be shown or is cancelled, asks for a typed path instead.
 function Pick-Folder {
@@ -63,6 +74,23 @@ function Test-Mkxp($dir) {
 # git blob sha1 of a file: sha1 over "blob <bytes>\0" + the raw content, which is the id git (and
 # the GitHub tree api) publishes for it. The launcher compares installed.json against those ids,
 # so a plain sha1 here would never match and it would re-download everything.
+# true when any executable of the game folder is running from THIS folder. La carpeta entera y no solo el
+# ejecutable principal: un lanzador secundario abierto bloquea las DLL igual. GetProcessesByName y no
+# Get-Process -Name, que interpreta comodines: un ejecutable con corchetes en el nombre no casaria consigo
+# mismo y el guardia dejaria pasar la instalacion con el juego abierto. Copiado tal cual del desinstalador
+# a proposito: cada script tiene que poder ejecutarse solo, sin un fichero comun que pueda faltar.
+function Test-GameRunning($dir) {
+    foreach ($e in (Get-ChildItem -LiteralPath $dir -Filter *.exe -File -ErrorAction SilentlyContinue)) {
+        $name = [IO.Path]::GetFileNameWithoutExtension($e.Name)
+        foreach ($p in @([System.Diagnostics.Process]::GetProcessesByName($name))) {
+            $path = $null
+            try { $path = $p.Path } catch {}
+            if ($path -eq $e.FullName) { return $true }
+        }
+    }
+    return $false
+}
+
 function Get-GitBlobSha1($path) {
     $bytes  = [System.IO.File]::ReadAllBytes($path)
     $header = [System.Text.Encoding]::ASCII.GetBytes("blob " + $bytes.Length + [char]0)
@@ -135,7 +163,18 @@ try {
                else { (Get-ChildItem -LiteralPath $GameDir -Filter *.exe -File -ErrorAction SilentlyContinue | Sort-Object Length -Descending | Select-Object -First 1).FullName }
     $json    = Join-Path $GameDir "mkxp.json"
     $hasJson = Test-Path -LiteralPath $json
-    if (-not $mainexe) { Fail "No hay ningun .exe en esa carpeta. Elige la carpeta del juego." }
+    if (-not $mainexe) {
+        # One of the thirteen real games ships one level down (ReminiscenciaV2_3\ReminiscenciaV2_3), and the
+        # message stopped at "wrong folder" -- true, and no help at all when the right one is a single click
+        # away. dump_scripts.rb already answers this the useful way; so does this now.
+        $nested = @(Get-ChildItem -LiteralPath $GameDir -Directory -ErrorAction SilentlyContinue |
+                    Where-Object { @(Get-ChildItem -LiteralPath $_.FullName -Filter *.exe -File -ErrorAction SilentlyContinue).Count -gt 0 })
+        if ($nested.Count -gt 0) {
+            $paths = @($nested | ForEach-Object { $_.FullName }) -join " | "
+            Fail "No hay ningun .exe en esa carpeta, pero si en una de dentro. Prueba con: $paths"
+        }
+        Fail "No hay ningun .exe en esa carpeta. Elige la carpeta del juego."
+    }
 
     # The game's declared title: mkxp.json "windowTitle"/"title" first, then Game.ini Title= -- the signal a
     # player never renames, unlike the folder. Misma forma que el launcher (detect.rs: game_title), y de ahi
@@ -273,9 +312,12 @@ try {
 
     # refuse to (re)install while the game is open: its dlls would be locked and the wipe could
     # leave a half-installed folder.
-    $exeName = [IO.Path]::GetFileNameWithoutExtension($mainexe)
-    $running = @(Get-Process -Name $exeName -ErrorAction SilentlyContinue | Where-Object { $_.Path -eq $mainexe })
-    if ($running.Count -gt 0) { Fail "El juego esta abierto. Cierralo del todo y vuelve a ejecutar el instalador." }
+    #
+    # GetProcessesByName y no Get-Process -Name: el segundo interpreta comodines, y varios de estos juegos
+    # traen corchetes en el nombre del .exe, asi que no casaba consigo mismo y el guardia dejaba pasar la
+    # instalacion con el juego abierto. Se mira la carpeta entera, como en el desinstalador: un lanzador
+    # secundario abierto bloquea las DLL igual.
+    if (Test-GameRunning $GameDir) { Fail "El juego esta abierto. Cierralo del todo y vuelve a ejecutar el instalador." }
 
     # 2) que perfil de juego instalar: autodetecta por nombre, si no pregunta con un menu.
     $available = @(Get-ChildItem -LiteralPath (Join-Path $root "games") -Directory | Select-Object -ExpandProperty Name)
@@ -348,15 +390,15 @@ try {
     foreach ($sub in @("core", "game", "plugins", "sounds", "lib", "data", "lang")) {
         New-Item -ItemType Directory -Force (Join-Path $dst $sub) | Out-Null
     }
-    Copy-Item (Join-Path $core "*")   -Destination (Join-Path $dst "core") -Recurse -Force
-    Copy-Item (Join-Path $gaming "*") -Destination (Join-Path $dst "game") -Recurse -Force
+    Copy-Tree $core   (Join-Path $dst "core")
+    Copy-Tree $gaming (Join-Path $dst "game")
     # Los lectores de plugins de terceros: se copia la carpeta ENTERA y el manifiesto del perfil decide
     # cuales se cargan. Que el instalador resolviera esa lista pondria la misma logica en dos instaladores
     # y volveria por perfil la contabilidad de la desinstalacion, para ahorrar unos KB de Ruby sin evaluar.
     $plug = Join-Path $root "plugins"
-    if (Test-Path -LiteralPath $plug) { Copy-Item (Join-Path $plug "*") -Destination (Join-Path $dst "plugins") -Recurse -Force }
+    if (Test-Path -LiteralPath $plug) { Copy-Tree $plug (Join-Path $dst "plugins") }
     $lang = Join-Path $root "lang"
-    if (Test-Path -LiteralPath $lang) { Copy-Item (Join-Path $lang "*") -Destination (Join-Path $dst "lang") -Recurse -Force }
+    if (Test-Path -LiteralPath $lang) { Copy-Tree $lang (Join-Path $dst "lang") }
     Copy-Item -LiteralPath (Join-Path $loader "boot.rb")           -Destination $dst -Force
     Copy-Item -LiteralPath (Join-Path $loader "preload_access.rb") -Destination $dst -Force
 
@@ -371,22 +413,29 @@ try {
     # sounds and libraries each go to their own subfolder (the mod reads them from there). Recurse siempre,
     # tambien en lang\ y en lib\: hoy son planas, pero el dia que una subcarpeta aparezca en el repo el
     # launcher la desplegaria (baja el arbol entero) y el PS la perderia en silencio.
-    Copy-Item (Join-Path $assets "sounds\*")  -Destination (Join-Path $dst "sounds") -Recurse -Force
-    Copy-Item (Join-Path $assets "$arch\*")   -Destination (Join-Path $dst "lib") -Recurse -Force
+    Copy-Tree (Join-Path $assets "sounds") (Join-Path $dst "sounds")
+    Copy-Tree (Join-Path $assets $arch)     (Join-Path $dst "lib")
     Write-Host "[OK] Mod '$Game' copiado a $dst (voz $arch)" -ForegroundColor Green
 
     # restaura data\ entera (configuracion, etiquetas, nombres de mapa, grabaciones) tras actualizar.
     if ($tmpSave) {
         $tmpData  = Join-Path $tmpSave "data"
-        $restored = @(Get-ChildItem -LiteralPath $tmpData -Recurse -File -ErrorAction SilentlyContinue).Count
+        $expected = @(Get-ChildItem -LiteralPath $tmpData -Recurse -File -ErrorAction SilentlyContinue)
         foreach ($it in @(Get-ChildItem -LiteralPath $tmpData -Force -ErrorAction SilentlyContinue)) {
             Copy-Item -LiteralPath $it.FullName -Destination $dataDir -Recurse -Force
         }
-        # Comparado con lo que se guardo. Si %TEMP% se vacia entre el borrado y este punto no salta
-        # ninguna excepcion: el bucle no copia nada, el aviso colgaba de "$restored -gt 0" y la
-        # instalacion terminaba EN VERDE habiendose llevado por delante las etiquetas y los nombres de
-        # mapa escritos a mano. Perderlos ya es malo; perderlos en silencio es lo que impide recuperarlos,
-        # asi que aqui se dice y NO se borra la copia.
+        # Contado en el DESTINO, y fichero a fichero. Contarlo sobre $tmpData -como se hacia- comparaba la
+        # copia consigo misma: $savedCount salio de esa misma carpeta unas lineas antes, asi que la unica
+        # forma de que difirieran era que %TEMP% se vaciara entre dos sentencias. Nada miraba si los
+        # ficheros habian LLEGADO. Un fichero bloqueado, una ruta larga o un antivirus y el bucle se lo
+        # deja: Copy-Item -Force no lanza por eso, la comparacion daba igualdad, se imprimia "[OK]
+        # Conservados" y la rama else borraba la copia de seguridad. Lo que se pierde asi -etiquetas,
+        # nombres de mapa a mano, grabaciones- no se puede regenerar. Perderlo ya es malo; perderlo en
+        # silencio es lo que impide recuperarlo, asi que aqui se dice y NO se borra la copia.
+        $restored = @($expected | Where-Object {
+            $rel = $_.FullName.Substring($tmpData.Length).TrimStart('\', '/')
+            Test-Path -LiteralPath (Join-Path $dataDir $rel)
+        }).Count
         if ($restored -lt $savedCount) {
             Write-Host "`n[!] Se guardaron $savedCount archivos de tus datos y solo han vuelto $restored." -ForegroundColor Red
             Write-Host "    El resto sigue en: $tmpData" -ForegroundColor Red
@@ -418,7 +467,15 @@ try {
         # llevaba a meter una SEGUNDA clave "preloadScript" que el motor ignora.
         $i = Find-LiveLine $parts '"preloadScript"\s*:\s*\['
         if ($i -ge 0) {
-            $parts[$i] = ([regex]'("preloadScript"\s*:\s*\[)').Replace($parts[$i], "`$1`"$marker`", ", 1)
+            # El separador solo si el array TIENE algo detras. Un preloadScript vacio es el estado normal
+            # tras desinstalar (la desinstalacion retira la entrada y deja []), y meterle ", " deja la coma
+            # colgando delante del corchete: JSON invalido que mkxp-z traga y el launcher no.
+            if ($parts[$i] -match '"preloadScript"\s*:\s*\[\s*\]') {
+                $parts[$i] = ([regex]'("preloadScript"\s*:\s*\[)(\s*)(\])').Replace($parts[$i], "`$1`"$marker`"`$2`$3", 1)
+            }
+            else {
+                $parts[$i] = ([regex]'("preloadScript"\s*:\s*\[)').Replace($parts[$i], "`$1`"$marker`", ", 1)
+            }
             [System.IO.File]::WriteAllText($json, ($parts -join ""), $src.Encoding)
             Write-Host "[OK] Cargador anadido al preloadScript existente." -ForegroundColor Green
         }
@@ -446,23 +503,28 @@ try {
     # una reinstalacion sobre un juego que ya tiene el cargador tambien lo repare.
     # Se busca por LINEAS VIVAS y no con un patron sobre todo el texto: el mkxp.json de serie lleva decenas
     # de lineas de ejemplo comentadas, algunas detras de la llave de cierre y otras acabadas en coma, asi que
-    # un patron global tocaria comentarios o no llegaria al final. Se corrige solo la ultima linea viva
-    # acabada en coma cuando lo unico que queda viva detras es la llave de cierre.
+    # un patron global tocaria comentarios o no llegaria al final.
+    # Dos formas, porque la llave de cierre puede estar en su linea o pegada a la coma. La segunda sale de un
+    # juego cuyo mkxp.json es {} en una sola linea: ahi la insercion deja  ...],}  y la busqueda que solo
+    # miraba "la ultima linea viva acabada en coma, con la llave sola detras" no encontraba nada que corregir.
     $after = (Read-TextFile $json)
     $lines = [regex]::Split($after.Text, '(\r?\n)')
-    $lastComma = -1
-    $onlyBrace = $true
+    # Los dos cierres, llave y corchete: la coma puede quedar colgando delante de cualquiera de ellos, y un
+    # mkxp.json que ya venga danado de una version anterior se cura aqui aunque la insercion ya no lo cree.
+    $fix = -1
+    $sameLine = $false
+    $sawCloser = $false
     for ($k = $lines.Count - 1; $k -ge 0; $k--) {
         $t = $lines[$k].Trim()
         if ($t -eq "" -or $t.StartsWith("//")) { continue }
-        if ($lastComma -lt 0) {
-            if ($t -eq "}") { continue }
-            if ($t.EndsWith(",")) { $lastComma = $k } else { $onlyBrace = $false }
-            break
-        }
+        if ($t -match ',\s*[\}\]]$') { $fix = $k; $sameLine = $true; break }
+        if ($t -eq "}" -or $t -eq "]") { $sawCloser = $true; continue }
+        if ($sawCloser -and $t.EndsWith(",")) { $fix = $k }
+        break
     }
-    if ($onlyBrace -and $lastComma -ge 0) {
-        $lines[$lastComma] = $lines[$lastComma] -replace ',\s*$', ''
+    if ($fix -ge 0) {
+        if ($sameLine) { $lines[$fix] = $lines[$fix] -replace ',(\s*)([\}\]])$', '$1$2' }
+        else           { $lines[$fix] = $lines[$fix] -replace ',\s*$', '' }
         [System.IO.File]::WriteAllText($json, ($lines -join ""), $after.Encoding)
         Write-Host "[OK] Corregida una coma sobrante en mkxp.json." -ForegroundColor Green
     }

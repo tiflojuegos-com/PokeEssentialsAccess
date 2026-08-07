@@ -1,22 +1,23 @@
 module PokeAccess
-  # Moving the region map's cursor, which is the ONE thing the three region-map implementations do not
-  # share. Reading is uniform (pbGetMapLocation / pbGetMapDetails / pbGetHealingSpot are the same three
-  # names in all thirteen games, see nav/region_map), so this exists only for the fly-jump.
+  # Moving the region map's cursor, the ONE thing the three region-map implementations do not share. Reading
+  # is uniform (pbGetMapLocation / pbGetMapDetails / pbGetHealingSpot are the same three names in all
+  # thirteen games, see nav/region_map), so this exists only for the fly-jump.
   #
   # Dispatch is by SHAPE, never by class name or engine version, because the names lie: Arcky's Region Map
-  # and the v21+ UI rework BOTH define PokemonRegionMap_Scene, and their cursors live in different
-  # ivars. Asking the scene what it actually has is the only honest test.
-  #
-  # A profile can register its own provider and it WINS (providers are searched newest first, and profiles
-  # load after the core). Fangames rewrite this screen freely -- sprites, zoom, custom point tables -- so
-  # the door is open from the start rather than bolted on when the first one breaks.
+  # and the v21+ UI rework BOTH define PokemonRegionMap_Scene, with the cursor in different ivars. A profile
+  # can register its own provider and it WINS, since providers are searched newest first and profiles load
+  # after the core -- fangames rewrite this screen freely, sprites, zoom and custom point tables included.
   module TownMap
-    # provider: [name, handles?(scene), cursor(scene) -> [x,y], move(scene,x,y), points(scene) -> [[x,y]..]]
+    # provider: [name, handles?(scene), cursor(scene) -> [x,y], move(scene,x,y), points(scene) -> [[x,y]..],
+    # flyable(scene) -> [[x,y]..] or nil]
     def self.providers; @providers ||= []; end
 
     # Registers a cursor provider. Last registered wins, so a profile overrides the built-ins.
-    def self.register(name, handles, cursor, move, points)
-      providers.push([name, handles, cursor, move, points])
+    # param flyable only for a screen that KNOWS its own flyable set; the generic rule below derives it from
+    #   pbGetHealingSpot plus visitedMaps, which is what the standard screens draw their icon from, and a
+    #   screen with a fly-anywhere mode of its own draws more places than that rule allows
+    def self.register(name, handles, cursor, move, points, flyable = nil)
+      providers.push([name, handles, cursor, move, points, flyable])
     end
 
     # The provider that fits this scene, or nil when none does (the feature then simply does not exist for
@@ -47,16 +48,46 @@ module PokeAccess
       (p[4].call(scene) rescue []) || []
     end
 
-    # The subset of points the game itself says can be flown to, as [x, y]. pbGetHealingSpot returns the
-    # destination or nil and already applies the game's own switch and wall-map rules, so asking it is the
-    # only way to be sure the player is not offered somewhere they cannot go.
+    # The subset of points the screen actually MARKS as flyable, as [x, y]. Two rules, both the game's own:
+    # pbGetHealingSpot says whether the square has a destination at all, and visitedMaps says whether the
+    # player has been there. The screen draws its fly icon under both and refuses the jump without the
+    # second, so asking only the first offered towns that pressing action will not go to.
     def self.fly_points(scene)
+      p = provider_for(scene)
+      own = (p && p[5]) ? (p[5].call(scene) rescue nil) : nil
+      return own if own.is_a?(Array)
       out = []
       points(scene).each do |xy|
-        spot = (scene.pbGetHealingSpot(xy[0], xy[1]) rescue nil)
-        out.push(xy) if spot
+        spot = healing_spot(scene, xy)
+        out.push(xy) if spot && visited?(spot)
       end
       out
+    end
+
+    # The healing spot for a map square, asked the way THIS copy declares the method: most take (x, y) and
+    # one takes the map data first. A fixed arity turned every answer into nil through the rescue, and the
+    # jump then reported "nowhere to fly" over a map full of towns.
+    def self.healing_spot(scene, xy)
+      begin
+        return scene.pbGetHealingSpot(xy[0], xy[1])
+      rescue ArgumentError
+        nil
+      rescue StandardError
+        return nil
+      end
+      (scene.pbGetHealingSpot(PokeAccess.ivar(scene, :@map), xy[0], xy[1]) rescue nil)
+    end
+
+    # Whether the destination's map has been visited, which is the flyable rule the screen adds on top.
+    # A game with no such record answers yes, so a missing accessor cannot empty the list.
+    def self.visited?(spot)
+      id = spot.is_a?(Array) ? spot[0] : nil
+      return true if id.nil?
+      v = ($PokemonGlobal.visitedMaps rescue nil)
+      return true if v.nil?
+      v[id] ? true : false
+    rescue StandardError
+      true
     end
 
     # Whether the jump is offered at all. A profile turns it off when its game already has something
@@ -132,11 +163,10 @@ end
 
 # gen-6 vanilla and Arcky's plugin: the cursor is @mapX/@mapY and the points are the raw @map[2] rows.
 #
-# Moving it also drags the drawn cursor along. The scene recomputes the NAME from the ivars every frame,
-# but it only repositions the sprite on its own animated path, so setting the ivars alone would leave the
-# icon behind -- invisible to us, wrong for anyone watching. The formula is the one the scene itself runs
-# two lines before its loop (137_PScreen_RegionMap.rb:283); without the sprite or the constants it just
-# moves the ivars, which still works.
+# Moving it drags the drawn cursor along too. The scene recomputes the NAME from the ivars every frame but
+# only repositions the sprite on its own animated path, so setting the ivars alone would leave the icon
+# behind. The formula is the one the scene runs two lines before its loop; without the sprite or the
+# constants it just moves the ivars, which still works.
 PokeAccess::TownMap.register(
   :classic,
   lambda { |s| !PokeAccess.ivar(s, :@mapX).nil? },

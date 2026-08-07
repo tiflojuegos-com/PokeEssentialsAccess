@@ -8,12 +8,14 @@
 # paints the wall for sighted players.
 #
 # The plugin's own separators are markup, not speech: "\\" splits the message into successive screens and
-# "/" breaks a screen into lines. Both become pauses, so the wall is read the way it is laid out.
+# "/" breaks a screen into lines. Both become pauses, so the wall is read the way it is laid out. "-" is the
+# word separator: the painter skips one cell and draws nothing, so on the wall it is a blank space.
 module PokeAccess
   module RegiCode
-    # The braille text as one spoken line: screens and line breaks turned into sentence pauses.
+    # The braille text as one spoken line: screens, line breaks and blank cells turned into their spoken form.
     def self.clean(text)
-      PokeAccess.clean(text.to_s.gsub("\\", ". ").gsub("/", ", ")).to_s.strip
+      spaced = text.to_s.gsub("\\", ". ").gsub("/", ", ").gsub("-", " ")
+      PokeAccess.clean(spaced).to_s.strip
     rescue StandardError
       nil
     end

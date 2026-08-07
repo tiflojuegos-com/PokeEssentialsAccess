@@ -11,9 +11,9 @@ module I18nRefScan
   LONG_RE = /I18n\.t\(:([a-zA-Z0-9_]+)/
 
   # The short call. The settings/remap menu speaks through ConfigMenu.t, a one-line alias of I18n.t
-  # (config_menu.rb:29), so 29 of its keys (rmp_*, cfg*, cat_remap, rec_*, key_*...) reached the player
-  # without ever being checked: a typo in any of them speaks the raw key name with CI green, which is the
-  # exact throw_* failure this spec was written to catch. The leading guard is what keeps the short shape
+  # in config_menu.rb, so 29 of its keys (rmp_*, cfg*, cat_remap, rec_*, key_*...) reach the player through
+  # a call the long form cannot see: a typo in any of them speaks the raw key name with CI green, which is
+  # the failure this spec exists to catch. The leading guard is what keeps the short shape
   # honest -- it must not match some OTHER receiver's t( (a bare "\.t\(" matches anything.t) nor the tail
   # of an identifier that happens to end in t (select(, assert(). Written as an alternation and not as a
   # lookbehind, which the 1.8.7 the mod targets cannot parse.
@@ -30,7 +30,7 @@ module I18nRefScan
   # The keys referenced through the explicit I18n.t( call.
   def self.long_keys(src); scan(src, LONG_RE); end
 
-  # The keys referenced through the short t( call (the half that used to be invisible).
+  # The keys referenced through the short t( call.
   def self.short_keys(src); scan(src, SHORT_RE); end
 
   # Every key a chunk of source references, in either shape.
@@ -43,13 +43,17 @@ Suite.define("static: code-referenced i18n keys exist in lang/en.txt") do
   PokeAccess::KVFile.each(File.join(root, "lang", "en.txt"), :strip_value => false) { |k, _v| en[k] = true }
   truthy "lang/en.txt loaded", en.length > 100
 
-  # w_ and st_ are deliberately NOT here: their families are not unscannable -- every valid symbol
-  # arrives through the status/weather tables below, so exempting the prefix would exempt exactly the
-  # keys those tables are meant to enforce (any st_typo in a table would pass CI). surf_ was exempt and
-  # contradicted that same reasoning: it arrives through one literal table, Terrain::LABEL, now scanned
-  # below. aw_c and lang_ went too -- they matched no key at all (the aw_craft* family left with
-  # item_crafting), so all they could still do was excuse a typo that started with those letters.
-  dynamic_prefixes = ["chr_", "dir_", "tcat_", "puzzle_"]
+  # Empty, and it should stay that way. The exemption list is gone entirely, and the reason is that it
+  # could never have been doing its job: both scanners match a LITERAL symbol only -- SHORT_RE is
+  # /t\(:([a-zA-Z0-9_]+)/ and an interpolated :"chr_#{n}" has a quote where it wants a letter -- so a
+  # runtime-built key never reaches this list to be excused in the first place. Every key it did excuse
+  # was written out in full in the source, and there were 16 of them (t(:dir_up), t(:puzzle_solved),
+  # t(:chr_row)...). All 16 resolve; the exemption was covering nothing and could only ever have hidden a
+  # typo that happened to start with the right four letters.
+  #
+  # w_ and st_ were never here for the same underlying reason, and surf_, aw_c and lang_ were removed
+  # earlier as the same mistake.
+  dynamic_prefixes = []
 
   refs = {}
   long_seen = {}

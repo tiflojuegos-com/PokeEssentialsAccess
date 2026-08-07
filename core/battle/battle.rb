@@ -21,8 +21,8 @@ module PokeAccess
     # Marks battle as ended (pbBattleAnimation's block returned); the sonar resumes.
     def self.battle_ended; @in_battle = false; end
 
-    # The battler at a battler index in the captured battle, or nil. Used to name a target whose menu text
-    # the engine left blank (e.g. a hidden/unseen foe slot in a double battle).
+    # The battler at a battler index in the captured battle, or nil. Names a target whose menu text the
+    # engine left blank, such as a hidden foe slot in a double battle.
     def self.battler_at(idx)
       return nil unless @battle_ref && idx
       bs = (@battle_ref.battlers rescue nil)
@@ -138,11 +138,10 @@ module PokeAccess
 
     @last_target = nil
 
-    # The index of the battler currently choosing a target in the gen-6 pbChooseTarget loop, read from the
-    # fight window whose battler was set to the chooser (cw.battler = @battle.battlers[index]). Used so the
-    # self/ally label is relative to the chooser, not hardcoded to slot 0 (the second player slot, index 2,
-    # is also a valid chooser and would otherwise mislabel itself as ally and its partner as self). nil when
-    # it cannot be read, so the caller keeps the slot-0 assumption as a fallback.
+    # The index of the battler choosing a target in the gen-6 pbChooseTarget loop, read from the fight
+    # window whose battler was set to the chooser (cw.battler = @battle.battlers[index]). Keeps the
+    # self/ally label relative to the chooser rather than to slot 0, since index 2 is a valid chooser too.
+    # nil when it cannot be read, so the caller falls back to the slot-0 assumption.
     def self.target_chooser_index(scene)
       cw = PokeAccess.sprite(scene, "fightwindow") || PokeAccess.sprite(scene, "fightWindow")
       b = (cw.battler rescue nil)
@@ -160,17 +159,8 @@ module PokeAccess
       :bt_target_ally
     end
 
-    # Speaks the move under the fight-menu cursor, once per real change. An empty/absent slot passes key
-    # nil, which Cursor treats as unchanged: it neither speaks nor records, so the last real move stays as
-    # the dedup key and the next real move still reads. (The menu itself refuses to move onto an empty slot,
-    # so this is the defensive path, not the normal one.)
-    # @param interrupt false for the opening read, so it queues behind the hp/turn lines instead of cutting
-    #   them; true for navigation, which should cut the previous move
-    # The command menu's labels live ONLY inside its window, so unlike read_fight_move -- which goes to the
-    # battler's own data and is therefore immune to all of this -- the command reader has to find the
-    # widget. And Essentials renamed it: @window up to v17, @cmdWindow from v19 on (checked against the
-    # upstream tags v19 through v21.1). Tried in that order, so the pre-v19 games resolve on the first
-    # attempt and behave exactly as they always did.
+    # The command menu's window, the only place its labels live. Essentials renamed it: @window up to v17,
+    # @cmdWindow from v19 on (checked against the upstream tags v19 through v21.1), tried in that order.
     def self.command_window(disp)
       PokeAccess.ivar(disp, :@window) || PokeAccess.ivar(disp, :@cmdWindow)
     end
@@ -187,14 +177,11 @@ module PokeAccess
 
     # Speaks the focused battle command (fight/bag/pokemon/run), or nothing when neither source has it.
     #
-    # There are two shapes of CommandMenuDisplay and nothing outside the class tells them apart. The seven
-    # gen-6 games keep a real Window_CommandPokemon and setTexts always fills its command list, so the
-    # widget answers. Both Infinite Fusion set USE_GRAPHICS = true: setTexts writes the message box and
-    # RETURNS before touching any window, drawing the four options as button sprites -- the labels arrive
-    # and are discarded. Nothing is left on the display to read afterwards, which is why hunting for a
-    # differently-named widget found nothing and shipped twice without fixing anything. So the labels are
-    # kept on the way past instead (stash_command_texts). A window still wins when there is one, so the
-    # seven games that always worked take the same path as before, byte for byte.
+    # Two shapes of CommandMenuDisplay, with nothing outside the class to tell them apart: the gen-6 games
+    # keep a real Window_CommandPokemon whose command list setTexts fills, while a display with
+    # USE_GRAPHICS = true writes the message box and RETURNS before touching any window, drawing the options
+    # as button sprites and discarding the labels. Those are kept on the way past instead
+    # (stash_command_texts); a window still wins when there is one.
     def self.read_command(disp, index, interrupt)
       w = command_window(disp)
       cmds = (w ? PokeAccess.ivar(w, :@commands) : nil) || PokeAccess.ivar(disp, :@access_cmd_texts)
@@ -202,6 +189,12 @@ module PokeAccess
       PokeAccess.speak_clean(cmds[index], interrupt)
     end
 
+    # Speaks the focused move in the gen-6 fight menu -- name, type and pp -- once per real change. The type
+    # is what the box beside the menu prints along with the pp ("PP: 15/15  TYPE/Fire") and is the datum the
+    # turn is decided on. An empty or absent slot passes key nil, which Cursor treats as unchanged: it
+    # neither speaks nor records, so the last real move stays as the dedup key and the next one still reads.
+    # param interrupt false for the opening read, so it queues behind the hp/turn lines instead of cutting
+    #   them; true for navigation, which should cut the previous move
     def self.read_fight_move(disp, interrupt = true)
       b = PokeAccess.ivar(disp, :@battler)
       idx = PokeAccess.ivar(disp, :@index)
@@ -209,6 +202,8 @@ module PokeAccess
       PokeAccess::Cursor.on_change(disp, :fight_move, ok ? idx : nil) do
         m = b.moves[idx]
         t = m.name.to_s
+        ty = (PokeAccess::Data.type_name(m.type) rescue nil)
+        t += ". " + PokeAccess::I18n.t(:mv_type, :t => ty) if ty && !ty.to_s.empty?
         t += ". " + PokeAccess::I18n.t(:mv_pp, :pp => m.pp, :tot => PokeAccess.attr_of(m, :totalpp, :total_pp)) if m.respond_to?(:pp)
         PokeAccess.speak_clean(t, interrupt)
         PokeAccess::Info.set_info(:move, m)
@@ -218,12 +213,10 @@ module PokeAccess
     end
 
     # levelup_text straight from the raw pbLevelUp arguments, picking the old-stat order the era uses.
-    #
     # Both orders are eight arguments of the same types, so nothing in the call tells them apart: v16-17
     # pass hp, atk, def, SPEED, spatk, spdef, while the v18 hybrids that kept the gen-6 scene class pass
-    # hp, atk, def, spatk, spdef, SPEED. Reading the wrong one does not go quiet -- it announces three real
-    # numbers under the wrong stat names, which is worse than saying nothing.
-    # param modern true for the v18+ order
+    # hp, atk, def, spatk, spdef, SPEED. The wrong one does not go quiet, it announces real numbers under
+    # the wrong stat names. param modern true for the v18+ order
     def self.levelup_from_args(a, modern)
       spatk, spdef, speed = modern ? [a[5], a[6], a[7]] : [a[6], a[7], a[5]]
       levelup_text(a[0], a[2], a[3], a[4], spatk, spdef, speed)
@@ -243,7 +236,30 @@ module PokeAccess
     # Announces the battler under the target cursor while choosing a move's target in doubles (gen-6
     # pbChooseTarget highlights via pbUpdateSelected). param index the highlighted battler index, or
     # negative to clear (so re-entering selection reads again)
+    # Un movimiento de area llega como ARRAY, no como indice: pbSelectBattler(idxBattler, mode) enciende
+    # cada hueco cuya entrada no sea nil, asi que un solo indice no describe lo que la pantalla ilumina.
+    # Con la guarda de entero a secas ese caso se descartaba entero y la eleccion de objetivo era muda.
+    def self.announce_targets(scene, list)
+      lit = []
+      list.each_index { |i| lit.push(i) unless list[i].nil? }
+      return if lit.empty?
+      return if lit == @last_target
+      @last_target = lit
+      battle = PokeAccess.ivar(scene, :@battle)
+      return unless battle
+      chooser = target_chooser_index(scene)
+      names = lit.map do |i|
+        b = (battle.battlers ? battle.battlers[i] : nil) rescue nil
+        nm = (b && (b.pokemon rescue nil)) ? b.name : PokeAccess::I18n.t(:bt_empty_slot)
+        "#{nm}, #{PokeAccess::I18n.t(target_side_key(i, chooser))}"
+      end
+      PokeAccess.speak(names.join(". "), true)
+    rescue StandardError
+      nil
+    end
+
     def self.announce_target(scene, index)
+      return announce_targets(scene, index) if index.is_a?(Array)
       if index.nil? || index < 0
         @last_target = nil
         return
@@ -313,11 +329,10 @@ module PokeAccess
       format("%d:%02d", s / 60, s % 60)
     end
 
-    # The seconds left in a Bug Contest, computed from whichever clock the engine stores: modern keeps a
-    # System.uptime start against TIME_ALLOWED; gen-6 a Graphics.frame_count start against TimerSeconds.
-    # nil when there is no time limit or it cannot be read. Both stamps come from the ENGINE, so the elapsed
-    # figure is in the engine's own units and has to be scaled: some forks ship an mkxp-z that counts uptime
-    # in microseconds, which made every contest read "0:00" from the first second.
+    # The seconds left in a Bug Contest, from whichever clock the engine stores: modern keeps a
+    # System.uptime start against TIME_ALLOWED, gen-6 a Graphics.frame_count start against TimerSeconds.
+    # nil when there is no time limit or it cannot be read. Both stamps are in the ENGINE's own units and
+    # have to be scaled, since some forks ship an mkxp-z that counts uptime in microseconds.
     def self.contest_time_left(s)
       if defined?(System) && System.respond_to?(:uptime) && s.respond_to?(:timer_start)
         total = (BugContestState::TIME_ALLOWED rescue 0)
@@ -337,7 +352,8 @@ module PokeAccess
 
     # The Safari Zone / Bug Contest status for the field key: balls left and steps (Safari) or time
     # remaining (contest), else a Poke Radar chain. nil when none is running. (Safari/contest states are
-    # globals in both engines, absent only in the test stubs.)
+    # globals in both engines, absent only in the test stubs.) The radar chain is rd[2], kept in
+    # $game_temp on modern and $PokemonTemp on gen-6.
     def self.field_event_text
       s = (pbSafariState rescue nil)
       if s && (s.inProgress? rescue false)
@@ -353,7 +369,6 @@ module PokeAccess
         t = contest_time_left(c); parts.push(PokeAccess::I18n.t(:contest_time, :t => fmt_mmss(t))) if t
         return parts.empty? ? nil : parts.join(", ")
       end
-      # Poke Radar: rd[2] is the chain count, in $game_temp (modern) or $PokemonTemp (gen-6).
       rd = ($game_temp.poke_radar_data rescue nil) || ($PokemonTemp.pokeradar rescue nil)
       return PokeAccess::I18n.t(:radar_chain, :n => rd[2].to_i) if rd.is_a?(Array) && rd[2] && rd[2].to_i > 0
       nil
@@ -424,6 +439,14 @@ module PokeAccess
       nil
     end
 
+    # Whether a side effect is in play. Half of them are COUNTERS (turns left, layers) and half are plain
+    # booleans -- Stealth Rock and Sticky Web among them -- so comparing to zero both dropped those two and
+    # raised on the comparison, which aborted the rest of the report from that point on.
+    def self.active_effect?(v)
+      return v > 0 if v.is_a?(Numeric)
+      v ? true : false
+    end
+
     # Appends the per-side effects (screens, hazards, tailwind...) for both sides.
     def self.field_sides(out)
       sides = PokeAccess.ivar(@battle_ref, :@sides)
@@ -434,8 +457,9 @@ module PokeAccess
         { :Reflect => :bt_reflect, :LightScreen => :bt_lightscreen, :AuroraVeil => :bt_auroraveil,
           :Spikes => :bt_spikes, :StealthRock => :bt_stealthrock, :ToxicSpikes => :bt_toxicspikes,
           :Tailwind => :bt_tailwind, :StickyWeb => :bt_stickyweb }.each do |k, key|
-          c = (s.effects[PBEffects.const_get(k)] rescue 0)
-          out.push(PokeAccess::I18n.t(:bt_side_effect, :effect => PokeAccess::I18n.t(key), :side => side_names[si])) if c && c > 0
+          v = (s.effects[PBEffects.const_get(k)] rescue nil)
+          next unless active_effect?(v)
+          out.push(PokeAccess::I18n.t(:bt_side_effect, :effect => PokeAccess::I18n.t(key), :side => side_names[si]))
         end
       end
     rescue StandardError
@@ -455,31 +479,28 @@ module PokeAccess
 
     # The announce key for a Mega-Evolution button state change, or nil. Only a real toggle between
     # available (1) and registered (2) is voiced, not the initial open. param v 0 hidden, 1 available, 2 on
-    def self.mega_key(last, v)
+    # param on the key for "just registered"; off the key for "just cancelled"
+    def self.mega_key(last, v, on = :bt_mega_on, off = :bt_mega_off)
       return nil unless v == 1 || v == 2
       return nil if last.nil? || last == v
-      v == 2 ? :bt_mega_on : :bt_mega_off
+      v == 2 ? on : off
     end
 
     # Spoken names for the battle mechanics the Deluxe Battle Kit puts behind the SAME fight-menu button.
     SPECIAL_NAMES = { :dynamax => :bt_m_dynamax, :zmove => :bt_m_zmove,
                       :ultra => :bt_m_ultra, :tera => :bt_m_tera }
 
-    # Remembers which mechanic the fight menu was opened for. DBK routes every one of them through the same
-    # mode= toggle, and the mechanic is a PARAMETER of pbFightMenu(idxBattler, specialAction) -- a local the
-    # menu never stores -- so the toggle hook cannot see it and has to be told.
+    # Records which mechanic the fight menu was opened for, since the toggle hook cannot see that argument.
+    # Only a Symbol counts: vanilla's second argument is the boolean megaEvoPossible, not a mechanic.
+    # param action a mechanic symbol (Deluxe Battle Kit) or a boolean (vanilla)
     def self.note_special_action(action)
-      @special_action = action
+      @special_action = action.is_a?(Symbol) ? action : nil
     end
 
-    # The line for toggling the special-action button, named for the mechanic actually behind it. Without
-    # DBK the button is only ever Mega Evolution and the mechanic is nil, which keeps the original wording.
-    # With DBK the same 1/2 toggle drives Dynamax, Z-moves, Ultra Burst or Terastallization, and announcing
-    # all of them as "Mega Evolution" told the player they had armed something they had not.
-    # An action this table does not name still must not fall back to the mega wording: the kit grows (primal
-    # reversion, and one fangame adds its own), and calling those "Mega Evolution" is the same false claim
-    # the named cases exist to avoid. Only the absence of ANY special action means the button really is the
-    # plain mega toggle.
+    # The announce key (or [key, name]) for the special-action button, named for the mechanic behind it.
+    # An unnamed mechanic gets generic wording rather than the mega one, which would be a false claim.
+    # param last the previous mode; param v the new mode
+    # return a key symbol, a [key, name] pair, or nil when nothing should be said
     def self.special_key(last, v)
       k = mega_key(last, v)
       return nil unless k

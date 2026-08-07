@@ -1,9 +1,9 @@
 # poll_sprite_menu is the shared reader for sprite-driven menus (ready menu, Neo PauseMenu, the pokegear
 # theme picker and the v22 pokegear): it polls @index over the entry list each frame and must speak the
 # focused entry only when it changes, with the dedup state hung on the scene instance via Cursor. The dedup
-# slot used to be passed WITH a leading @ (:@access_ready_last), which composed an illegal ivar name inside
-# Cursor, made instance_variable_set raise into the silent rescue, and muted all four readers; slots are
-# normalised now, so the legacy spelling must speak and dedup exactly like the bare one.
+# slot passed WITH a leading @ (:@access_ready_last) composes an illegal ivar name inside Cursor and makes
+# instance_variable_set raise into the silent rescue, muting all four readers. Slots are normalised, so that
+# spelling must speak and dedup exactly like the bare one.
 Suite.define("menus: poll_sprite_menu speaks on change and dedups on repeat") do
   scene = Object.new
   scene.instance_variable_set(:@commands, [[1, "Map"], [2, "Radio"]])

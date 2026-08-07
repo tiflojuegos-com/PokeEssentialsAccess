@@ -1,5 +1,5 @@
-# Fusion mode in the storage boxes (PokemonStorageScene#setFusing, 016_UI/017_UI_PokemonStorage.rb:1593, and
-# the box arrow's own setFusing at :214). Picking the splicers inside the PC puts the box cursor into a mode
+# Fusion mode in the storage boxes (PokemonStorageScene#setFusing in 017_UI_PokemonStorage, and the box
+# arrow's own setFusing). Picking the splicers inside the PC puts the box cursor into a mode
 # where the next Pokemon you choose becomes the head or the body -- but the only feedback is that the cursor
 # sprite swaps to a splicer icon, so a blind player cannot tell the box is armed and would fuse by accident.
 # Announce entering and leaving the mode; the box navigation itself is already read by the core storage

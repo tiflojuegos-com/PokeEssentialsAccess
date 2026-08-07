@@ -1,38 +1,33 @@
 module PokeAccess
-  # Arcky's Region Map, extended preview: a paged grid of the species that can be found on the focused map,
-  # one grid per encounter type. Arrows move between cells and the panel below names the species.
+  # Arcky's Region Map, extended preview: a paged grid of the species found on the focused map, one grid per
+  # encounter type, with a panel below naming the species.
   #
-  # The cell cursor is a local inside the preview's own loop, but the scene mirrors it into @extIndex and
-  # calls updateSpeciesInfo(index, pageInfo) on every move with that index as its first argument -- so the
-  # argument is read rather than the mirror, which is one less thing to drift.
-  #
-  # Until now the only thing this screen said was "species N of M", and by accident: the same redraw writes
-  # to maplocation, which the bottom-bar reader picks up. The species itself, which is the entire point of
-  # opening the grid, was never named.
+  # The cell cursor is a local inside the preview's loop, but updateSpeciesInfo(index, pageInfo) receives it
+  # on every move, so the argument is read rather than the @extIndex mirror.
   module ArckyRegionMap
+    # The focused species. Three constraints shape it:
+    #
+    # The name is in the dedup key, not just the index: leaving the grid or switching encounter type rebuilds
+    # the list and returns to index 0, so an index-only key would never announce the new list's first entry.
+    #
+    # The panel's own detail (type, catch rate, chance per level band) goes to the info key: the grid is
+    # swept cell by cell and four facts per arrow would make that unusable.
+    #
+    # The same redraw feeds the bottom-bar reader, which interrupts. Its slot is marked with the text it is
+    # about to see so it stays quiet here without being disabled, since on the plain map screen it is the
+    # only reader that speaks.
     def self.species(scene, index)
       list = PokeAccess.ivar(scene, :@list)
       i = index.to_i
       return unless list.is_a?(Array) && i >= 0 && i < list.length
       name = species_name(list[i])
       return if name.nil? || name.empty?
-      # The name is in the dedup key, not just the index. Leaving the grid, and switching encounter type,
-      # both clear the plugin's own cursor and rebuild the list, so coming back starts at index 0 -- equal to
-      # the last key recorded -- and the first species of the NEW list would never be spoken.
       spoken = PokeAccess::Cursor.on_change(scene, :arcky_species, [i, name]) do
         PokeAccess::I18n.t(:list_entry, :name => name, :n => i + 1, :tot => list.length)
       end
       return if spoken.nil? || spoken.empty?
       PokeAccess.speak(spoken, true)
-      # The panel's own content -- type, catch rate and the encounter chance per level band -- goes to the
-      # info key rather than into this line. It is the reason for opening the grid, but the grid is swept
-      # cell by cell, and reading four facts on every arrow would make sweeping unusable. One key away is
-      # where the rest of the mod puts detail like this.
       PokeAccess::Info.set_info(:text, panel_detail(scene, list[i]))
-      # The same redraw writes the cell position into the bottom bar, and that reader interrupts with a line
-      # that changes on every move, so it would cut this one off mid-word. Marking its slot with what it is
-      # about to see keeps it quiet here without disabling it, which matters: on the plain map screen it is
-      # the only reader that speaks.
       PokeAccess::Cursor.changed?(nil, :regionmap, PokeAccess.clean(bar_text(i, list.length)))
     rescue StandardError
       nil
@@ -55,6 +50,12 @@ module PokeAccess
       nil
     end
 
+    # A chance as the plugin prints it: its convertIntegerOrFloat drops the decimal of a whole-number Float,
+    # so the screen says 12% where the raw value is 12.0.
+    def self.pct(n)
+      (n.is_a?(Float) && n.to_i == n) ? n.to_i : n
+    end
+
     # "Nv. 3 a 7, 20 percent" per band, collapsing a band whose bounds match into a single level.
     def self.encounter_bands(entries)
       return nil unless entries.is_a?(Array)
@@ -64,17 +65,15 @@ module PokeAccess
         hi = (data[:level][:max] rescue nil)
         next if lo.nil?
         band = (lo == hi) ? lo.to_s : PokeAccess::I18n.t(:arm_band, :lo => lo, :hi => hi)
-        out.push(PokeAccess::I18n.t(:arm_chance, :band => band, :pct => data[:chance]))
+        out.push(PokeAccess::I18n.t(:arm_chance, :band => band, :pct => pct(data[:chance])))
       end
       out.join(", ")
     rescue StandardError
       nil
     end
 
-    # What the plugin writes to the bottom bar right after this hook returns, rebuilt with the plugin's own
-    # expression rather than a copy of the wording: the label goes through the game's own _INTL, so hardcoding
-    # it here would stop matching the moment the game is played in another language, and the mark would
-    # silence nothing.
+    # What the plugin writes to the bottom bar right after this hook returns, built with the plugin's own
+    # _INTL expression so it keeps matching in any language.
     def self.bar_text(i, total)
       "#{_INTL("Especie")} #{i + 1}/#{total}"
     rescue StandardError
@@ -94,4 +93,10 @@ end
 
 PokeAccess::Hooks.after_hook("PokemonRegionMap_Scene", :updateSpeciesInfo, :optional => true) do |scene, _r, args|
   PokeAccess::ArckyRegionMap.species(scene, args[0])
+end
+
+# El detalle del panel vive en la tecla de info mientras la rejilla esta abierta, y solo mientras: al cerrar
+# la pantalla la tecla contestaria por una casilla del mapa con los datos de una especie que ya no se ve.
+PokeAccess::Hooks.after_hook("PokemonRegionMap_Scene", :pbEndScene, :optional => true) do |_s, _r, _a|
+  PokeAccess::Info.clear_text
 end

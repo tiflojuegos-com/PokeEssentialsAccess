@@ -1,13 +1,12 @@
 # PokeAccess.clock, the single source every cue cadence is paced by (spatial pings, the guide chime, the
-# bump cooldown, the profiler). It used to read System.uptime when the runtime offered it and fall back to
-# Graphics.frame_count / 40, and BOTH branches turned out to be forgeable by the host game:
+# bump cooldown, the profiler). Neither engine clock can be trusted -- System.uptime when the runtime offers
+# it, Graphics.frame_count / 40 otherwise -- because both are forgeable by the host game:
 #
-#   - Infinite Fusion's mkxp-z exposes a System.uptime that does not count seconds. Every interval was
-#     therefore already met on the next frame and the whole soundscape fired at frame rate. Its second
-#     executable (Game-performance.exe) has no System.uptime at all and sounded correct, which is what
-#     identified the branch.
+#   - Infinite Fusion's mkxp-z exposes a System.uptime that does not count seconds, so every interval is
+#     met on the next frame and the whole soundscape fires at frame rate. Its second executable
+#     (Game-performance.exe) has no System.uptime at all and sounds correct.
 #   - frame_count only tracks real time while the game holds its nominal rate, and Essentials rewrites it
-#     outright when a save is loaded, which yanks the clock sideways.
+#     outright when a save is loaded, which shifts the clock.
 #
 # The fakes below deliberately lie the way that runtime does; the clock must ignore them both and stay on
 # wall time. Each fake is installed INSIDE its suite and removed in ensure, restoring the base engine stubs

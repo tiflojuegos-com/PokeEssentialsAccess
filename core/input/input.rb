@@ -1,15 +1,11 @@
 module PokeAccess
   # The input ORCHESTRATOR (named PokeAccess::Keys to avoid clashing with RGSS ::Input). What lives here is
   # what only makes sense for THIS mod: whether the mod is enabled, the once-per-frame global poll, the
-  # suppression windows that keep it from eating the game's own keys (typing, custom menus), the resolution
-  # of a configured key NAME to an actual keystroke, and the per-frame poller registry. The two halves that
-  # are not about the mod were split out and are only delegated to here: raw keyboard polling and edge
-  # detection to PokeAccess::Keyboard, window focus to PokeAccess::Focus. The diagnostic half (Ctrl+Alt+
-  # F9/F10, the section dumps, the runtime introspection) lives in input/diag.rb, which reopens this module.
-  #
-  # Compatibility contract: every name other files ever called on Keys still answers here. The moved ones
-  # are one-line delegations (raw_down?, focused?, mark_focused) and GAKS/GFW/GAW/GCPID are re-exported
-  # constants, so no caller -- core, game profile or third-party script -- has to know about the split.
+  # suppression windows that keep it from eating the game's own keys, the resolution of a configured key
+  # NAME to an actual keystroke, and the per-frame poller registry. Raw keyboard polling and edge detection
+  # belong to PokeAccess::Keyboard and window focus to PokeAccess::Focus, both delegated to from here, while
+  # the diagnostic half lives in input/diag.rb, which reopens this module. Every name other files call on
+  # Keys still answers here: the moved ones as one-line delegations, GAKS/GFW/GAW/GCPID as re-exports.
   module Keys
     GAKS  = PokeAccess::Keyboard::GAKS
     GFW   = PokeAccess::Focus::GFW
@@ -84,6 +80,20 @@ module PokeAccess
       PokeAccess::Keyboard.raw_down?(PokeAccess::Config.keys[:ctrl])
     end
 
+    # Whether the puzzle reader should answer the info key.
+    #
+    # Only on the map, under free control. A puzzle whose definition declares no solved state stays active
+    # for the rest of the session, and without this it answered the info key inside the bag, the party and
+    # the battle menus too -- where the potion's description, the focused member or the move's power are
+    # the fresher answer and the only one the screen is showing.
+    def self.puzzle_owns_info?
+      return false if (PokeAccess::Spatial.keys_locked? rescue false)
+      return false unless ($scene.is_a?(Scene_Map) rescue true)
+      (PokeAccess::Puzzles.active? rescue false)
+    rescue StandardError
+      false
+    end
+
     # Reads contextual keys that work in every scene (info, hp, field, coords).
     def self.global_poll
       toggle_poll
@@ -106,7 +116,7 @@ module PokeAccess
         if shift_down?
           d = PokeAccess.last_dialogue
           PokeAccess.speak((d && !d.to_s.empty?) ? d : PokeAccess::I18n.t(:no_recent_dialogue), true)
-        elsif (PokeAccess::Puzzles.active? rescue false)
+        elsif puzzle_owns_info?
           PokeAccess::Puzzles.read
         else
           t = PokeAccess::Info.info_text
@@ -146,15 +156,14 @@ end
 
 # Input hook: runs the global poll and the per-frame pollers every frame, in every context.
 #
-# Measured as :input_frame, and that label is the only one that reports from EVERYWHERE. The other two
-# measured hooks both hang off Game_Player#update, so they fall silent the moment the player opens a menu
-# or enters a battle -- and the diagnostic would still print their averages, giving a reassuring number for
-# work that was not running. Everything the mod does per frame outside the map goes through here: the remap
-# wrappers, the global key poll and every registered frame poller, the modal-loop readers among them. One
-# label rather than three keeps it to two clock reads a frame; if it ever shows up high, split it then.
+# Measured as :input_frame, the only label that reports from EVERYWHERE: the other two measured hooks hang
+# off Game_Player#update and fall silent the moment the player opens a menu or enters a battle, while the
+# diagnostic would still print their averages. Everything the mod does per frame outside the map goes
+# through here -- the remap wrappers, the global key poll and every registered frame poller, the modal-loop
+# readers among them. One label rather than three keeps it to two clock reads a frame.
 #
-# The whole thing is also guarded: each step already swallows its own failure, but a fault in the measuring
-# itself would propagate out of Input.update and take the game down with it.
+# Guarded as a whole: each step already swallows its own failure, but a fault in the measuring itself would
+# propagate out of Input.update and take the game down.
 begin
   class << Input
     unless method_defined?(:update__access_orig)

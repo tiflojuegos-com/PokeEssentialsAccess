@@ -52,7 +52,11 @@ module PokeAccess
       nil
     end
 
-    # Voices the Mining cursor as it moves: grid position and, when it changes, the tool.
+    # Voices the Mining cursor as it moves: grid position and, when it changes, the tool. The board width is
+    # asked for under both spellings that ship -- some games declare BOARD_WIDTH, others BOARDWIDTH -- so
+    # asking for one alone fell silently through to the hand-written 13 on the rest. It happens to be 13
+    # everywhere today, which is exactly why nobody noticed: the first game to widen its board would have
+    # read a wrong grid.
     def self.mining_cursor(cursor)
       pos = cursor.instance_variable_get(:@position).to_i
       mode = cursor.instance_variable_get(:@mode).to_i
@@ -60,9 +64,6 @@ module PokeAccess
       prev = cursor.instance_variable_get(:@pa_mine)
       return if sig == prev
       cursor.instance_variable_set(:@pa_mine, sig)
-      # Both spellings ship: some games declare BOARD_WIDTH and others BOARDWIDTH, so asking for one alone
-      # silently fell through to the hand-written 13 on the rest. It happens to be 13 everywhere today, which
-      # is exactly why nobody noticed -- the first game to widen its board would have read a wrong grid.
       w = (PokeAccess.const_at("MiningGameScene::BOARD_WIDTH") ||
            PokeAccess.const_at("MiningGameScene::BOARDWIDTH") || 13).to_i
       parts = [PokeAccess::I18n.t(:mg_rowcol, :row => pos / w + 1, :col => pos % w + 1)]
@@ -72,14 +73,20 @@ module PokeAccess
       nil
     end
 
-    # Voices the result of a Mining hit: any newly unearthed item, else nothing (digging stays quiet).
+    # Voices the result of a Mining hit: every newly unearthed item, else nothing (digging stays quiet).
+    #
+    # TODOS los nuevos, no solo el ultimo. Un martillazo puede descubrir dos piezas de golpe -- las dos se
+    # revelan en el mismo frame -- y nombrar won.last dejaba la otra sin decir: en una pantalla que existe
+    # para saber que has sacado, eso es un objeto que el jugador no sabe que tiene.
     def self.mining_hit(scene)
       won = scene.instance_variable_get(:@itemswon) || []
       prev = scene.instance_variable_get(:@pa_mine_won).to_i
       return unless won.length > prev
       scene.instance_variable_set(:@pa_mine_won, won.length)
-      name = PokeAccess::Data.item_name(won.last)
-      PokeAccess.speak(PokeAccess::I18n.t(:mg_found, :name => name), false) if name && !name.to_s.empty?
+      names = won[prev..-1].to_a.map { |it| PokeAccess::Data.item_name(it) }
+      names = names.compact.reject { |n| n.to_s.empty? }
+      return if names.empty?
+      PokeAccess.speak(names.map { |n| PokeAccess::I18n.t(:mg_found, :name => n) }.join(". "), false)
     rescue StandardError
       nil
     end
@@ -96,10 +103,14 @@ module PokeAccess
 
     # Voices the wager as coins are inserted (@wager, 0..3, one row of paylines each). Deduped so the number
     # is spoken once per change, not every frame of the awaiting-coins loop.
+    #
+    # El cero se traga la clave en vez de saltarse el dedup. Entre tirada y tirada @wager vuelve a 0, y si
+    # ese paso no se registra la ranura conserva la apuesta anterior: repetir la misma apuesta en la ronda
+    # siguiente -- que es lo que hace cualquiera -- se lee como "sin cambio" y entra muda.
     def self.slot_wager(scene)
       w = scene.instance_variable_get(:@wager).to_i
-      return if w <= 0
       return unless PokeAccess::Cursor.changed?(scene, :slot_wager, w)
+      return if w <= 0
       PokeAccess.speak(PokeAccess::I18n.t(:mg_slot_wager, :n => w), true)
     rescue StandardError
       nil
@@ -138,16 +149,18 @@ module PokeAccess
     # one coin at a time into the credit, so every win, in all thirteen games, was announced as a loss. Only
     # pbPayout adds to the credit (the wager is deducted elsewhere), so the difference IS the prize, whether
     # the player let the count run or skipped it.
+    # Premio y repeticion NO son excluyentes: una combinacion puede pagar monedas y regalar la tirada a la
+    # vez, y contarlos con un elsif hacia perder el premio detras del aviso de repeticion. "Has perdido" solo
+    # cuando no hay ninguna de las dos cosas.
     def self.slot_payout(scene, before)
       after = slot_credit(scene)
       won = (before && after) ? (after.to_i - before.to_i) : 0
-      if scene.instance_variable_get(:@replay)
-        PokeAccess.speak(PokeAccess::I18n.t(:mg_slot_replay_win), false)
-      elsif won > 0
-        PokeAccess.speak(PokeAccess::I18n.t(:mg_slot_won, :n => won), false)
-      else
-        PokeAccess.speak(PokeAccess::I18n.t(:mg_slot_lost), false)
-      end
+      replay = scene.instance_variable_get(:@replay) ? true : false
+      parts = []
+      parts.push(PokeAccess::I18n.t(:mg_slot_won, :n => won)) if won > 0
+      parts.push(PokeAccess::I18n.t(:mg_slot_replay_win)) if replay
+      parts.push(PokeAccess::I18n.t(:mg_slot_lost)) if parts.empty?
+      PokeAccess.speak(parts.join(". "), false)
     rescue StandardError
       nil
     end
@@ -198,28 +211,32 @@ module PokeAccess
     end
 
     # Voices the Tile Puzzle each frame: the win the moment the board is solved, else the cursor cell whenever
-    # it moves. Deduped by [pos, solved] so a held cursor stays quiet.
+    # it changes.
+    #
+    # La firma lleva el TEXTO de la celda, no solo la posicion. Coger una pieza y girarla son las dos acciones
+    # del puzle y ninguna mueve el cursor: sobre [pos, solved] la celda queda igual y las dos entran mudas,
+    # asi que el jugador gira a ciegas sin saber en que angulo esta.
     def self.tile_puzzle(scene)
       cur = (scene.instance_variable_get(:@sprites)["cursor"] rescue nil)
       return unless cur
       pos = cur.position.to_i
       solved = (scene.pbCheckWin rescue false)
-      sig = [pos, solved]
+      text = solved ? PokeAccess::I18n.t(:tp_solved) : tp_cell(scene, pos)
+      sig = [pos, solved, text]
       prev = scene.instance_variable_get(:@pa_tp)
       return if sig == prev
       scene.instance_variable_set(:@pa_tp, sig)
-      if solved
-        PokeAccess.speak(PokeAccess::I18n.t(:tp_solved), true)
-      else
-        PokeAccess.speak(tp_cell(scene, pos), true)
-      end
+      PokeAccess.speak(text, true)
     rescue StandardError
       nil
     end
   end
 end
 
-PokeAccess::Hooks.after_hook("VoltorbFlip", :getInput) { |scene, _result, _args| PokeAccess::Minigames.voltorb_flip(scene) }
+# hook_container: getInput abre la confirmacion de salir DENTRO de si mismo, asi que con la guarda de
+# reentrancia puesta el lector de mensajes cae como anidado y el si/no se queda sin leer -- se oye la
+# pregunta y despues nada, sin forma de saber que opcion esta marcada.
+PokeAccess::Hooks.after_hook("VoltorbFlip", :getInput, :hook_container => true) { |scene, _result, _args| PokeAccess::Minigames.voltorb_flip(scene) }
 PokeAccess::Hooks.after_hook("MiningGameCursor", :update) { |cursor, _result, _args| PokeAccess::Minigames.mining_cursor(cursor) }
 PokeAccess::Hooks.after_hook("MiningGameScene", :pbHit) { |scene, _result, _args| PokeAccess::Minigames.mining_hit(scene) }
 

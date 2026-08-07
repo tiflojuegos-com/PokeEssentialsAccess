@@ -9,40 +9,30 @@ module PokeAccess
     @active = []
     @suppressed = []
 
-    # Reentrancy guard. The game is single-threaded, so a module stack of the method names whose ORIGINAL is
-    # currently running is enough: an ATOMIC after_hook pushes around its original, and wrap's dispatcher skips
-    # a nested hooked call whose method name DIFFERS from the one on top. This stops an after-hook whose
-    # original synchronously calls a DIFFERENT hooked method (e.g. v22 set_party_index -> refresh) from letting
-    # the inner hook speak and consume the outer's dedup: the OUTER after-hook, running once the original
-    # returns, is the authoritative announcer. A nested call of the SAME method name is allowed through, so an
-    # overriding child that reaches its hooked parent via super still fires both hooks (the documented onion).
+    # Reentrancy guard: a stack of the method names whose ORIGINAL is running, which is enough because the
+    # game is single-threaded. An atomic after_hook pushes around its original and the dispatcher skips a
+    # nested hooked call with a DIFFERENT name, so an inner hook cannot speak and consume the outer's dedup
+    # before the outer -- the authoritative announcer -- runs. The SAME name passes, so a child reaching its
+    # hooked parent through super still fires both.
     #
-    # The guard is correct ONLY for atomic announcers (methods whose own body is the voice). Two kinds of hook
-    # must run their original UNGUARDED or they silence the very readers that do the talking:
-    #   - a CONTAINER (`hook_container: true`): a modal loop or scene opener that DELEGATES the announcement to
-    #     hooked methods it drives internally -- the battle command phase (pbShowCommands/pbCommandMenu drive
-    #     CommandMenuDisplay#index= and FightMenuDisplay#setIndex), scene openers (pbScene/pbStartScene/main
-    #     drive the pokedex drawPage, the summary drawPageOne, the party panel selected=, the map readers).
-    #   - a per-frame DRIVER (`frame_hook`): a method the engine calls every frame that CAN synchronously host
-    #     an entire nested modal loop. Game_Player#update is the case that forced this: in gen-6 stepping onto
-    #     grass launches the wild battle from INSIDE Game_Player#update (Scene_Map#update -> $game_player.update
-    #     -> encounter -> the whole battle loop), so guarding it pins :update on the stack for the entire fight
-    #     and every battle reader -- messages, command menu, moves -- is skipped as nested_other?. A trainer
-    #     battle runs from the map interpreter, not the player, so it was unaffected: the bug read as "wild
-    #     battles are silent, trainer battles read". frame_hook is the poller-shaped alias of hook_container.
-    # Default is atomic (guarded), so a hook that itself says nothing keeps the safe behaviour. before_hook
-    # bodies always run before the original (so they never compete for a dedup) and never guard their original.
+    # Correct only for an atomic announcer, one whose own body is the voice. Two kinds must run their
+    # original UNGUARDED or they silence the readers that do the talking:
+    #   - a CONTAINER (hook_container: true): a modal loop or scene opener that DELEGATES the announcement to
+    #     hooked methods it drives, such as the battle command phase or any pbScene/pbStartScene/main.
+    #   - a per-frame DRIVER (frame_hook): a method the engine calls every frame that can host a whole nested
+    #     modal loop. Game_Player#update is one: gen-6 runs an entire wild battle inside it, so guarding it
+    #     would pin :update for the fight and skip every battle reader as nested.
+    #
+    # Default is atomic, so a hook that says nothing keeps the safe behaviour. A before_hook body runs ahead
+    # of the original, never competes for a dedup, and never guards it.
     def self.nested_other?(meth)
       !@active.empty? && @active.last != meth
     end
 
-    # Records that the guard just dropped a hook, as "outer -> inner". Suppression is INVISIBLE by design --
-    # the reader simply does not speak -- so a hook wrongly registered on a container silences whatever it
-    # drives with no error, no log and no failing test; the only symptom is a screen that went quiet, which
-    # is exactly what a blind player cannot debug. The diagnostic reports this list, so one play session
-    # names every place it happens. Suppression is often CORRECT (the outer hook is the announcer), so this
-    # is evidence to read, not a fault: what matters is a pair here whose outer says nothing.
-    # Capped and deduped: it must never grow with playtime.
+    # Records a dropped hook as "outer -> inner", for the diagnostic. Suppression is invisible by design, so
+    # a hook wrongly registered on a container silences what it drives with no error and no failing test.
+    # Often it is CORRECT, so the list is evidence and not a fault: what matters is a pair whose outer says
+    # nothing. Capped and deduped, so it cannot grow with playtime.
     def self.note_suppressed(inner)
       outer = @active.last
       pair = "#{outer}>#{inner}"
@@ -53,10 +43,9 @@ module PokeAccess
     # The outer>inner pairs the guard has dropped this session (see note_suppressed).
     def self.suppressed; @suppressed; end
 
-    # The class whose hooked method ran most recently. It is the only cheap answer to "which screen is the
-    # player on" that survives the case that matters: a screen running its own blocking loop is never
-    # assigned to $scene, so $scene still says Scene_Map while the player is deep inside a minigame. Set
-    # from the wrapper, which every hooked call goes through, and read by the silence watch.
+    # The class whose hooked method ran most recently: the only cheap answer to which screen the player is on
+    # that survives a screen with its own blocking loop, which never becomes $scene. Set from the wrapper,
+    # which every hooked call goes through, and read by the silence watch.
     def self.note_screen(cname); @screen = cname; end
     def self.screen; @screen; end
 
@@ -75,15 +64,12 @@ module PokeAccess
     # absent class is normal cross-game variance and is NOT recorded). Boot writes this to a marker.
     def self.missing; @missing; end
 
-    # Registers a middleware around an instance method, chaining with any others already on it. The
-    # saved-original alias is named per class and the guard checks methods defined ON the class only,
-    # so hooking a parent then a child that overrides the same method does not bypass the child's logic.
-    # Yields (instance, call_next, args); call call_next to run the rest of the chain.
-    # opts[:optional] declares the METHOD legitimately absent on some games (a plugin variant, a fork's
-    # rename): the bind is skipped silently instead of landing in @missing -- which thereby keeps its
-    # exact meaning of "this method SHOULD exist here and does not" (a likely typo). Before this flag the
-    # repo had four local reimplementations of the same skip (Engine.has? gates, method_defined? loops,
-    # a helper in battle_v22); an absent CLASS was always silent and stays so.
+    # Registers a middleware around an instance method, chaining with any others already on it. Yields
+    # (instance, call_next, args); call call_next to run the rest of the chain. The saved-original alias is
+    # named per class and only methods defined ON the class count, so hooking a parent and then a child that
+    # overrides the same method does not bypass the child.
+    # param opts :optional declares the METHOD legitimately absent on some games, so the bind is skipped
+    #   instead of landing in @missing, which keeps that list meaning "should exist here and does not"
     def self.wrap(cname, meth, opts = {}, &mw)
       k = PokeAccess.const_at(cname)
       return if k.nil?
@@ -119,10 +105,8 @@ module PokeAccess
       PokeAccess.write_marker("wrap #{cname}##{meth}: #{e.message}\n")
     end
 
-    # Logs the FIRST swallowed body failure per key to the marker -- a method renamed inside a body
-    # (otherwise permanent, undiagnosable silence on that game) becomes visible. Deduped, so a per-frame
-    # body that throws every frame writes one line, not thousands. Shared by run_body (swallow) and the
-    # around paths (log then re-raise).
+    # Logs the FIRST swallowed body failure per key to the marker, so a method renamed inside a body becomes
+    # visible instead of permanent silence. Deduped: a per-frame body that throws every frame writes one line.
     def self.log_body_failure(key, e)
       return if @body_logged.include?(key)
       @body_logged << key
@@ -145,21 +129,19 @@ module PokeAccess
       "#{cname}##{meth}@#{@reg_seq}"
     end
 
-    # Runs body before the original (to speak before it blocks). Yields (instance, args). The original runs
-    # UNGUARDED so a modal loop or scene opener it wraps (pbScene, pbStartScene, main) can still drive its
-    # nested announcing hooks; the body already spoke before the original, so nothing it owns is at risk.
-    # opts[:optional] as in wrap.
+    # Runs body before the original, so it can speak before the original blocks. Yields (instance, args).
+    # The original runs UNGUARDED: the body already spoke, so nothing it owns is at risk, and a modal loop
+    # it wraps can still drive its own announcing hooks. opts as in wrap.
     def self.before_hook(cname, meth, opts = {}, &body)
       key = next_key(cname, meth)
       wrap(cname, meth, opts) { |inst, nxt, args| run_body(key) { body.call(inst, args) }; nxt.call }
     end
 
-    # Runs body after the original, passing its result. Yields (instance, result, args). By default the
-    # original runs under the reentrancy guard, so a DIFFERENT hooked method it calls internally is not
-    # re-announced and cannot consume this hook's dedup before the body speaks. Pass hook_container: true when
-    # the method is a modal loop or scene opener that DELEGATES the announcement to hooked methods it drives
-    # internally (see nested_other?): the original then runs UNGUARDED so those nested readers still speak.
-    # opts[:optional] as in wrap (a legitimately absent method binds nothing and logs nothing).
+    # Runs body after the original, passing its result. Yields (instance, result, args). The original runs
+    # under the reentrancy guard by default, so a different hooked method it calls cannot consume this
+    # hook's dedup first.
+    # param opts :hook_container when the method DELEGATES the announcement to hooks it drives (see
+    #   nested_other?), which then runs the original unguarded; :optional as in wrap
     def self.after_hook(cname, meth, opts = {}, &body)
       key = next_key(cname, meth)
       container = opts[:hook_container]
@@ -170,23 +152,20 @@ module PokeAccess
       end
     end
 
-    # An after-hook for a per-frame DRIVER -- a method the engine calls every frame that can synchronously host
-    # a whole nested modal loop (Game_Player#update, which in gen-6 runs an entire wild battle inside itself).
-    # Runs the original UNGUARDED (like hook_container) so readers driven inside that nested loop still speak,
-    # and runs the body AFTER so a poller reading the post-update frame state (the player's new tile for the
-    # spatial audio) has no lag. Semantically a poller, not an announcing container, so it gets its own name.
-    # Yields (instance, args); a per-frame poller has no use for the original's return value. 1.8.7-safe.
+    # An after-hook for a per-frame DRIVER: a method the engine calls every frame that can host a whole
+    # nested modal loop. Runs the original unguarded, like hook_container, and the body after, so a poller
+    # reading post-update state has no lag. A poller and not an announcing container, hence its own name.
+    # Yields (instance, args): a poller has no use for the return value.
     def self.frame_hook(cname, meth, &body)
       after_hook(cname, meth, :hook_container => true) { |inst, _r, args| body.call(inst, args) }
     end
 
-    # Speaks a screen's opening summary: hooks the scene's opener (meth, default :pbStartScene) and speaks
-    # the block's text QUEUED -- an opening read must never interrupt, so it cannot cut the transition
-    # click or a line already being spoken; only navigation readers interrupt. The block yields the scene
-    # and returns the text (nil/empty stays silent); it is cleaned before speaking. By default the text is
-    # read AFTER the opener (the panel is drawn); pass :timing => :before for openers that BLOCK in their
-    # own loop (e.g. a card screen paging inside its opener), where an after-hook would only speak on close. Other opts (:optional,
-    # :hook_container) pass through to the underlying hook.
+    # Speaks a screen's opening summary, QUEUED: an opening read must never cut the transition click or a
+    # line already playing, and only navigation readers interrupt. The block yields the scene and returns
+    # the text, cleaned before speaking; nil or empty stays silent.
+    # param meth the scene's opener, :pbStartScene by default
+    # param opts :timing => :before for an opener that BLOCKS in its own loop, where an after-hook would
+    #   only speak on close; :optional and :hook_container pass through
     def self.read_on_open(cname, meth = :pbStartScene, opts = {}, &blk)
       if opts[:timing] == :before
         before_hook(cname, meth, opts) do |scene, _args|
@@ -201,11 +180,10 @@ module PokeAccess
       end
     end
 
-    # Wraps a method with full control of the call. Yields (instance, call_next, args); returns the result.
-    # call_next replays the chain with the caller's ORIGINAL arguments (it takes none); to change what the
-    # original receives, mutate the args array in place before calling call_next. The body keeps control of
-    # call_next, so it is NOT swallowed; its first failure is logged then re-raised (preserving around's
-    # semantics -- it may legitimately choose not to run the original). opts[:optional] as in wrap.
+    # Wraps a method with full control of the call. Yields (instance, call_next, args) and returns the
+    # result. call_next takes no arguments and replays the chain with the caller's own; mutate the args array
+    # in place to change what the original receives. The body is NOT swallowed -- its first failure is logged
+    # and re-raised -- because it may legitimately choose not to run the original. opts as in wrap.
     def self.around_hook(cname, meth, opts = {}, &body)
       key = next_key(cname, meth)
       wrap(cname, meth, opts) do |inst, nxt, args|
@@ -223,16 +201,15 @@ module PokeAccess
     # gap that once let a profile's silent module-reopen shadow a core reader unnoticed.
     def self.overrides; @overrides ||= []; end
 
-    # REPLACES a method, declaring the intent (unlike a silent module reopen): the target is either a mod
-    # module whose singleton method a profile wants to substitute (MoveRelearnerGen6.detail) or a game
-    # class name whose instance method must be replaced. The body receives (receiver, original, args) --
-    # receiver is the module or instance, original a lambda running the replaced implementation (call it
-    # to wrap instead of substitute; around semantics, so failures are logged and re-raised, never
-    # swallowed). Each installation is recorded in overrides and listed by the diag. A second override on
-    # the same method receives the FIRST override as its original (last one wins, both stay listed).
-    # opts[:tag] names the owner in the listing (the DSL passes the profile); opts[:optional] as in wrap.
-    # A name every class answers on its singleton (:name, :to_s, inherited from Module) only counts as a
-    # singleton method when the target defines it itself; otherwise the instance method is what is meant.
+    # REPLACES a method, declaring the intent where a module reopen would be silent. The target is either a
+    # mod module whose singleton method a profile substitutes, or a game class whose instance method it
+    # replaces. Yields (receiver, original, args), original being a lambda that runs the replaced
+    # implementation: call it to wrap instead of substitute. Around semantics, so failures are re-raised.
+    # Every installation is listed by the diag, and a second override receives the first as its original.
+    # param opts :tag names the owner in that listing; :optional as in wrap
+    #
+    # A name every class answers on its singleton (:name, :to_s) counts as a singleton method only when the
+    # target defines it itself; otherwise the instance method is meant.
     def self.override(target, meth, opts = {}, &body)
       mod = target.is_a?(Module) ? target : PokeAccess.const_at(target)
       label = target.is_a?(Module) ? target.name.to_s : target.to_s
@@ -270,10 +247,9 @@ module PokeAccess
       PokeAccess.write_marker("override #{label}##{meth}: #{e.message}\n")
     end
 
-    # Global/kernel functions a wrap looked for and found NOWHERE (neither Kernel singleton nor Object).
-    # Informative, NOT the typo list: a kernel function absent on a game is usually legitimate variance
-    # (pbDisplayText exists only on a few fangames), so it must not read as a fault -- but a typo'd
-    # function name used to be invisible forever, and this line in the diag is where it shows up.
+    # Global/kernel functions a wrap found NOWHERE, neither on Kernel's singleton nor on Object. Informative
+    # and not the typo list: an absent kernel function is usually legitimate variance between games, but a
+    # typo in a function name has nowhere else to show up.
     def self.fn_absent; @fn_absent ||= []; end
 
     # Records a function name every wrapper declined to bind (see fn_absent).
@@ -281,12 +257,9 @@ module PokeAccess
       fn_absent << name.to_s unless fn_absent.include?(name.to_s)
     end
 
-    # The bodies hooked onto each wrapped function, keyed "name|timing". They live here rather than being
-    # closed over by the wrapper because the wrapper is installed ONCE per function: the installer used to
-    # return early when the alias already existed, so a second hook on the same function vanished -- no
-    # binding, no entry in missing, nothing in the diagnostic. Two readers wanting the same function is not
-    # exotic (a pause menu and a glossary both want pbFadeOutIn), and it only worked so far because the
-    # colliding pairs happened to sit in profiles that never load together.
+    # The bodies hooked onto each wrapped function, keyed "name|timing". Held here rather than closed over
+    # by the wrapper, because the wrapper is installed ONCE per function and two readers wanting the same
+    # one is ordinary -- a pause menu and a glossary both want pbFadeOutIn.
     def self.fn_bodies; @fn_bodies ||= {}; end
 
     def self.add_fn_body(name, timing, body)
@@ -303,28 +276,34 @@ module PokeAccess
       end
     end
 
-    # The one installer behind wrap_global and wrap_kernel: defines the wrapper for sym on receiver (Object,
-    # or Kernel's singleton class), delegating to the ali alias. :before and :after bodies chain, each
-    # swallowed and logged once (a reader bug must not crash the game's function); :around gets
-    # (args, call_next), keeps control of the call and is NOT swallowed -- its first failure is logged then
-    # re-raised, the same contract as around_hook (it may legitimately choose not to run the original).
-    # Only the FIRST :around runs: nesting two of them would need one to know about the other, and nothing
-    # in the mod wants that. 1.8.7-safe.
+    # The one installer behind wrap_global and wrap_kernel: defines the wrapper for sym on receiver and
+    # delegates to the ali alias. :before and :after bodies chain, each swallowed and logged once, because a
+    # reader bug must not crash the game's function. :around gets (args, call_next), keeps control and is
+    # NOT swallowed, the same contract as around_hook. Only the FIRST :around runs.
+    #
+    # The :after bodies sit in an ensure because these functions are given BLOCKS, and a `return` inside the
+    # caller's block unwinds straight through this wrapper. Menus written as `pbFadeOutIn { ...; return }`
+    # are that shape. An exception is not the same case: $! is set only while one propagates, and there the
+    # bodies stay out of the way.
     def self.define_fn_wrapper(receiver, sym, ali, tag, name)
       receiver.send(:define_method, sym) do |*args, &blk|
         PokeAccess::Hooks.run_fn_bodies(name, :before, tag, args, nil)
-        around = PokeAccess::Hooks.fn_bodies["#{name}|around"]
-        if around && !around.empty?
-          begin
-            r = around[0].call(args, lambda { send(ali, *args, &blk) })
-          rescue StandardError => e
-            PokeAccess::Hooks.log_body_failure("fn #{tag}", e)
-            raise e
+        r = nil
+        begin
+          around = PokeAccess::Hooks.fn_bodies["#{name}|around"]
+          if around && !around.empty?
+            begin
+              r = around[0].call(args, lambda { send(ali, *args, &blk) })
+            rescue StandardError => e
+              PokeAccess::Hooks.log_body_failure("fn #{tag}", e)
+              raise e
+            end
+          else
+            r = send(ali, *args, &blk)
           end
-        else
-          r = send(ali, *args, &blk)
+        ensure
+          PokeAccess::Hooks.run_fn_bodies(name, :after, tag, args, r) if $!.nil?
         end
-        PokeAccess::Hooks.run_fn_bodies(name, :after, tag, args, r)
         r
       end
     end
@@ -348,10 +327,9 @@ module PokeAccess
       PokeAccess.write_marker("#{tag}: #{e.message}\n")
     end
 
-    # Wraps a function that may be defined either as a Kernel singleton (def Kernel.foo, the gen-6 style) or
-    # as a top-level Object method (def foo, the modern style) -- pbShowCommandsWithHelp is one such, varying
-    # by game. Tries the Kernel singleton first, else falls back to wrap_global for the Object form (which
-    # records a nowhere-defined name in fn_absent). Same timing modes as wrap_global. 1.8.7-safe.
+    # Wraps a function defined either as a Kernel singleton (the gen-6 style) or as a top-level Object method
+    # (the modern one), which varies by game for the same name. Tries the singleton first and falls back to
+    # wrap_global. Same timing modes as wrap_global.
     def self.wrap_kernel(name, tag, timing = :before, &body)
       sym = name.to_sym
       if Kernel.respond_to?(sym)

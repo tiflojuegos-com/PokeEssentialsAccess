@@ -15,6 +15,56 @@ module ReaderSites
   ROOT = File.expand_path(File.join(File.dirname(__FILE__), "..", ".."))
   LAYERS = ["core", "games", "plugins"]
 
+  # The innermost class or module a line sits in, tracked across one file.
+  #
+  # A single "last class seen" variable, which both censuses used, never recovers from a NESTED class: from
+  # the first inner class to the end of the file, every def is filed under it. Over the thirteen dumps that
+  # is 2938 of 101348 defs, 2.9%, attributed to the wrong owner -- and it is how PokemonEntryScene2#pbUpdate
+  # came to read NO-DUMP while seven games define it (africanvs 0055_TextEntry.rb opens the class at 1089,
+  # nests NameEntryCursor at 1103, and puts pbUpdate at 1380).
+  #
+  # Nothing here closes a class on `end`, and that is deliberate. Matching the class's own indent looks
+  # right and is wrong on these dumps: RPG Maker's editor happily holds a class whose whole body sits at
+  # column 0, so the first method's `end` closes the class and every later method drops to file scope.
+  # Tried it -- Glosario_Historia, EquipScreen, WonderCardAlbumScene and Mankey all went missing at once.
+  #
+  # What replaces it: a class only ever displaces one at the same or deeper indent (so siblings replace each
+  # other and never pile up), and a def picks the innermost open class indented LESS than the def itself,
+  # falling back to the innermost of all when none is. That answers both layouts from the same stack --
+  # nested classes by the strict rule, flat bodies by the fallback -- and cannot lose a class it has seen.
+  class ClassStack
+    def initialize
+      @stack = []
+    end
+
+    # Feeds one line and answers the innermost open class/module name, or nil at file scope.
+    def feed(line)
+      if line =~ /^(\s*)(?:class|module)\s+([A-Z][A-Za-z0-9_:]*)/
+        ind = $1.length
+        @stack.pop while !@stack.empty? && @stack.last[0] >= ind
+        @stack.push([ind, $2.split("::").last])
+      end
+      current
+    end
+
+    # The innermost open class/module name, or nil.
+    def current
+      @stack.empty? ? nil : @stack.last[1]
+    end
+
+    # The indent of the innermost open class/module, or nil.
+    def indent
+      @stack.empty? ? nil : @stack.last[0]
+    end
+
+    # The class a def at this indent belongs to: the innermost one indented less than the def, else the
+    # innermost of all (a class whose body is not indented at all).
+    def owner_at(def_indent)
+      hit = @stack.reverse.find { |ind, _n| ind < def_indent }
+      hit ? hit[1] : current
+    end
+  end
+
   # A dump folder is named after the game; a few do not match the profile that reads them.
   PROFILE_OF = { "africanvs" => "africanus", "z218" => "pokemon_z" }
 

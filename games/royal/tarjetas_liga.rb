@@ -12,7 +12,10 @@ PokeAccess::Game.define("royal") do
     i = PokeAccess.ivar(scn, :@tarjeta_elegida)
     next unless PokeAccess::Cursor.changed?(scn, :tl, i)
     unless (tarjeta_desbloqueada?(i) rescue true)
-      next PokeAccess.speak("Tarjeta bloqueada", true)
+      # Y se suelta lo que la tecla de info tuviera guardado: sin esto contesta con el lore de la carta
+      # anterior atribuido a esta, que es la unica pantalla donde el jugador no puede notarlo.
+      PokeAccess::Info.clear_text
+      next PokeAccess.speak(PokeAccess::I18n.t(:rl_card_locked), true)
     end
     card = (TarjetasLiga.tarjetas[i] rescue nil)
     next unless card.is_a?(Array)

@@ -3,8 +3,8 @@ module PokeAccess
   # species is registered. Name/category/description come from the engine's data provider.
   module Pokedex
     # Formats a tenth-units integer (decimetres/hectograms) as one decimal, with the separator the active
-    # language declares (lang key decimal_sep: comma in Spanish, point in English) -- previously v21/v22
-    # forced a comma and gen-6 a point, regardless of language. Shared by every dex height/weight reader.
+    # language declares (lang key decimal_sep: comma in Spanish, point in English) rather than one fixed per
+    # engine. Shared by every dex height/weight reader.
     def self.fmt_dec(v)
       fmt_float(v / 10.0)
     rescue StandardError
@@ -21,8 +21,15 @@ module PokeAccess
 
     # Builds the spoken pokedex entry for a species (name, category, description), via PokeAccess::Data
     # so it reads on either engine.
+    #
+    # A Pokemon is accepted as well as a species id, because one game hands over the Pokemon:
+    # infinitefusion_hoenn calls pbShowPokedex(pkmn) from 001_PokeBattle_BattleCommon and unwraps it inside
+    # the screen, while the other twelve pass an id. Fed a Pokemon,
+    # GameData::Species.get raises, this rescued to nil, and the dex page shown on a new capture was silent
+    # in that game alone. Unwrapped here rather than at each hook so every caller gets it.
     def self.entry_text(species)
       return nil unless species
+      species = species.species if species.respond_to?(:species)
       parts = PokeAccess::Data.species_entry(species)
       return nil unless parts
       name, kind, desc = parts

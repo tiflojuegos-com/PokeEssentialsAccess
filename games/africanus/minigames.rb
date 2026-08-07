@@ -75,21 +75,27 @@ module PokeAccess
       nil
     end
 
-    # Spoken after each arrow: how many are shot and the running total.
+    # Spoken once per arrow: how many are shot and the running total.
+    #
+    # Deduped on the arrow count alone. The score is added to the total THIRTY frames before the count goes
+    # up, and those frames pump input, so a key that included the total fired twice per arrow -- the first
+    # time with the previous arrow's number beside the new total, a pair that never existed.
     def self.archer_score(scene)
       n = PokeAccess.ivar(scene, :@arrowCount)
-      pts = PokeAccess.ivar(scene, :@sumPoints)
-      sig = [n, pts]
-      return if PokeAccess.ivar(scene, :@pa_arch_score) == sig
-      scene.instance_variable_set(:@pa_arch_score, sig)
       return if n.nil? || n.to_i <= 0
-      PokeAccess.speak(PokeAccess::I18n.t(:afr_archer, :n => n.to_i, :pts => pts.to_i), false)
+      PokeAccess::Cursor.announce(scene, :afr_archer, n.to_i, false) do
+        PokeAccess::I18n.t(:afr_archer, :n => n.to_i, :pts => PokeAccess.ivar(scene, :@sumPoints).to_i)
+      end
     rescue StandardError
       nil
     end
 
     # Truth tables: a 2-column grid whose cursor is a LOCAL variable, so the focus is read back from the
     # selector sprite's position -- the game places it at x = 16 + col*246, y = 24 + row*44.
+    #
+    # Named with the scene's own @pictures_prefix. There are two shelves of sixteen, and the game tells them
+    # apart by that word alone ("tabla" against "tablo"), so numbering them without it makes the second one
+    # indistinguishable by ear.
     def self.tables(scene)
       sel = PokeAccess.ivar(scene, :@selector)
       return unless sel && (sel.visible rescue false)
@@ -99,7 +105,8 @@ module PokeAccess
       return if idx < 0
       PokeAccess::Cursor.announce(scene, :afr_tables, idx, true) do
         open = (scene.can_access_table?(idx) rescue true)
-        PokeAccess::I18n.t(open ? :afr_table : :afr_table_locked, :n => idx + 1)
+        pre = (PokeAccess.ivar(scene, :@pictures_prefix).to_s.capitalize rescue "")
+        PokeAccess::I18n.t(open ? :afr_table : :afr_table_locked, :n => idx + 1, :p => pre)
       end
     rescue StandardError
       nil

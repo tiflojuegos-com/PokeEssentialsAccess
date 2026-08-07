@@ -62,7 +62,27 @@ Suite.define("static: no after hook is bound to a method that blocks until the p
   # Two ceilings on what the check cannot see. Neither is a bug on its own; both are ways for a real one to
   # hide, so they are held to a number instead of being left to drift. Raise a ceiling only after looking at
   # what the new entry is -- for a v22 class, adding the vanilla tree to the census is the real answer.
+  #
+  # The no-dump ceiling was 30 against 5 real, which is not a ratchet, it is a rubber band. It also turned
+  # out that 5 was itself wrong: the generator filed a def under the last class NAME it had seen, so a
+  # nested class stole the rest of its file, a top-level def belonged to nobody, an attr_accessor pair was
+  # invisible and an inherited method was never looked for. Fixing all four left THREE rows, and every one
+  # of them is a real answer -- two hooks whose method no surveyed game puts on that class (correctly gated
+  # behind Engine.has?, for a hybrid shape none of the thirteen has yet) and one alias the fork never
+  # defined. The ceiling now sits just above that, so the next unverifiable hook has to be looked at.
   unresolved = ReaderSites.unresolved_after_sites.values.flatten.length
   truthy "no new after hook with a computed class or method (was #{unresolved}, ceiling 40)", unresolved <= 40
-  truthy "no new after hook that no dump can corroborate (was #{no_dump.length}, ceiling 30)", no_dump.length <= 30
+  # By NAME, not by count. A ceiling with slack is a hole the width of the slack: a typo'd class produces a
+  # NO-DUMP row, and regenerating the census -- which the failure message above tells you to do -- moved it
+  # into a free slot and the suite went green again. Naming the three means a fourth has to be justified
+  # here, in writing, before it can pass.
+  #
+  # The three: setIndexAndMode is defined only on Battle::Scene::MenuBase, never on the two Display classes
+  # the gen-6 games use (that hook is gated behind Engine.has? and installs nowhere; it is defensive code
+  # for a hybrid shape none of the thirteen has), and royal's Puntos scene defines pbChangeSelection but not
+  # updateDescription, which is why both names are bound :optional.
+  KNOWN_NO_DUMP = ["CommandMenuDisplay#setIndexAndMode",
+                   "FightMenuDisplay#setIndexAndMode",
+                   "PokemonOptionPuntos_Scene#updateDescription"]
+  eq "no new after hook that no dump can corroborate", no_dump.sort, KNOWN_NO_DUMP.sort
 end

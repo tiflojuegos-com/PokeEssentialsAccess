@@ -33,14 +33,11 @@ module PokeAccess
       ($game_player.passable?(cx, cy, d) rescue false)
     end
 
-    # Drops the memoised passability and reachable-set caches so the next route is recomputed against the
-    # current map state. Called after a map event finishes (a switch flip or moved event may have changed
-    # what is passable), which is what otherwise let route_cache route into a tile that just opened/closed.
-    # Throttled: a cutscene fires many event-ends in a row and each cold re-flood is costly (worse on games
-    # whose passable? is slow, e.g. a follower plugin), so clear at most once every couple of seconds. Pass
-    # force: true from callers that KNOW passability changed (a door event) and must bypass the throttle.
-    # Also drops the HPA* abstract graph, which otherwise stays stale (routing through a wall that just
-    # opened/closed) until the map or vehicle state changes.
+    # Drops the memoised passability and reachable-set caches, and the HPA* abstract graph with them, so the
+    # next route is computed against current map state. Called when a map event finishes, since a switch
+    # flip or a moved event may have changed what is passable. Throttled to once every couple of seconds: a
+    # cutscene fires many event-ends in a row and a cold re-flood is costly, more so on a game whose
+    # passable? is slow. param force bypasses the throttle, for a caller that KNOWS a door just opened
     def self.invalidate_cache(force = false)
       now = (PokeAccess.clock rescue 0)
       return if !force && @last_invalidate && (now - @last_invalidate) < 2.0
@@ -64,13 +61,11 @@ module PokeAccess
     BUDGET_CHECK = 256
 
     # The deadline (a clock value) every search in the CURRENT operation shares, or nil when the auto/time
-    # mode is off (then the search bounds itself by node count, astar_max, as before).
+    # mode is off, which bounds the search by node count (astar_max) instead.
     #
-    # It has to be shared, and it was not. One find_path runs up to three searches -- the reachability
-    # probe, then the plain route, then the route allowing ledges -- and each started its own clock, so the
-    # budget the player set was really spent three times over. Worse than the arithmetic: running out on the
-    # first pass makes it return nil, and returning nil is exactly what FIRES the next pass. The mechanism
-    # meant to cut the work was adding it, in the one mode whose whole promise is a guaranteed frame.
+    # Shared, because one find_path runs up to three searches -- the reachability probe, the plain route,
+    # then the route allowing ledges -- and a clock per search would spend the player's budget three times
+    # over. Running out on the first pass returns nil, and nil is exactly what fires the next pass.
     def self.search_deadline
       return @budget_until if @budget_until
       fresh_deadline
@@ -319,14 +314,13 @@ module PokeAccess
       path
     end
 
-    # Resolves a step from (cx,cy) in a direction to the neighbour the search may enter, or nil when
-    # blocked. A ledge tile is never a standable node: crossing it is only ever the two-tile hop (the
-    # landing), gated by allow_ledge, so it is caught before the passability test -- the real engines
-    # (v21/v22 and the gen-6 games) make the ledge PASSABLE from the high side and decide the jump inside
-    # the "can move" branch, so a plain passability check would otherwise walk into the ledge as a dead end.
-    # Then a normal passable step (ice tiles ride their slide), else (edge_relax) a passable border tile,
-    # else the ledge hop for any engine whose ledge reads impassable (the older model). Both ledge paths go
-    # through ledge_jump, so both honour ledge_dir_ok? and either state of the ledge_directions setting.
+    # Resolves a step from (cx,cy) in a direction to the neighbour the search may enter, or nil when blocked.
+    # A ledge tile is never a standable node -- crossing it is only ever the two-tile hop, gated by
+    # allow_ledge -- so it is caught before the passability test: v21/v22 and the gen-6 games make a ledge
+    # PASSABLE from the high side and decide the jump inside their own "can move" branch, where a plain
+    # passability check would walk into it as a dead end. Then a normal passable step (ice tiles ride their
+    # slide), else (edge_relax) a passable border tile, else the ledge hop for an engine whose ledge reads
+    # impassable. Both ledge paths go through ledge_jump, so both honour the ledge_directions setting.
     def self.step_target(cx, cy, dir, allow_ledge, edge_relax)
       dx, dy, d = dir
       nx = cx + dx; ny = cy + dy
@@ -415,8 +409,11 @@ module PokeAccess
 
     # Jump point search: an A* whose successors are "jump points" (the next turning/goal tile in a
     # direction), so long straight corridors cost one expansion. Optimal on a uniform 4-connected grid;
-    # ice/slide tiles break that, so it sets @jps_fallback and the caller drops to plain A*. Ledges are
-    # impassable here (the ledge A* pass handles them). Returns the route, nil (out of reach), or :fallback.
+    # ice/slide tiles break that, so it sets @jps_fallback and the caller drops to plain A*. Un desnivel hace
+    # lo mismo y por la misma razon: el motor lo deja PASABLE desde el lado alto y el paso real cubre dos
+    # casillas, asi que en la rejilla uniforme de JPS se cruza como suelo llano -- el baston guia lleva al
+    # jugador ciego por un salto de un solo sentido sin avisar y el contador de pasos miente. Sale por
+    # :fallback al A* de siempre, que si sabe saltarlo. Returns the route, nil (out of reach), or :fallback.
     def self.jps_search(tx, ty)
       px = $game_player.x; py = $game_player.y
       return nil if (px - tx).abs + (py - ty).abs > reach
@@ -470,7 +467,8 @@ module PokeAccess
         end
         return nil unless passable_at?(x, y, d)
         nx = x + dx; ny = y + dy
-        if (PokeAccess::Terrain.ice_at?(nx, ny) rescue false) || slide_index[pkey(nx, ny)]
+        if (PokeAccess::Terrain.ice_at?(nx, ny) rescue false) || slide_index[pkey(nx, ny)] ||
+           (PokeAccess::Terrain.ledge_at?(nx, ny) rescue false)
           @jps_fallback = true; return nil
         end
         return [nx, ny] if target_reached?(nx, ny, @jps_tx, @jps_ty)
@@ -506,6 +504,9 @@ module PokeAccess
     # Bounded low-level A* between two EXACT tiles, within an optional [x0,y0,x1,y1] box and node cap;
     # returns [step-directions, cost] or nil. Ice/slide tiles are treated as walls, so any path needing
     # them fails here and the caller reverts to plain A*. Weights abstract edges and refines abstract hops.
+    # El desnivel se descarta como casilla, igual que el hielo y los deslizadores: cruzarlo es un salto de
+    # dos casillas en un solo sentido y aqui contaria como un paso normal de ida y vuelta. Sin ruta local el
+    # salto abstracto no se refina, y hpa_search devuelve :fallback al A* de siempre, que si sabe saltarlo.
     def self.hpa_low(sx, sy, gx, gy, maxnodes, x0 = nil, y0 = nil, x1 = nil, y1 = nil)
       return [[], 0] if sx == gx && sy == gy
       heap = []; g = { pkey(sx, sy) => 0 }; came = {}; closed = {}; iter = 0
@@ -522,7 +523,8 @@ module PokeAccess
           next unless passable_at?(cx, cy, d)
           nx = cx + dx; ny = cy + dy
           next if x0 && (nx < x0 || ny < y0 || nx > x1 || ny > y1)
-          next if (PokeAccess::Terrain.ice_at?(nx, ny) rescue false) || slide_index[pkey(nx, ny)]
+          next if (PokeAccess::Terrain.ice_at?(nx, ny) rescue false) || slide_index[pkey(nx, ny)] ||
+                  (PokeAccess::Terrain.ledge_at?(nx, ny) rescue false)
           nk = pkey(nx, ny)
           next if closed[nk]
           ng = g[ck] + 1
@@ -755,6 +757,16 @@ module PokeAccess
       @rs
     rescue StandardError
       {}
+    end
+
+    # Whether the last flood ran to completion. A flood that hit the node cap or the frame budget covers
+    # only part of the map, so absence from it is not evidence of unreachability -- every consumer that
+    # would HIDE something has to ask this first.
+    def self.reachable_set_complete?
+      reachable_set
+      @rs_full ? true : false
+    rescue StandardError
+      false
     end
 
     # True if any tile orthogonally adjacent to (x,y) is surfable water (a shore tile).

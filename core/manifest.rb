@@ -50,6 +50,7 @@
   audio/audio3d
   field/contextual
   field/hud_text
+  field/field_states
   field/minigames
   puzzles/puzzles
   field/incubator
@@ -126,6 +127,7 @@
   party/gen6/summary_g6
   nav/region_map
   nav/town_map
+  nav/better_region_map
   nav/locator
   nav/guide
   nav/pathfinder

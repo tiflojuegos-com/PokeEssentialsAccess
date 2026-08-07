@@ -1,19 +1,15 @@
 module PokeAccess
-  # Multi Save (shipped as "Auto Multi Save" and as plain "Multi Save"): replaces the single save file with
-  # numbered slots. The slot LABELS are an ordinary command window the generic reader already voices; what it
-  # cannot see is the detail box beside them, which the plugin rebuilds every frame from the focused slot --
-  # "(empty)", or the date, map and play time of the save sitting there.
+  # Multi Save ("Auto Multi Save" and plain "Multi Save"): numbered save slots. The labels are an ordinary
+  # command window the generic reader voices; this reads the detail box beside them, which the plugin
+  # rebuilds every frame from the focused slot -- empty, or the date, map and play time of the save there.
   #
-  # That box is the whole point of the screen: without it a blind player cannot tell an empty slot from one
-  # holding a run, and saving is the one action here that cannot be undone. The load side is already covered,
-  # because its outer loop re-calls pbStartScene on every slot change and core/menus/load reads that.
-  #
-  # Queued rather than interrupting, so the detail follows the slot label instead of cutting it.
+  # Queued rather than interrupting, so the detail follows the slot label instead of cutting it. The load
+  # side needs nothing: its outer loop re-calls pbStartScene per slot and core/menus/load reads that.
   module MultiSave
-    # The box is laid out with markup, not with punctuation: the fields are separated by <r> (align right)
-    # and <br> (line break), which clean deletes outright, running the three values into one word --
-    # "08/05/2606:31PMPetalburg CityTime2h 15m". The layout tags become the pause the layout implied.
-    LAYOUT = /<\s*(r|br)\s*\/?\s*>/i
+    # The box separates its fields with markup, not punctuation: <r>, <br> and the <ac> centring pair, which
+    # clean deletes outright. They become the pause the layout implied. </ac> counts because the map name is
+    # wrapped in it and the field after it carries no separator of its own.
+    LAYOUT = /<\s*\/?\s*(r|br|ac)\s*\/?\s*>/i
 
     def self.slot_info(scene, text)
       t = PokeAccess.clean(text.to_s.gsub(LAYOUT, ", ")).to_s.strip
@@ -25,16 +21,20 @@ module PokeAccess
       nil
     end
 
-    # Whether the cursor just moved. Needed because every empty slot renders one byte-identical string, so on
-    # a fresh install the first slot would be described and the other seven would be silent -- the player
-    # hears the label move and cannot tell whether the box still describes the slot they left.
+    # Whether the cursor just moved, which is what separates "same text, different slot" from "same slot,
+    # redrawn" -- every empty slot renders one byte-identical string.
     #
-    # The plugin's loop calls this hook, then reads input, then moves the cursor. So on the frame the box
-    # first shows the NEW slot, the directional press that caused the move is still the live one, and that is
-    # what separates "same text, different slot" from "same slot, redrawn".
+    # The plugin's loop calls this hook, reads input, then moves the cursor, so on the frame the box first
+    # shows the new slot the press that caused it is still live. The four keys the list answers to: it is a
+    # Window_CommandPokemonEx, vertical, and its update also pages with JUMPUP and JUMPDOWN. The index is a
+    # local of the plugin's loop and never reaches here, so holding a direction at either end still
+    # re-describes the same slot.
+    KEYS = [:UP, :DOWN, :JUMPUP, :JUMPDOWN]
+
     def self.moving?
-      [Input::UP, Input::DOWN, Input::LEFT, Input::RIGHT].any? do |k|
-        Input.trigger?(k) || Input.repeat?(k)
+      KEYS.any? do |name|
+        k = (Input.const_get(name) rescue nil)
+        k && (Input.trigger?(k) || Input.repeat?(k))
       end
     rescue StandardError
       false
@@ -42,8 +42,17 @@ module PokeAccess
   end
 end
 
-# The scene holds the dedup rather than the module: it is built fresh per opening, so reopening the save
-# screen describes the focused slot again instead of inheriting the last one from the previous visit.
+# The dedup lives on the scene, which is built fresh per opening, so reopening describes the focused slot
+# again instead of inheriting the previous visit's.
+# pbClearSlotInfo destruye el panel de detalle, que es lo que el plugin hace al salir de la lista hacia el
+# submenu de una ranura. Soltar aqui la ranura de dedup es lo que hace que al volver se relea la fecha, el
+# mapa y el tiempo: la etiqueta se oye igual porque su ventana nace de nuevo, pero el detalle es el mismo
+# texto sobre la misma ranura y sin esto entra mudo -- justo la mitad del panel que solo se puede consultar
+# ahi.
+PokeAccess::Hooks.after_hook("PokemonSave_Scene", :pbClearSlotInfo, :optional => true) do |scene, _r, _a|
+  PokeAccess::Cursor.reset(scene, :ams_slot)
+end
+
 PokeAccess::Hooks.before_hook("PokemonSave_Scene", :pbUpdateSlotInfo, :optional => true) do |scene, args|
   PokeAccess::MultiSave.slot_info(scene, args[0])
 end

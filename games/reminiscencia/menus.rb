@@ -6,8 +6,16 @@ module PokeAccess
   # menu except the world map, whose destination resolves to the real map name.
   module ReminMenu
     LOAD_MAIN  = ["Continuar", "Opciones", "Salir"]
+    # The six bubbles of the load screen. Their captions are painted into Titulo/Bubbles.png, so the names
+    # come from the game's own prose instead. Each bubble index maps to a $game_mode and a save file in
+    # 2090 PScreen_Load_NEW, and 0500 Messages describes each $game_mode by name: index 3 loads
+    # Endless.rxdata ($game_mode 4), which Messages lists among the menu entries as "Modo Refraccion" --
+    # the game says "Modo Infinito" only once, in an options help text about a mechanic. Index 4 loads
+    # DatingSim.rxdata ($game_mode 3), named "Modo Recuerdo" in the superseded command list of
+    # PScreen_Load_NEW, whose help line ("Conoce mejor a los personajes") matches Messages' dating-sim
+    # entry exactly; it never says "Modo Simulacion" anywhere.
     LOAD_MODES = ["Modo historia", "Capítulo extra", "Modo Mazmorra",
-                  "Modo Infinito", "Modo Simulación", "Modo???"]
+                  "Modo Refracción", "Modo Recuerdo", "Modo???"]
     @stack = []
 
     # Pushes a menu as active and announces its focused option. param kind which menu: :load_main,
@@ -56,17 +64,14 @@ module PokeAccess
     # World map: at island level read the island number. At MAP level this deliberately says nothing and
     # leaves it to the drawInfo capture in extras, which reads what the screen actually paints.
     #
-    # It used to resolve @id through Locator.map_name, which was wrong twice over. Every arrow spoke twice,
-    # the second interrupting the first; and the screen only shows a place name for somewhere you have been
-    # (`name = ($PokemonGlobal.visitedMaps[@id] || $DEBUG) ? placename : "???"`), so reading the id straight
-    # handed the player the real name of an island the game then refuses to travel to. A sighted player sees
-    # "???" there.
+    # @id is NOT resolved through Locator.map_name: the screen only shows a place name for somewhere the
+    # player has been (`name = ($PokemonGlobal.visitedMaps[@id] || $DEBUG) ? placename : "???"`), so reading
+    # the id straight would hand over the real name of an island the game then refuses to travel to.
     #
-    # Map level returns a key with no label rather than nothing at all: returning nil left the last key at the
-    # island the player came from, so backing out to the island level -- which does not redraw anything the
-    # drawInfo capture would see -- matched that key and said nothing, leaving the screen silent on the way
-    # back. A key that cannot collide with an island records that the level changed without speaking over the
-    # capture that owns this level.
+    # Map level returns a key with no label rather than nothing at all. nil would leave the last key at the
+    # island the player came from, so backing out to the island level -- which redraws nothing the drawInfo
+    # capture would see -- would match that key and stay silent. A key that cannot collide with an island
+    # records that the level changed without speaking over the capture that owns this level.
     def self.worldmap_state(s)
       return [[:mapa], nil] unless (s.instance_variable_get(:@menu) rescue 0) == 0
       isla = s.instance_variable_get(:@currentisla)

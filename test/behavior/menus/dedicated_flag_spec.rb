@@ -1,10 +1,9 @@
-# Regression: the move relearner / egg-move readers mute the generic bare-name read of their command window
-# so they can speak the full move detail instead. They used to set @ignore_input on the window, but on gen-6
-# SpriteWindow_Selectable#update gates its OWN navigation on @ignore_input (050_SpriteWindow), so that froze
-# the player's cursor -- arrows stopped moving through the list and nothing was read (reported on Pokemon Z's
-# Move Deleter). The readers now set the mod's own @access_dedicated flag, which menus.rb honours to skip the
-# window WITHOUT touching the engine's input. These suites prove the flag mutes the generic reads and that a
-# window without it is still read (so the flag is what does the muting, not an unrelated change).
+# The move relearner / egg-move readers mute the generic bare-name read of their command window so they can
+# speak the full move detail instead. They set the mod's own @access_dedicated flag and never @ignore_input:
+# on gen-6, SpriteWindow_Selectable#update gates its OWN navigation on that one, so muting through it freezes
+# the player's cursor -- arrows stop moving through the list and nothing is read. menus.rb honours
+# @access_dedicated to skip the window WITHOUT touching the engine's input. These suites prove the flag is
+# what mutes the generic reads and that a window without it is still read.
 Suite.define("menus: @access_dedicated mutes the generic command reader") do
   cmd = Window_DrawableCommand.new(["Placaje", "Ataque Rapido"])
   cmd.instance_variable_set(:@access_dedicated, true)

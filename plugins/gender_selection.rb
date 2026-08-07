@@ -3,21 +3,24 @@
 # "Seleccion Personajes"). The choice is two pictures with no text at all, so without a reader there is
 # nothing to tell the two apart.
 #
-# Verified identical in the three copies seen: the same four methods (initialize, input, main_method,
-# continue) and the same @select convention -- 1 is the neutral start, 2/3 the boy, 4/5 the girl (the odd
-# values are the "are you sure?" step, whose own pbMessage the core dialogue reader already speaks).
+# The three copies are identical here: same four methods and the same @select convention -- 1 neutral, 2 the
+# boy, 4 the girl, and the odd values 3 and 5 the confirm step, which the core dialogue reader speaks.
 #
-# input runs every frame of the picker's own loop, which is what makes a plain after-hook enough even
-# though the scene blocks inside initialize and never becomes $scene.
+# input runs every frame of the picker's loop, which is why a plain after-hook is enough even though the
+# scene blocks inside initialize and never becomes $scene.
 module PokeAccess
   module GenderSelection
-    BOY = [2, 3]
-    GIRL = [4, 5]
+    BOY = 2
+    GIRL = 4
 
-    # The i18n key for a cursor value, or nil for the neutral start (which the opening line already covers).
+    # The i18n key for a cursor value, or nil where the screen is not a picker any more.
+    #
+    # The confirm values answer nil on purpose: the whole confirm step -- the question, the player change and
+    # a twenty-frame fade -- runs inside input before it returns, so a label for 3 or 5 lands on a screen
+    # that is already gone.
     def self.label_key(sel)
-      return :gsel_boy if BOY.include?(sel)
-      return :gsel_girl if GIRL.include?(sel)
+      return :gsel_boy if sel == BOY
+      return :gsel_girl if sel == GIRL
       nil
     end
 
@@ -34,18 +37,19 @@ module PokeAccess
   end
 end
 
-# The controls, once, before the picker takes over the screen: with two unlabelled pictures the player has
-# no way to learn that left and right are the choice.
+# The controls, once, before the picker takes over: two unlabelled pictures give no clue that left and
+# right are the choice.
 #
-# The help names no direction on purpose. The three games do NOT agree on which side is which: armonia and
-# realidea map RIGHT to the boy, awakening maps LEFT to him, and the mapping lives inside the method body
-# where nothing can introspect it -- so a help line that picked a side was dictating the controls backwards
-# in one game, as the very first sentence of a new save. Moving the cursor announces the choice anyway,
-# which is the part that actually tells the player where they are.
+# The help names no direction on purpose: the games disagree on which side is which (armonia and realidea
+# put the boy on RIGHT, awakening on LEFT) and the mapping is inside the method body where nothing can
+# introspect it. Moving the cursor announces the choice, which is what actually locates the player.
 PokeAccess::Hooks.before_hook("PokemonGenderSelection", :main_method, :optional => true) do |_s, _a|
   PokeAccess.speak(PokeAccess::I18n.t(:gsel_help), true)
 end
 
-PokeAccess::Hooks.after_hook("PokemonGenderSelection", :input, :optional => true) do |s, _r, _a|
+# hook_container because input is not a leaf: the confirm step runs a whole pbConfirmMessage inside it, and
+# under the default reentrancy guard the command window's own reader is discarded as nested -- so the yes/no
+# of an irreversible choice was answered with nothing spoken.
+PokeAccess::Hooks.after_hook("PokemonGenderSelection", :input, :optional => true, :hook_container => true) do |s, _r, _a|
   PokeAccess::GenderSelection.announce(s)
 end

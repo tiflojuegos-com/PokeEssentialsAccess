@@ -67,8 +67,8 @@ Suite.define("region map: the dedup lives on the scene, so reopening the map re-
   rm.announce(scene, "Ciudad Plateada", 7, 2)
   silent "within the same screen the square is not re-read"
 
-  # forget is what pbStartScene and pbEndScene call. Resetting the Cursor slot by hand here (which is what
-  # this used to do) tested the primitive and left the method that has to call it uncovered.
+  # forget is what pbStartScene and pbEndScene call. Resetting the Cursor slot by hand would test the
+  # primitive and leave the method that has to call it uncovered.
   rm.forget(scene)
   rm.announce(scene, "Ciudad Plateada", 7, 2)
   eq "after the forget the map's own open/close performs, the same square is read again",

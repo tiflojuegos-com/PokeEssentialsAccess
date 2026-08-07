@@ -10,11 +10,11 @@ como estaba.
 
 | | |
 |---|---|
-| Módulos de core | 127, en `core/manifest.rb` |
+| Módulos de core | 129, en `core/manifest.rb` |
 | Perfiles de juego | 14, en `games/` |
-| Lectores de plugin | 30, en `plugins/` |
+| Lectores de plugin | 29, en `plugins/` |
 | Idiomas | `lang/es.txt`, `lang/en.txt` |
-| Suite | 1532 (gen-6) + 136 (gamedata) |
+| Suite | 1600 (gen-6, estáticos incluidos) + 137 (gamedata) |
 | Ruby | 1.8.7 en el juego; el del sistema en los tests |
 
 ## Capas
@@ -29,8 +29,8 @@ Dentro de `core/` el layout es **módulo primero**: `core/<módulo>/` con los le
 `gen6/`, `v21/`, `v22/`, `skyflyer/` solo para lo que difiere por era. Lo compartido por varias eras va a la
 raíz del módulo.
 
-Módulos: `audio`, `battle`, `data`, `field`, `foundation`, `input`, `menus`, `nav`, `party`, `speech`,
-`util`.
+Módulos: `audio`, `battle`, `data`, `dialogue`, `field`, `foundation`, `input`, `menus`, `nav`, `party`,
+`puzzles`, `speech`, `util`.
 
 ## Arranque
 

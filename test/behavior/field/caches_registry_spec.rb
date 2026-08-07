@@ -1,8 +1,7 @@
 # The cache registry, and the failure it is meant to prevent: a module that caches per-map state and never
 # registers its reset. Nothing complains -- the module simply answers with the previous map's data, which
-# for a screen reader means a terrain label, a target list or a "no route" verdict from where you no longer
-# are. Two modules were found in exactly that state (Spatial and the module-wide Cursor table), and both
-# were invisible because the registry itself was never printed anywhere.
+# for a screen reader means a terrain label, a target list or a "no route" verdict from where the player no
+# longer is. The registry is printed by the diagnostic, which is the only place such a module shows up.
 Suite.define("caches: every module that remembers the map is registered to forget it") do
   names = PokeAccess::Caches.names
 

@@ -161,6 +161,9 @@ Suite.define("replay: the transcript auditor finds silence, repeats and raw code
   truthy "a line with control codes is caught",
          Replay.audit(raw).any? { |p| p.include?("raw control codes") }
 
+  # Con cero grabaciones esto comparaba [] con [] y se leia como cobertura sin tener entrada ninguna, que
+  # es un no-op estructural y no un "hoy no hay nada". Exigir al menos una lo convierte en comprobacion.
+  truthy "hay grabaciones de referencia que auditar (#{Replay.fixtures.length})", Replay.fixtures.length >= 1
   eq "committed fixture recordings all audit clean",
      Replay.fixtures.map { |f| [File.basename(f), Replay.audit(File.read(f))] }.reject { |_n, p| p.empty? }, []
 end

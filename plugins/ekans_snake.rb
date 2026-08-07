@@ -1,5 +1,5 @@
 module PokeAccess
-  # The Ekans snake minigame, SETUP MENU only.
+  # The Ekans snake minigame: its setup menu and its record table.
   #
   # The menu is an ordinary vertical list -- @index over @options, redrawn by draw on every move and on every
   # value change -- but it belongs to a class that inherits from nothing, so the generic window reader never
@@ -23,6 +23,29 @@ module PokeAccess
     rescue StandardError
       nil
     end
+
+    # The record table as one spoken block, built from the very array the screen paints.
+    #
+    # Grouped by the y each cell is drawn at, so a table row comes out as a row instead of three loose
+    # values. The screen has no cursor and no scroll -- it is painted once and waits for a key -- so one
+    # read covers it whole, the "no records yet" case included.
+    def self.scores_text(positions)
+      return nil unless positions.is_a?(Array)
+      rows = {}
+      order = []
+      positions.each do |cell|
+        t = PokeAccess.clean(cell[0].to_s).to_s.strip
+        next if t.empty?
+        y = cell[2]
+        order.push(y) unless rows.has_key?(y)
+        rows[y] ||= []
+        rows[y].push(t)
+      end
+      return nil if order.empty?
+      order.map { |y| rows[y].join(", ") }.join(". ")
+    rescue StandardError
+      nil
+    end
   end
 end
 
@@ -30,4 +53,18 @@ end
 # both kinds of change. The value is part of the dedup key: changing a setting leaves the cursor where it is.
 PokeAccess::Hooks.after_hook("Ekans_Interface_Main", :draw, :optional => true) do |scene, _r, _a|
   PokeAccess::EkansSnake.row(scene)
+end
+
+# Starting a game or opening the records comes back to the same row with the same value, so the redraw that
+# follows finds an unchanged key and would place the player nowhere. hook_container because the record
+# screen this method opens is itself read by a hook of ours.
+PokeAccess::Hooks.after_hook("Ekans_Interface_Main", :do_action, :optional => true, :hook_container => true) do |scene, _r, _a|
+  PokeAccess::Cursor.reset(scene, :ekans_row)
+end
+
+# The record table is painted inside the constructor, which then blocks until a key closes it, so the point
+# where the rows exist and the screen is still up is the method that builds them.
+PokeAccess::Hooks.after_hook("Ekans_Interface_Hiscores", :get_text_pos, :optional => true) do |_s, ret, _a|
+  t = PokeAccess::EkansSnake.scores_text(ret)
+  PokeAccess.speak(t, false) if t
 end

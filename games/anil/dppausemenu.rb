@@ -1,8 +1,6 @@
 # The field menu in this build is the PauseMenuDP plugin (DP_PauseMenu), a Diamond/Pearl style icon menu
-# read by the shared core reader (PokeAccess::DPMenu). The trainer-card entry's label is the player's own
-# name (DP convention), so :relabel_trainer_card speaks it as "Tarjeta de entrenador" for clarity.
+# read by the shared core reader (PokeAccess::DPMenu). Its trainer-card entry is labelled with the player's
+# own name; naming it as well as speaking it is core's job now, so this profile is just the binding.
 PokeAccess::Game.define("anil") do
-  after("DP_PauseMenu", :update) do |menu, _r, _a|
-    PokeAccess::DPMenu.read(menu, :relabel_trainer_card => true)
-  end
+  after("DP_PauseMenu", :update) { |menu, _r, _a| PokeAccess::DPMenu.read(menu) }
 end

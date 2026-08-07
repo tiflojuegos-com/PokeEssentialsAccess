@@ -10,9 +10,13 @@ module PokeAccess
     FLAGS   = PokeAccess::Config.keys_of_kind(:flag)
 
     # Loads the ini (if any) over Config; creates it with current values otherwise. After applying, the
-    # ini is rewritten once if this mod version knows keys the file lacks, so a new setting is editable
-    # by hand right after updating -- previously it only appeared once the user touched the config menu.
-    # The user's values just applied are serialised back unchanged.
+    # ini is rewritten once if this mod version knows keys the file lacks, so a new setting is editable by
+    # hand right after updating rather than only once the config menu has been opened. The user's values
+    # just applied are serialised back unchanged.
+    #
+    # Mod hotkeys are read as overrides: only the moved ones are in the file, so each OVERWRITES its
+    # default and the rest keep theirs. An unknown action name is ignored rather than added -- the ini must
+    # not be able to invent hotkeys the mod does not have.
     def self.apply
       data = read
       if data.empty?
@@ -25,9 +29,6 @@ module PokeAccess
       rb = {}
       data.each { |k, v| rb[$1.to_sym] = v.to_i if k =~ /\Abind_(\w+)\z/ && v.to_i > 0 }
       PokeAccess::Config.rebinds = rb unless rb.empty?
-      # Mod hotkeys: only the moved ones are in the file, so each one OVERWRITES its default and the rest
-      # keep theirs. An unknown action name is ignored rather than added -- the ini must not be able to
-      # invent hotkeys the mod does not have.
       data.each do |k, v|
         next unless k =~ /\Akey_(\w+)\z/ && v.to_i > 0
         sym = $1.to_sym
@@ -75,7 +76,10 @@ module PokeAccess
       {}
     end
 
-    # Writes the current Config values to the ini (see schema_keys for the key list and order).
+    # Writes the current Config values to the ini (see schema_keys for the key list and order). Of the mod
+    # hotkeys only the ones the player actually MOVED are written: writing all eleven would freeze today's
+    # defaults into every ini, so a future version could never change one without every existing player
+    # keeping the old key forever.
     def self.write
       File.open(FILE, "w") do |f|
         f.write("# Configuracion del mod de accesibilidad\n")
@@ -83,9 +87,6 @@ module PokeAccess
         schema_keys.each { |k| f.write("#{k}=#{PokeAccess::Config.send(k)}\n") }
         f.write("# remap de controles (accion=codigo de tecla virtual de Windows)\n")
         (PokeAccess::Config.rebinds || {}).each { |sym, code| f.write("bind_#{sym}=#{code}\n") }
-        # Only the mod hotkeys the player actually MOVED: writing all eleven would freeze today's defaults
-        # into every ini, so a future version could never change one without every existing player keeping
-        # the old key forever.
         (PokeAccess::Config.keys || {}).each do |sym, code|
           f.write("key_#{sym}=#{code}\n") if PokeAccess::Config::KEY_DEFAULTS[sym] != code
         end

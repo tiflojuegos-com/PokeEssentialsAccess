@@ -1,13 +1,9 @@
-# Quest journal (the Modern Quest System + UI plugin, Window_Quest). Another Window_DrawableCommand whose
-# list is somewhere the generic reader does not look -- @quests, holding the plugin's own quest objects --
-# so the window read as nothing. The name is not in there either: the entry carries an id and the name is
-# resolved through $quest_data.
+# Quest journal (Modern Quest System + UI, Window_Quest). Its list lives in @quests as the plugin's own
+# quest objects, and the name is not in them: the entry carries an id that $quest_data resolves.
 #
-# NOT the same plugin as the one plugins/easy_questing.rb covers: that is Marin's Questlog, a different quest
-# system with different classes. Two quest plugins, two readers.
+# Not the plugin plugins/easy_questing.rb covers, which is Marin's Questlog. Two quest systems, two readers.
 #
-# Beyond the name, two things the screen shows visually and a reader has to say out loud: a story quest is
-# painted in bold, and a quest the player has not opened yet gets a "new" badge in the corner.
+# Two marks the list draws instead of writing: a story quest is bold, and an unopened one carries a badge.
 module PokeAccess
   module QuestUI
     # The focused quest: its name, and the two marks the list draws instead of writing.
@@ -26,13 +22,11 @@ module PokeAccess
       nil
     end
 
-    # A page of the detail view. Its cursor is a LOCAL inside a blocking loop, so nothing can poll it -- but
-    # the two page bodies are drawn by two named methods that each receive the quest, and those firing IS the
-    # page change.
+    # A page of the detail view. Its cursor is a local inside a blocking loop, so the read point is the draw
+    # method for each page.
     #
     # Every $quest_data getter takes the quest ID, never the quest object: getName does const_get on what it
-    # is handed, and a Quest has no to_str, so passing the object raises TypeError on the first line and the
-    # whole detail view said nothing at all.
+    # is given, and a Quest has no to_str.
     def self.detail(quest, page)
       id = (quest.id rescue nil)
       return if id.nil?
@@ -48,8 +42,7 @@ module PokeAccess
       nil
     end
 
-    # Page one: the overview and, more usefully, what the current stage asks and where. Those last two are
-    # the only actionable text on the screen.
+    # Page one: the overview, plus what the current stage asks and where.
     def self.description_lines(quest, id)
       stage = (quest.stage rescue nil)
       [($quest_data.getQuestDescription(id) rescue nil),
@@ -57,23 +50,25 @@ module PokeAccess
        shown(($quest_data.getStageLocation(id, stage) rescue nil))]
     end
 
-    # Page two: progress, who gave it, where and when it started, and the reward. The reward is hidden while
-    # the quest is still running -- the screen prints "???" -- so it is asked for the same way rather than
-    # read straight out of the data, which would hand the player a spoiler the screen is withholding.
+    # Page two: progress, giver, where and when it started, and the reward.
+    #
+    # The reward is asked for the same way the screen asks, because it prints "???" while the quest runs.
+    # Place and time are labelled as the screen labels them, and the time uses the plugin's own strftime.
     def self.other_lines(quest, id)
       total = ($quest_data.getMaxStagesForQuest(id) rescue nil)
       stage = (quest.stage rescue nil)
       lines = []
       lines.push(PokeAccess::I18n.t(:quest_stage, :n => stage, :tot => total)) if stage && total
       lines.push(PokeAccess::I18n.t(:quest_giver, :who => shown(($quest_data.getQuestGiver(id) rescue nil))))
-      lines.push((quest.location rescue nil))
+      lines.push(PokeAccess::I18n.t(:quest_where, :where => shown((quest.location rescue nil))))
+      when_at = (quest.time.strftime("%B %d %Y %H:%M") rescue nil)
+      lines.push(PokeAccess::I18n.t(:quest_when, :when => when_at)) if when_at && !when_at.to_s.empty?
       lines.push(PokeAccess::I18n.t(:quest_reward, :what => reward(id)))
       lines
     end
 
-    # What the screen puts on the line when a field is blank. The data stores the literal string "nil" for
-    # an unset giver or location, and the plugin swaps it for "???" before painting; reading the field raw
-    # made the reader pronounce the word "nil" out loud.
+    # What the screen puts on a blank field. The data stores the literal string "nil" for an unset giver or
+    # location and the plugin paints "???" instead.
     def self.shown(v)
       s = v.to_s
       (s.empty? || s == "nil") ? PokeAccess::I18n.t(:quest_unset) : s
@@ -86,9 +81,7 @@ module PokeAccess
       r
     end
 
-    # The tab the journal is on. LEFT and RIGHT swap between Active, Completed and Side, and the only thing
-    # that says which you are on is a heading painted to a bitmap -- so the list re-read after a swap gave a
-    # different set of quests with no clue that the category had changed under it.
+    # The tab the journal is on (Active, Completed or Side). Only a heading painted to a bitmap says which.
     def self.category(scene)
       names = PokeAccess.ivar(scene, :@quests_text)
       i = PokeAccess.ivar(scene, :@current_quest)
@@ -104,26 +97,35 @@ end
 
 PokeAccess::Menus.def_extractor("Window_Quest") { |win, i| PokeAccess::QuestUI.text(win, i) }
 
-# swapQuestType runs on every tab change and nowhere else. It pins the list cursor back to 0, so the generic
-# list reader's key -- [index, pocket] -- is unchanged from the second swap onwards and the list stays mute
-# even though every quest in it just changed. Clearing that reader's slot is what makes it speak again:
-# category first, then the quest it landed on, which is the order the player needs.
+# swapQuestType runs on every tab change and pins the cursor back to 0, so the generic list reader's key is
+# unchanged from the second swap on. Clearing its slot is what makes the list speak again: category first,
+# then the quest it landed on.
 PokeAccess::Hooks.after_hook("QuestList_Scene", :swapQuestType, :optional => true) do |scene, _r, _a|
   PokeAccess::QuestUI.category(scene)
   PokeAccess::Cursor.reset(PokeAccess.sprite(scene, "itemlist"), :cmd_focus)
 end
 
-# The category is painted by pbStartScene itself, and swapQuestType only runs once the player has already
-# pressed LEFT or RIGHT -- so opening the journal never said which tab it landed on.
+# pbStartScene paints the category itself; swapQuestType only runs after a LEFT or RIGHT.
 PokeAccess::Hooks.after_hook("QuestList_Scene", :pbStartScene, :optional => true) do |scene, _r, _a|
   PokeAccess::QuestUI.category(scene)
 end
 
-# The two pages of the detail view. Each draw method is called once when its page comes up -- on opening, and
-# on every LEFT/RIGHT between the two -- so hooking them reads the page without needing the loop's own cursor.
+# The two pages of the detail view: each draw method runs when its page comes up, which is the page change.
 PokeAccess::Hooks.after_hook("QuestList_Scene", :drawQuestDesc, :optional => true) do |_s, _r, args|
   PokeAccess::QuestUI.detail(args[0], :description)
 end
 PokeAccess::Hooks.after_hook("QuestList_Scene", :drawOtherInfo, :optional => true) do |_s, _r, args|
   PokeAccess::QuestUI.detail(args[0], :other)
+end
+
+# Volver del detalle a la lista. pbQuest ES el bucle del detalle, y al salir la escena reactiva la lista con
+# el MISMO indice, asi que la clave del lector generico no cambia y la fila se queda muda: el jugador vuelve
+# sin saber donde ha caido el cursor. Se envuelve en vez de engancharse despues para no anunciar nada desde
+# dentro -- lo unico que se hace es soltar la ranura, y la lectura la da el lector de siempre.
+PokeAccess::Hooks.around_hook("QuestList_Scene", :pbQuest, :optional => true) do |scene, nxt, _a|
+  begin
+    nxt.call
+  ensure
+    PokeAccess::Cursor.reset(PokeAccess.sprite(scene, "itemlist"), :cmd_focus)
+  end
 end

@@ -37,7 +37,7 @@ end
 # player's cursor. @access_dedicated tells menus.rb to skip the window without touching the engine's input.
 # hook_container: this body only STORES, it never speaks, and pbStartScene calls pbDrawMoveList -- whose hook is
 # the one that announces. Guarded, that opening read is dropped as nested_other? and the screen opens
-# in silence; the guard only earns its keep when the outer hook is itself the announcer.
+# in silence; the guard is only useful when the outer hook is itself the announcer.
 PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbStartScene, :hook_container => true) do |scene, _r, _a|
   PokeAccess.dedicate(PokeAccess.sprite(scene, "commands"))
 end

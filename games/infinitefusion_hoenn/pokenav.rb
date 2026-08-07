@@ -8,11 +8,43 @@
 # and is read by the core through PokegearButton#selected=.
 module PokeAccess
   module IF2PokeNav
-    # The label of a button: its own text when it carries one, else its id, which is a readable symbol.
+    # The label of a button: its own text, or its id when the id IS a label.
+    #
+    # A Symbol id is data, not writing: the radar rows carry the species there and the panel deliberately
+    # does not print it for anything unseen, so a symbol never stands in for a missing label.
     def self.button_text(btn)
       t = PokeAccess.ivar(btn, :@text)
       t = (btn.id rescue nil) if t.nil? || t.to_s.strip.empty?
-      PokeAccess.clean(t.to_s).to_s.strip
+      return nil unless t.is_a?(String)
+      PokeAccess.clean(t).to_s.strip
+    rescue StandardError
+      nil
+    end
+
+    # What the focused button says on this app. Only the radar keeps a @seenPokemon list, and only its rows
+    # are species rather than labels.
+    def self.entry_text(scene, btn)
+      return radar_text(scene, btn) if PokeAccess.ivar(scene, :@seenPokemon).is_a?(Array)
+      button_text(btn)
+    end
+
+    # A radar row as the panel writes it: for a species the player has seen, its name plus the rarity and
+    # scan cost the panel prints beside it; for one they have not, the same "unknown" and nothing else.
+    #
+    # The rarity and the cost come from the scene's own two helpers, so the reader cannot disagree with the
+    # line under the icon. A scan in progress paints nothing at all, and neither does this.
+    def self.radar_text(scene, btn)
+      return nil if ($PokemonTemp.pokeradar rescue false)
+      sp = (btn.id rescue nil)
+      return nil unless sp
+      seen = PokeAccess.ivar(scene, :@seenPokemon)
+      return PokeAccess::I18n.t(:if2_radar_unknown) unless seen.include?(sp)
+      parts = [(PokeAccess::Data.species_name(sp) rescue nil) || sp.to_s]
+      r = (scene.get_rarity_flavor_text(sp) rescue nil)
+      parts.push(PokeAccess.clean(r.to_s).to_s.strip) if r && !r.to_s.strip.empty?
+      e = (scene.get_energy_for_scan(sp) rescue nil)
+      parts.push(PokeAccess::I18n.t(:if2_radar_battery, :n => e)) if e
+      parts.join(", ")
     rescue StandardError
       nil
     end
@@ -22,7 +54,7 @@ module PokeAccess
       idx = PokeAccess.ivar(scene, :@index)
       btns = PokeAccess.ivar(scene, :@buttons)
       return unless idx.is_a?(Integer) && btns.is_a?(Array) && idx >= 0 && idx < btns.length
-      label = button_text(btns[idx])
+      label = entry_text(scene, btns[idx])
       return if label.nil? || label.empty?
       PokeAccess::Cursor.announce(scene, :list_entry, idx, true) do
         PokeAccess::I18n.t(:list_entry, :name => label, :n => idx + 1, :tot => btns.length)
@@ -79,9 +111,21 @@ end
 
 PokeAccess::Game.define("infinitefusion_hoenn") do
   after("PokeNavAppScene", :hover) { |s, _r, _a| PokeAccess::IF2PokeNav.focus(s) }
-  # hover only fires on MOVEMENT, and pbStartScene does not call it, so entering an app landed on a focused
-  # button that was never announced. PokeRadar hid the gap by calling hover from its own start; Contacts and
-  # FusionQuiz opened in silence.
-  after("PokeNavAppScene", :pbStartScene) { |s, _r, _a| PokeAccess::IF2PokeNav.focus(s) }
+  # hover only fires on MOVEMENT, and the base opener does not call it, so entering an app landed on a
+  # focused button that was never announced.
+  #
+  # The base opener is skipped for an app that overrides it: the override calls super FIRST -- which is
+  # where this hook lands, with the cursor still on row zero -- and only then places the cursor where the
+  # app wants it. Those apps are read from their own opener, below.
+  after("PokeNavAppScene", :pbStartScene) do |s, _r, _a|
+    own = (s.class.instance_method(:pbStartScene).owner rescue nil)
+    next if own && own != PokeNavAppScene
+    PokeAccess::IF2PokeNav.focus(s)
+  end
+  after("ContactsAppScene", :pbStartScene, :optional => true) { |s, _r, _a| PokeAccess::IF2PokeNav.focus(s) }
+  # FusionQuizAppScene tambien redefine pbStartScene, asi que la guarda de arriba apaga el lector base y sin
+  # esta linea la app no decia nada al abrirse ni al volver de una ronda: su propio opener es el que sabe
+  # donde ha quedado el cursor.
+  after("FusionQuizAppScene", :pbStartScene, :optional => true) { |s, _r, _a| PokeAccess::IF2PokeNav.focus(s) }
   after("PokemonChallenges_Scene", :pbUpdate) { |s, _r, _a| PokeAccess::IF2Challenges.focus(s) }
 end

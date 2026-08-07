@@ -2,13 +2,11 @@ module PokeAccess
   # A move list drawn by hand: the focused move's name reaches the screen as a bitmap and its detail --
   # type, power, accuracy, pp, description -- is not spoken at all. Two screens share that exact shape
   # (@pokemon, @moves, a "commands" sprite holding the cursor): the v21 Move Relearner and the egg-move
-  # tutor a plugin adds. Nothing here belongs to either of them, so it lives in the shared layer under the
-  # name of what it reads rather than the name of whichever screen needed it first.
+  # tutor a plugin adds.
   #
-  # That naming is not cosmetic. While this was called SkyEggMove and sat in the fork's folder, a core
-  # reader calling it was one version crossing into another, and the coupling check had to carry a
-  # whitelist entry to allow it -- the only one in the mod. Naming the module after the job removed the
-  # exception instead of documenting it.
+  # Named after the job rather than after whichever screen needed it first, and in the shared layer rather
+  # than in the fork's folder, so a core reader calling it is not one version crossing into another and the
+  # coupling check needs no whitelist entry for it.
   module MoveList
     # The move id under the cursor, or nil when there is no usable selection.
     #

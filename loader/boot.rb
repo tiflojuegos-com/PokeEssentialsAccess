@@ -75,7 +75,7 @@ module PokeAccessBoot
   # games nobody has written a profile for, so there is nobody who decided: naming plugins by hand there
   # means either listing every plugin the mod knows (and an unknown game pays for all of them) or leaving a
   # screen silent on every unsupported fangame until somebody remembers to edit that file. Asking the
-  # running game is the honest third answer, and silence is the failure a blind player cannot diagnose.
+  # running game is the third answer, and silence is the failure a blind player cannot diagnose.
   def self.declared_plugins(dir)
     mf = "#{dir}/manifest.rb"
     return [] unless File.exist?(mf)

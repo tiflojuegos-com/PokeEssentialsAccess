@@ -162,14 +162,11 @@ module PokeAccess
     # The scene class to hook, or "" when this reader does not apply to the running engine.
     #
     # A gen-6 fork can ship the v16 class name as an empty SUBCLASS of the v17 one and instantiate only the
-    # v17 name (Awakening's BES-T compatibility file does it for 23 screens). Hooking "PokemonSummaryScene"
-    # then bound to a class nobody creates and this whole reader went silent -- while summary_v21, which
-    # matches that same v17 name, bound instead and read a gen-6 Pokemon through the GameData API, losing
-    # types, ability, item and nature. scene_class answers with the ancestral name that sees every instance.
-    #
-    # The era check is the other half and is not optional: on a real GameData game the v17 name exists too,
-    # carrying the OTHER data API, and without this both readers would speak over each other. An empty name
-    # binds nothing -- the same silent no-op an absent class already is -- so no registration needs an if.
+    # v17 name, so hooking "PokemonSummaryScene" binds to a class nobody creates while summary_v21, which
+    # matches that v17 name, reads a gen-6 Pokemon through the GameData API. scene_class answers with the
+    # ancestral name that sees every instance, and the era check is the other half: on a real GameData game
+    # the v17 name exists too, carrying the OTHER data API, and both readers would speak over each other.
+    # An empty name binds nothing, the same no-op an absent class is, so no registration needs an if.
     SCENE = PokeAccess::Engine.era_scene(:gen6, "PokemonSummaryScene", "PokemonSummary_Scene")
 
     # The Pokemon a page redraw is about. Vanilla passes it as the first argument; awakening's summary takes

@@ -9,7 +9,7 @@
 #   - Input.trigger?/press? always return false: nothing input-driven ever fires on its own; specs must
 #     call the handler they want to exercise directly.
 #   - pbLoadRxData's MapInfos table holds only the FIXED ids below; an unknown id yields nil, which is what
-#     lets Locator.map_name's no-entry fallback be tested (a default_proc used to fabricate every id).
+#     lets Locator.map_name's no-entry fallback be tested (a default_proc would fabricate every id).
 
 class Win32API
   def initialize(*a); end

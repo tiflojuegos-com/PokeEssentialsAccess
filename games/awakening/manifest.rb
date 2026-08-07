@@ -10,7 +10,6 @@
     glossary
     outfits
     compendium
-    teleport
     extras
     fates_screens
     cmoon

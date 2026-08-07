@@ -1,9 +1,8 @@
 module PokeAccess
-  # The one dedup primitive for cursor/selection reads. Almost every reader voices a focused entry that the
-  # game re-asserts every frame, so it must speak only when the focus actually changes -- otherwise the same
-  # item repeats continuously. Before this, each reader open-coded that with its own @access_* ivar; the
-  # subtle cases (a fresh scene must re-read the same index; a key is a tuple like [page, party_index]; the
-  # text changed without the index changing) were re-solved, and re-broken, per file. Cursor centralises it.
+  # The one dedup primitive for cursor/selection reads. Almost every reader voices a focused entry the game
+  # re-asserts every frame, so it must speak only when the focus actually changes; the subtle cases -- a
+  # fresh scene must re-read the same index, a key is a tuple like [page, party_index], the text changed
+  # without the index changing -- live here once instead of once per reader.
   #
   # The dedup state lives ON the holder (a scene/visuals instance, or any object), under a per-reader slot
   # symbol, so two readers on the same scene never shadow each other and the state dies with the instance.
@@ -35,9 +34,9 @@ module PokeAccess
     # True (and records the new key) when key differs from what slot last held on holder; false when equal.
     # A nil key always counts as "unchanged" so a missing value never speaks. Use this when you want to gate
     # arbitrary work; for the speak-the-focused-entry case prefer on_change / announce.
-    # @param holder the object to hang the dedup state on, or nil for the module-wide table
-    # @param slot a symbol naming this reader's dedup state (distinct per reader on a shared holder)
-    # @param key the current selection key (an index, a string, or an array tuple); nil never changes
+    # param holder the object to hang the dedup state on, or nil for the module-wide table
+    # param slot a symbol naming this reader's dedup state (distinct per reader on a shared holder)
+    # param key the current selection key (an index, a string, or an array tuple); nil never changes
     def self.changed?(holder, slot, key)
       return false if key.nil?
       slot, ivar = slot_pair(slot)
@@ -73,7 +72,7 @@ module PokeAccess
 
     # Runs the block only when key changed (see changed?), returning the block's value then, else nil. The
     # block computes the line lazily, so an unchanged cursor does no work.
-    # @return the block result on change, else nil
+    # return the block result on change, else nil
     def self.on_change(holder, slot, key)
       return nil unless changed?(holder, slot, key)
       yield
@@ -83,8 +82,8 @@ module PokeAccess
 
     # The common shape: on a cursor change, speak the line the block builds. Cleaned and, by default,
     # interrupting (focus moves should cut the previous read). No-op when the line is nil/blank.
-    # @param interrupt whether the spoken line interrupts the queue (true) or waits (false)
-    # @param first_interrupt interrupt value for the FIRST read of a fresh/reset cursor (when the slot is
+    # param interrupt whether the spoken line interrupts the queue (true) or waits (false)
+    # param first_interrupt interrupt value for the FIRST read of a fresh/reset cursor (when the slot is
     #   pending), for the "queue the opening read, interrupt later moves" pattern. nil (default) uses
     #   interrupt for every read, preserving the plain behaviour.
     def self.announce(holder, slot, key, interrupt = true, first_interrupt = nil)

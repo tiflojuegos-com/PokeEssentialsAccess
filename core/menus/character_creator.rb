@@ -2,12 +2,11 @@
 # name, gender, age, skin, hair, confirm. The games that bundle it ship the very same class, so this
 # registers globally and simply never binds where the class is absent.
 #
-# Two things made it unreadable. The view paints the VALUES with pbDrawTextPositions onto a bare
-# BitmapSprite -- only the "Confirm" caption goes through Kernel.pbDisplayText -- so the HUD text reader
-# (core/field/hud_text) never saw the chosen name, gender, age, skin or hair. And a reader keyed on the row
-# index alone stays silent through the whole left/right axis, which is where four of the six rows are
-# actually edited: the row does not change, only its value does. Keying the dedup on [row, value] fixes
-# both, and the value is read from the presenter's own ivars rather than scraped off the sprites.
+# The view paints the VALUES with pbDrawTextPositions onto a bare BitmapSprite -- only the "Confirm"
+# caption goes through Kernel.pbDisplayText -- so the HUD text reader (core/field/hud_text) never sees them,
+# and four of the six rows are edited on the left/right axis, where the row index does not change and only
+# its value does. The dedup is therefore keyed on [row, value], with the value read from the presenter's
+# own ivars rather than scraped off the sprites.
 module PokeAccess
   module CharacterCreator
     ROWS = { "Name" => :name, "Gender" => :gender, "Age" => :age,

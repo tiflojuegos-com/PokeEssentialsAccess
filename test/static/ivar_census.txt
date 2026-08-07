@@ -9,7 +9,7 @@
 # there because a name can be present in the game and still sit on the WRONG OBJECT, which is a
 # silent nil just the same, and this turns finding out into one grep.
 # surveyed profiles (14): africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla
-# names read: 244 / never found: 9
+# names read: 246 / never found: 9
 @active = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  CompatBits, DexNavPokemonSpeciesIconSprite, MenuBase, PartyVisualsPanel, PokeSelectionSprite, PokemonBagPartyPanel, PokemonIconSprite, PokemonPartyPanel, +4 more
 @activecmd = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  PokemonBag_Scene, PokemonParty_Scene, PokemonScreen_Scene
 @adapter = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  BattlePointShopScreen, BattlePointShop_Scene, BuyAdapter, BuyAdapter_BattlePoints, ClothesShopPresenter, ClothesShopView, Ekans_Interface_Game, HairShopPresenter, +21 more
@@ -54,10 +54,10 @@
 @commands = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  BattleRulesDebug, Cache, CommandList, CommandMenu, CommandMenuList, DatingSimMainScreen, DebugMenuCommands, Glosario_Historia, +43 more
 @completed = africanus, awakening, infinitefusion, infinitefusion_hoenn, realidea, royal  |  PlayerChallenge, Questlog, Screen
 @contacts = anil, emerald, relict, royal, vanilla  |  Phone, PokemonPhone_Scene
-@controls = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  BaseContainer, BatchEdits, BattlersLayout, ControlWindow, ControlsContainer, MenuBar, PlayControls, PokemonSystem, +2 more
 @current_code = infinitefusion_hoenn  |  ColorCodeDoor
 @current_evs = awakening  |  EVReorganizeScene
 @current_index = anil, infinitefusion, infinitefusion_hoenn, pokemon_z, royal  |  BagSearcher, CharacterSelectMenuPresenter, HairstyleSelectionMenuPresenter
+@current_mode = anil, infinitefusion_hoenn, royal, vanilla  |  ChangelingSprite, Questlog
 @current_quest = emerald  |  QuestList_Scene
 @currentisla = reminiscencia  |  OpenWorldMap
 @currentlives = relict  |  ArcyContest
@@ -77,7 +77,7 @@
 @direcciones = realidea  |  Bailedoki, Timon
 @direccionmelo = realidea  |  Bailedoki
 @dummypokemon = africanus, armonia, opalo, pokemon_z, realidea, reminiscencia  |  PokemonPokedexScene
-@eggMovesArray = awakening, pokemon_z  |  AdvancedPokedexScene, PokemonPokedexInfo_Scene
+@eggMovesPages = awakening, pokemon_z  |  AdvancedPokedexScene, PokemonPokedexInfo_Scene
 @elementos = anil, awakening, royal  |  JessOptions, StarterMenu_Scene, StarterMenu_Screen, TipMenu_Scene, TipMenu_Screen
 @emitters = vanilla  |  AnimationPlayer
 @encarray = awakening, pokemon_z  |  EncounterListUI
@@ -100,6 +100,7 @@
 @hallIndex = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  HallOfFameScene, HallOfFameViewerScene, HallOfFame_Scene
 @hand = emerald  |  Scene, Screen
 @helper = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  Draw_Tilemap, MapExporter, NameEntryCursor, WindowTextEntryKeyboardPerKey, Window_MultilineTextEntry, Window_TextEntry, Window_TextEntry_Keyboard, Window_TextEntry_Keyboard_Terminal
+@highlight_combination = emerald  |  Scene
 @ignore_input = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  OptionsVisualsList, SpriteWindow_Selectable
 @index = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  AIBattler, ArceusTransform, AyudasUI, BallSelectorInterface, BattleMenuBase, Battler, BattlerShadowSprite, BattlerSprite, +123 more
 @indexGender = reminiscencia  |  DatingSimTaskScreen
@@ -109,24 +110,21 @@
 @infoPages = awakening, pokemon_z  |  AdvancedPokedexScene, PokemonPokedexInfo_Scene
 @infohab = reminiscencia  |  PokemonSummaryScene
 @infomove = reminiscencia  |  PokemonSummaryScene
-@instrument = anil  |  Item, Window_MusicBook
 @item = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  BerrydexItemIconSprite, CurrydexItemIconSprite, GetKeyItemScene, HeldItemIconSprite, ItemBerryPots_Scene, ItemIconSprite, Mail, NewBattleBag, +13 more
 @items = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  BagVisualsList, Battle, BattleAbortedException, Commands, HairMartAdapter, Menu2, MiningGameScene, NPCTrainer, +10 more
 @itemswon = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  MiningGameScene
 @ivs = awakening  |  EVReorganizeScene
 @lastUsed = pokemon_z  |  NewBattleBag
-@levelMovesArray = awakening, pokemon_z  |  AdvancedPokedexScene, PokemonPokedexInfo_Scene
 @levelMovesPages = awakening, pokemon_z  |  AdvancedPokedexScene, PokemonPokedexInfo_Scene
 @levels = royal  |  Swdfm_Exp_Screen
 @libro = awakening, realidea  |  BookScene
+@lines = africanus, armonia, awakening, emerald, opalo, pokemon_z, realidea, reminiscencia  |  Log, Window_Combination, Window_SimpleText
 @list = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  CommonEvent, Game_Event, Game_Interpreter, Interpreter, InterpreterMixin, ItemList, MoveRoute, Page, +3 more
 @lista_infog = pokemon_z  |  ItemInfog_Scene, ItemInfog_Screen
 @logros = africanus, awakening, pokemon_z, reminiscencia, royal  |  JessFatesMenu, Logros_Scene, Pokemon_Achievements_Scene
 @main_menu_index = infinitefusion_hoenn  |  Questlog
 @map = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  AnimationContainerSprite, AnimationSprite, BerryPlantMoistureSprite, BerryPlantMulchSprite, BerryPlantSprite, BerryPlantWeedSprite, ContestFunctions, DependentEventSprites, +25 more
-@map_descs = awakening  |  Teleport, Teleport_Scene
 @mapid = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  DexNav, EncounterListUI, PokemonLoadPanel
-@mapnames = awakening  |  Teleport, Teleport_Scene
 @marks = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  VoltorbFlip
 @menu = reminiscencia, royal  |  OpenWorldMap, Options, OptionsVisuals
 @mode = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  Bag, BagSell, BagVisuals, BattleMenuBase, BattleSwapScene, CommandMenu, CommandMenuButtons, CommandMenuDisplay, +30 more
@@ -136,9 +134,7 @@
 @mover_time = 
 @moves = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  Battler, EggMoveLearner_Scene, EggMoveTutor, FusedSpecies, Move, MoveRelearnerScene, MoveRelearner_Scene, MoveReminder, +6 more
 @multi_select = vanilla  |  PartyVisuals
-@music_book = anil  |  MusicBookScreen, MusicBook_Scene, PokemonBag, Window_MusicBook
 @name = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  Animation, AudioFile, AudioState, Banner, Battler, BerryBlender_Scene, ButtonOption, CannotUseConsecutively, +97 more
-@nameCommands = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  PokemonPokedexScene, PokemonPokedex_Scene
 @near = 
 @negative = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  Window_InputNumberPokemon
 @new_move = vanilla  |  PokemonSummary, PokemonSummaryVisuals
@@ -150,15 +146,16 @@
 @numpages = anil, royal  |  AlbumFotos_Scene
 @ongoing = africanus, awakening, infinitefusion, realidea  |  Questlog
 @opciones = awakening  |  JessOptions, ListaAngeles, ListaDemonios, ListaLegendarios, ListaLegendarios1, ListaLegendarios2, ListaLegendarios3, ListaLegendarios4, +5 more
+@opponentCardIndexes = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  TriadScene
 @option = anil, pokemon_z  |  DP_PauseMenu
 @options = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  CharacterSelectMenuPresenter, CheckboxList, ColorCodeDoor, DP_PauseMenu, DropdownList, Ekans_Interface_Main, HairstyleSelectionMenuPresenter, List, +15 more
 @options_to_use = anil  |  StarterMenu_Scene, StarterMenu_Screen
-@orderCommands = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  PokemonPokedexScene, PokemonPokedex_Scene
 @outfit_selected = emerald  |  WardrobeScene, Window_Wardrobe
 @outfits = emerald  |  Window_Wardrobe
 @overlay = africanus, anil, armonia, awakening, emerald, infinitefusion, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  AlbumFotos_Scene, Albumfotos, ButtonEventScene, CarreraCuadrigasScene, DexNav, DynamicPokemonSprite, DynamicTrainerSprite, EVReorganizeScene, +23 more
 @page = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  AdvancedPokedexScene, AlbumFotos_Scene, BerrydexInfo_Scene, BookScene, Game_Event, NewBattleBag, OptionsVisuals, PokedexEntryVisuals, +11 more
 @page_id = anil, emerald, relict, royal  |  PokemonPokedexInfo_Scene, PokemonSummary_Scene
+@pages = africanus, armonia, awakening, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  DexNav, Event, NewBattleBag, PageGroup, TipCardGroups_Scene, TipCard_Scene
 @pagina = realidea  |  Albumfotos
 @pagina_actual = awakening  |  Glosario_Historia_Secciones, Glosario_Personajes
 @paginas = realidea  |  Albumfotos
@@ -167,6 +164,7 @@
 @party_index = anil, emerald, relict, royal, vanilla  |  AIBattler, PokemonSummary, PokemonSummaryVisuals
 @passages = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  Debug_Passability, Game_Map, Tileset
 @photo = anil, royal  |  AlbumFotos_Scene
+@pictures_prefix = africanus  |  TablesScreen
 @playerCards = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  TriadScene
 @pnl = awakening  |  FatesMenuPanels
 @pocket = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  BagSearcher, BagVisuals, Item, NewBattleBag, SecretBaseDecoration, SecretBaseDecorationParedSuelo, Window_BaseDecorationsList, Window_BaseDecorationsParedSueloList, +1 more
@@ -184,6 +182,7 @@
 @quests = awakening, emerald, infinitefusion_hoenn  |  PokemonGlobalMetadata, QuestList_Scene, QuestMap, QuestMapPopup, Window_Quest
 @quests_text = emerald  |  QuestList_Scene
 @ready = 
+@region = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  BetterRegionMap, PokedexEntry, PokedexEntryVisuals, PokemonGlobalMetadata, PokemonPokedexInfo_Scene, PokemonReadyMenu, PokemonRegionMapScene, PokemonRegionMap_Scene, +3 more
 @replay = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  SlotMachineScene
 @ret = pokemon_z  |  NewBattleBag
 @ribbon_index = vanilla  |  PokemonSummaryVisuals
@@ -196,6 +195,7 @@
 @section = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  FileLineData, TipCardGroups_Scene
 @secuencia = realidea  |  Morse
 @secuenciacorrecta = realidea  |  Morse
+@seenPokemon = infinitefusion_hoenn  |  PokeRadarAppScene
 @sel = awakening, realidea, royal  |  GachaScene, Poketch, PoketchColorChanger, PoketchStatDisplay, TilesetEditor
 @selPocket = pokemon_z  |  NewBattleBag
 @sel_one = africanus, awakening, infinitefusion, realidea  |  Questlog
@@ -217,6 +217,7 @@
 @species_data = infinitefusion, infinitefusion_hoenn, vanilla  |  PokedexEntryVisuals, Pokemon
 @species_left = infinitefusion, infinitefusion_hoenn  |  DoublePreviewScreen
 @spinning = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  PokemonGlobalMetadata, SlotMachineReel
+@spots = infinitefusion, infinitefusion_hoenn  |  BetterRegionMap, QuestMap
 @sprites = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  AbilitySplashAppear, AbilitySplashAppearAnimation, AbilitySplashDisappear, AbilitySplashDisappearAnimation, AdvancedPokedexScene, AlbumFotos_Scene, AlbumScene, Albumfotos, +484 more
 @squares = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  VoltorbFlip
 @stages = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  Battler, PokeBattle_Battler, QuestInfo
@@ -241,6 +242,7 @@
 @totalPages = pokemon_z, royal  |  AdvancedPokedexScene, PokemonRegionMap_Scene
 @total_paginas = awakening  |  Glosario_Historia_Secciones, Glosario_Personajes
 @trainers = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  AI, BattleChallengeData, ContactsAppScene, ItemLister, PWTTournament, PhoneDatabase, PokemonPhoneScene, SpeciesLister, +3 more
+@translate = realidea, relict  |  GivePlateMessage, PokemonSystem
 @trigger = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  CommonEvent, Game_Event, OverworldPokemonEvent, Page, PlayerMetadata, SecretBaseItem
 @turno = realidea  |  Bailedoki, Mankey, Tresenraya
 @type1 = africanus, armonia, awakening, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, reminiscencia  |  AdvancedPokedexScene, FusedSpecies, PokeBattle_Battler, Pokemon, PokemonPokedexInfo_Scene, PoketchMoveTester, Species

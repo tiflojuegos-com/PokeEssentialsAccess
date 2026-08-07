@@ -67,11 +67,11 @@ end
 # wrap_global: the shared helper that replaced six copy-pasted Object-method wraps. :after runs after the
 # original and sees its return value; :before runs first with a nil result; the original's return is
 # preserved; it never double-wraps. Throwaway Object methods stand in for the real (stubbed-away) sites.
-# A SECOND hook on the same function chains onto the first instead of vanishing. It used to vanish: the
-# installer returned early once the alias existed, so whichever reader registered second bound nothing, with
-# no entry in missing and nothing in the diagnostic to show for it. The original still runs exactly once --
-# that is what the early return was protecting, and it is protected here by installing the wrapper once and
-# keeping the bodies in a list beside it.
+# A SECOND hook on the same function chains onto the first instead of vanishing. An installer that returns
+# early once the alias exists binds nothing for whichever reader registered second, with no entry in missing
+# and nothing in the diagnostic to show for it. The original must still run exactly once, which is what that
+# early return protects and what installing the wrapper once, with the bodies in a list beside it, protects
+# instead.
 Suite.define("hooks: wrap_global timing, return value and chained bodies") do
   wg = []
   Object.send(:define_method, :pa_wg_after) { |x| wg.push([:orig, x]); x * 2 }

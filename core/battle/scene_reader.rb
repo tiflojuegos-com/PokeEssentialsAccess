@@ -1,22 +1,29 @@
 module PokeAccess
   # Engine-agnostic reader for the modern Battle::Scene menus. The command, fight and target menus are
-  # Battle::Scene::MenuBase subclasses that hold the selection in @index with graphic labels, so the focused
-  # option is read by introspection. These classes are shared across Essentials v19-v22 vanilla (and the Sky
-  # fork), so this reader is version-neutral: the v21 and v22 files own only the hooks that TRIGGER it (each
-  # engine opens/navigates its menus differently), while the spoken content lives here once. On gen-6 there
-  # is no Battle::Scene, so nothing here is ever reached (its triggers never bind).
+  # Battle::Scene::MenuBase subclasses holding the selection in @index with graphic labels, so the focused
+  # option is read by introspection. The classes are shared across Essentials v19-v22 vanilla and the Sky
+  # fork, so the spoken content lives here once while the v21 and v22 files own only the hooks that TRIGGER
+  # it. On gen-6 there is no Battle::Scene, so nothing here is ever reached.
   module BattleScene
-    # Positional command labels per menu mode, for the v19-v21 CommandMenu (which exposes neither @texts nor
-    # #command, so it is read by index). Every position is mode-dependent: modes 0-2 are regular battles
-    # (Fight/Bag/Pokemon with Run/Cancel/Call as the fourth button), mode 3 is the Safari Zone
-    # (Ball/Bait/Rock/Run) and mode 4 the Bug-Catching Contest (Fight/Ball/Pokemon/Run) -- both relabel the
-    # first buttons too, so a blind player hears the real button, not the default Fight/Bag/Pokemon. Values
-    # are i18n keys; verified against the Battle::Scene MODES table in Essentials master.
+    # Positional command labels per menu mode, for the v19-v21 CommandMenu, which exposes neither @texts nor
+    # #command and so is read by index. Modes 0-2 are regular battles (Fight/Bag/Pokemon with
+    # Run/Cancel/Call as the fourth button), mode 3 is the Safari Zone (Ball/Bait/Rock/Run) and mode 4 the
+    # Bug-Catching Contest (Fight/Ball/Pokemon/Run); the last two relabel the first buttons too. Values are
+    # i18n keys, verified against the Battle::Scene MODES table in Essentials master.
     CMD_MODES = { 0 => [:bt_cmd_fight, :bt_cmd_bag, :bt_cmd_pokemon, :bt_cmd_run],
                   1 => [:bt_cmd_fight, :bt_cmd_bag, :bt_cmd_pokemon, :pc_cancel],
                   2 => [:bt_cmd_fight, :bt_cmd_bag, :bt_cmd_pokemon, :bt_cmd_call],
                   3 => [:bt_cmd_ball, :bt_cmd_bait, :bt_cmd_rock, :bt_cmd_run],
-                  4 => [:bt_cmd_fight, :bt_cmd_ball, :bt_cmd_pokemon, :bt_cmd_run] }
+                  4 => [:bt_cmd_fight, :bt_cmd_ball, :bt_cmd_pokemon, :bt_cmd_run],
+                  # 5-8 are the Deluxe Battle Kit's, appended to the engine's MODES table by its Command
+                  # Menu Refactor. Without them a cheer battle or a Wonder Launcher battle falls back to
+                  # mode 0 and the reader says "Mochila" and "Huir" over buttons that read "Lanzar" and
+                  # "Animar". The kit swaps exactly two slots, the bag one for Launch and the run one for
+                  # Cheer, keeping Fight and Pokemon where they are.
+                  5 => [:bt_cmd_fight, :bt_cmd_bag, :bt_cmd_pokemon, :bt_cmd_cheer],
+                  6 => [:bt_cmd_fight, :bt_cmd_launch, :bt_cmd_pokemon, :bt_cmd_run],
+                  7 => [:bt_cmd_fight, :bt_cmd_launch, :bt_cmd_pokemon, :pc_cancel],
+                  8 => [:bt_cmd_fight, :bt_cmd_launch, :bt_cmd_pokemon, :bt_cmd_call] }
     # v22's command menu is symbol-based and reorderable, so the focused option is read from the symbol
     # (menu.command) rather than by position.
     CMD_SYMS = { :fight => :bt_cmd_fight, :fight2 => :bt_cmd_fight, :bag => :bt_cmd_bag,
@@ -26,8 +33,10 @@ module PokeAccess
                  :throw_bait => :bt_cmd_bait, :throw_rock => :bt_cmd_rock }
 
     # Reads the focused option of a battle menu, dispatching on its kind; a no-op for kinds not
-    # special-cased. param interrupt whether this read may cut current speech (true for navigation; false
-    # on open, so it does not cut the hp/turn lines just spoken)
+    # special-cased. What it hands the info key is the MOVE and not the line it just spoke, so that key adds
+    # the category and the description through Info.move_info instead of echoing the cursor.
+    # param interrupt whether this read may cut current speech (true for navigation; false on open, so it
+    #   does not cut the hp/turn lines just spoken)
     def self.read_menu(menu, interrupt = true)
       t = nil; foe = false; move = nil
       if defined?(::Battle::Scene::CommandMenu) && menu.is_a?(::Battle::Scene::CommandMenu)
@@ -39,10 +48,6 @@ module PokeAccess
         t = target_label(menu)
       end
       if t && !t.to_s.empty?
-        # The MOVE and not the line just spoken. Storing the line made the info key an echo: it read back,
-        # word for word, what the cursor had already said, so in a modern battle the key that exists to add
-        # detail added nothing. With the move object it answers through Info.move_info, which is the same
-        # fields plus the category and the move's description -- the part no cursor line carries.
         if foe
           PokeAccess::Info.set_info(:battle_foe, nil)
         elsif move
@@ -80,21 +85,16 @@ module PokeAccess
       (b.moves[idx] rescue nil)
     end
 
-    # The focused target's name in the target menu. The menu's @texts is indexed by battler index; in
-    # double battles the engine may leave a slot blank (a hidden/unseen foe), which previously read as
-    # silence -- so when @texts[idx] is empty, name the battler at that index directly (pbThis, or a
-    # positional fallback) so every target is announced.
+    # The focused target's name in the target menu. @texts is indexed by battler index, and an EMPTY slot is
+    # the engine saying that position cannot be selected, not that it forgot the name. A spread move is the
+    # case: the menu opens with the cursor on the user's own index and lights every valid target at once, so
+    # filling the blank would announce the attacker as the target of its own Earthquake. The mode says which.
     def self.target_label(menu)
       texts = PokeAccess.ivar(menu, :@texts)
       idx = (menu.index rescue 0)
       t = (texts && texts[idx] && !texts[idx].to_s.empty?) ? PokeAccess.clean(texts[idx]) : nil
       return t if t
-      b = (PokeAccess::Battle.battler_at(idx) rescue nil)
-      if b
-        nm = (b.pbThis rescue nil)
-        nm = (b.name rescue nil) if nm.nil? || nm.to_s.empty?
-        return PokeAccess.clean(nm) if nm && !nm.to_s.empty?
-      end
+      return PokeAccess::I18n.t(:bt_target_spread) if PokeAccess.ivar(menu, :@mode) == 1
       idx ? PokeAccess::I18n.t(:bt_target_n, :n => idx + 1) : nil
     end
 

@@ -1,10 +1,10 @@
-# Gen-6 move relearner. The harness had no scene for it, so the reader R1 fixed shipped with no coverage
-# of its own -- and the thing it fixed is invisible to any "does it speak?" test.
+# Gen-6 move relearner. The harness ships no scene for it, and what this reader does is invisible to any
+# "does it speak?" test.
 #
 # Muting the generic bare-name read is the point: the list is a Window_CommandPokemon whose plain move
 # names the generic reader already voices, and this reader wants to say the whole detail instead. The
 # obvious way to mute a window is @ignore_input, and on gen-6 that is a trap -- the command window gates
-# its OWN navigation on that flag (050_SpriteWindow), so muting the read would have frozen the player's
+# its OWN navigation on that flag (050_SpriteWindow), so muting the read through it freezes the player's
 # cursor on the screen. It sets @access_dedicated, the mod's own flag, which menus.rb honours without the
 # engine ever seeing it. A test that only listens cannot tell the two apart; this one checks the flags.
 Suite.define("gen-6 relearner: mutes the generic read without freezing the cursor") do

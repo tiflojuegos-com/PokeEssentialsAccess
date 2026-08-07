@@ -26,8 +26,8 @@ Suite.define("battle: the pokedex page is identified on the plain screen, not ju
   falsy "and neither does a missing argument", pdx.page_id(plain, nil)
 end
 
-# The four games that ship MUI worked before this change and must keep working identically: @page_id is the
-# authority whenever it is set, whatever number the call carried.
+# On the four games that ship MUI, @page_id is the authority whenever it is set, whatever number the call
+# carried.
 Suite.define("battle: MUI's page name still wins over the argument") do
   pdx = PokeAccess::PokedexInfoV21
   mui = Object.new

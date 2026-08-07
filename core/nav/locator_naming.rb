@@ -37,10 +37,15 @@ module PokeAccess
                   [/hidden\s*item/i, :loc_hidden_item], [/berry\s*plant/i, :loc_berry_plant]]
 
     # The field-move obstacle/pickup key for an event, or nil (matched on the engine's own name marker).
+    # Un evento que HABLA no es un obstaculo de movimiento oculto, por muy bien que case su nombre. Las
+    # alternativas de nombre desnudo -- \Arock\z, \Atree\z, \Aboulder\z -- existen porque gen-6 los llama
+    # asi, pero tambien casan con un personaje llamado "Rock", y entonces un NPC con dialogo se anuncia como
+    # roca rompible y el jugador no vuelve a hablar con el.
     def self.fieldmove_label(ev)
       n = (ev.name.to_s rescue "")
       return nil if n.empty?
       hit = FIELDMOVES.find { |re, _k| n =~ re }
+      return nil if hit && (shows_text?(ev) rescue false)
       hit ? hit[1] : nil
     rescue StandardError
       nil
@@ -63,17 +68,14 @@ module PokeAccess
       false
     end
 
-    # Per-event VERDICT cache for the page-scanning classifiers (transfer/sign/examinable/shows_text),
-    # which used to rescan every command of every page on each locator rebuild while push/lever already
-    # cached. The invalidation lives INSIDE the key: [event id, identity of the live @list, kind] -- when
-    # a switch flips the event to another page, the engine's refresh assigns that page's list to @list,
-    # the identity changes, and the stale verdict is simply never looked up again (flipping back revives
-    # the old key with its still-correct verdict). @trigger and character_name change in the same refresh,
-    # so every input the classifiers read is covered by that one identity. On top of the self-keying, the
-    # whole store is dropped at the two points the locator already invalidates -- end of a running event
-    # (a variable-driven type-1 transfer resolves $game_variables live, and variables change inside
-    # events) and map change via Caches -- so keys never pile up and variable-dependent verdicts refresh.
-    # Values are wrapped in a one-element array so nil/false verdicts cache as real hits.
+    # Per-event VERDICT cache for the page-scanning classifiers (transfer/sign/examinable/shows_text).
+    # Invalidation lives INSIDE the key, [event id, identity of the live @list, kind]: a switch that flips
+    # the event to another page makes the engine assign that page's list to @list, so the identity changes
+    # and the stale verdict is never looked up again (flipping back revives the old key). @trigger and
+    # character_name change in the same refresh, so one identity covers every input the classifiers read.
+    # The store is also dropped where the locator already invalidates -- end of a running event, map change
+    # -- so variable-driven type-1 transfers refresh and keys never pile up. Values are wrapped in a
+    # one-element array so nil and false cache as real hits.
     @verdicts = {}
 
     # The cached verdict for (event, kind), computing it from the block on the first miss.
@@ -407,13 +409,13 @@ module PokeAccess
       PokeAccess::I18n.t(:loc_passage)
     end
 
-    # A map name from its id, caching MapInfos.
+    # A map name from its id, caching MapInfos -- including caching the FAILURE. Without the empty-hash
+    # fallback the guard below stays true and the whole Marshal is re-attempted on every call (each map
+    # change, each exit name, each diag line, each recorder sample) while no map is ever named and nothing
+    # is written anywhere.
     def self.map_name(mapid)
       ov = (PokeAccess::MapNames.get(mapid) rescue nil)
       return ov if ov && !ov.to_s.empty?
-      # Memoise the FAILURE too. Without the empty-hash fallback the guard stays true and the whole Marshal
-      # is re-attempted on every call -- each map change, each exit name, each diag line, each recorder
-      # sample -- while no map is ever named and nothing is written anywhere.
       if @mapinfos.nil?
         @mapinfos = load_mapinfos
         if @mapinfos.nil?
@@ -435,7 +437,13 @@ module PokeAccess
     end
 
     # Builds the spoken name for an event (person/object/exit/generic); a user tag wins over the auto name.
+    #
+    # A synthetic target is passed straight through: the five places that build a SurfaceTarget hand it a
+    # finished, already-localized name, and classifying it again can only lose information. A connection
+    # exit is named "salida a Ruta 3", which EXIT_NAME_RE matches, and a Struct carries no command list to
+    # find a destination in, so it would fall through to a bare "salida".
     def self.target_name(ev)
+      return ev.name.to_s if ev.is_a?(SurfaceTarget)
       tag = (PokeAccess::Tags.get($game_map.map_id, ev.id) rescue nil)
       return tag if tag && !tag.to_s.empty?
       w = wild_pokemon_name(ev)
@@ -446,7 +454,7 @@ module PokeAccess
       fm = fieldmove_label(ev)
       return PokeAccess::I18n.t(fm) + PokeAccess::Berry.state_suffix(ev) if fm == :loc_berry_plant
       return PokeAccess::I18n.t(fm) if fm
-      n = ev.name.to_s.sub(/\/.*$/, "").strip
+      n = ev.name.to_s.sub(/\/.*$/, "").gsub(EDITOR_NOTE_RE, " ").strip.gsub(/\s{2,}/, " ")
       return PokeAccess::I18n.t(:loc_trainer) if n =~ /^Trainer\(/i
       return PokeAccess::I18n.t(:loc_pc) if pc_event?(ev)
       if transfer_event?(ev)
@@ -555,7 +563,15 @@ module PokeAccess
     # Change Weapons (128) and Change Party Member (117) -- the marks of a hidden item / reward event.
     GOODS_CODES = [125, 126, 127, 128, 117]
     # Event name/sprite patterns that mark a door/exit (matched on the event's name and charset).
-    EXIT_NAME_RE = /door|puerta|salida|exit/i
+    # Con frontera de palabra: como subcadena, "door" casa dentro de "outdoor" y "puerta" dentro de
+    # "puertaventana", y un decorado cualquiera se anuncia como salida a un sitio al que no lleva.
+    EXIT_NAME_RE = /\b(door|puerta|salida|exit)\b/i
+
+    # Anotaciones que el editor de mapas deja pegadas al nombre del evento y que no forman parte de
+    # el: size(3,1) para un objeto de varias baldosas, .sl y forced_z=N para la capa en que se dibuja.
+    # Sin quitarlas se pronuncian tal cual -- "maquina expendedora size(3,1)" -- porque el guardia que
+    # ya habia solo las quitaba cuando ocupaban el nombre entero.
+    EDITOR_NOTE_RE = /\s*(?:size\s*\(\s*\d+\s*,\s*\d+\s*\)|\.sl\b|\bforced_z\s*=\s*-?\d+)/i
     # Action-button command codes that mean an event does something: text/choices, script, or item/money.
     # Built on a duped array with concat, never `+`: a fangame script patch redefines Array#+ as an in-place
     # mutator (seen in the wild), so the literal `+` would corrupt TEXT_CODES and alias this constant to it.

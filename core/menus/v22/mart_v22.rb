@@ -1,13 +1,12 @@
 # v22 Poke Mart (Essentials v22: UI::MartVisuals for buying, UI::BagSellVisuals for selling, and
 # UI::BPShopVisuals < UI::MartVisuals for the Battle Point shop). The buy list is a passive
 # UI::MartVisualsList exposing the focused item via visuals.item; the price comes from the stock wrapper's
-# buy_price_string so the unit is right ("$500" for a Mart, "100 BP" for the BP shop, plus custom prices) --
-# and because BPShopVisuals inherits MartVisuals' cursor callback, this one hook covers it too.
-# Selling needs NO hook here: UI::BagSellVisuals subclasses UI::BagVisuals and its own
-# refresh_on_index_changed calls super (020_UI_PokeMart.rb:473), so the bag's hook already fires on the
-# sell screen and reads the item. A second registration on the subclass used to sit here; it spoke the
-# same line, survived only because the cursor dedup swallowed it, and would have started double-reading
-# the moment the sell line diverged from the bag one (by gaining the price, say).
+# buy_price_string so the unit is right ("$500" for a Mart, "100 BP" for the BP shop), and BPShopVisuals
+# inherits MartVisuals' cursor callback, so this one hook covers it too.
+#
+# Selling needs NO hook: UI::BagSellVisuals subclasses UI::BagVisuals and its refresh_on_index_changed
+# calls super, so the bag's hook already fires on the sell screen and reads the item. A registration on the
+# subclass would speak the same line and start double-reading the moment the two diverged.
 PokeAccess::V22.on_nav("UI::MartVisuals") do |vis|
   id = (vis.item rescue nil)
   if id

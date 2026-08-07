@@ -2,8 +2,8 @@
 # hold the numbers being edited, against @original_evs so the player can tell what changed. Reading them
 # on every redraw covers both moving between stats and nudging a value.
 #
-# The dialogue history that used to live here is a third-party plugin shared with other fangames, so it
-# moved to plugins/text_log and is declared in this profile's manifest.
+# The dialogue history is a third-party plugin shared with other fangames, so it lives in plugins/text_log
+# and is declared in this profile's manifest.
 module PokeAccess
   module AwakeningExtras
     # @selected_stat is the ROW the cursor is on (0..6, cycled % 7), NOT a stat index: the scene lists the

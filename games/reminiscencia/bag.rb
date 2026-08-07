@@ -16,7 +16,7 @@ module PokeAccess
     # True while a bag choose loop is active. The bag opens over the pause menu, whose loop is suspended but
     # whose poll keeps running, so ReminMenu reads this to stop re-arming the menu lock while the bag is in
     # front -- which keeps the mod's own config key reachable there. The lock gates ONLY that key
-    # (core/input/input.rb:101); it has never touched the info key, whatever this comment used to claim.
+    # (core/input/input.rb), never the info key.
     def self.watching?; !@scene.nil?; end
 
     # Reads the focused item when it changes. The generic Window_PokemonBag extractor already prefixes the

@@ -5,18 +5,12 @@
 #   * Window_BaseDecorationsList -> what is in the focused category, named by GameData::SecretBaseDecoration
 #   * PlaceDecoration_Scene      -> a free cursor over the map, choosing where the piece goes
 #
-# Both list windows are the same code in both copies (identical initialize, itemCount and drawItem; they
-# differ only in the painted CANCEL/CANCELAR label and a pixel offset), so one extractor serves both.
+# Both list windows are the same code in both copies, so one extractor serves both.
 #
-# The placing step is where they diverge, and it is the divergence that matters most because it decides
-# whether the answer the reader gives matches what pressing the button does. Both walk the piece's
-# footprint in the same order over the same coordinates and both ask can_place_here? per tile -- but the
-# fork rewrote that method against the tileset and added a fourth argument, the tile's position within the
-# piece. Calling it with the wrong arity raises on every frame, and the "it fits" answer -- the only part a
-# blind player cannot get any other way -- would just never be spoken. So the call is shaped by the
-# method's own arity.
-#
-# The walls-and-floors variant exists in one copy only; its extractors simply never bind in the other.
+# The placing step diverges: the fork rewrote can_place_here? against the tileset and added a fourth
+# argument, the tile's position within the piece. The call is therefore shaped by the method's own arity --
+# the wrong one raises every frame and the "it fits" answer, which a blind player cannot get any other way,
+# is never spoken. The walls-and-floors variant exists in one copy only and simply never binds in the other.
 module PokeAccess
   module SecretBases
     # A category row: its name and how full it is.
@@ -50,8 +44,8 @@ module PokeAccess
       nil
     end
 
-    # One tile of the check, called the way THIS copy of the plugin declares it (the fork takes the tile's
-    # position within the piece as a fourth argument and derives its offset from it).
+    # One tile of the check, called the way this copy declares it.
+    # param pos the tile's position within the piece, which only the fork takes
     def self.tile_ok?(scene, data, x, y, pos)
       m = (scene.method(:can_place_here?) rescue nil)
       return nil if m.nil?
@@ -61,8 +55,7 @@ module PokeAccess
     end
 
     # Whether the whole piece fits at (x, y): true, false, or nil when it cannot be decided. Walks the
-    # footprint exactly as the plugin does before placing (reverse order, pos incrementing), so the reader
-    # can never disagree with what the confirm key would do.
+    # footprint in the plugin's own order, so the answer cannot disagree with what the confirm key does.
     def self.fits?(scene, data, x, y)
       size = (data.tile_size rescue nil)
       return nil unless size.is_a?(Array) && size.length == 2

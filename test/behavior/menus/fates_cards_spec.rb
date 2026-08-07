@@ -1,9 +1,9 @@
 # Awakening's relationship cards (FatesCartas). The screen is entered through self.main and keeps its
 # whole state on the class, so there is no instance to hold and the reader has to poll -- which means it
-# polls on every frame of the entire game, not just while the screen is up. It used to answer that poll by
-# resolving "FatesCartas" by name and reading three class ivars, forever.
+# polls on every frame of the entire game, not just while the screen is up. Answering that poll by resolving
+# "FatesCartas" by name and reading three class ivars would run for the whole session.
 #
-# So main is wrapped now, and the two halves of that need pinning together: the screen must still read
+# So main is wrapped instead, and the two halves of that need pinning together: the screen must still read
 # (a wrapper that fails to install is a silent, permanent mute), and the poller must not touch the class
 # at all while the screen is closed -- which is the whole point and the half a "does it speak?" test
 # cannot see.
@@ -16,8 +16,8 @@ Suite.define("awakening cards: reads while open, and does not go looking while c
   made = false
   begin
     # A panel is a sprite holder that carries no text of its own: the name and rank live on the CHARACTER it
-    # draws, reachable through its pj accessor. Reading them off the panel yields nothing, which is what the
-    # screen used to do -- so the fixture keeps the ivars out of reach on purpose.
+    # draws, reachable through its pj accessor. Reading them off the panel yields nothing, so the fixture
+    # keeps the ivars out of reach on purpose.
     character = Object.new
     character.instance_variable_set(:@nombre, "Chrom")
     character.instance_variable_set(:@rango_letras, "A")

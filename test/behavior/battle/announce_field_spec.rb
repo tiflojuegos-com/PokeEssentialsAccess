@@ -1,6 +1,6 @@
-# Regression: announce_field builds a long report (weather + terrain + per-side effects). It used to lose
-# the WHOLE report if any one section raised (a transient state the frame a terrain expires). Now each
-# section is self-guarded, so a failing section drops only its part and the rest still speaks.
+# announce_field builds a long report (weather + terrain + per-side effects). Each section is self-guarded,
+# so a section that raises -- a transient state on the frame a terrain expires -- drops only its own part
+# and the rest still speaks.
 Suite.define("battle: announce_field survives a failing section") do
   weather_only = Object.new
   def weather_only.pbWeather; 1; end

@@ -1,10 +1,10 @@
 # The pathfinder must CROSS ledges, which the ledge_stub_spec deliberately does not assert (it only proves
 # the stub's engine surface). The real engines (v21/v22 and the gen-6 games: verified in Pokemon Z's
 # Game_Player and Relict/Reminiscencia) make a ledge PASSABLE from the high side and decide the hop inside
-# the "can move" branch, so step_target used to walk into the ledge tile as a normal dead-end step and never
-# reach the jump branch. These specs pin the crossing, its one-way direction, the reachability flood, the
+# the "can move" branch, so a plain passability check walks into the ledge tile as a dead-end step and never
+# reaches the jump branch. These specs pin the crossing, its one-way direction, the reachability flood, the
 # hide-unreachable filter, the ledge_directions=off behaviour, and the guide's jump cue -- and the walk-only
-# first pass, which is the crispest witness of the bug (it MUST refuse the ledge).
+# first pass, which is the sharpest case of the lot (it MUST refuse the ledge).
 
 # Resets the pathfinder's per-map caches so a fresh grid/ledge layout is searched from scratch within a suite.
 def ledge_fresh

@@ -3,66 +3,61 @@
 # classes exist; the modern battle reader is core/battle/v21/battle_v21.rb. All the spoken logic lives in the
 # shared PokeAccess::Battle module (core/battle/battle.rb); these are just the gen-6 bindings.
 
-# Battle messages (also captures the battle for the hp/field keys).
+# Battle messages, also capturing the battle for the hp and field keys.
+#
+# say_dialogue and not speak_clean in all three message hooks: it also files the line for the repeat key,
+# which gen-6 reaches from nowhere else -- its message loop never touches Kernel.pbMessageDisplay. The
+# half-second dedup inside it is what keeps the two paths from reading one line twice.
 PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbDisplayMessage) do |scene, args|
   PokeAccess::Battle.set_battle(scene.instance_variable_get(:@battle))
-  PokeAccess.speak_clean(args[0], false)
+  PokeAccess.say_dialogue(args[0])
 end
 
-# Paused battle messages (exp gained, level up): routed via pbDisplayPaused, a different method than
-# pbDisplayMessage, so it needs its own hook.
+# Paused battle messages (exp, level up): a different method from pbDisplayMessage, so its own hook.
 PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbDisplayPausedMessage) do |_s, args|
-  PokeAccess.speak_clean(args[0], false)
+  PokeAccess.say_dialogue(args[0])
 end
 
-# Move-target selection in doubles: read whoever is under the cursor as it moves. hook_container because the
-# original drives the command/fight display's own hooked index setters internally; guarding it would mute
-# those readers.
+# Move-target selection in doubles: reads whoever is under the cursor. hook_container because the original
+# drives the display's own hooked setters.
 #
-# Stock gen-6 has pbUpdateSelected(index), which exists for exactly this. Some forks dropped it and
-# their pbChooseTarget highlights through pbSelectBattler(index, 2) instead -- the same call the
-# command phase uses with the default mode, so the mode argument is what separates "choosing a target" from
-# "this battler's turn began" and keeps the second from being announced. A bare -1 still passes: that is
-# pbChooseTarget deselecting on the way out, which is what lets re-entering selection read again.
+# Stock gen-6 has pbUpdateSelected; a fork without it highlights through pbSelectBattler(index, 2), the same
+# call the command phase makes with the default mode, so the mode is what separates choosing a target from a
+# battler's turn beginning. Index -1 passes through: it is the deselect that lets re-entry read again.
 if PokeAccess::Engine.has?("PokeBattle_Scene#pbUpdateSelected")
   PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbUpdateSelected, :hook_container => true) do |scene, _r, args|
     PokeAccess::Battle.announce_target(scene, args[0])
   end
 else
   PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbSelectBattler, :hook_container => true) do |scene, _r, args|
-    choosing = args[0].is_a?(Integer) && (args[1] == 2 || args[0] < 0)
+    choosing = args[0].is_a?(Array) || (args[0].is_a?(Integer) && (args[1] == 2 || args[0] < 0))
     PokeAccess::Battle.announce_target(scene, args[0]) if choosing
   end
 end
 
-# Battle prompts with options (yes/no like "give a nickname?", fainted-pokemon choices): the question
-# text is set straight on the message window, not via pbDisplayMessage, so it is read here; the Si/No
-# options are a Window_CommandPokemon read by the generic hook.
+# Battle prompts with options: the question goes straight onto the message window, not through
+# pbDisplayMessage. The yes/no list itself is a Window_CommandPokemon the generic hook already reads.
 PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbShowCommands) do |_s, args|
-  PokeAccess.speak_clean(args[0], false)
+  PokeAccess.say_dialogue(args[0])
 end
 
-# The four command labels, kept as they go past. On the seven gen-6 games this is redundant -- setTexts
-# fills a real command window and the reader finds it there -- but on both Infinite Fusion the display
-# draws buttons instead and discards them, so this call is the only moment the labels ever exist. It runs
-# before setIndexAndMode in the engine's own command loop, so the stash is ready by the time anything reads.
+# The four command labels, stashed as they go past: on both Infinite Fusion the display draws buttons and
+# discards the strings, so this call is the only moment the labels exist. It runs before setIndexAndMode.
 PokeAccess::Hooks.after_hook("CommandMenuDisplay", :setTexts) do |disp, _r, args|
   PokeAccess::Battle.stash_command_texts(disp, args[0])
 end
 
-# Command menu (also resets the info key to read the foe here). The first read after the menu opens is
-# queued so it does not cut the hp/turn lines; navigation interrupts.
+# Command menu, which is also where the info key goes back to describing the foe. The opening read is
+# queued so it does not cut the hp and turn lines; navigation interrupts.
 PokeAccess::Hooks.after_hook("CommandMenuDisplay", :index=) do |disp, _r, args|
   PokeAccess::Info.set_info(:battle_foe, nil)
   PokeAccess::Battle.read_command(disp, args[0], !PokeAccess::Battle.cmd_opening_consume)
 end
 
-# Opening the command menu from v19 on: setIndexAndMode assigns @index DIRECTLY, so index= never runs and
-# the menu opened in silence -- and it opens on whatever command you chose last turn, so the only way to
-# learn where the cursor was would be to press a direction, which moves you off it. This is the same hole
-# the FightMenuDisplay block below already closes for the move list; the command menu never got it. The
-# flag is consumed here so the first real navigation still interrupts instead of being queued as if it
-# were the open. Pre-v19 has no such method, so this installs nowhere it is not needed.
+# From v19 on the menu opens through setIndexAndMode, which assigns @index directly and never runs index=.
+# It opens on whatever command was chosen last turn, so the only other way to learn where the cursor sits is
+# to press a direction, which moves off it. The flag is consumed here so the first real navigation
+# interrupts instead of being queued as an open.
 if PokeAccess::Engine.has?("CommandMenuDisplay#setIndexAndMode")
   PokeAccess::Hooks.after_hook("CommandMenuDisplay", :setIndexAndMode) do |disp, _r, args|
     PokeAccess::Info.set_info(:battle_foe, nil)
@@ -71,33 +66,26 @@ if PokeAccess::Engine.has?("CommandMenuDisplay#setIndexAndMode")
   end
 end
 
-# The command menu opens at the start of the command phase via pbCommandMenu/Ex (which sets the initial
-# cursor with cw.index=), so flag the next index= read as an open.
+# pbCommandMenu sets the initial cursor with cw.index=, so the next index= read is flagged as an open.
 ["PokeBattle_Scene"].each do |cn|
   ["pbCommandMenu", "pbCommandMenuEx"].each do |m|
     PokeAccess::Hooks.before_hook(cn, m) { |_s, _args| PokeAccess::Battle.cmd_opening! }
   end
 end
 
-# Move selection: read only when the focused move actually changes, so pressing a direction toward an empty
-# slot (the move does not move) is not mistaken for a re-read. An empty/absent slot passes key nil, which
-# Cursor treats as unchanged, so it neither speaks nor records -- returning to the same real move still reads.
+# Move selection, read only when the focused move changes: a direction toward an empty slot does not move
+# the cursor and must not count as a re-read. An empty slot passes key nil, which Cursor treats as unchanged.
 #
-# Which method to hang this on is not the same in every fork. Stock gen-6 declares FightMenuDisplay as a
-# standalone class with setIndex. Some forks instead give it a BattleMenuBase parent whose
-# cursor setter is index=, and no setIndex at all -- so the move list was silent there while the command
-# menu (CommandMenuDisplay#index=, which they do inherit) read fine. Gated on the capability rather than
-# hooked twice: where setIndex exists nothing changes, so the games that already work are untouched.
+# Bound by capability and not hooked twice: stock gen-6 declares FightMenuDisplay with setIndex, while a
+# fork gives it a BattleMenuBase parent whose only cursor setter is index=.
 PokeAccess::Hooks.after_hook("FightMenuDisplay",
                              (PokeAccess::Engine.has?("FightMenuDisplay#setIndex") ? :setIndex : :index=)) do |disp, _r, _a|
   PokeAccess::Battle.read_fight_move(disp)
 end
 
-# Opening the fight menu on the fork: setIndexAndMode places the initial cursor by assigning @index and
-# @mode DIRECTLY, bypassing both setters, so neither hook above fires and pressing Fight would land on a
-# move nobody read. Queued (interrupt false) so it does not cut the hp/turn lines, and it primes @access_mega
-# with the opening mode so the first real available->registered toggle still gets announced rather than being
-# swallowed as if it were the open. Stock gen-6 opens through setIndex, which is already covered.
+# Opening the fight menu on that fork: setIndexAndMode assigns @index and @mode directly, bypassing both
+# setters above. Queued, and it primes @access_mega with the opening mode so the first real toggle is still
+# announced instead of being swallowed as the open.
 if !PokeAccess::Engine.has?("FightMenuDisplay#setIndex") && PokeAccess::Engine.has?("FightMenuDisplay#setIndexAndMode")
   PokeAccess::Hooks.after_hook("FightMenuDisplay", :setIndexAndMode) do |disp, _r, args|
     m = args[1]
@@ -111,43 +99,42 @@ PokeAccess::Hooks.after_hook("FightMenuDisplay", :battler=) do |disp, _r, _a|
   PokeAccess::Cursor.reset(disp, :fight_move)
 end
 
-# Mega button (gen-6, one-way): announce when it flips to registered. Stock gen-6 exposes it as
-# attr_accessor :megaButton; a forked variant keeps the same 0=hidden/1=shown/2=pressed state in
-# @mode on BattleMenuBase (its own code reads @mode to draw that very button) and offers no megaButton=.
-# Same three values either way, so the reader just binds whichever setter the fork has, and neither where
-# there is no mega button at all.
-mega_setter = ["megaButton=", "mode="].detect { |m| PokeAccess::Engine.has?("FightMenuDisplay##{m}") }
-
-if mega_setter
-  PokeAccess::Hooks.after_hook("FightMenuDisplay", mega_setter.to_sym) do |disp, _r, args|
+# The fight menu's mechanic buttons, one-way: announced when one flips to registered. Stock gen-6 exposes
+# megaButton=; a fork keeps the same 0 hidden / 1 shown / 2 pressed state in @mode and has no such setter.
+# ultraButton is a second button on the SAME key in one game, for when the active Pokemon cannot mega
+# evolve, so every setter present is bound and each carries its own dedup slot.
+[["megaButton=", :@access_mega, :bt_mega_on, :bt_mega_off],
+ ["ultraButton=", :@access_ultra, :bt_ultra_on, :bt_ultra_off],
+ ["mode=", :@access_mega, :bt_mega_on, :bt_mega_off]].each do |setter, slot, on, off|
+  next unless PokeAccess::Engine.has?("FightMenuDisplay##{setter}")
+  next if setter == "mode=" && PokeAccess::Engine.has?("FightMenuDisplay#megaButton=")
+  PokeAccess::Hooks.after_hook("FightMenuDisplay", setter.to_sym) do |disp, _r, args|
     v = args[0]
-    k = PokeAccess::Battle.mega_key(disp.instance_variable_get(:@access_mega), v)
-    disp.instance_variable_set(:@access_mega, v) if v == 1 || v == 2
+    k = PokeAccess::Battle.mega_key(disp.instance_variable_get(slot), v, on, off)
+    disp.instance_variable_set(slot, v) if v == 1 || v == 2
     PokeAccess.speak(PokeAccess::I18n.t(k), true) if k
   end
 end
 
-# Level-up stat gains: the panel is graphic-only. This scene class spans two argument orders -- the seven
-# v16-17 games put SPEED before spatk/spdef, the two v18 hybrids put it last -- and the era is the only
-# thing that separates them, so it is asked once here rather than guessed per call. See levelup_from_args.
-# A local and not a constant: this file is evaluated at top level, so a constant here would be defined on the
-# fangame's own Object in all thirteen games. The block closes over it, which costs nothing and leaks nothing.
+# Level-up stat gains, which the panel shows only as graphics. The argument order splits by era (v16-17 put
+# SPEED before spatk/spdef, the v18 hybrids put it last) and nothing in the call tells them apart, so the
+# era is asked once here. A local and not a constant: this file is top level, and a constant would land on
+# the fangame's own Object. Before, because each stat panel blocks on a keypress.
 levelup_modern_order = PokeAccess::Engine.gamedata?
-PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbLevelUp) do |_s, _r, a|
+PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbLevelUp) do |_s, a|
   PokeAccess.speak(PokeAccess::Battle.levelup_from_args(a, levelup_modern_order), false)
 end
 
-# Damage number (not a message, so it is read here).
-PokeAccess::Hooks.after_hook("PokeBattle_Scene", :pbHPChanged) do |_s, _r, args|
+# The damage number, which is not a message. Before, because the original waits out the HP-bar animation and
+# the value is already knowable: the caller lowers hp first and passes the old one in.
+PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbHPChanged) do |_s, args|
   PokeAccess::Battle.announce_hp_change(args[0], args[1])
 end
 
-# Silence the map sonar during gen-6 battles. gen-6 never sets $game_temp.in_battle and runs the whole
-# fight inside Scene_Map, so the scene-change / in_battle checks never fire for wild encounters (trainer
-# fights happened to be covered by the running interpreter, but wild ones are not). pbBattleAnimation is the
-# top-level function that WRAPS the entire battle (both wild and trainer) in its block, so an around wrap on
-# it marks the in-battle flag for the whole fight and clears it on the way out, whatever raised. No-op where
-# the function is absent (modern engines already silence via the scene change).
+# Silences the map sonar during a gen-6 battle. gen-6 never sets $game_temp.in_battle and runs the fight
+# inside Scene_Map, so the scene checks never fire for a wild encounter. pbBattleAnimation wraps the whole
+# fight, wild and trainer alike, so an around wrap holds the flag for its duration and clears it however it
+# ends. No-op where the function is absent.
 PokeAccess::Hooks.wrap_kernel("pbBattleAnimation", "hook_battle_sonar", :around) do |args, call_next|
   PokeAccess::Battle.battle_started
   begin

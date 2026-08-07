@@ -3,6 +3,10 @@ module PokeAccess
   # is substituted first, before the generic \X stripper would eat it. Control bytes \x00-\x1f (e.g. \1
   # "wait for input", \2 wait-time) are removed too: they are not speakable, and leaving them in makes the
   # same line differ from its non-paused twin and slip past say_dialogue's dedup -> double battle messages.
+  #
+  # <br> becomes a space before the generic tag stripper runs. It is a LINE BREAK, so deleting it outright
+  # glued the words on either side into one -- battle messages built as "{1} used<br>{2}" came out as one
+  # unpronounceable word. The other tags (<b>, <c2=...>, <r>) are formatting and rightly leave no gap.
   def self.clean(message)
     t = message.to_s.dup
     t.gsub!(/\r?\n/, " ")
@@ -14,6 +18,7 @@ module PokeAccess
     t.gsub!(/\\[A-Za-z]+\[[^\]]*\]/, "")
     t.gsub!(/\\[A-Za-z]+/, "")
     t.gsub!(/\\[.!|^<>~\\]/, "")
+    t.gsub!(/<\s*br\s*\/?\s*>/i, " ")
     t.gsub!(/<\/?[A-Za-z][^>]*>/, "")
     t.gsub!(/\|/, " ")
     t.gsub!(/[\x00-\x1f]/, " ")

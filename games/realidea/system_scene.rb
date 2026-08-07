@@ -1,26 +1,21 @@
 module PokeAccess
   # Realidea's "Vision Realidea" (SystemScene): icon menus whose cursor is a LOCAL variable inside each
-  # blocking loop, so no clean hook can read it. We hold the scene during the loop (around-hook) and, since
-  # the cursor never reaches an ivar, the scene's loop is left to run untouched while we speak the focused
-  # option from a per-frame poll that tracks the cursor ourselves by mirroring the same key handling.
-  #
-  # The labels are fixed and known by position, so they come from i18n. We never reimplement the game's
-  # actions: C and B fall through to the game, which owns all point spending and screen transitions. We only
-  # track LEFT/RIGHT/UP/DOWN to know where the cursor is and announce it. If Realidea changes SystemScene's
-  # navigation or option order, only the LISTS and the bounds in poll below need updating.
+  # blocking loop, so no hook can read it. An around-hook holds the scene while its loop runs untouched, and
+  # a per-frame poll mirrors the same key handling to track the cursor and speak the focused option. The
+  # labels are fixed and known by position, so they come from i18n. Nothing the game does is reimplemented:
+  # C and B fall through to it, and only LEFT/RIGHT/UP/DOWN are tracked. If SystemScene's navigation or
+  # option order changes, only the LISTS and the bounds in poll below need updating.
   #
   # The bounds are transcribed from the scene's own three loops, and the two families differ at the LEFT
-  # edge, which is where the mirror used to drift apart from the game for good:
-  #   - the wheel (startScene) wraps both ways. Its LEFT is TWO independent ifs, not an elsif: `select -= 1
-  #     if select > 0` and then `select = 5 if select < 1`, so one press on the first option lands on the
-  #     last. Clamping at the first option instead meant every later press named a different option than the
-  #     one C would activate.
-  #   - the grids (chooseCurar, chooseMO) clamp RIGHT at the last option and let LEFT walk down to 0. Index 0
-  #     is a dead position: the scene's if/elsif chain has no branch for it, so it does not move the
-  #     highlight and it does not act on C either. It must not be read as an option -- list[-1] is Ruby's
-  #     last element, so "helpfully" reading it would announce the option at the far end of the menu -- but
-  #     it must not be silent either, or a press that does nothing is indistinguishable from a press the
-  #     reader missed. It is named for what it is.
+  # edge:
+  #   - the wheel (startScene) wraps both ways. Its LEFT is TWO independent ifs and not an elsif -- `select
+  #     -= 1 if select > 0`, then `select = 5 if select < 1` -- so one press on the first option lands on
+  #     the last.
+  #   - the grids (chooseCurar, chooseMO) clamp RIGHT at the last option and let LEFT walk down to 0. Index
+  #     0 is a dead position: the scene's if/elsif chain has no branch for it, so it neither moves the
+  #     highlight nor acts on C. It must not be read as an option, since list[-1] is Ruby's last element and
+  #     would announce the far end of the menu, and it must not be silent either, or a press that does
+  #     nothing is indistinguishable from one the reader missed. It is named for what it is.
   module RealideaSystem
     # Option labels per menu, in the game's 1-based select order.
     MAIN  = [:rl_sys_heal, :rl_sys_moves, :rl_sys_levelup, :rl_sys_magnifier, :rl_sys_repel]

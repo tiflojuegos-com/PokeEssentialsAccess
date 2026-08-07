@@ -17,14 +17,11 @@ module PokeAccess
 
     # The plugins the GAME itself says it has, from Essentials' own PluginManager: "name version" each.
     #
-    # This is the other half of the picture the diagnostic could not show. Our own two lists answer "what
-    # did the mod load" and "what did a profile forget"; both are limited to plugins the mod already knows.
-    # This one is the game's own register, so a bug report from a fangame nobody has a script dump of still
-    # names the plugins in play -- including the ones we have never heard of, which is exactly the set a
-    # silent screen is most likely to belong to.
-    #
-    # nil, not an empty list, where there is no PluginManager: the older games paste plugin code straight
-    # into the script list, so nothing registers and "none installed" would be a lie.
+    # The third list in the diagnostic. The other two answer "what did the mod load" and "what did a profile
+    # forget", both limited to plugins the mod already knows; this one is the game's own register, so a bug
+    # report from a fangame nobody has a script dump of still names the plugins in play. nil rather than an
+    # empty list where there is no PluginManager: the older games paste plugin code straight into the script
+    # list, so nothing registers and "none installed" would be a lie.
     def self.game_plugins
       pm = PokeAccess.const_at("PluginManager")
       return nil unless pm && pm.respond_to?(:plugins)
@@ -40,15 +37,12 @@ module PokeAccess
 
     # Plugins this game HAS whose reader nobody declared, so they are running mute.
     #
-    # Declaring by hand has exactly one weak spot -- forgetting -- and forgetting is silent: the only
-    # symptom is a screen that says nothing, which is precisely what a blind player cannot diagnose. Asking
-    # the running game whether the plugin is there turns that into a line in the diagnostic, and therefore
-    # into a line in any session recording, even on fangames nobody has a script dump of.
-    #
-    # The question goes through Engine.has? rather than a bare constant lookup so a probe can also name a
-    # METHOD. A plugin that reopens an engine class instead of adding its own is invisible to a class check
-    # -- the class is there in every game, plugin or not -- and those are the ones a hand-written list is
-    # likeliest to miss.
+    # Declaring by hand has one weak spot, forgetting, and forgetting is silent: the only symptom is a
+    # screen that says nothing, which is precisely what a blind player cannot diagnose. Asking the running
+    # game turns that into a line in the diagnostic and therefore into a line in any session recording. The
+    # question goes through Engine.has? rather than a bare constant lookup so a probe can also name a
+    # METHOD, since a plugin that reopens an engine class is invisible to a class check -- and those are the
+    # ones a hand-written list is likeliest to miss.
     def self.undeclared
       out = []
       table.each do |name, probe|

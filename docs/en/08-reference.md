@@ -350,6 +350,30 @@ events would trigger a costly re-flood per event. Pass `true` from callers that 
 `show_menu` exists because gen-6 only exposes `Kernel.pbMessage` and modern only the global `pbMessage`;
 calling the absent one raises `NoMethodError`.
 
+## Region map
+
+`core/nav/town_map.rb` — the `TownMap` module. Moving the map cursor is the one thing the three
+implementations do not share (reading is uniform: `pbGetMapLocation` / `pbGetMapDetails` /
+`pbGetHealingSpot` are the same three names in all thirteen games), so this registry exists only for the
+fly jump.
+
+| Signature | Returns | When to use it |
+|---|---|---|
+| `TownMap.register(name, handles, cursor, move, points, flyable = nil)` | Nothing | Register a cursor provider; last registered wins, so a profile overrides the core ones |
+| `TownMap.jump_enabled = false` | Nothing | Hand the jump back to the screen, where the game ships one of its own |
+| `TownMap.opened(scene)` / `.closed(scene)` | Nothing | Mark the screen open, and release it on close |
+| `TownMap.jump(scene, dir)` | `true` if it jumped | Jump to the nearest fly point in that direction |
+
+`handles` is a lambda taking the scene and answering whether this provider recognises it. Dispatch is by
+SHAPE (which methods and ivars the scene has) and never by class name or engine version: Arcky's Region Map
+and the v21+ rework both declare `PokemonRegionMap_Scene` with the cursor in different ivars. `flyable` is
+only needed on a screen that knows its own set of destinations; without it, the generic rule derives it from
+`pbGetHealingSpot` plus `visitedMaps`.
+
+`core/nav/better_region_map.rb` is a core provider, for the BetterRegionMap addon both Infinite Fusion games
+install: it is a class of its own, with its own loop, its cursor in `$PokemonGlobal.regionMapSel` and no
+`pbGetMapLocation`, so none of the standard map hooks reach it.
+
 ## Audio
 
 `core/audio/audio3d.rb`, `core/audio/spatial.rb` — modules `Audio3D` and `Spatial`. See

@@ -6,12 +6,9 @@
 # pbUpdateAlbum is a modal `loop do` in both copies (it calls Input.update every iteration), so the cursor
 # is polled each frame through SceneWatcher rather than hooked.
 #
-# Here the copies genuinely diverge, and this is where a shared reader has to ask instead of assume: one
-# added per-save-slot folders and keeps the directory listing in a cache behind obtener_archivo_captura,
-# the other has no such method and globs a fixed ALBUM_DIR inline. Calling the missing method would have
-# left the second game announcing "empty slot" for every photo it owns. The naming scheme is the same in
-# both, so only the LOOKUP differs -- and the fallback caches its own listing, because this runs per frame
-# and a directory scan at 60fps is not something to hand a player.
+# The copies differ only in the LOOKUP: one keeps a cached listing behind obtener_archivo_captura, the
+# other globs a fixed ALBUM_DIR. The naming scheme is the same in both, and the fallback caches its own
+# listing because this runs per frame.
 module PokeAccess
   module PhotoAlbum
     # The album's files, listed once per scene. The plugin does not add photos while the album is open.
@@ -24,20 +21,19 @@ module PokeAccess
       list
     end
 
-    # The file behind a slot, by whichever route this copy of the plugin offers, or nil for an empty slot.
+    # The file behind a slot, by whichever route this copy offers, or nil for an empty slot.
+    # The lookup logs rather than swallowing: respond_to? has already said the method is there, so a raise
+    # is a real fault and hiding it would report every photo as an empty slot.
     def self.file_for(scene, index)
       if scene.respond_to?(:obtener_archivo_captura, true)
-        # respond_to? already said the method is there, so a raise here is a real fault and not the usual
-        # cross-copy variance. Swallowing it silently would report every photo as an empty slot.
         return (scene.send(:obtener_archivo_captura, index) rescue (PokeAccess.log_once("album_lookup", $!); nil))
       end
       tag = sprintf("capture%03d", index)
       files(scene).find { |f| f.include?(tag) }
     end
 
-    # The date a capture filename ends with, or nil when it has none. Read through to_i as the screen does:
-    # the filename pads to two digits and the screen prints the number, so a photo taken on the fifth shows
-    # 5/3/2026 and reading the raw field said "zero five, zero three".
+    # The date a capture filename ends with, or nil. Read through to_i because the filename pads to two
+    # digits and the screen prints the bare number.
     def self.date_of(file)
       parts = File.basename(file.to_s, ".png").split("_")
       return nil if parts.length < 3

@@ -5,7 +5,7 @@
 # Why this suite forces engine state: the harness ships no PA3D dll. Win32API is a stub class whose #call
 # returns 0, so Audio3D.available? is TRUE (the entry points "resolve") but boot() fails on `INIT.call == 1`
 # and leaves @ready false with no channels, which every play path refuses with `return false unless @ready`.
-# The suite therefore sets @ready and the @ch handle table boot would have built, and restores both. Nothing
+# The suite therefore sets @ready and the @ch handle table boot builds, and restores both. Nothing
 # native is reached either way: each entry point is one of those Win32API stubs, and the ones observed here
 # get their #call replaced by a recorder, so the asserts read exactly the arguments the real dll would take.
 # $Trainer is given a stand-in for the same reason: with it nil the harness's Spatial.busy_reason reports
@@ -15,7 +15,7 @@ module A3DModes
            :@last_ping_any, :@last_ping_pos, :@mover_time, :@gates, :@bgm_restored, :@master_sent, :@air_sent]
   FNS = [:SET, :LIS]
 
-  # The channel handle table boot() would have filled in, one handle per declared channel.
+  # The channel handle table boot() fills in, one handle per declared channel.
   def self.channels
     h = {}
     PokeAccess::Audio3D::CHANNEL_FILES.each_with_index { |row, i| h[row[0]] = i }

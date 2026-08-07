@@ -6,7 +6,8 @@
 #
 # fusion_preview and storage_fusion are DELIBERATE TWINS of the infinitefusion ones, not shared code: the
 # two games ship the same fusion screens, but fusion is one saga's mechanic and the core is for what every
-# Essentials game has (minigames, menus, battle). Putting a saga in the core would tie it there for good --
+# Essentials game has (minigames, menus, battle). Putting a saga in the core would tie it there for as long
+# as the core exists --
 # and leave us entangled if that saga's authors ever asked us to drop it. test/static/twins_spec.rb compares
 # the copies and fails if one is edited without the other, so the price of duplicating is paid by a test
 # instead of by a silent divergence.

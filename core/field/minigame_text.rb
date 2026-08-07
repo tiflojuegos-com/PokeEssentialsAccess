@@ -42,6 +42,21 @@ module PokeAccess
       @mode = :board; @scene = scene; @bx = 0; @by = 0; @last = nil
     end
 
+    # Starts mirroring the opponent's hand, which the confirm key opens over the player's own in an open-hand
+    # match. It is a loop of its own with its own cursor, so without this the mirror kept reading the
+    # PLAYER's cards while the screen showed the rival's, and every arrow moved a cursor nobody could see.
+    def self.start_opponent(scene)
+      push
+      @mode = :opponent; @scene = scene; @choice = 0; @last = nil
+    end
+
+    # Leaves the opponent's hand. The game puts the player's cursor back on the first card, so the mirror
+    # does too: restoring the position it had would have it naming a card the screen no longer highlights.
+    def self.stop_opponent
+      stop
+      @choice = 0; @last = nil
+    end
+
     def self.push
       (@stack ||= []).push([@mode, @scene, @choice, @bx, @by, @last])
     end
@@ -54,8 +69,9 @@ module PokeAccess
     def self.poll
       return unless @scene
       case @mode
-      when :hand  then poll_hand
-      when :board then poll_board
+      when :hand     then poll_hand
+      when :opponent then poll_opponent
+      when :board    then poll_board
       end
     rescue StandardError
       nil
@@ -66,11 +82,7 @@ module PokeAccess
       idxs = PokeAccess.ivar(@scene, :@cardIndexes)
       n = (idxs.is_a?(Array) ? idxs.length : 0)
       return if n == 0
-      if Input.repeat?(Input::DOWN)
-        @choice += 1; @choice = 0 if @choice >= n
-      elsif Input.repeat?(Input::UP)
-        @choice -= 1; @choice = n - 1 if @choice < 0
-      end
+      move_choice(n)
       if @choice != @last
         @last = @choice
         t = card_text(hand_species(idxs[@choice]))
@@ -78,13 +90,46 @@ module PokeAccess
       end
     end
 
-    # The species behind a hand position. @cardIndexes holds sprite slots, not species: the game resolves a
-    # slot through @playerCards itself (TriadCard.new(@playerCards[spriteIndex])) before building a card.
-    def self.hand_species(slot)
+    # Opponent's hand, wrapped by the PLAYER's card count and not the rival's.
+    #
+    # The screen's own loop is entered as pbViewOpponentCards(numCards) from pbPlayerChooseCard(numCards),
+    # where numCards is the player's hand, so that is what it wraps on. The two hands empty separately, so
+    # mirroring the rival's length puts the wrap in a different place as soon as the rival leads.
+    #
+    # A position past the rival's last card is named as empty, because the game's redraw only highlights
+    # while i == choice over ITS cards and so highlights nothing there; naming a card would claim a focus
+    # the screen does not show, and silence is indistinguishable from a key that did nothing.
+    def self.poll_opponent
+      own  = PokeAccess.ivar(@scene, :@cardIndexes)
+      idxs = PokeAccess.ivar(@scene, :@opponentCardIndexes)
+      n = (own.is_a?(Array) ? own.length : 0)
+      return if n == 0
+      move_choice(n)
+      return if @choice == @last
+      @last = @choice
+      slot = idxs.is_a?(Array) ? idxs[@choice] : nil
+      t = slot.nil? ? PokeAccess::I18n.t(:triad_no_card) : card_text(card_species(:@opponentCards, slot))
+      PokeAccess.speak(t, true) if t && !t.to_s.empty?
+    end
+
+    # UP/DOWN with the same wrap the game's own loops use.
+    def self.move_choice(n)
+      if Input.repeat?(Input::DOWN)
+        @choice += 1; @choice = 0 if @choice >= n
+      elsif Input.repeat?(Input::UP)
+        @choice -= 1; @choice = n - 1 if @choice < 0
+      end
+    end
+
+    # The species behind a hand position. The index arrays hold sprite slots, not species: the game resolves
+    # a slot through its card array (TriadCard.new(@playerCards[spriteIndex])) before building a card.
+    def self.card_species(ivar, slot)
       return nil if slot.nil?
-      cards = PokeAccess.ivar(@scene, :@playerCards)
+      cards = PokeAccess.ivar(@scene, ivar)
       cards.is_a?(Array) ? cards[slot] : nil
     end
+
+    def self.hand_species(slot); card_species(:@playerCards, slot); end
 
     # Board placer: arrows wrap over the grid; speak the cell position and whether it is free or whose it is.
     def self.poll_board
@@ -142,6 +187,10 @@ module PokeAccess
 end
 
 ["TriadScene", "TriadScreen"].each do |cn|
+  PokeAccess::Hooks.around_hook(cn, :pbViewOpponentCards, :optional => true) do |scene, call_next, _a|
+    PokeAccess::TripleTriad.start_opponent(scene)
+    begin; call_next.call; ensure; PokeAccess::TripleTriad.stop_opponent; end
+  end
   PokeAccess::Hooks.around_hook(cn, :pbPlayerChooseCard, :optional => true) do |scene, call_next, _a|
     PokeAccess::TripleTriad.start_hand(scene)
     begin; call_next.call; ensure; PokeAccess::TripleTriad.stop; end

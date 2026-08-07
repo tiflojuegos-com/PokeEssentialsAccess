@@ -22,12 +22,13 @@ module PokeAccess
       PokeAccess.log_once("poll_sprite_#{scene.class}", e)
     end
 
-    # The focused option's text for a command window. Of every registered extractor whose class matches
-    # the window, the MOST DERIVED wins (smallest ancestor distance) -- mirroring Ruby's own method
-    # dispatch, so a profile can specialise a SUBCLASS of a window the core already covers and its
-    # extractor wins regardless of registration order (first-match-by-registration let the core capture
-    # the subclass forever). An exact tie in distance means the same class, where the FIRST registration
-    # keeps winning, preserving the old behaviour for duplicates (min_by keeps the first minimum).
+    # The focused option's text for a command window. Of every registered extractor whose class matches the
+    # window the MOST DERIVED wins (smallest ancestor distance), mirroring Ruby's own method dispatch, so a
+    # profile can specialise a SUBCLASS of a window the core already covers whatever the registration order.
+    # An exact tie means the same class, where the first registration wins (min_by keeps the first minimum).
+    #
+    # An extractor that raises falls back to the generic read rather than going mute: a broken dedicated
+    # extractor should cost the EXTRA it added, not the option's name.
     def self.focused_text(win)
       i = win.index
       return nil if i.nil? || i < 0
@@ -46,8 +47,6 @@ module PokeAccess
           log << best_name
           PokeAccess.write_marker("extractor #{best_name}: #{e.class}: #{e.message}\n")
         end
-        # Fall back to the generic read instead of going mute: a broken dedicated extractor should cost the
-        # EXTRA it added, not the option's name, which generic_focus takes from the window's own list.
         generic_focus(win, i)
       end
     end
@@ -55,6 +54,20 @@ module PokeAccess
     # The ivars an Essentials selectable window commonly stores its option list in, tried in order
     # (introspection, never OCR), so list[index] yields the exact string the game holds.
     LIST_IVARS = [:@commands, :@items, :@list, :@data, :@choices, :@names, :@entries, :@stock]
+
+    # A field-menu button label, with the trainer card named when the game labels it with the player's own
+    # name. Three of the custom field menus do that -- anil's Diamond/Pearl grid, africanvs's bezier panel
+    # and armonia's -- and all three PRINT the name beside the icon, so both halves are spoken: the name
+    # because it is what the screen shows, the function because a player's own name sitting between
+    # "Mochila" and "Guardar" says nothing about what the button opens.
+    def self.button_label(label)
+      s = label.to_s
+      name = (PokeAccess::Engine.player.name rescue nil)
+      return s if name.nil? || s.empty? || s != name.to_s
+      "#{s}, #{PokeAccess::I18n.t(:tc_title)}"
+    rescue StandardError
+      label.to_s
+    end
 
     # The focused entry's text by introspecting the window's own option list, or nil; the fallback for
     # command windows and the reader for the generic SpriteWindow_Selectable hook.
@@ -153,25 +166,11 @@ module PokeAccess
       end
     end
 
-    # In-game control remap: read each action with its assigned key, plus the controls.
-    def_extractor("Window_PokemonControls") do |win, i|
-      controls = win.instance_variable_get(:@controls) || []
-      n = controls.length
-      if i == n + 1
-        PokeAccess::I18n.t(:sm_exit)
-      elsif i == n
-        PokeAccess::I18n.t(:mn_default_keys)
-      elsif controls[i]
-        "#{controls[i].controlAction}: #{controls[i].keyName}"
-      end
-    end
-
-    # Dual-shape: gen-6 entries are arrays ([species, name, .., displayname]); the modern Window_Pokedex
-    # stores hashes ({:species, :name}). One extractor covers both. The seen/owned state goes through
-    # Util.dex_seen?/dex_owned?, which probe the predicate API before the gen-6 arrays -- some v18-era
-    # games keep the array row shape but expose only seen?/owned?, so reading the arrays directly raised
-    # and left the whole dex list silent. A row already carrying its name (c[1]) is spoken as-is, which
-    # is also what resolves a custom composite species name without rebuilding the species.
+    # Dual-shape: gen-6 entries are arrays ([species, name, .., displayname]) and the modern Window_Pokedex
+    # stores hashes ({:species, :name}), so one extractor covers both. The seen/owned state goes through
+    # Util.dex_seen?/dex_owned?, which probe the predicate API before the gen-6 arrays, since a v18-era game
+    # can keep the array row shape and expose only seen?/owned?. A row already carrying its name (c[1]) is
+    # spoken as-is, which also resolves a custom composite species name without rebuilding the species.
     def_extractor("Window_Pokedex") do |win, i|
       c = win.instance_variable_get(:@commands)[i]
       cap = PokeAccess::I18n.t(:dex_caught)
@@ -179,12 +178,14 @@ module PokeAccess
       unk = PokeAccess::I18n.t(:dex_unknown)
       if c.is_a?(Hash)
         sp = c[:species]
-        nm = c[:name]
-        nm = (PokeAccess::Data.species_name(sp) || "?") if nm.nil? || nm.to_s.empty?
+        num = c[:number].to_i
+        num -= 1 if c[:shift]
         if PokeAccess::Util.dex_seen?(sp)
-          "#{nm}, #{PokeAccess::Util.dex_owned?(sp) ? cap : sn}"
+          nm = c[:name]
+          nm = (PokeAccess::Data.species_name(sp) || "?") if nm.nil? || nm.to_s.empty?
+          "#{num}, #{nm}, #{PokeAccess::Util.dex_owned?(sp) ? cap : sn}"
         else
-          "#{nm}, #{unk}"
+          "#{num}, #{unk}"
         end
       elsif c
         if PokeAccess::Util.dex_seen?(c[0])
@@ -199,12 +200,11 @@ module PokeAccess
   end
 end
 
-# Command-window navigation (the game changes @index directly). The first read is queued so it does not
-# cut a question/title spoken just before; later navigation interrupts (Cursor's first_interrupt). Battle
-# menus (@ignore_input) are skipped (they have dedicated readers); bag windows re-read on a pocket change
-# too, so the dedup key is [index, pocket]. @access_dedicated is the mod's own "a dedicated reader owns this
-# window" flag: on gen-6, SpriteWindow_Selectable#update itself gates navigation on @ignore_input (050_Sprite-
-# Window), so a reader must NOT set that to mute us or it freezes the cursor -- it sets @access_dedicated instead.
+# Command-window navigation (the game changes @index directly). The first read is queued so it does not cut
+# a question or title spoken just before, and later navigation interrupts (Cursor's first_interrupt). Battle
+# menus (@ignore_input) are skipped, as they have dedicated readers; a bag window re-reads on a pocket change
+# too, so its dedup key is [index, pocket]. @access_dedicated is the mod's own "a dedicated reader owns this
+# window" flag: gen-6 gates navigation itself on @ignore_input, so a reader that set it would freeze the cursor.
 PokeAccess::Hooks.after_hook("Window_DrawableCommand", :update) do |win, _r, _a|
   next if (win.instance_variable_get(:@ignore_input) rescue false)
   next if PokeAccess.dedicated?(win)

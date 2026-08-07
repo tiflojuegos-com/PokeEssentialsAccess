@@ -1,16 +1,15 @@
 # BerryDex (the "TDW Berry Core and Dex" plugin). Two screens:
 #
-#   * Window_Berrydex, a Window_DrawableCommand whose entries are [berry_id, name, indexNumber] triples.
-#     The generic reader only knows flat command lists, so it skipped this one and the dex was silent.
+#   * Window_Berrydex, a Window_DrawableCommand whose entries are [berry_id, name, indexNumber] triples,
+#     which is not a shape the generic reader knows.
 #   * BerrydexInfo_Scene, whose drawPage(page) paints one section for @berry as sprites and positioned
-#     text. The berry, the section and (on the first page) the description are what can be spoken; the
-#     deeper per-page data -- growth times, mutation trees -- stays visual.
+#     text. The berry, the section and the first page's description are what can be spoken; growth times
+#     and mutation trees stay visual.
 #
-# The two copies share Window_Berrydex byte for byte, which is what makes one extractor right for both.
-# They part ways on the DETAIL screen: one ships four pages behind pbShowBattlePage?/pbShowMutationsPage?,
-# the other only Info and Plant and has neither predicate. So the section list is built from the pages the
-# scene can actually show -- asking respond_to? rather than rescuing a missing method into "true", which
-# would have invented two sections the second game does not have.
+# The two copies of the window agree on everything the extractor touches, so one extractor serves both. The
+# DETAIL screen differs: one has four pages behind pbShowBattlePage?/pbShowMutationsPage?, the other only
+# Info and Plant and neither predicate. The section list is therefore built by respond_to?, not by rescuing
+# a missing method into "true".
 module PokeAccess
   module BerryDex
     # The section names this copy of the plugin can show, in page order.
@@ -21,9 +20,8 @@ module PokeAccess
       names
     end
 
-    # Whether an optional page exists at all in this copy of the plugin. It is a property of the INSTALL, not
-    # of the berry: the game answers it from PluginManager plus a Settings flag, so the page list is the same
-    # on every entry in the dex.
+    # Whether an optional page exists in this copy. A property of the install, not of the berry: the game
+    # answers from PluginManager plus a Settings flag, so the page list is the same for every entry.
     def self.shows?(scene, meth)
       return false unless scene.respond_to?(meth, true)
       (scene.send(meth) ? true : false) rescue false

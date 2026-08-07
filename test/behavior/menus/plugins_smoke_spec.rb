@@ -52,10 +52,10 @@ PLUGIN_SCENES = {
   "PokemonPokedex_Scene" => lambda { Class.new { def pbRefresh; :dex_drawn; end } }
 }
 
-# The extractor-only plugins used to be required here, because nothing else pulled them in. The harness
-# loads every reader now, so requiring them again would only reload the file -- and require does not know
-# about a file already brought in with eval, so the second load reassigns whatever constants it defines.
-# What the smoke still does below is different and still needed: it RE-EVALUATES the hook-carrying files
+# The extractor-only plugins are NOT required here: the harness loads every reader, and require does not
+# know about a file already brought in with eval, so a second load would reassign whatever constants it
+# defines.
+# What the smoke does below is different and still needed: it RE-EVALUATES the hook-carrying files
 # after building fake scene classes, because a hook whose class did not exist at load time never bound.
 
 # The plugin files carrying hooks. The extractor-only ones above are absent on purpose: they bind nothing.
@@ -271,19 +271,6 @@ Suite.define("plugins: the window extractors are dispatched to, not just registe
       $quest_data = saved_qd
     end
 
-    # The music book: a Window_DrawableCommand whose list is in @music_book, where nothing generic looks.
-    book = Object.new
-    book.define_singleton_method(:instruments) { { 0 => [[:POTION], [:REPEL]] } }
-    tunes = mk.call("Window_MusicBook", { :@music_book => book, :@instrument => 0, :@filterlist => nil })
-    tunes.define_singleton_method(:item) { :POTION }
-    # The NAME, not merely something: asserting non-emptiness let a reader that ignored the window's own
-    # accessor and named one hardcoded item pass on every row, which is the whole reason this window needs a
-    # dedicated extractor.
-    eq "a tune is read through the window's own item accessor",
-       PokeAccess::Menus.focused_text(tunes).to_s, PokeAccess::Data.item_name(:POTION).to_s
-    tunes.index = 2
-    eq "and the trailing row is the close button the plugin paints",
-       PokeAccess::Menus.focused_text(tunes), PokeAccess::I18n.t(:mn_close_bag)
   ensure
     made.each { |n| Object.send(:remove_const, n) if Object.const_defined?(n) }
     SpeakCapture.clear

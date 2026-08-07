@@ -34,7 +34,7 @@ Suite.define("trainer card: the panel names every field, not just the ones that 
     truthy "the Pokedex tally is in it -- one of the three an alias mismatch drops",
            t.index("42") && t.index("90")
     # Matched as whole phrases, not as loose digits: "01234" alone contains a 1, a 2 and a 3, so digit
-    # spotting would have passed with the badge count and the play time both missing.
+    # spotting passes with the badge count and the play time both missing.
     truthy "the badge count is in it", t.index("3 medallas")
     truthy "and the play time, split into hours and minutes -- 3720 seconds is 1h 2m",
            t.index("1 horas") && t.index("2 minutos")

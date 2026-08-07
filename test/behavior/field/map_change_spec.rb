@@ -24,10 +24,9 @@ end
 # is not only a missing announcement: announce_map_change is the ONLY trigger for :map_changed, so no cache
 # was reset either and the previous run's emitters and targets carried over.
 #
-# This used to be papered over by the load screens calling forget_map -- and the spec called it BY HAND, so
-# the wiring was never what got tested. Only the two classic screens ever did it; v22 loads through
-# UI::LoadVisuals and nobody called it there. What actually identifies a load is that $game_map is a new
-# object, which is what these drive.
+# A load screen calling forget_map is not what these drive, and a spec calling it BY HAND would never test
+# the wiring: only the two classic screens do it, while v22 loads through UI::LoadVisuals. What identifies
+# a load is that $game_map is a new object.
 Suite.define("field: loading re-announces even on the same map") do
   PokeAccess::Locator.forget_map
   $game_map.map_id = 35

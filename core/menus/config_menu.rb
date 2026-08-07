@@ -36,7 +36,7 @@ module PokeAccess
       return if @active
       return unless ($scene.is_a?(Scene_Map) rescue true)
       @active = true; @mode = :top; @index = 0; @capturing = false; @stack = []
-      (PokeAccess::Audio3D.silence_all rescue nil)
+      (PokeAccess::Audio3D.suspend rescue nil)
       say("#{t(:cfg)}. #{describe}")
       run_modal
     end
@@ -393,6 +393,9 @@ module PokeAccess
       say(t(:rmp_press, :action => PokeAccess::Remap.label(PokeAccess::Remap.buttons[@ri][0])))
     end
 
+    # One frame of key capture while rebinding: cancel, or take the first key pressed and bind it unless
+    # Remap reports a conflict. Remap.conflict is ONE check across BOTH tables, so the game's A cannot be
+    # bound to a key the mod already owns and silently make it do two things.
     def self.capture_step
       if Input.trigger?(Input::B)
         @capturing = false
@@ -403,8 +406,6 @@ module PokeAccess
       SCAN_CODES.each do |c|
         if down?(c) && !@cap_down[c]
           sym = PokeAccess::Remap.buttons[@ri][0]
-          # ONE check for both tables. It used to compare game buttons against game buttons only, so the
-          # game's A could be bound to T and then T did two things at once, silently.
           other = PokeAccess::Remap.conflict(c, sym)
           if other
             @capturing = false

@@ -1,45 +1,44 @@
-# Message history (Kyu's TextLog, class Log), a third-party plugin several fangames ship: a scrollable view
-# of past messages held in $PokemonGlobal.log, painted into a bitmap with no window the engine knows about.
+# Message history (Kyu's TextLog, class Log): a scrollable view of $PokemonGlobal.log painted into a bitmap,
+# with no window the engine knows about.
 #
-# The copies are the SAME code organised differently, and that organisation is the whole problem:
+# The two copies are the same code organised differently -- one paints in drawLines, the other inlines the
+# painting inside update -- and `update` in both is a loop that returns only when the log is closed. So no
+# method they share fires per scroll. What they do share is that their loops call Input.update every frame,
+# so SceneWatcher holds the instance and reads @pos per frame instead.
 #
-#   * one keeps the page painting in drawLines, called from its modal loop on every scroll
-#   * the other inlines the very same painting inside update
-#
-# and `update` in BOTH is a `loop do` that only returns when the player closes the log. So an after-hook on
-# update fires exactly once, at close -- which is what the previous per-profile reader for the inlined
-# variant did, announcing a single entry on the way out. drawLines is a fine hook point but the inlined
-# variant does not have it, so there is no method shared by both that fires per scroll.
-#
-# What both DO share is that their loops call Input.update every iteration, so the mod's per-frame poller
-# runs inside them. Hence SceneWatcher: hold the instance while the modal method runs and read @pos each
-# frame. One mechanism, both shapes, and no dependence on where the painting happens to live.
-#
-# @pos is the same in both (it starts at log.length-1 and the paint loop advances it past what it drew), so
-# the entry that just became current is at @pos-1 in either copy.
+# @pos behaves the same in both: it starts at log.length-1 and the paint loop advances it past what it drew.
 module PokeAccess
   module TextLog
-    # The index of the focused entry, clamped, or nil when there is no log. Deduping on this rather than on
-    # raw @pos matters at the ends of the list, where @pos still moves but the focused entry does not.
+    # The indices of the entries the page is showing, oldest first, or nil when there is no log.
     #
-    # KNOWN GAP, traced and deliberately left. The screen's pager starts @w at 0 on all three paths. Scrolling
-    # UP (and opening) walks backward and ends with @pos += 1, so the newest entry on screen is @pos - 1 --
-    # what this returns. Scrolling DOWN walks forward and ends with @pos += @w - 1, and there the answer
-    # depends on WHY the loop stopped: on the height limit the last iteration counted an entry it did not
-    # draw, so the newest shown is again @pos - 1; on running out of log every iteration drew, so the newest
-    # shown is @pos itself, and this reads one entry too old.
+    # A PAGE, not a cursor: the screen paints as many entries as fit and scrolls by pagefuls, so reading one
+    # of them left the rest unheard on a screen whose only purpose is re-reading what was said. @lines is
+    # how many the last paint drew and @pos - 1 is the newest of them.
     #
-    # It is not fixed because the two cases leave IDENTICAL state -- same @pos, same @lines -- so the reader
-    # cannot tell them apart, and the wrong guess in the other direction would announce an entry the screen
-    # is not showing, which this project treats as worse than announcing an older one it is.
-    def self.focus_index(scene)
+    # Known gap, left on purpose: scrolling down out of log ends with the newest shown at @pos rather than
+    # @pos - 1, and the two cases leave identical state, so the reader cannot tell them apart. Guessing the
+    # other way would name an entry the screen is not showing, which is the worse error.
+    def self.page_range(scene)
       pos = PokeAccess.ivar(scene, :@pos)
       log = ($PokemonGlobal.log rescue nil)
       return nil if pos.nil? || !log.is_a?(Array) || log.empty?
-      i = pos - 1
-      i = 0 if i < 0
-      i = log.length - 1 if i > log.length - 1
-      i
+      n = PokeAccess.ivar(scene, :@lines).to_i
+      n = 1 if n < 1
+      last = pos - 1
+      last = log.length - 1 if last > log.length - 1
+      return nil if last < 0
+      first = last - n + 1
+      first = 0 if first < 0
+      (first..last).to_a
+    end
+
+    # The whole visible page as one spoken line.
+    def self.page_text(scene)
+      idx = page_range(scene)
+      return nil if idx.nil? || idx.empty?
+      PokeAccess::Util.join_parts(idx.map { |i| entry_text(i) })
+    rescue StandardError
+      nil
     end
 
     # The entry at an index as one cleaned line, or nil. Each entry is itself an array of drawn lines.
@@ -56,6 +55,6 @@ module PokeAccess
 end
 
 PokeAccess::TextLogReader = PokeAccess::SceneWatcher.reader("Log", :update, :text_log, :optional => true) do |s|
-  i = PokeAccess::TextLog.focus_index(s)
-  [i, lambda { PokeAccess::TextLog.entry_text(i) }]
+  idx = PokeAccess::TextLog.page_range(s)
+  [idx, lambda { PokeAccess::TextLog.page_text(s) }]
 end

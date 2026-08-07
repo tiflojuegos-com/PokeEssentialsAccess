@@ -22,6 +22,16 @@ module PokeAccess
     @last_say = t; @last_say_t = now
     speak(t, false)
   end
+
+  # Marks a line as already accounted for: remembered for the repeat key, not spoken, and recorded so the
+  # dedup window swallows the copy the engine is about to route through the message hooks. For the one case
+  # where a reader says the same thing sooner and better than the game's own text.
+  def self.say_dialogue_skip(message)
+    t = clean(message)
+    note_dialogue(t)
+    @last_say = t
+    @last_say_t = (clock rescue 0)
+  end
 end
 
 # Dialogue and messages, queued (interrupt=false) so consecutive lines do not cut each other off.

@@ -1,11 +1,11 @@
-# The surfaces category answers "where can I go", so it is now built from the pathfinder's own flood
-# rather than from a 61-tile box drawn around the player. The box was wrong in both directions at once and
-# this pins both corrections plus the one thing that must NOT change.
+# The surfaces category answers "where can I go", so it is built from the pathfinder's own flood rather than
+# from a 61-tile box drawn around the player. A box is wrong in both directions at once, and this pins both
+# corrections plus the one thing that must NOT change.
 #
 # Too small: grass thirty-seven tiles down a corridor did not exist, even though the guide would have
 # walked there without complaint. Too big: a sealed room's floor was offered as a target and the guide
 # then said there was no route, because a box knows nothing about walls. And water must survive the
-# change -- you cannot stand on it, so the flood never enters it, and dropping it would have taken the
+# change -- you cannot stand on it, so the flood never enters it, and dropping it would take the
 # most useful surface on the map off the list.
 Suite.define("locator: surfaces are where you can walk to, not what happens to be near") do
   loc = PokeAccess::Locator

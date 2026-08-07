@@ -2,18 +2,14 @@ module PokeAccess
   # Watches for a screen that came up and said nothing, and writes what it saw into the diagnostic.
   #
   # This is the one failure the mod cannot find on its own. A reader that raises leaves a line in the log; a
-  # reader that binds to the wrong ivar, the wrong page or the wrong moment leaves nothing at all -- the
-  # screen is simply quiet, and quiet is indistinguishable from "there was nothing to say". Every silent
-  # screen fixed so far was found by a person noticing it, which means it had already cost them the screen.
+  # reader bound to the wrong ivar, the wrong page or the wrong moment leaves nothing at all -- the screen
+  # is simply quiet, and quiet is indistinguishable from "there was nothing to say". So the mod notices
+  # instead: a new screen, then WINDOW frames without a single line spoken, and the pair goes in a list the
+  # diagnostic prints, which turns an ordinary play session into a report.
   #
-  # So the mod notices instead: a new screen, then WINDOW frames without a single line spoken, and the pair
-  # goes in a list the diagnostic prints. That turns an ordinary play session into a report -- press the
-  # diagnostic key after playing and the screens that never spoke are named, whether or not the player
-  # thought to check each one.
-  #
-  # This is EVIDENCE, not a fault. Plenty of screens are legitimately silent for two seconds: an animation,
-  # a cutscene, a map you walk across without passing anything. What matters is a screen in this list that
-  # the player knows they were navigating.
+  # EVIDENCE, not a fault. Plenty of screens are legitimately silent for two seconds -- an animation, a
+  # cutscene, a map walked across without passing anything. What matters is a screen in this list that the
+  # player knows they were navigating.
   module Silence
     # Two seconds at 60fps. Long enough that a screen with a reader has always spoken by then (readers fire
     # on the opening frame or the first cursor move), short enough that a screen the player opened and
@@ -48,6 +44,9 @@ module PokeAccess
       ($scene.class.to_s rescue nil)
     end
 
+    # One frame of the silence watch: a screen that has just come up gets WINDOW frames to say something,
+    # and is noted if it never does. Anything spoken at all clears the watch -- the screen has a voice, and
+    # whether every part of it does is not something a frame counter can answer.
     def self.tick
       now = current
       return if now.nil? || now.empty?
@@ -58,8 +57,6 @@ module PokeAccess
         return
       end
       return if @left <= 0
-      # Anything spoken at all clears the watch: the screen has a voice, and whether every part of it does
-      # is not something a frame counter can answer.
       if spoken != @mark
         @left = 0
         return

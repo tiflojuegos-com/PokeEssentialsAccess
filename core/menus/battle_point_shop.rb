@@ -24,9 +24,8 @@ end
 
 # Registered globally, not per profile. What makes that safe is not that the class is universal -- it is in
 # 4 of the 13 surveyed dumps -- but that an extractor for a class the running game does not define is never
-# reached: focused_text resolves the name through const_at and skips it. This used to be opt-in per profile
-# and the profiles that forgot to opt in shipped the raw ids for months, so scoping it a second time by
-# profile only reintroduces that gap.
+# reached: focused_text resolves the name through const_at and skips it. Scoping it a second time by
+# profile would only add a way to forget it and ship the raw ids.
 PokeAccess::Menus.def_extractor("Window_BattlePointShop") do |win, i|
   PokeAccess::BattlePointShop.row(win, i)
 end

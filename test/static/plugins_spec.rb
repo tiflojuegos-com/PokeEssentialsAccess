@@ -34,7 +34,7 @@ Suite.define("static: the plugins layer is declared, complete and optional") do
   # so for "is this reader reachable at all" it counts as declaring every one of them -- but folding it into
   # the same tally as the named ones made the second check below unfalsifiable, since it then contained
   # every file by construction. At runtime :auto loads only what detection finds, so a plugin no profile
-  # names and whose probe never resolves would have been invisible to both checks at once.
+  # names and whose probe never resolves would be invisible to both checks at once.
   declared = {}
   by_name = {}
   Dir.glob(File.join(root, "games", "*", "manifest.rb")).sort.each do |mf|

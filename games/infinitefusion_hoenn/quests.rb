@@ -18,7 +18,11 @@ module PokeAccess
     end
 
     # Category buttons of the main screen (main quests / side quests / completed).
+    #
+    # Silent while the detail screen is up: opening the log straight on a quest paints the main screen first
+    # and only then jumps, so the category is a button the player never sees.
     def self.category(scene)
+      return if PokeAccess.ivar(scene, :@scene) == 2
       modes = PokeAccess.ivar(scene, :@modes)
       idx = PokeAccess.ivar(scene, :@main_menu_index)
       return unless modes.is_a?(Array) && idx.is_a?(Integer) && idx >= 0 && idx < modes.length
@@ -31,14 +35,26 @@ module PokeAccess
       nil
     end
 
-    # The focused quest of the list screen.
+    # The focused quest of the list screen, or the category's own empty message when it has none: an empty
+    # category still shows that line, so entering one is not a silent transition.
+    #
+    # The CATEGORY is in the dedup key. Questlog runs its whole loop inside initialize, so the holder lives
+    # as long as the screen does and every category opens with the cursor on row zero: on the index alone
+    # the second category of a visit reads as unchanged and enters silent, which a player takes for empty.
     def self.quest(scene)
       list = PokeAccess.ivar(scene, :@filtered_quests)
       idx = PokeAccess.ivar(scene, :@quest_list_menu_index)
-      return unless list.is_a?(Array) && idx.is_a?(Integer) && idx >= 0 && idx < list.length
+      return unless list.is_a?(Array)
+      if list.empty?
+        msg = (PokeAccess.ivar(scene, :@current_mode).empty_message rescue nil)
+        PokeAccess.speak(PokeAccess.clean(msg.to_s), true) if msg && !msg.to_s.strip.empty?
+        return
+      end
+      return unless idx.is_a?(Integer) && idx >= 0 && idx < list.length
       line = quest_line(list[idx])
       return if line.nil?
-      PokeAccess::Cursor.announce(scene, :if2_quest, idx, true) do
+      cat = PokeAccess.ivar(scene, :@main_menu_index)
+      PokeAccess::Cursor.announce(scene, :if2_quest, [cat, idx], true) do
         PokeAccess::I18n.t(:list_entry, :name => line, :n => idx + 1, :tot => list.length)
       end
     rescue StandardError
@@ -46,11 +62,15 @@ module PokeAccess
     end
 
     # The detail screen: the full brief (description, who gave it and where), read once on opening.
-    def self.detail(scene)
-      list = PokeAccess.ivar(scene, :@filtered_quests)
-      idx = PokeAccess.ivar(scene, :@quest_list_menu_index)
-      return unless list.is_a?(Array) && idx.is_a?(Integer) && idx >= 0 && idx < list.length
-      q = list[idx]
+    # param quest the quest the screen was handed, when it came that way
+    def self.detail(scene, quest = nil)
+      q = quest
+      if q.nil?
+        list = PokeAccess.ivar(scene, :@filtered_quests)
+        idx = PokeAccess.ivar(scene, :@quest_list_menu_index)
+        return unless list.is_a?(Array) && idx.is_a?(Integer) && idx >= 0 && idx < list.length
+        q = list[idx]
+      end
       parts = [quest_line(q)]
       [(q.desc rescue nil), (q.npc rescue nil), (q.location rescue nil)].each do |v|
         parts.push(PokeAccess.clean(v.to_s)) if v && !v.to_s.strip.empty?
@@ -71,5 +91,14 @@ PokeAccess::Game.define("infinitefusion_hoenn") do
   after("Questlog", :switch_button) { |s, _r, _a| PokeAccess::IF2Quests.category(s) }
   after("Questlog", :move_selection) { |s, _r, _a| PokeAccess::IF2Quests.quest(s) }
   after("Questlog", :show_quest_list) { |s, _r, _a| PokeAccess::IF2Quests.quest(s) }
-  after("Questlog", :show_quest_detail) { |s, _r, _a| PokeAccess::IF2Quests.detail(s) }
+  # Coming back from the list repaints the categories through redraw_main_screen, which is not the method
+  # that painted them the first time, and lands on the same index -- so the slot is cleared to place the
+  # player again.
+  after("Questlog", :redraw_main_screen) do |s, _r, _a|
+    PokeAccess::Cursor.reset(s, :if2_qcat)
+    PokeAccess::IF2Quests.category(s)
+  end
+  # draw_quest_details is the one point both routes into the brief share: the list's own confirm and the
+  # jump the map's "open this quest" takes, which never touches show_quest_detail at all.
+  after("Questlog", :draw_quest_details) { |s, _r, a| PokeAccess::IF2Quests.detail(s, a[0]) }
 end

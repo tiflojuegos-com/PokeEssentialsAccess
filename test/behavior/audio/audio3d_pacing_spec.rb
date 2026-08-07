@@ -4,14 +4,14 @@
 #
 # Why this suite forces engine state: the harness ships no PA3D dll. Win32API is a stub class whose #call
 # returns 0, so boot() fails on `INIT.call == 1` and leaves @ready false with no channels, and every play
-# path refuses with `ch >= 0`. The suite seeds @ch with the handle table boot would have built and replaces
-# the #call of the entry points it watches with a recorder, so the asserts read exactly the arguments the
-# real dll would have received. Everything is restored afterwards.
+# path refuses with `ch >= 0`. The suite seeds @ch with the handle table boot builds and replaces the #call
+# of the entry points it watches with a recorder, so the asserts read exactly the arguments the real dll
+# receives. Everything is restored afterwards.
 module A3DPace
   IVARS = [:@ch, :@emitters, :@ptime, :@ping_idx, :@last_ping_any, :@last_ping_pos, :@wall]
   FNS = [:SET, :OCCL]
 
-  # The channel handle table boot() would have filled in, one handle per declared channel.
+  # The channel handle table boot() fills in, one handle per declared channel.
   def self.channels
     h = {}
     PokeAccess::Audio3D::CHANNEL_FILES.each_with_index { |row, i| h[row[0]] = i }
@@ -129,7 +129,7 @@ end
 # Two cues landing on top of each other are unreadable, so a ping within PING_GAP of the last one is held
 # back -- but ONLY if it is close to it. A far emitter still fires because HRTF panning already separates
 # them, and that exception is what keeps the soundscape alive in a busy room. Three asserts: near waits,
-# far fires, and the hold-back expires with the window rather than muting the tile for good.
+# far fires, and the hold-back expires with the window rather than muting the tile permanently.
 Suite.define("audio3d: a ping beside the last one waits, a distant one fires anyway") do
   a3d = PokeAccess::Audio3D
   saved = A3DPace.snapshot

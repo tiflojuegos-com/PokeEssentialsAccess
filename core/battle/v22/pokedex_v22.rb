@@ -66,12 +66,8 @@ module PokeAccess
 
     # Speaks the focused page, deduped by [page, species index] so an in-place redraw stays silent.
     def self.speak(vis)
-      t = body(vis)
-      return if t.nil? || t.to_s.empty?
       key = [PokeAccess.ivar(vis, :@page), (vis.index rescue nil)]
-      return if key == PokeAccess.ivar(vis, :@access_dex_key)
-      vis.instance_variable_set(:@access_dex_key, key)
-      PokeAccess.speak(t, true)
+      PokeAccess::Cursor.announce(vis, :dex_page, key) { body(vis) }
     rescue StandardError
       nil
     end

@@ -1,7 +1,7 @@
-# The cached HPA* graph must be READ-ONLY after construction. It used to be built on Hashes whose
-# default-proc WRITES (hh[k] = []), so every hpa_search that read a non-portal key (the start tile, each
-# arrival, an empty cluster) inserted an empty entry into the cached graph -- memory growing per query
-# and a cache that was no longer read-only. Uses hpa_arena/hpa_fresh_grid from test/support/hpa_helpers.rb
+# The cached HPA* graph must be READ-ONLY after construction. A Hash whose default-proc WRITES (hh[k] = [])
+# breaks that: every hpa_search reading a non-portal key -- the start tile, each arrival, an empty cluster
+# -- inserts an empty entry into the cached graph, growing it with every query.
+# Uses hpa_arena/hpa_fresh_grid from test/support/hpa_helpers.rb
 # (runner-loaded, so a filtered run of just this file still works).
 Suite.define("pathfinder: hpa_search never mutates the cached graph") do
   pf = PokeAccess::Pathfinder

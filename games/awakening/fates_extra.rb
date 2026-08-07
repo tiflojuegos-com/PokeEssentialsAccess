@@ -26,21 +26,15 @@ module PokeAccess
     # Voices the focused relationship card: the character and their rank.
     #
     # The panel is keyed by @posi directly, exactly as the screen keys it (`@paneles["#{@posi}"]`). The
-    # panels are built with a sequential counter, while @master_index holds each card's own slot in
-    # $Trainer.lista_cartas -- a different number, since the build loop skips empty slots. Going through it
-    # meant that as soon as one earlier card was locked, row and key drifted apart and the screen named
-    # another card, or nothing.
+    # panels are built with a sequential counter while @master_index holds each card's own slot in
+    # $Trainer.lista_cartas, a different number because the build loop skips empty slots, so going through
+    # it drifts apart from the row as soon as one earlier card is locked.
     #
     # The dedup key carries the panel table's IDENTITY as well as the index, because this screen has no
-    # instance to hang the dedup on: it lands in Cursor's module-wide table, which outlives the screen.
-    # Reopening always starts at @posi = 0, so on the plain index it matched what was left from last time
-    # and the screen opened SILENT. The game rebuilds @paneles on every open, which is what makes it a new
-    # key.
-    #
-    # The name and rank come through the panel's CHARACTER, not off the panel. A panel is a CartasPaneles --
-    # a sprite holder, with neither on it -- and the character it draws carries both, hanging off its pj
-    # accessor. Read straight off the panel this produced an empty string every time, so announce aborted
-    # after having already consumed the key: silent, and silent again on the way back.
+    # instance to hang the dedup on and lands in Cursor's module-wide table, which outlives it, while
+    # reopening always starts at @posi = 0. The game rebuilds @paneles on every open, which is what makes it
+    # a new key. The name and rank come through the panel's CHARACTER and not off the panel, which is a
+    # CartasPaneles sprite holder carrying neither, with the character hanging off its pj accessor.
     def self.cards(_scene)
       return unless @cards_class
       idx = PokeAccess::AwakeningFatesExtra.mod_ivar(:@posi)
@@ -66,14 +60,26 @@ module PokeAccess
       nil
     end
 
+    # The three buttons the screen paints under the banner, in cursor order. @sel == 3 is not a button: it is
+    # the banner strip itself, which is why the fourth entry is the banner rather than a label.
+    GACHA_BUTTONS = ["Información", "Tirar", "Salir"]
+
     # Voices the focused gacha banner and action.
+    #
+    # By NAME, both of them. The banner has one -- refresh paints @banners[@banner_sel].name across the top --
+    # and each button carries its own word; announcing "banner 1 of 3, option 1" gave the player two index
+    # numbers for a screen that shows neither, and no way to tell Draw from Exit. Royal's reader for the same
+    # plugin has always read the labels; these two diverged for no reason.
     def self.gacha(scene)
       b = PokeAccess.ivar(scene, :@banner_sel)
       s = PokeAccess.ivar(scene, :@sel)
       banners = PokeAccess.ivar(scene, :@banners)
       return unless b.is_a?(Integer) && banners.is_a?(Array) && b >= 0 && b < banners.length
       PokeAccess::Cursor.announce(scene, :awk_gacha, [b, s], true) do
-        PokeAccess::I18n.t(:awk_gacha, :n => b + 1, :tot => banners.length, :opt => s.to_i)
+        name = PokeAccess.clean((banners[b].name rescue "").to_s).to_s.strip
+        name = PokeAccess::I18n.t(:list_entry, :name => name, :n => b + 1, :tot => banners.length)
+        lbl = GACHA_BUTTONS[s.to_i]
+        lbl ? "#{name}. #{lbl}" : name
       end
     rescue StandardError
       nil

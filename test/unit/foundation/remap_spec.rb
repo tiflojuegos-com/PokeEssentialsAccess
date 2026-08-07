@@ -282,9 +282,9 @@ Suite.define("remap: a rebound game extra takes over its raw virtual-key") do
 end
 
 # The collision check. It is ONE function on purpose: the mod's hotkeys and the game's rebinds are two
-# separate tables that share one keyboard, and before this the menu only compared game buttons against
-# other game buttons -- so binding the game's A to T left T doing two things at once, silently, with no
-# warning and no way for the player to know why the info key had started confirming messages.
+# separate tables that share one keyboard, and a menu comparing game buttons only against other game buttons
+# lets the game's A be bound to a key the mod owns -- that key then does two things at once, silently, with
+# no way for the player to know why the info key has started confirming messages.
 Suite.define("remap: one collision check guards BOTH key tables and the engine's own keys") do
   rb   = PokeAccess::Config.rebinds
   keys = PokeAccess::Config.keys

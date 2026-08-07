@@ -20,12 +20,13 @@ module PokeAccess
 
     # The spoken summary for the scene's current encounter type (type name, species and each one's Pokedex
     # status, all from live game APIs). getEncData is private in some implementations, so call it via send.
+    #
+    # The type name comes from the plugin's own table, looked for where each build keeps it: royal nests it
+    # inside EncounterListSettings, and asking only for the top-level constant left that game reading the
+    # engine's internal encounter-type name instead of the one the screen actually shows.
     def self.text_for(s)
       enc, key = (s.send(:getEncData) rescue [nil, nil])
       return nil unless enc.is_a?(Array)
-      # The plugin's own lookup, tried where each build keeps it: royal nests the table inside
-      # EncounterListSettings, and asking only for the top-level constant left that game reading the engine's
-      # internal encounter-type name instead of the one the screen actually shows.
       user_names = (PokeAccess.const_at("EncounterListSettings::USER_DEFINED_NAMES") ||
                     PokeAccess.const_at("USER_DEFINED_NAMES"))
       type_name = ((user_names[key] rescue nil) || (GameData::EncounterType.get(key).real_name rescue nil) || key.to_s)

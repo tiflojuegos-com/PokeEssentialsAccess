@@ -1,16 +1,12 @@
 module PokeAccess
-  # The pokedex entry detail (PokemonPokedexInfo_Scene). Up/down change the species, left/right the page;
-  # both redraw through drawPage, so reading there covers every move. Content is read from GameData by
-  # species and form. The main dex list (Window_Pokedex) is read by the core menu hook, so only the detail
-  # is added here.
+  # The pokedex entry detail (PokemonPokedexInfo_Scene). Up/down change the species, left/right the page,
+  # and both redraw through drawPage, so reading there covers every move. Content comes from GameData by
+  # species and form; the main dex list (Window_Pokedex) is read by the core menu hook.
   #
-  # Which page is showing is asked TWO ways, because the screen exists in two shapes. Plain Essentials
-  # dispatches drawPage(page) on a number; the Modular UI Scenes plugin rewrites the screen into named
-  # pages and keeps the current one in @page_id, adding :page_data when the MUI Pokedex Data Page plugin is
-  # installed too. Reading only @page_id looked right on the four games that ship MUI and was silently
-  # wrong on the three that do not: with no @page_id the reader fell back to the info page every time, so
-  # moving left or right produced the SAME text and the dedup swallowed it. Nothing raised; the page
-  # simply never spoke.
+  # Which page is showing is asked TWO ways, because the screen exists in two shapes: plain Essentials
+  # dispatches drawPage(page) on a number, while the Modular UI Scenes plugin rewrites it into named pages
+  # kept in @page_id (plus :page_data when the MUI Pokedex Data Page plugin is installed). A game without
+  # MUI has no @page_id, so reading only that one falls back to the info page for every page.
   module PokedexInfoV21
     # Species per page in the MUI Data Page sub-list (its grid is 12 entries).
     DATA_PAGE_SIZE = 12
@@ -31,8 +27,10 @@ module PokeAccess
       PokeAccess::Cursor.reset(scene, :pdx_data)
     end
 
-    # The spoken text for the focused pokedex page, or nil. param page the argument drawPage was called with
-    def self.page_text(scene, page)
+    # The species data and display name for the entry on screen.
+    # param scene the pokedex info scene
+    # return [data, name], or nil when neither the form nor the species resolves
+    def self.species_and_name(scene)
       species = PokeAccess.ivar(scene, :@species)
       return nil unless species
       form = (scene.instance_variable_get(:@form) rescue 0).to_i
@@ -40,26 +38,38 @@ module PokeAccess
       data = (GameData::Species.get(species) rescue nil) unless data
       name = data ? (data.name rescue nil) : nil
       name = (PokeAccess::Data.species_name(species) rescue nil) if name.nil? || name.to_s.empty?
-      return nil if name.nil? || name.to_s.empty?
-      owned = owned?(species)
+      (name.nil? || name.to_s.empty?) ? nil : [data, name]
+    rescue StandardError
+      nil
+    end
+
+    # The spoken text for the focused pokedex page, or nil.
+    # param page the argument drawPage was called with
+    def self.page_text(scene, page)
+      pair = species_and_name(scene)
+      return nil unless pair
+      data, name = pair
+      owned = owned?(PokeAccess.ivar(scene, :@species))
       case page_id(scene, page)
       when :page_area  then PokeAccess::I18n.t(:pdx_zone, :name => name)
       when :page_forms
         fname = (data.form_name rescue nil)
         (fname && !fname.to_s.empty?) ? PokeAccess::I18n.t(:pdx_form, :name => name, :f => fname) : PokeAccess::I18n.t(:pdx_forms, :name => name)
-      when :page_data  then data_text(name, data)
-      when :page_height then measure_text(name, (data.height rescue 0), :pdx_height, :h)
-      when :page_weight then measure_text(name, (data.weight rescue 0), :pdx_weight, :w)
+      when :page_data  then data_text(name, data, owned)
+      when :page_height then measure_text(name, (data.height rescue 0), :pdx_height, :h, owned)
+      when :page_weight then measure_text(name, (data.weight rescue 0), :pdx_weight, :w, owned)
       else                  info_text(scene, name, data, owned)
       end
     rescue StandardError
       nil
     end
 
-    # The info page: dex number, category, height, weight and the dex entry text. param owned true, false, or
-    # nil when the era could not be asked -- see owned?. Only an explicit false claims "not caught yet";
-    # unknown falls through to the details, because saying nothing true is better than saying something false.
-    # Every data. read is guarded, so a game with no GameData at all still gets its name, number and entry.
+    # The info page: dex number, category, height, weight and the dex entry text. Every data. read is
+    # guarded, so a game with no GameData at all still gets its name, number and entry. When pokedex_entry
+    # is empty the fallback takes only the THIRD field of species_entry, which answers [name, category,
+    # entry] and would otherwise glue the name and the category onto the front of the prose.
+    # param owned true, false, or nil when the era could not be asked (see owned?); only an explicit false
+    #   claims "not caught yet", since saying nothing true beats saying something false
     def self.info_text(scene, name, data, owned)
       num = (entry_number(scene) rescue nil)
       parts = [num ? PokeAccess::I18n.t(:pdx_number, :n => num, :name => name) : name]
@@ -73,10 +83,6 @@ module PokeAccess
         parts.push(PokeAccess::I18n.t(:pdx_height, :h => PokeAccess::Pokedex.fmt_dec(h))) if h > 0
         parts.push(PokeAccess::I18n.t(:pdx_weight, :w => PokeAccess::Pokedex.fmt_dec(w))) if w > 0
         desc = (data.pokedex_entry rescue nil)
-        # species_entry answers [name, category, entry]; only the third field is the prose. Speaking the
-        # whole answer joined the name and category back onto the front of it with no separator, and on a
-        # game whose species lookup this reader cannot resolve at all, the fallback is the ONLY path, so
-        # every single entry read that way.
         if desc.nil? || desc.to_s.empty?
           row = (PokeAccess::Data.species_entry(PokeAccess.ivar(scene, :@species)) rescue nil)
           desc = row.is_a?(Array) ? row[2] : row
@@ -87,9 +93,9 @@ module PokeAccess
     end
 
     # Whether the species is owned: true, false, or nil when neither era answers. v19+ exposes owned?(species)
-    # on the player; gen-6 keeps a plain array indexed by species id and has no such method, so the old
-    # `rescue false` turned "cannot tell" into "not caught yet" and would have hidden every entry behind a
-    # false claim on a game that has the whole dex. nil is the honest third answer and info_text respects it.
+    # on the player; gen-6 keeps a plain array indexed by species id and has no such method, so a `rescue
+    # false` would turn "cannot tell" into "not caught yet" and hide every entry behind a false claim on a
+    # game that has the whole dex. nil is the third answer, and info_text respects it.
     def self.owned?(species)
       pl = PokeAccess::Engine.player
       return nil unless pl
@@ -102,10 +108,14 @@ module PokeAccess
     end
 
     # One of the size-comparison pages the "Pokedex extras" plugin adds (UIHandlers.add(:pokedex,
-    # :page_height / :page_weight)). Without a branch of their own they fell through to the info page and
-    # produced text IDENTICAL to it -- and the dedup below keys on the text, so moving onto either page said
-    # nothing at all. Naming the species alongside the measurement is what makes the page distinguishable.
-    def self.measure_text(name, value, key, var)
+    # :page_height / :page_weight)). The species is named alongside the measurement, since the dedup below
+    # keys on the text and the info page already speaks the same figures.
+    #
+    # A species the player has not caught reads as unknown, because that is what the page draws: the plugin
+    # writes "??? m" and "??? kg" and substitutes the figure only "if $player.owned?(@species)". Speaking
+    # the real height and weight of a Pokemon the screen hides is the same leak as naming a silhouette.
+    def self.measure_text(name, value, key, var, owned = true)
+      return "#{name}. #{PokeAccess::I18n.t(:pdx_unknown_value)}" if owned == false
       v = value.to_i
       return name unless v > 0
       "#{name}. #{PokeAccess::I18n.t(key, var => PokeAccess::Pokedex.fmt_dec(v))}"
@@ -113,8 +123,12 @@ module PokeAccess
       name
     end
 
-    # The data page: types, abilities and base stats.
-    def self.data_text(name, data)
+    # The data page: types, abilities and base stats. Withheld for a species the player has not caught,
+    # because the MUI page draws the types, the egg groups and the base stats only "if owned" and the
+    # abilities live behind a sub-menu gated the same way.
+    # param owned nil where the era could not be asked; only an explicit false withholds
+    def self.data_text(name, data, owned = true)
+      return "#{name}. #{PokeAccess::I18n.t(:pdx_unknown_value)}" if owned == false
       parts = [name]
       types = (data.types rescue nil)
       if types.is_a?(Array) && !types.empty?
@@ -143,15 +157,13 @@ module PokeAccess
       shift ? n - 1 : n
     end
 
-    # A dexlist row as [displayed number, shift flag]. Vanilla rows are Hashes; some games build plain Arrays
-    # instead -- push([id, real_name, 0, 0, position, shift]) -- and asking an Array for a Hash key raises, so
-    # the rescue swallowed it and those games never had a number spoken at all.
+    # A dexlist row as [displayed number, shift flag]. Vanilla rows are Hashes; some games build plain
+    # Arrays instead -- push([id, real_name, 0, 0, position, shift]) -- and asking an Array for a Hash key
+    # raises.
     #
-    # Array rows are not all the same, though, and the difference is not in the row: a game whose species data
-    # carries a canonical dex number computes the row's fields and then throws them away in favour of that
-    # number, because with thousands of entries the position in a filtered list is not what the screen means
-    # by "number". A game without one has nothing else to show and uses the row. So the species is what
-    # decides, and it is asked first.
+    # Which Array field to use is decided by the SPECIES, not by the row: a game whose species data carries
+    # a canonical dex number shows that, since with thousands of entries a position in a filtered list is
+    # not what the screen means by "number". A game without one has only the row to show.
     def self.entry_fields(entry, species)
       return [(entry[:number] rescue nil), (entry[:shift] rescue false)] if entry.is_a?(Hash)
       return [nil, false] unless entry.is_a?(Array)
@@ -176,14 +188,10 @@ module PokeAccess
     rescue StandardError
       nil
     end
-  end
-end
 
-module PokeAccess
   # The MUI Data Page sub-navigation: a section cursor (@cursor) and species sub-lists, neither a command
   # window. Sections are read from pbDrawDataNotes; the move sub-list uses a command window the core hook
   # already reads; the species sub-list is read from pbDrawSpeciesDataList.
-  module PokedexInfoV21
     SECTIONS = { :general => :pdx_sec_general, :stats => :pdx_sec_stats, :family => :pdx_sec_family,
                  :habitat => :pdx_sec_habitat, :shape => :pdx_sec_shape, :egg => :pdx_sec_egg,
                  :item => :pdx_sec_item, :ability => :pdx_sec_ability, :moves => :pdx_sec_moves }
@@ -196,10 +204,33 @@ module PokeAccess
       PokeAccess.speak(text, true)
     end
 
-    # Reads the focused data-page section name (@cursor) as the cursor moves.
+    # El parrafo que la seccion pinta, capturado de su propia llamada de dibujo. La pagina compone el texto
+    # por seccion y lo suelta de una vez con drawFormattedTextEx, asi que rehacerlo aqui seria reimplementar
+    # el plugin: se lee lo que PINTO. Sin esto solo se oia la etiqueta -- "Estadisticas" -- y nunca las
+    # cifras, que son el motivo de abrir la pagina.
+    @notes = nil
+    @notes_armed = false
+
+    def self.notes_on; @notes = nil; @notes_armed = true; end
+
+    def self.notes_off; @notes_armed = false; end
+
+    # param text el cuarto argumento de drawFormattedTextEx, el parrafo ya compuesto
+    def self.note_text(text)
+      return unless @notes_armed
+      t = PokeAccess.clean(text.to_s).to_s.strip
+      @notes = t unless t.empty?
+    rescue StandardError
+      nil
+    end
+
+    # Reads the focused data-page section name (@cursor) as the cursor moves, and the paragraph under it.
     def self.section_read(scene)
       k = SECTIONS[PokeAccess.ivar(scene, :@cursor)]
-      data_dedup(scene, k ? PokeAccess::I18n.t(k) : nil)
+      label = k ? PokeAccess::I18n.t(k) : nil
+      body = @notes
+      full = [label, body].compact.reject { |s| s.to_s.empty? }.join(". ")
+      data_dedup(scene, full.empty? ? nil : full)
     rescue StandardError
       nil
     end
@@ -227,6 +258,15 @@ end
 
 # Data-page section cursor and species sub-list (MUI Pokedex Data Page plugin). :optional -- games
 # without the plugin simply lack these methods.
+PokeAccess::Hooks.around_hook("PokemonPokedexInfo_Scene", :pbDrawDataNotes, :optional => true) do |_s, nxt, _a|
+  PokeAccess::PokedexInfoV21.notes_on
+  begin; nxt.call; ensure; PokeAccess::PokedexInfoV21.notes_off end
+end
+
+PokeAccess::Hooks.wrap_kernel("drawFormattedTextEx", "pdx_data_notes", :before) do |args, _r|
+  PokeAccess::PokedexInfoV21.note_text(args[4])
+end
+
 PokeAccess::Hooks.after_hook("PokemonPokedexInfo_Scene", :pbDrawDataNotes, :optional => true) do |scene, _r, _a|
   PokeAccess::PokedexInfoV21.section_read(scene)
 end

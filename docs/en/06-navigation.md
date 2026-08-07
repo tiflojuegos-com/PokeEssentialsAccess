@@ -85,6 +85,25 @@ one per **`find_path` call**, not per search: the up to three a route may run sh
 `with_budget` keeps the outer one. Every search honours it except the local A* in `hpa_low`. Once it runs out,
 a **partial route** is still returned when the best node ended within 2 tiles of the target.
 
+## Locator categories
+
+Shift + arrow changes category; the arrow alone walks the list, sorted by distance. The spoken name comes
+from the matching `tcat_*` key.
+
+| Symbol | What it lists |
+|---|---|
+| `:all` | Everything the keys can reach: character sprites and examinable events |
+| `:people` / `:objects` | The `event_category` split: whoever moves or talks, and the rest |
+| `:exits` | Map transfers, with wide doorways collapsed into one |
+| `:signs` | Signs and events that only show text |
+| `:extras` | Hazards, traps, controls, push tiles and teleporters |
+| `:surfaces` | Synthetic targets: the nearest tile of each surface the player can walk to |
+| `:puzzles` | Cells a profile declared through the puzzle API |
+| `:lens` | Lens of Truth (`#EOT`) tiles, only where the map has any |
+
+The first seven are `Config.categories` and persist in `settings.ini`. `:puzzles` and `:lens` do not: they
+are inserted only where the map has them, so no empty category is ever offered.
+
 ## 3D audio
 
 `PA3D_steam.dll` (Steam Audio HRTF + miniaudio) is the mod's single audio engine: footsteps and bumps go
@@ -172,6 +191,24 @@ tallies why each frame fell silent and `gate_report` summarises it for the diagn
 | `auto_guide` / `hide_unreachable` | off / off | on/off | Guide on target selection; hide targets with no route |
 | `route_auto` / `route_budget_ms` | off / 8 | on/off; 2-40 ms, step 2 | Cut on time, and that deadline (Debug menu) |
 
+**Locator and field**
+
+| Key | Default | Range | What it does |
+|---|---|---|---|
+| `hide_noninteractive` | off | on/off | Skip decorative events with no interaction |
+| `fixed_target_number` | on | on/off | Number targets by their fixed position in the list |
+| `name_items` | on | on/off | Say which item a poke ball on the ground holds, rather than a generic one |
+| `surface_cues` | off | on/off | Announce the terrain underfoot when it changes |
+| `puzzle_assist` | off | on/off | Puzzle hints on top of the position and each element's state |
+| `transfer_active_page_only` | on | on/off | Only a tile whose ACTIVE page transfers counts as an exit (Debug menu) |
+
+**Menu reading**
+
+| Key | Default | Range | What it does |
+|---|---|---|---|
+| `auto_detect` | on | on/off | Read menus with no dedicated reader by introspection |
+| `read_help` | on | on/off | Read each option's description after its name, where the menu shows one |
+
 **3D audio**
 
 | Key | Default | Range | What it does |
@@ -187,6 +224,7 @@ tallies why each frame fell silent and `gate_report` summarises it for the diagn
 | `audio3d_wall_range` / `_wall_falloff` | 3 / 50 | 1-20 tiles; 0-100, step 10 | Wall probe and wind falloff, `v = vol / dist ** (falloff / 50.0)` |
 | `audio3d_desk_range` | 2 | 0-3 tiles | Service counters kept audible in `:hide` mode; 0 disables it |
 | `audio3d_range` / `audio3d_alt_dist` | 12 / 5 | 1-30; 1-20 tiles | Sonar reach (its own `:sonar` kind) and how close two emitters must be to alternate |
+| `sonar_only_locatable` | off | on/off | Limit the pings to what the locator keys can reach |
 
 Cadences are 0-100 values that `PokeAccess.freq_to_seconds` turns into a real interval, from 1.5 s (0) to
 0.15 s (100). The puzzle types take volume and frequency from `audio3d_object`.

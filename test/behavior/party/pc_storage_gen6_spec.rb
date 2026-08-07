@@ -1,5 +1,5 @@
-# The two gen-6 cursor readers in core/party/party_storage.rb, both of which had no assertions at all.
-# They are the "speak the focused entry" shape, and the shape is where the bugs live: the game re-asserts
+# The two gen-6 cursor readers in core/party/party_storage.rb. They are the "speak the focused entry"
+# shape, and the shape is where the bugs live: the game re-asserts
 # the focused slot on every frame (pbUpdateOverlay runs continuously, pbChangeSelection is called with the
 # same index), so a reader that speaks unconditionally repeats the same Pokemon forever, while one that
 # dedups on the index alone goes MUTE on everything that changes without the index changing -- flipping to

@@ -41,13 +41,28 @@ module PokeAccess
 
     # Coming back from a submenu. The menu opens the party, the bag, the cards and the rest from inside its
     # own loop and then carries on: cambio never fires again, so the menu returned silent with the cursor on
-    # a panel the player could no longer hear. Every one of those options is wrapped in pbFadeOutIn, which
-    # makes the fade the exact return signal -- gated on the menu still being up, because that fade is the
-    # engine's fade for everything.
+    # a panel the player could no longer hear.
+    #
+    # MOST of those options are wrapped in pbFadeOutIn, which makes the fade a return signal -- gated on the
+    # menu still being up, because that fade is the engine's fade for everything. Three are not: the quest
+    # book on A2 and, on D, the talisman screen and the gacha are called bare. Those are hooked by name
+    # below, which is why this cannot be the fade alone.
     def self.returned
       PokeAccess.speak_clean(@last, true) if @depth > 0 && @last
     rescue StandardError
       nil
+    end
+
+    @fade = 0
+
+    # Only the OUTERMOST fade puts the Fates menu back in front. Its children fade as well -- giving an item
+    # from the bag, opening storage inside the PC -- and an inner fade ends with the CHILD on screen, so
+    # announcing the menu's panel there talked over a screen that is not this one.
+    def self.fade_in!; @fade += 1; end
+
+    def self.fade_out!
+      @fade = [@fade - 1, 0].max
+      returned if @fade == 0
     end
   end
 end
@@ -64,5 +79,11 @@ PokeAccess::Game.define("awakening") do
     PokeAccess::AwakeningPause.open!
     begin; nxt.call; ensure; PokeAccess::AwakeningPause.close!; end
   end
-  kernel("pbFadeOutIn", :after) { |_args, _r| PokeAccess::AwakeningPause.returned }
+  kernel("pbFadeOutIn", :around) do |_args, nxt|
+    PokeAccess::AwakeningPause.fade_in!
+    begin; nxt.call; ensure; PokeAccess::AwakeningPause.fade_out!; end
+  end
+  ["pbQuestlog", "pbEquipScreen", "openGacha"].each do |fn|
+    kernel(fn, :after) { |_args, _r| PokeAccess::AwakeningPause.returned }
+  end
 end

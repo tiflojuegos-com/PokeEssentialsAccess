@@ -29,7 +29,7 @@ module PokeAccess
       [:wind_w,      "pa3d_wind_w",      :snd_wind_w,      :snd_wind_help,        100],
       [:wall,        "pa3d_wall",        :snd_wall,        :snd_wall_help,        100],
       [:interact,    "pa3d_interact",    :snd_interact,    :snd_interact_help,    100],
-      [:bump,        "pa_bump_c",        :snd_bump,        :snd_bump_help,        100],
+      [:bump,        "pa3d_wall_c",      :snd_bump,        :snd_bump_help,        100],
       [:step,        "pa_step",          :snd_step,        :snd_step_help,        100],
       [:grass,       "pa_grass",         :snd_grass,       :snd_grass_help,       100],
       [:fstep_water, "pa_water",         :snd_swim,        :snd_swim_help,        100],

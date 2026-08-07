@@ -10,9 +10,29 @@ module MtsGuard
   ROOT = File.expand_path("../..", __dir__)
 
   # Path fragments whose files load ONLY under the modern engine (Ruby 3.x, no MTS): the mutator redefinition
-  # never applies there, so they are out of scope. Kept in step with test/check187.py's MODERN list.
-  MODERN = ["/v21/", "/v22/", "/skyflyer/", "games/anil/", "games/royal/", "games/relict/",
+  # never applies there, so they are out of scope. La misma lista vive en test/check187.py y hasta ahora
+  # se mantenian en paso a mano; el spec de abajo las compara.
+  MODERN = ["games/anil/", "games/royal/", "games/relict/",
             "games/infinitefusion_hoenn/", "games/infinitefusion/"]
+
+  # The MODERN tuple as check187.py declares it, parsed out of the source.
+  # return the list of path fragments, or nil when the declaration cannot be found
+  def self.modern_of_check187(root)
+    src = File.read(File.join(root, "test", "check187.py"))
+    m = src[/^MODERN\s*=\s*\((.*?)\)/m, 1]
+    return nil unless m
+    m.scan(/"([^"]+)"/).flatten
+  end
+
+  # The THIRD copy of the list, in the file the real 1.8.7 interpreter runs. It is the one that decides what
+  # actually gets parsed, and it was the one nobody compared: adding "core/" to it took the sweep from 194
+  # files to 96 and the verdict stayed OK.
+  def self.modern_of_check187_real(root)
+    src = File.read(File.join(root, "test", "check187_real.rb"))
+    m = src[/^MODERN\s*=\s*\[(.*?)\]/m, 1]
+    return nil unless m
+    m.scan(/"([^"]+)"/).flatten
+  end
 
   # An uppercase constant of 3+ chars: the array constants that get corrupted (BUTTONS, TEXT_CODES, NUMERIC).
   CONST = '[A-Z][A-Z0-9_]{2,}'
@@ -143,6 +163,20 @@ end
 
 # The tree is clean of the mutator landmine: no `CONST + ...` and no `@cache - ...` array op survives in any
 # file that loads under Pokemon Z's MTS.
+# The THREE lists name the same eight paths. They are two languages and three files apart and the only thing
+# keeping them in step was a comment, so a path added to one and not the others would silently lint a Ruby 3
+# file as 1.8.7, exempt a 1.8.7 file from the mutator guard, or shrink the real-interpreter sweep without
+# changing its verdict.
+Suite.define("static/estilo: las tres listas MODERN coinciden") do
+  root = File.expand_path("../..", File.dirname(__FILE__))
+  theirs = MtsGuard.modern_of_check187(root)
+  real = MtsGuard.modern_of_check187_real(root)
+  truthy "check187.py declara MODERN", !theirs.nil?
+  truthy "check187_real.rb declara MODERN", !real.nil?
+  eq "misma lista que el guard", (theirs || []).sort, MtsGuard::MODERN.sort
+  eq "y la del parseo real tambien", (real || []).sort, MtsGuard::MODERN.sort
+end
+
 Suite.define("static: no Array#+/#- mutator landmine in gen-6/Z-loaded files") do
   eq "no MTS array-mutator risks outside the allowlist", MtsGuard.violations, []
 end

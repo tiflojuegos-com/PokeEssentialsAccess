@@ -1,13 +1,11 @@
 module PokeAccess
   # Registry of resettable per-run state. Many modules cache state tied to the current map or save (audio3d's
-  # emitters, the locator's target list, the pathfinder's passability grid...), each with its own reset. The
-  # gap this closes: nothing called all of them together, so state from a previous map or save could linger
-  # after a transfer or a load (e.g. emitters from the map you just left). A module registers its reset once;
-  # reset_all (wired to the :map_changed event) clears every registrant in one place, and a new cache is
-  # covered just by registering it -- no central list to keep in sync. Loading a save resets too, and NOT
-  # because a load screen asks it to (only the two classic ones ever did, so v22 loads slipped through):
-  # announce_map_change compares the IDENTITY of $game_map as well as its id, and a load rebuilds that
-  # object, so the first map after loading fires :map_changed even when it is the same map.
+  # emitters, the locator's target list, the pathfinder's passability grid...), each with its own reset. A
+  # module registers that reset once, and reset_all -- wired to the :map_changed event -- clears every
+  # registrant in one place, so a new cache is covered just by registering it. Loading a save resets too,
+  # and not because a load screen asks it to: announce_map_change compares the IDENTITY of $game_map as well
+  # as its id, and a load rebuilds that object, so the first map after loading fires :map_changed even when
+  # it is the same map.
   module Caches
     @resets = {}
 

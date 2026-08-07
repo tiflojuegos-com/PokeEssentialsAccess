@@ -1,6 +1,6 @@
-# Internal warps (destination is the current map: staircases, within-map transfers) used to be spoken as
-# "exit to <this very map>", useless for orientation, and stepping on one was silent because the map id never
-# changes. Now they are named "passage to the <dir>" and stepping one announces "you moved to the <dir>".
+# Internal warps (destination is the current map: staircases, within-map transfers) are named "passage to
+# the <dir>" and not "exit to <this very map>", which tells the player nothing, and stepping one announces
+# "you moved to the <dir>" -- the map id never changes, so nothing else would say it.
 def mk_warp(id, x, y, dmap, dx, dy)
   pg = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(201, [0, dmap, dx, dy])])
   TestGameEvent.new(:id => id, :x => x, :y => y, :name => "EV#{id}", :pages => [pg], :active_page => pg)

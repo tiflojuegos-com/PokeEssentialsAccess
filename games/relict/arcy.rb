@@ -21,8 +21,12 @@ module PokeAccess
     # Announces the plate being handed over and what it does. The screen draws its description twice -- first
     # in the Unown font, then translated -- into a bitmap, so nothing reached the reader; the text itself
     # comes from the scene's own pick_plate_descriptions, which is what it paints.
+    # La descripcion solo si la pantalla la TRADUCE. Con @translate a false la unica pasada que se dibuja
+    # es la de la fuente Unown, que es precisamente el texto que el guion dice que nadie sabe leer todavia:
+    # leerlo en claro adelanta la entrega entera. El nombre de la Losa si se dice, que eso si se ve.
     def self.plate(scene, plate)
-      desc = (scene.pick_plate_descriptions(plate) rescue nil)
+      translated = PokeAccess.ivar(scene, :@translate)
+      desc = translated ? (scene.pick_plate_descriptions(plate) rescue nil) : nil
       line = (desc.is_a?(Array) ? desc[0] : desc).to_s
       line = PokeAccess.clean(line).to_s.strip
       name = (PokeAccess::Data.item_name(plate) rescue nil)
@@ -60,11 +64,11 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("relict") do
-  after("NextFloor", :setup) { |s, _r, _a| PokeAccess::RelictArcy.floor(s) }
+  # Before, not after, for both cards: setup IS the presentation -- it composes the text, fades the card in,
+  # waits and disposes -- so an after-hook read it out with the card already gone. Neither reader needs
+  # anything the call produces: the floor is the global counter and the plate is the argument.
+  before("NextFloor", :setup) { |s, _a| PokeAccess::RelictArcy.floor(s) }
   after("ArcyContest", :updateHearts) { |s, _r, _a| PokeAccess::RelictArcy.hearts(s) }
-  # Before, not after: setup is the whole plate presentation and it ends blocking on a loop that waits for a
-  # button, so an after-hook read the plate out once the player had already dismissed it. Nothing it needs is
-  # produced by the call -- the description comes from the plate symbol, which is the argument.
   before("GivePlateMessage", :setup) { |s, args| PokeAccess::RelictArcy.plate(s, args[0]) }
   kernel("rewriteDungeonLayoutAll", :after) { |_a, _r| PokeAccess::RelictArcy.layout(nil) }
 end

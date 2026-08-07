@@ -7,11 +7,14 @@ module PokeAccess
   module UIV21
     # Speaks text only when it changes for a given tag (the GameData-era UI re-selects every frame, so
     # without this the focused item would repeat continuously). Backed by Cursor's module-wide table (no
-    # scene instance to hang on here). param tag a symbol naming the source, so different screens do not
-    # shadow each other
-    def self.speak_changed(tag, text)
+    # scene instance to hang on here).
+    # param tag a symbol naming the source, so different screens do not shadow each other
+    # param key what identifies the FOCUS, when the text alone cannot: two party slots holding an egg
+    #   produce the same line, and on the text alone moving between them is silent. It joins the dedup key
+    #   and is never spoken.
+    def self.speak_changed(tag, text, key = nil)
       return if text.nil? || text.to_s.empty?
-      PokeAccess::Cursor.announce(nil, tag, text) { text }
+      PokeAccess::Cursor.announce(nil, tag, key.nil? ? text : [key, text]) { text }
     rescue StandardError
       nil
     end
@@ -20,14 +23,22 @@ module PokeAccess
     # reopens with the cursor on the same item as last time).
     def self.reset(tag); PokeAccess::Cursor.reset(nil, tag); end
 
+    # Whether the classic party scene reports cursor moves itself, in which case the panel hook must keep
+    # quiet. Resolved once: it is a property of the game, not of the screen.
+    @scene_reports = nil
+
+    def self.scene_reports_party?
+      @scene_reports = PokeAccess::Engine.has?("PokemonScreen_Scene#pbChangeSelection") if @scene_reports.nil?
+      @scene_reports
+    end
+
     # Spoken summary of a party member: name, gender, level, hp and fainted state, plus the eligibility
-    # annotation ("able"/"not able") when the party is opened to use an item or pick a move target.
+    # annotation ("able"/"not able") when the party is opened to use an item or pick a move target. An egg
+    # gets its own line, because the panel hides its HP bar, HP numbers and level, and Pokemon#name answers
+    # with the species for an unnicknamed one, so the usual line would hand all of that over.
     # param annotation the panel's annotation text, or nil/blank when none applies
     def self.party_member(pk, annotation = nil)
       return nil unless pk
-      # An egg is a surprise the panel is deliberately keeping: it hides the HP bar, the HP numbers and the
-      # level, and Pokemon#name answers with the species for an unnicknamed one. Reading the usual line there
-      # handed over the species, the level and the HP of something the screen shows as an egg.
       if (pk.egg? rescue false)
         t = PokeAccess::I18n.t(:pty_egg)
         t += ", " + annotation.to_s if annotation && !annotation.to_s.empty?
@@ -72,15 +83,21 @@ end
 # the repeat key). A second hook here that called speak() directly would be deduped away by say_dialogue,
 # leaving the repeat key stale on v21 -- so it lives only in screen_v22.
 
-# Party screen (classic panels): read the cursor-highlighted member (deduped); also sets the contextual
-# info so the info key can read its moves/ability.
+# Party screen (classic panels): reads the cursor-highlighted member (deduped) and sets the contextual info
+# so the info key can read its moves and ability.
+#
+# Stands down where the classic scene reports the move too. party_g6 splits the eras by WHICH object
+# reports, since a game with panels is read by this hook whatever its scene is called -- true in twelve
+# games, false in awakening, the one v17.2 fork with both shapes: its loop calls pbChangeSelection AND sets
+# selected= on every panel, so both readers speak the same line and cut each other on every cursor move.
+# The classic reader wins because it also names the Cancel and Confirm buttons, which a panel never sees.
 PokeAccess::Hooks.after_hook("PokemonPartyPanel", :selected=) do |panel, _r, args|
-  if args[0]
+  if args[0] && !PokeAccess::UIV21.scene_reports_party?
     pk = PokeAccess.ivar(panel, :@pokemon)
     if pk
       PokeAccess::Info.set_info(:pokemon, pk)
       ann = PokeAccess.ivar(panel, :@text)
-      PokeAccess::UIV21.speak_changed(:party, PokeAccess::UIV21.party_member(pk, ann))
+      PokeAccess::UIV21.speak_changed(:party, PokeAccess::UIV21.party_member(pk, ann), panel.object_id)
     end
   end
 end
@@ -94,7 +111,7 @@ PokeAccess::Hooks.after_hook("PokemonParty_Scene", :pbSelect, :optional => true)
   idx = args[0]
   party = PokeAccess.ivar(scene, :@party)
   unless PokeAccess::Party.party_slot?(party, idx)
-    PokeAccess::UIV21.speak_changed(:party, PokeAccess::Party.party_button(scene, idx))
+    PokeAccess::UIV21.speak_changed(:party, PokeAccess::Party.party_button(scene, idx), idx)
   end
 end
 
@@ -126,14 +143,12 @@ PokeAccess::Hooks.after_hook("MapBottomSprite", :maplocation=) do |_s, _r, args|
 end
 
 # Clear the region-map dedup when the map screen opens, so reopening reads the location even when the cursor
-# starts on the same place as last time.
+# starts where it did last time. Bound under both names, since gen-6 calls the scene PokemonRegionMapScene
+# without the underscore.
 #
-# Bound under both names, not the modern one alone: gen-6 calls the scene PokemonRegionMapScene, without the
-# underscore, so those games never got this reset at all -- reopen the map on the same spot and it stayed
-# quiet, because the dedup still held the location from last time. Resetting a dedup slot is the same act in
-# either era, so this is scene_classes and not era_scene: era_scene answers "which of these two names does
-# the reader for MY data API bind to" and returns nothing when its own era's name is absent, which would
-# leave every modern game unbound -- the exact silence this reset exists to prevent.
+# scene_classes and not era_scene: resetting a dedup slot is the same act in either era, while era_scene
+# answers "which name does the reader for MY data API bind to" and returns nothing when its own era's name
+# is absent, which would leave every modern game unbound.
 PokeAccess::Engine.scene_classes("PokemonRegionMapScene", "PokemonRegionMap_Scene").each do |cn|
   PokeAccess::Hooks.before_hook(cn, :pbStartScene) do |_s, _a|
     PokeAccess::UIV21.reset(:regionmap)

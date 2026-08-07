@@ -85,6 +85,25 @@ Por defecto la búsqueda corta por **nodos** (`astar_max`, 2500); con `route_aut
 `with_budget` conserva el de fuera. Lo respetan todas salvo el A* local de `hpa_low`. Agotado el plazo, aún se
 devuelve una **ruta parcial** si el mejor nodo quedó a 2 casillas o menos del destino.
 
+## Categorías del localizador
+
+Shift + flecha cambia de categoría; la flecha sola recorre la lista, ordenada por distancia. El nombre
+hablado sale de la clave `tcat_*` correspondiente.
+
+| Símbolo | Qué lista |
+|---|---|
+| `:all` | Todo lo alcanzable con las teclas: sprites de personaje y eventos examinables |
+| `:people` / `:objects` | El reparto de `event_category`: quien se mueve o habla, y lo demás |
+| `:exits` | Transferencias de mapa, con las puertas anchas colapsadas en una sola |
+| `:signs` | Carteles y eventos que solo muestran texto |
+| `:extras` | Peligros, trampas, controles, empujadores y teletransportes |
+| `:surfaces` | Objetivos sintéticos: la casilla más cercana de cada superficie a la que se puede llegar |
+| `:puzzles` | Celdas declaradas por un perfil a través de la API de puzles |
+| `:lens` | Baldosas de la Lente de la Verdad (`#EOT`), solo si el mapa tiene alguna |
+
+Las siete primeras son `Config.categories` y persisten en `settings.ini`. `:puzzles` y `:lens` no: se
+insertan solo cuando el mapa las tiene, para no ofrecer una categoría vacía.
+
 ## Audio 3D
 
 `PA3D_steam.dll` (Steam Audio HRTF + miniaudio) es el único motor de audio del mod: por él pasan también los
@@ -172,6 +191,24 @@ cuenta por qué calló cada frame y `gate_report` lo resume para el diagnóstico
 | `auto_guide` / `hide_unreachable` | off / off | on/off | Guiar al seleccionar objetivo; ocultar los objetivos sin ruta |
 | `route_auto` / `route_budget_ms` | off / 8 | on/off; 2-40 ms, paso 2 | Cortar por tiempo, y ese plazo (menú de Depuración) |
 
+**Localizador y campo**
+
+| Clave | Defecto | Rango | Qué hace |
+|---|---|---|---|
+| `hide_noninteractive` | off | on/off | Omitir los eventos decorativos sin interacción |
+| `fixed_target_number` | on | on/off | Numerar los objetivos por posición fija en la lista |
+| `name_items` | on | on/off | Decir qué objeto contiene una poké ball del suelo, en vez de un genérico |
+| `surface_cues` | off | on/off | Anunciar el terreno bajo los pies al cambiar |
+| `puzzle_assist` | off | on/off | Pistas de puzle además de la posición y el estado de cada elemento |
+| `transfer_active_page_only` | on | on/off | Solo cuenta como salida la baldosa cuya página ACTIVA transfiere (menú de Depuración) |
+
+**Lectura de menús**
+
+| Clave | Defecto | Rango | Qué hace |
+|---|---|---|---|
+| `auto_detect` | on | on/off | Leer por introspección los menús sin lector propio |
+| `read_help` | on | on/off | Leer la descripción de cada opción tras su nombre, donde el menú la muestra |
+
 **Audio 3D**
 
 | Clave | Defecto | Rango | Qué hace |
@@ -187,6 +224,7 @@ cuenta por qué calló cada frame y `gate_report` lo resume para el diagnóstico
 | `audio3d_wall_range` / `_wall_falloff` | 3 / 50 | 1-20 casillas; 0-100, paso 10 | Sondeo de paredes y caída del viento, `v = vol / dist ** (falloff / 50.0)` |
 | `audio3d_desk_range` | 2 | 0-3 casillas | Mostradores de servicio audibles en modo `:hide`; 0 lo apaga |
 | `audio3d_range` / `audio3d_alt_dist` | 12 / 5 | 1-30; 1-20 casillas | Alcance del sonar (tipo propio `:sonar`) y distancia a la que dos emisores alternan |
+| `sonar_only_locatable` | off | on/off | Limitar los pings a lo que alcanzan las teclas del localizador |
 
 Las cadencias son valores 0-100 que `PokeAccess.freq_to_seconds` traduce a un intervalo real, de 1,5 s (0) a
 0,15 s (100). Los tipos de puzle toman volumen y frecuencia de `audio3d_object`.

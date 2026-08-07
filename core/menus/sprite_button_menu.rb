@@ -13,7 +13,7 @@ module PokeAccess
       return unless buttons.is_a?(Array) && idx && idx >= 0 && idx < buttons.length
       label = (buttons[idx][1] rescue nil)
       return if label.nil? || label.to_s.empty?
-      @last = label.to_s
+      @last = PokeAccess::Menus.button_label(label)
       PokeAccess.speak_clean(@last, true)
     rescue StandardError
       nil
@@ -45,23 +45,59 @@ module PokeAccess
       nil
     end
 
+    @fade = 0
+
+    # Only the OUTERMOST fade puts this menu back in front. Its children fade too -- giving an item from
+    # inside the bag, opening storage inside the PC -- and an inner fade ends with the CHILD on screen, so
+    # announcing the menu's option there talks over a screen that is not this one.
+    def self.fade_in!; @fade += 1; end
+
+    def self.fade_out!
+      @fade = [@fade - 1, 0].max
+      returned if @fade == 0
+    end
+
+    # Forgets the nesting, for a map change or any other point where the menu is gone without its fades
+    # having balanced (a screen that exits through a throw leaves the counter high, and then the next real
+    # return is swallowed as if it were nested).
+    def self.reset_nesting; @fade = 0; end
+
     # Registers the selectButton reader for a game profile.
-    def self.define(game)
+    #
+    # The menu's blocking loop is HELD rather than hooked after, because holding is the only thing that
+    # tells the fade below whether the menu is still on screen. Which method holds the loop differs by game
+    # -- Africanvs runs it inside pbStartScene, Armonia in a pbMenuLoop of its own -- so both are
+    # registered and each binds only where it exists.
+    #
+    # The fade is wrapped AROUND and not hooked after, so a fade nested inside another does not announce
+    # the parent menu over the child that is actually on screen.
+    #
+    # param bare a list of ["Class", :method] whose call is a subscreen that does NOT fade. Every option
+    #   that fades is covered by that wrap; one called bare returns with nothing to signal it, and the menu
+    #   comes back silent with the cursor on an option the player can no longer hear. They count as a
+    #   nesting level like a fade does, so returning from one announces exactly once.
+    def self.define(game, bare = [])
       PokeAccess::Game.define(game) do
         after("PokemonMenu_Scene", :selectButton) do |scene, _r, args|
           PokeAccess::SpriteButtonMenu.focus(scene, args[0])
         end
-        # The menu's blocking loop is held rather than hooked after, because holding is the only thing that
-        # tells the fade below whether the menu is still on screen. Which method holds the loop differs by
-        # game -- Africanvs runs it inside pbStartScene, Armonia in a pbMenuLoop of its own -- so both are
-        # registered and each binds only where it exists.
         ["pbStartScene", "pbMenuLoop"].each do |meth|
           around("PokemonMenu_Scene", meth.to_sym, :optional => true) do |_s, nxt, _a|
             PokeAccess::SpriteButtonMenu.open!
-            begin; nxt.call; ensure; PokeAccess::SpriteButtonMenu.close!; end
+            PokeAccess::SpriteButtonMenu.reset_nesting
+            begin; nxt.call; ensure; PokeAccess::SpriteButtonMenu.close! end
           end
         end
-        kernel("pbFadeOutIn", :after) { |_args, _r| PokeAccess::SpriteButtonMenu.returned }
+        bare.each do |cname, meth|
+          around(cname, meth.to_sym, :optional => true) do |_s, nxt, _a|
+            PokeAccess::SpriteButtonMenu.fade_in!
+            begin; nxt.call; ensure; PokeAccess::SpriteButtonMenu.fade_out! end
+          end
+        end
+        kernel("pbFadeOutIn", :around) do |_args, nxt|
+          PokeAccess::SpriteButtonMenu.fade_in!
+          begin; nxt.call; ensure; PokeAccess::SpriteButtonMenu.fade_out! end
+        end
       end
     end
   end

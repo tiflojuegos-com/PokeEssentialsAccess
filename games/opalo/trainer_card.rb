@@ -19,7 +19,20 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:tr_playtime, :h => hm[0], :m => hm[1])) if hm
       stars = ($game_variables[STARS_VAR] rescue nil)
       parts.push(PokeAccess::I18n.t(:tcard_stars, :n => stars.to_i)) if stars
+      d = start_date(($PokemonGlobal.startTime rescue nil))
+      parts.push(PokeAccess::I18n.t(:tcard_started, :date => d)) if d
       parts.join(", ")
+    rescue StandardError
+      nil
+    end
+
+    # The start date the way the card prints it -- day, abbreviated month, year -- through the game's own
+    # month names. The fifth of the five lines it draws.
+    def self.start_date(t)
+      return nil unless t
+      mon = (pbGetAbbrevMonthName(t.mon) rescue nil)
+      mon = t.mon.to_s if mon.nil? || mon.to_s.empty?
+      "#{t.day} #{mon} #{t.year}"
     rescue StandardError
       nil
     end

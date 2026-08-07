@@ -39,8 +39,12 @@ PokeAccess::Hooks.after_hook("Window_TextEntry", :delete) do |_w, _r, _a|
 end
 
 # Suppress mod commands while a text field updates (the keyboard subclass overrides update without super).
+#
+# hook_container because update DRIVES the two hooks above: insert and delete are called from inside it, so
+# under the default reentrancy guard both were discarded as nested and neither the typed character nor the
+# deletion was ever echoed -- the one thing this file exists to do.
 ["Window_TextEntry_Keyboard", "Window_TextEntry"].each do |cn|
-  PokeAccess::Hooks.after_hook(cn, :update) do |win, _r, _a|
+  PokeAccess::Hooks.after_hook(cn, :update, :hook_container => true) do |win, _r, _a|
     if (win.active rescue true)
       PokeAccess::Keys.typing!
       PokeAccess::TextEntry.cursor_read(win)

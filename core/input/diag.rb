@@ -1,9 +1,8 @@
 module PokeAccess
-  # The diagnostic half of Keys, split from the orchestrator half (input.rb): everything here answers
-  # "why did it go quiet / what is the game showing", none of it runs on the per-frame hot path except
-  # the two edge-triggered key polls. Same module reopened, so the state it reads (@enabled, @typing_ttl)
-  # and the callers (global_poll, the debug menu) are untouched; the window handle it reports now belongs
-  # to PokeAccess::Focus and the chord edges to PokeAccess::Keyboard, both read through their owner.
+  # The diagnostic half of Keys, split from the orchestrator half (input.rb): everything here answers "why
+  # did it go quiet / what is the game showing", and none of it runs on the per-frame hot path except the
+  # two edge-triggered key polls. The module is reopened, so @enabled, @typing_ttl and the callers are
+  # shared; the window handle and the chord edges are read through their owners, Focus and Keyboard.
   module Keys
     # Writes a diagnostic snapshot with Ctrl+Alt+F9, so the real in-game values can be inspected.
     def self.diag_poll
@@ -37,14 +36,12 @@ module PokeAccess
     # Yields a value for a diagnostics line, returning "ERR(class)" if it raises.
     def self.dv; yield; rescue Exception => e; "ERR(#{e.class})"; end
 
-    # The installed mod version, straight off the version.json the installer ships. Without this the whole
-    # report is unattributable: a tester says "still broken", and there is no way to tell whether they ran
-    # the build with the fix or the one before it -- which cost a full round trip the first time it
-    # happened. Parsed by hand rather than with a JSON library, since the mod runs under Ruby 1.8.7.
+    # The installed mod version, off the stamp the installer leaves, so a report says which build produced
+    # it. Parsed by hand rather than with a JSON library, since the mod runs under Ruby 1.8.7.
+    #
+    # installed.json is asked FIRST because it is the one that exists in a played game: version.json lives
+    # at the repo root and the installer does not deploy it, so it only answers when running from source.
     def self.mod_version
-      # installed.json first, because that is the one that EXISTS in a played game: version.json lives at the
-      # repo root and the installer does not deploy it, so every real recording said "mod: ?" -- the one line
-      # that tells which build a report came from. version.json stays as the answer when running from source.
       [["#{PokeAccess::Paths::DATA}/installed.json", /"mod_version"\s*:\s*"([^"]+)"/],
        [File.join(PokeAccess::Paths::ROOT, "version.json"), /"version"\s*:\s*"([^"]+)"/]].each do |path, re|
         txt = (File.read(path) rescue nil)
@@ -162,11 +159,10 @@ module PokeAccess
       out
     end
 
-    # The cue-pacing clock next to the engine clocks it is NOT built on, so "everything fires at once" or
+    # The cue-pacing clock next to the engine clocks it is NOT built on, so "everything fires at once" and
     # "nothing ever fires" can be told apart at a glance. uptime_scale is how many System.uptime units make
-    # one real second (1 where it counts seconds, 1000000 on a microsecond mkxp-z build, which is what sent
-    # the whole soundscape to frame rate before clock moved to wall time); render_fps is measured between
-    # two consecutive diags and should sit at frame_rate.
+    # one real second (1 where it counts seconds, 1000000 on a microsecond mkxp-z build); render_fps is
+    # measured between two consecutive diags and should sit at frame_rate.
     def self.diag_timing(o)
       now = PokeAccess.clock
       fc = dv { Graphics.frame_count }
@@ -181,8 +177,11 @@ module PokeAccess
     end
 
     # Focus, scene state, hook health and the audio/pathfinder config flags. fn_absent is informative
-    # (functions no wrapper found anywhere -- usually legitimate cross-game variance, but a typo'd
-    # function name shows up here and nowhere else).
+    # (functions no wrapper found anywhere -- usually legitimate cross-game variance, though a typo'd
+    # function name shows up here and nowhere else). caches and data_err name the modules that registered a
+    # reset and the data lookups that fell back, which is how "module X forgot to register" becomes visible
+    # from a session report; sin_declarar names a third-party plugin this game HAS and the profile never
+    # declared a reader for, so its mute screen is visible too.
     def self.diag_focus(o)
       diag_engine(o)
       o.push("enabled=#{@enabled} focused?=#{dv { focused? }} game_hwnd=#{PokeAccess::Focus.hwnd.inspect} typing_ttl=#{@typing_ttl}")
@@ -190,12 +189,7 @@ module PokeAccess
       o.push("scene=#{dv { $scene.class }} in_menu=#{dv { $game_temp.in_menu }} msg=#{dv { $game_temp.message_window_showing }} interp=#{dv { $game_system.map_interpreter.running? }} surfing=#{dv { $PokemonGlobal.surfing }}")
       o.push("hooks: missing=#{cut(dv { PokeAccess::Hooks.missing.inspect }, 200)} fn_absent=#{cut(dv { PokeAccess::Hooks.fn_absent.inspect }, 200)} overrides=#{cut(dv { PokeAccess::Hooks.overrides.inspect }, 200)}")
       o.push("guard_suppressed=#{cut(dv { PokeAccess::Hooks.suppressed.inspect }, 300)}")
-      # Which modules registered a reset, and which data lookups fell back. Both were collected and never
-      # printed, so "module X forgot to register" -- the exact shape of bug this section exists for -- could
-      # not be seen from a session report.
       o.push("caches=#{cut(dv { PokeAccess::Caches.names.inspect }, 200)} data_err=#{cut(dv { PokeAccess::Data.errors.inspect }, 200)}")
-      # sin_declarar names a third-party plugin this game HAS whose reader the profile never declared: the
-      # screen is mute and nothing else would say so.
       o.push("plugins: cargados=#{cut(dv { PokeAccess::Plugins.loaded.inspect }, 200)} sin_declarar=#{cut(dv { PokeAccess::Plugins.undeclared.inspect }, 200)}")
       gp = dv { PokeAccess::Plugins.game_plugins }
       o.push("plugins_juego: #{gp.is_a?(Array) ? (gp.empty? ? 'ninguno registrado' : cut(gp.join(', '), 400)) : 'sin PluginManager'}")
@@ -217,9 +211,9 @@ module PokeAccess
       end
     end
 
-    # A player attribute by name, or nil where this engine does not have it -- the trainer type is
-    # trainertype in gen-6 and trainer_type in the GameData era, and asking for the wrong one used to print
-    # ERR(NoMethodError) in the diag, which reads like a fault when it is just the other engine.
+    # A player attribute by name, or nil where this engine does not have it. The trainer type is trainertype
+    # in gen-6 and trainer_type in the GameData era, and the wrong one prints ERR(NoMethodError) in the diag,
+    # which reads like a fault when it is just the other engine.
     def self.pl_attr(name)
       p = PokeAccess::Engine.player
       (p && p.respond_to?(name)) ? p.send(name) : nil
@@ -286,6 +280,7 @@ module PokeAccess
       o.push("audio3d chans=#{dv { a3.instance_variable_get(:@ch).inspect }}")
       o.push("audio3d state: scan_pos=#{dv { a3.instance_variable_get(:@scan_pos).inspect }} walls=#{dv { a3.instance_variable_get(:@wall).inspect }} near=#{dv { a3.instance_variable_get(:@near).inspect }}")
       o.push("audio3d gate: now=#{dv { PokeAccess::Spatial.busy_reason.inspect }} #{dv { a3.gate_report }}")
+      o.push("sonar reach: #{dv { PokeAccess::Audio3D.reach_census }}")
       o.push("audio3d emitters=#{cut(dv { a3.instance_variable_get(:@emitters).inspect }, 300)}")
       o.push("audio3d movers: has=#{dv { PokeAccess::Puzzles.has_movers? }} cached=#{dv { (a3.instance_variable_get(:@emitters)[:trap]).inspect }} last_scan=#{dv { a3.instance_variable_get(:@mover_time) }} now=#{dv { PokeAccess.clock }}")
       o.push("paths: data=#{dv { PokeAccess::Paths::DATA }} cwd=#{dv { Dir.pwd }} lib=#{dv { PokeAccess::Paths::LIB }}")
@@ -304,11 +299,10 @@ module PokeAccess
     end
 
     # Battle/trainer state, player-sprite selection, on-screen pictures, choices and live command windows.
+    # The selection line asks character_ID before playerID: playerID is the gen-6 name and raises
+    # NoMethodError on a modern game, which is exactly where the field is 1-based and worth checking.
     def self.diag_scene(o)
       o.push("battle_ref=#{dv { PokeAccess::Battle.instance_variable_get(:@battle_ref) ? 'present' : 'nil' }} trainer=#{dv { p = PokeAccess::Engine.player; p ? p.name : 'nil' }}")
-      # character_ID first: playerID is the gen-6 name and raised NoMethodError on every modern game, so the
-      # field that says which appearance is selected read ERR in exactly the games where it is 1-based and
-      # therefore the one worth checking.
       o.push("player_sel: playerID=#{dv { pl_attr(:character_ID) || ($PokemonGlobal.playerID rescue nil) }} charset='#{dv { $game_player.character_name }}' tt=#{dv { pl_attr(:trainertype) || pl_attr(:trainer_type) }} outfit=#{dv { pl_attr(:outfit) }} gender=#{dv { pl_attr(:gender) }}")
       o.push("pictures=" + dv { (1..50).map { |i| n = ($game_screen.pictures[i].name rescue nil); (n && !n.to_s.empty?) ? "#{i}:#{n}" : nil }.compact.join(",") }.to_s)
       o.push("choice=#{dv { $game_temp.respond_to?(:choice_max) ? $game_temp.choice_max : 'n/a' }} choices=#{dv { $game_temp.respond_to?(:choices) ? $game_temp.choices.inspect : 'n/a' }}")
@@ -353,11 +347,10 @@ module PokeAccess
       end
     end
 
-    # Runtime introspection of whatever screen is open, so a dev facing a SILENT custom screen can learn how
-    # to read it without extracting the game's Scripts.rxdata: the live $scene class with its own methods and
-    # ivars, plus every non-disposed Window/Sprite-based scene object found via ObjectSpace with its index/
-    # commands. Bind a reader to one of the listed methods (e.g. an update/refresh that runs on each move) and
-    # read the ivar that holds the selection. Heavy (ObjectSpace walk), so it only runs on the diag key.
+    # Runtime introspection of whatever screen is open, so a dev facing a SILENT custom screen can learn to
+    # read it without extracting the game's Scripts.rxdata: the live $scene class with its methods and
+    # ivars, plus every non-disposed Window/Sprite-based scene object found via ObjectSpace with its index
+    # and commands. Heavy (ObjectSpace walk), so it only runs on the diag key.
     def self.diag_runtime(o)
       o.push("--- runtime introspection (for silent screens) ---")
       sc = dv { $scene }
@@ -394,10 +387,9 @@ module PokeAccess
       }.inspect, 500))
     end
 
-    # The per-frame input layers. The poller BENCH that used to live here belonged to one third-party
-    # plugin's reader, and moved out with it: the core is what every Essentials game has, so it must not
-    # name a plugin. A plugin that wants a bench registers its own diagnostic section, exactly as a
-    # profile does.
+    # The per-frame input layers. No poller BENCH here: a bench belongs with whichever reader it measures,
+    # and the core is what every Essentials game has, so it must not name a plugin. A plugin that wants one
+    # registers its own diagnostic section, exactly as a profile does.
     def self.diag_polls(o)
       aliases = ((class << Input; self; end).instance_methods(false).select { |m| m.to_s =~ /update__access/ } rescue [])
       o.push("input_update_layers: #{aliases.inspect} frame_pollers=#{(@frame_pollers || []).length}")

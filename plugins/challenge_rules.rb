@@ -26,9 +26,50 @@ module PokeAccess
     rescue StandardError
       nil
     end
+
+    @win = nil
+
+    def self.arm(win); @win = win; end
+
+    # True while a rule list is on screen. The description strip is an ordinary Window_AdvancedTextPokemon,
+    # the same class plain dialogue uses, so this is what keeps the listener below from reading dialogue
+    # everywhere else. It clears itself: the screen disposes its windows on the way out.
+    def self.open?
+      w = @win
+      !w.nil? && !(w.disposed? rescue true)
+    rescue StandardError
+      false
+    end
+
+    # The description of the focused rule, queued so it follows the name and state.
+    def self.describe(win, raw)
+      return unless open? && (PokeAccess::Config.read_help rescue true)
+      txt = PokeAccess.clean(raw.to_s)
+      return if txt.empty? || txt == PokeAccess.ivar(win, :@access_rule_desc)
+      win.instance_variable_set(:@access_rule_desc, txt)
+      PokeAccess::Info.set_info(:text, txt)
+      PokeAccess.speak(txt, false)
+    rescue StandardError
+      nil
+    end
   end
 end
 
 PokeAccess::Menus.def_extractor("Window_CommandPokemon_Challenge") do |win, i|
   PokeAccess::ChallengeRules.text(win, i)
+end
+
+# Toggling rebuilds the option list through commands= without moving the cursor, so the generic reader's
+# [index, pocket] key is unchanged and the new state would never be spoken. Clearing the slot makes the next
+# update read the row again.
+PokeAccess::Hooks.after_hook("Window_CommandPokemon_Challenge", :commands=, :optional => true) do |win, _r, _a|
+  PokeAccess::Cursor.reset(win, :cmd_focus)
+end
+
+PokeAccess::Hooks.after_hook("Window_CommandPokemon_Challenge", :initialize, :optional => true) do |win, _r, _a|
+  PokeAccess::ChallengeRules.arm(win)
+end
+
+PokeAccess::Hooks.after_hook("Window_AdvancedTextPokemon", :text=, :optional => true) do |win, _r, args|
+  PokeAccess::ChallengeRules.describe(win, args[0])
 end

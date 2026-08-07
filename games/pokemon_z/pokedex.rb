@@ -2,13 +2,20 @@
 # so this game-specific reader never collides with the shared dex helper.
 module PokeAccess
   module ZPokedex
-    # Builds the text of the current dex page (info / level moves / egg moves).
+    # Builds the text of the current dex page (info / level moves / egg moves / machine and tutor moves).
+    #
+    # The last group only exists when the game's own SHOWMACHINETUTORMOVES is on -- it is off in the build
+    # surveyed, so @machineMovesPages is never even assigned and @totalPages stops after the egg moves. The
+    # branch is here anyway because "everything after the level moves is egg moves" is only true while that
+    # switch stays off: flip it and every machine page would be announced as "egg moves" with an empty
+    # list under it, which is a wrong answer rather than a missing one.
     def self.page_text(scene)
       page  = scene.instance_variable_get(:@page)
       total = scene.instance_variable_get(:@totalPages)
       return nil unless page && total && total > 0
       infoP = scene.instance_variable_get(:@infoPages) || 0
       lvlP  = scene.instance_variable_get(:@levelMovesPages) || 0
+      eggP  = scene.instance_variable_get(:@eggMovesPages) || 0
       out = ["Pagina #{page} de #{total}."]
       if page <= infoP
         info = scene.instance_variable_get(:@infoArray) || []
@@ -19,18 +26,24 @@ module PokeAccess
         end
       elsif page <= infoP + lvlP
         out.push("Movimientos por nivel:")
-        arr = scene.instance_variable_get(:@levelMovesArray) || []
-        p2 = page - infoP
-        (10 * (p2 - 1)...10 * p2).each { |i| out.push(arr[i].to_s) if arr[i] }
-      else
+        move_page(out, scene, :@levelMovesArray, page - infoP)
+      elsif page <= infoP + lvlP + eggP
         out.push("Movimientos huevo:")
-        arr = scene.instance_variable_get(:@eggMovesArray) || []
-        p2 = page - infoP - lvlP
-        (10 * (p2 - 1)...10 * p2).each { |i| out.push(arr[i].to_s) if arr[i] }
+        move_page(out, scene, :@eggMovesArray, page - infoP - lvlP)
+      else
+        out.push("Movimientos por MT y tutor:")
+        move_page(out, scene, :@machineMovesArray, page - infoP - lvlP - eggP)
       end
       out.join(" ")
     rescue StandardError
       nil
+    end
+
+    # One page of ten moves out of the named array, exactly as the screen paginates it.
+    def self.move_page(out, scene, sym, page)
+      arr = scene.instance_variable_get(sym) || []
+      (10 * (page - 1)...10 * page).each { |i| out.push(arr[i].to_s) if arr[i] }
+      out
     end
   end
 end

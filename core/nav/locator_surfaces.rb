@@ -13,23 +13,18 @@ module PokeAccess
       PokeAccess::Terrain::LABEL
     end
 
-    # Nearest tile of each interesting surface the player can actually get to, as synthetic targets,
-    # cached per player tile.
+    # Nearest tile of each interesting surface the player can actually get to, as synthetic targets, cached
+    # per player tile.
     #
-    # This was a 61x61 box around the player, and the box was wrong in both directions at once. Too small:
-    # the grass at the far end of a route did not exist, even though the guide would have walked you there
-    # without complaint. Too big: a lake behind a locked door was offered as a target and then the guide
-    # said there was no route, because a box knows nothing about walls. Both come from measuring the wrong
-    # thing -- straight-line distance is not what a navigation menu is about.
+    # The pathfinder answers, not a box around the player: straight-line distance is not what a navigation
+    # menu is about, and a box is wrong in both directions at once -- too small for the grass at the far end
+    # of a route the guide would happily walk to, too big for a lake behind a locked door. This reuses the
+    # flood already computed for this tile and shared with the unreachable filter, inheriting its route_reach
+    # limit for free. The LIST only: the sonar keeps its own short range, since what you can hear and where
+    # you can walk are different questions.
     #
-    # So it asks the pathfinder instead, reusing the flood already computed for this tile and shared with
-    # the unreachable filter, and inherits its limit (route_reach, the same 128 tiles that decide where
-    # the guide can take you) for free. Note this is the LIST only: the sonar keeps its own short range
-    # and does its own looking, since what you can hear and where you can walk are different questions.
-    #
-    # The border ring is what keeps water on the list. You cannot stand on water, so the flood never
-    # enters it, but you can stand beside it -- and standing beside it is exactly what the guide is for,
-    # with surf_launch taking over from the shore.
+    # The border ring is what keeps water on the list. You cannot stand on water, so the flood never enters
+    # it, but you can stand beside it, which is what the guide is for, with surf_launch taking over there.
     def self.surface_targets
       pos = [$game_player.x, $game_player.y, ($game_map.map_id rescue 0)]
       return @surface_cache if @surface_cache && @surface_cache_pos == pos
@@ -63,8 +58,11 @@ module PokeAccess
       []
     end
 
-    # The connections involving a map, across engines: modern indexes getMapConnections by id and offers
-    # eachConnectionForMap; gen-6 returns one flat list (reading it directly on modern would be wrong).
+    # The connections involving a map, across engines. Two shapes answer to the same method name, so the
+    # shape is probed and never assumed: gen-6 returns ONE flat list, each entry a connection row, while
+    # both Infinite Fusion games return an array INDEXED BY MAP ID whose entries are the lists touching that
+    # map, with nil in every unused id and no eachConnectionForMap to give the shape away. Read flat, that
+    # compares a nested list against an integer and raises on the nil holes.
     def self.connections_for(id)
       if MapFactoryHelper.respond_to?(:eachConnectionForMap)
         list = []
@@ -73,11 +71,6 @@ module PokeAccess
       end
       c = (MapFactoryHelper.getMapConnections rescue nil)
       return [] unless c.is_a?(Array)
-      # Two shapes answer to the same method name. Gen-6 returns ONE flat list, each entry a connection row.
-      # Both Infinite Fusion games return an array INDEXED BY MAP ID whose entries are the lists of
-      # connections touching that map, with nil in every unused id -- and they have no eachConnectionForMap
-      # to give the shape away. Read flat, that compared a nested list against an integer so nothing ever
-      # matched, and the nil holes raised: those two games had no route-edge connections at all.
       indexed?(c) ? (c[id].is_a?(Array) ? c[id] : []) : c
     rescue StandardError
       []

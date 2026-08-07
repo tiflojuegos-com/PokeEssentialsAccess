@@ -33,6 +33,7 @@ module PokeAccess
       [:guide_distance,      3,     :gdist, :pathfinder, :lbl_guide_distance,  :help_guide_distance],
       [:sound_nav,           :full, :navmode, :audio,   :lbl_sound_nav,        :help_sound_nav],
       [:proximity_radar,     false, :flag, :audio,      :lbl_proximity_radar,  :help_proximity_radar],
+      [:sonar_only_locatable, false, :flag, :audio,     :lbl_sonar_locatable,  :help_sonar_locatable],
       [:audio3d_volume,      80,    :vol,  :audio,      :lbl_pos_master,       :help_pos_master],
       [:audio3d_npc,         85,    :vol,  :audio3d_vol, :lbl_pos_people,      :help_pos_people],
       [:audio3d_object,      85,    :vol,  :audio3d_vol, :lbl_pos_objects,     :help_pos_objects],

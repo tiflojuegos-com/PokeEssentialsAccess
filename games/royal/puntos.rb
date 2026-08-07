@@ -32,4 +32,13 @@ PokeAccess::Game.define("royal") do
     t = PokeAccess::RoyalPoints.line(win, (win.index rescue nil))
     PokeAccess.speak(t, true) if t && !t.to_s.empty?
   end
+  # The help line under the options. core/menus/option_help binds the two scene names every game has; this
+  # scene is this plugin's own, so its binding belongs here rather than in a core list. Both method names
+  # for the same reason core carries both: the fork renamed it and either may be the one that exists.
+  after("PokemonOptionPuntos_Scene", :pbChangeSelection, :optional => true) do |s, _r, _a|
+    PokeAccess::OptionHelp.read(s)
+  end
+  after("PokemonOptionPuntos_Scene", :updateDescription, :optional => true) do |s, _r, _a|
+    PokeAccess::OptionHelp.read(s)
+  end
 end

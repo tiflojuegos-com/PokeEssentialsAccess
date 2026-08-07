@@ -1,11 +1,11 @@
 # Triple Triad hand and board reading (core/field/minigame_text). The minigame ships in all thirteen games
 # with the same scene ivars, so a mistake here is thirteen games wrong at once -- and it had no coverage.
 #
-# The bug this pins: @cardIndexes holds SPRITE SLOTS, not species. The game pushes one entry per card in
+# What this pins: @cardIndexes holds SPRITE SLOTS, not species. The game pushes one entry per card in
 # creation order and deletes the entry when a card is played, so a hand position stops matching its slot as
 # soon as one card leaves the hand. The species lives in @playerCards at that slot -- the game itself does
-# TriadCard.new(@playerCards[spriteIndex]). Feeding the slot straight to the card builder named whatever
-# species happened to share that number, confidently and with four made-up side numbers.
+# TriadCard.new(@playerCards[spriteIndex]) -- and feeding the slot straight to the card builder names
+# whatever species shares that number, confidently and with four made-up side values.
 #
 # Input.repeat? is false under the stubs, but start_hand leaves @last nil, so the first poll announces the
 # focused position with no keypress: that is the real path, driven end to end.

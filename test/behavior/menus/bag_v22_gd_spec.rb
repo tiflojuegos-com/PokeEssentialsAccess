@@ -70,7 +70,7 @@ end
 # callback never fires for it), and then UI::BaseVisuals#navigate, seeing the index moved, calls
 # refresh_on_index_changed on the SAME frame -- which would say the item a second time if set_pocket had
 # not primed the nav dedup key. The contra-case is right below it: a real move inside the new pocket must
-# still be read, so the priming must not mute the pocket for good.
+# still be read, so the priming must not mute the pocket permanently.
 Suite.define("v22 bag: a pocket change reads pocket plus item once and primes the nav dedup") do
   vis = UI::BagVisuals.new(bag_v22_bag)
   vis.set_index(2)

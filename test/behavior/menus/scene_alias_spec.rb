@@ -48,7 +48,7 @@ Suite.define("scene aliases: hook the ancestral name, and let the ERA pick the c
   eq "neither exists: nothing", eng.era_scene(mine, "PaSpecNope", "PaSpecNeither"), ""
 
   # The point of picking the ancestor: the hook has to fire for the class the GAME builds, which here is the
-  # parent. Hooking the empty subclass instead is exactly the bug -- it binds, and never runs.
+  # parent. Hooking the empty subclass instead binds, and never runs.
   PaSpecBase.send(:define_method, :redraw) { |n| n }
   spoken = []
   PokeAccess::Hooks.after_hook(eng.scene_class("PaSpecAlias", "PaSpecBase"), :redraw) do |_s, r, _a|

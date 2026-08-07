@@ -2,8 +2,8 @@
 # separate events leading to the same place; without this the locator would offer "exit, exit, exit" and
 # the player would have to walk past two of them to leave through one.
 #
-# This had NO coverage at all, which is how a rewrite of the whole function could pass CI. What it pins is
-# the behaviour, not the implementation: which events survive, and which one of a group is the survivor.
+# What it pins is the behaviour and not the implementation: which events survive, and which one of a group
+# is the survivor.
 Suite.define("locator: a wide doorway collapses to one target, and nothing else is touched") do
   loc = PokeAccess::Locator
   World.clear_events

@@ -1,55 +1,88 @@
-# Per-option help in the Options screen. The reader binds to whatever method the fork fires on a
-# selection change and stores the description for the info key -- it never speaks on its own.
+# La ayuda por opcion de la pantalla de Ajustes, y el widget que se le parece y no lo es.
 #
-# The regression this pins: the reader listed only pbChangeSelection and updateDescription, and NONE of the
-# seven gen-6 games has either (their PokemonOptionScene exposes pbUpdate and writes the description inline
-# from pbOptions). Being :optional, it bound to nothing and failed in silence, so the info key had no
-# description to offer in the whole era. The stub deliberately mirrors the real scene: pbUpdate only.
-Suite.define("options: the per-option description reaches the info key in the gen-6 scene shape") do
-  scene = PokemonOptionScene.new
-  scene.sprites["textbox"] = Object.new.tap do |o|
-    def o.text; "Sube o baja el volumen de la musica."; end
+# @sprites["textbox"] es una caja de ayuda en unos juegos y la MUESTRA DEL MARCO DE DIALOGO en la mayoria
+# de los gen-6: cuatro escriben ahi "Marco de dialogo N", uno un rotulo fijo y otro no tiene el sprite. Con
+# el raspado a secas la tecla de info contestaba esa constante sobre cualquier opcion, que es una frase que
+# no describe lo que hay bajo el cursor.
+module OptHelpRig
+  class Box
+    attr_accessor :text
+    def initialize(t); @text = t; end
   end
 
-  PokeAccess::Info.set_info(:text, nil)
-  SpeakCapture.clear
-  scene.pbUpdate
+  # El valor de cada opcion se guarda en la propia ventana, indexada por opcion, como hacen estas escenas.
+  class Opt
+    attr_accessor :index
+    def initialize(i); @index = i; @vals = Hash.new(0); end
+    def [](k); @vals[k]; end
+    def []=(k, v); @vals[k] = v; end
+  end
 
-  eq "the focused option's description is stored for the info key",
-     PokeAccess::Info.info_text, "Sube o baja el volumen de la musica."
-  eq "and storing it speaks nothing by itself", SpeakCapture.log.length, 0
+  class Scene
+    def initialize(text, idx)
+      @sprites = { "textbox" => Box.new(text), "option" => Opt.new(idx) }
+    end
 
-  # An empty textbox must not wipe a description already stored: the scene blanks it between redraws.
-  scene.sprites["textbox"] = Object.new.tap { |o| def o.text; "   "; end }
-  scene.pbUpdate
-  eq "a blank textbox leaves the last description in place",
-     PokeAccess::Info.info_text, "Sube o baja el volumen de la musica."
-
-  PokeAccess::Info.set_info(:text, nil)
+    def at(text, idx, val = nil)
+      @sprites["textbox"].text = text
+      @sprites["option"].index = idx
+      @sprites["option"][idx] = val unless val.nil?
+      self
+    end
+  end
 end
 
-# The regression the FIRST fix caused, found in play: with the help hooked on pbUpdate the descriptions
-# arrived but the options themselves went mute. pbUpdate is the scene's per-frame loop and it DRIVES the
-# reader that announces the focused option, so guarding it pins :pbUpdate on the reentrancy stack for the
-# whole frame and that reader is dropped as nested_other?. Hooking a container without saying so silences
-# everything it contains.
-Suite.define("options: hooking the scene's per-frame loop does not silence the reader it drives") do
-  # Hooks cannot be unregistered, so this stand-in for the game's own option reader has to be inert for
-  # every scene but this suite's: without the marker it spoke inside any later suite that drove an option
-  # scene, and the sibling suite above only passed because the glob happened to order them in its favour.
-  PokeAccess::Hooks.after_hook("PokemonOptionScene", :refresh_option) do |s, _r, _a|
-    next unless s.instance_variable_get(:@pa_spec_drives_reader)
-    PokeAccess.speak("Volumen de la musica, 80", true)
-  end
-
-  scene = PokemonOptionScene.new
-  scene.instance_variable_set(:@pa_spec_drives_reader, true)
-  scene.sprites["textbox"] = Object.new.tap { |o| def o.text; "Sube o baja el volumen."; end }
-  SpeakCapture.clear
-  scene.pbUpdate
-
-  spoke "the option the loop drives is still announced", /Volumen de la musica, 80/
-  eq "and its description still reaches the info key",
-     PokeAccess::Info.info_text, "Sube o baja el volumen."
+Suite.define("menus: la muestra del marco de dialogo no se ofrece como ayuda") do
   PokeAccess::Info.set_info(:text, nil)
+  s = OptHelpRig::Scene.new("Marco de dialogo 1.", 0)
+
+  # Sobre la primera opcion todavia no se sabe nada, asi que no se guarda: el silencio es la respuesta
+  # honesta hasta que el widget demuestre que cambia con la opcion.
+  PokeAccess::OptionHelp.read(s)
+  falsy("nada guardado con una sola muestra", PokeAccess::Info.info_text.to_s.include?("Marco"))
+
+  # Y con el cursor en otra opcion sigue diciendo lo mismo: eso lo delata como rotulo, no como ayuda.
+  PokeAccess::OptionHelp.read(s.at("Marco de dialogo 1.", 1))
+  PokeAccess::OptionHelp.read(s.at("Marco de dialogo 1.", 2))
+  falsy("un texto constante nunca se ofrece", PokeAccess::Info.info_text.to_s.include?("Marco"))
+end
+
+Suite.define("menus: cambiar el marco de dialogo tampoco lo acredita") do
+  PokeAccess::Info.set_info(:text, nil)
+  s = OptHelpRig::Scene.new("Marco de dialogo 1.", 3)
+  s.at("Marco de dialogo 1.", 3, 0)
+
+  # Sobre la propia opcion del marco, moverla reescribe la muestra. El texto cambia sin que el cursor se
+  # mueva, que es la otra via de acreditacion -- pero el VALOR cambia con el, asi que no cuenta.
+  PokeAccess::OptionHelp.read(s)
+  PokeAccess::OptionHelp.read(s.at("Marco de dialogo 2.", 3, 1))
+  falsy("el texto cambia porque cambio el valor, no porque sea ayuda",
+        PokeAccess::Info.info_text.to_s.include?("Marco"))
+end
+
+Suite.define("menus: una ayuda de verdad si llega a la tecla de info") do
+  PokeAccess::Info.set_info(:text, nil)
+  s = OptHelpRig::Scene.new("Velocidad del texto del juego.", 0)
+
+  PokeAccess::OptionHelp.read(s)
+  PokeAccess::OptionHelp.read(s.at("Activa o desactiva el sonido.", 1))
+  truthy("dos opciones con textos distintos lo acreditan",
+         PokeAccess::Info.info_text.to_s.include?("sonido"))
+
+  # Acreditado ya, sigue actualizandose en cada opcion, repetidos incluidos.
+  PokeAccess::OptionHelp.read(s.at("Marco de dialogo 1.", 2))
+  truthy("y a partir de ahi se ofrece siempre", PokeAccess::Info.info_text.to_s.include?("Marco"))
+end
+
+Suite.define("menus: la ayuda de la PRIMERA opcion tambien se lee") do
+  PokeAccess::Info.set_info(:text, nil)
+  # La forma exacta del fork que si tiene ayuda: la caja nace con la muestra del marco y un frame despues
+  # la sobrescribe la descripcion real, sin que el jugador haya tocado nada. Sobre la regla del indice a
+  # secas, la opcion en la que abre la pantalla se quedaba sin leer hasta mover el cursor.
+  s = OptHelpRig::Scene.new("Marco de dialogo 1.", 0)
+  s.at("Marco de dialogo 1.", 0, 0)
+  PokeAccess::OptionHelp.read(s)
+  PokeAccess::OptionHelp.read(s.at("Ajusta el volumen de la musica del juego", 0, 0))
+  truthy("mismo indice y mismo valor, texto distinto: es ayuda",
+         PokeAccess::Info.info_text.to_s.include?("volumen"))
 end

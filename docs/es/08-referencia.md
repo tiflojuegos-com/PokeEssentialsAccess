@@ -353,6 +353,29 @@ cambió.
 `show_menu` existe porque gen-6 solo expone `Kernel.pbMessage` y el moderno solo el `pbMessage` global;
 llamar al ausente lanza `NoMethodError`.
 
+## Mapa de la región
+
+`core/nav/town_map.rb` — módulo `TownMap`. Mover el cursor del mapa es lo único que las tres
+implementaciones no comparten (leer sí: `pbGetMapLocation` / `pbGetMapDetails` / `pbGetHealingSpot` se
+llaman igual en los trece juegos), así que este registro existe solo para el salto de vuelo.
+
+| Firma | Devuelve | Cuándo usarlo |
+|---|---|---|
+| `TownMap.register(name, handles, cursor, move, points, flyable = nil)` | Nada | Registrar un proveedor de cursor; gana el último registrado, así que un perfil pisa a los de core |
+| `TownMap.jump_enabled = false` | Nada | Ceder el salto a la pantalla, cuando el juego ya trae uno propio |
+| `TownMap.opened(scene)` / `.closed(scene)` | Nada | Marcar la pantalla abierta y soltarla al cerrar |
+| `TownMap.jump(scene, dir)` | `true` si saltó | Saltar al punto de vuelo más cercano en esa dirección |
+
+`handles` es una lambda que recibe la escena y responde si este proveedor la reconoce. La detección va por
+FORMA (qué métodos e ivars tiene la escena) y nunca por nombre de clase ni versión de motor: Arcky's Region
+Map y el rework de v21+ declaran ambos `PokemonRegionMap_Scene` con el cursor en ivars distintos.
+`flyable` solo hace falta en una pantalla que conozca su propio conjunto de destinos; sin él, la regla
+genérica lo deriva de `pbGetHealingSpot` más `visitedMaps`.
+
+`core/nav/better_region_map.rb` es un proveedor de core, para el addon BetterRegionMap que instalan los dos
+Infinite Fusion: es una clase propia, con su bucle, su cursor en `$PokemonGlobal.regionMapSel` y sin
+`pbGetMapLocation`, así que ningún hook del mapa estándar la alcanza.
+
 ## Audio
 
 `core/audio/audio3d.rb`, `core/audio/spatial.rb` — módulos `Audio3D` y `Spatial`. Ver

@@ -74,7 +74,7 @@ module PokeAccess
       idx = PokeAccess.ivar(scene, :@index)
       names = PokeAccess.ivar(scene, :@nombres_secciones)
       return unless idx.is_a?(Integer) && names.is_a?(Array)
-      per = (Glosario_Personajes::OPCIONES_POR_PAGINA rescue 8)
+      per = (Glosario_Personajes::OPCIONES_POR_PAGINA rescue 10)
       page = PokeAccess.ivar(scene, :@pagina_actual).to_i
       real = (page * per) + idx
       return unless real >= 0 && real < names.length

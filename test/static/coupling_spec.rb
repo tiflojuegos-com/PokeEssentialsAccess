@@ -14,12 +14,10 @@ Suite.define("static: no undeclared coupling between versions, profiles, or shar
 
   # file => the referencing side may use the named module across layers (reason documented here).
   #
-  # Empty, and worth keeping that way. Its one entry used to be v21's Move Relearner reaching into
-  # SkyEggMove, a module that sat in the fork's folder only because the egg-move tutor happened to need it
-  # first; nothing inside it was Sky's. Naming it after the job instead (MoveList, in the shared layer)
-  # turned the crossing into an ordinary core reference and the exception disappeared. That is the shape of
-  # fix to look for when something wants to be added here: a whitelist entry is usually a module wearing
-  # the name of whoever called it first.
+  # Empty, and worth keeping that way. A whitelist entry is usually a module named after whoever
+  # called it first: naming it after the job instead and moving it to the shared layer turns the crossing
+  # into an ordinary core reference and the exception disappears. That is the shape of fix to look for when
+  # something wants to be added here.
   whitelist = {}
 
   layer_of = lambda do |rel|
@@ -113,7 +111,8 @@ end
 # MOD defines, so a fangame class named by STRING is invisible to it -- and a string is how every hook is
 # attached (Hooks.after_hook("Class", ...), Engine.scene_classes, Menus.def_extractor, SceneWatcher.wire).
 # core/ could therefore hook a class that exists in exactly one of the 13 games and the suite stayed green;
-# it did, for "PokemonOptionPuntos_Scene" (royal only) and "Window_PokemonMart_BattlePoints" (emerald only).
+# it did, for "PokemonOptionPuntos_Scene" (royal only) and "Window_PokemonMart_BattlePoints" (emerald only);
+# both have since moved to their profiles, so nothing is waived today.
 # Every capitalized string literal in core/ is crossed against fangame_classes.txt, the census of names
 # defined by exactly ONE surveyed dump (regenerate it with build_fangame_census.rb; the dumps live outside
 # the repo, which is why the census is committed instead of scanned live). A hit means that core file is
@@ -125,16 +124,14 @@ end
 Suite.define("static: no core/ file names a class only one fangame has") do
   root = File.expand_path("../..", File.dirname(__FILE__))
 
-  # [file, class name] => why this one core file may name a single-game class.
-  declared = {
-    # royal's trainer-points Options scene (its "Puntos entrenador" plugin), listed as a third alias next
-    # to the two vanilla Options names. This is the case that proved the census was blind, and it stays --
-    # the move to a separate reader was considered and rejected. It is one name in an alias list, not a
-    # second reader: the screen behaves identically under all three names, so splitting it would copy the
-    # whole reader into a plugin file to add a string. And it costs nothing where the plugin is absent,
-    # because scene_classes drops the names the running game does not define.
-    ["core/menus/option_help.rb", "PokemonOptionPuntos_Scene"] => true,
-  }
+  # [file, class name] => why this one core file may name a single-game class. Empty, and meant to stay so.
+  #
+  # It held one entry, royal's PokemonOptionPuntos_Scene in the Options alias list, waived on the grounds
+  # that splitting it would mean copying the whole reader into a profile just to add a string. That turned
+  # out not to be the cost: OptionHelp.read stays in core and games/royal/puntos.rb -- which already exists
+  # for the rest of that same plugin -- binds the two method names to it in six lines. So the waiver went
+  # and the check has its full reach back.
+  declared = {}
 
   census = {}
   PokeAccess::KVFile.each(File.join(File.dirname(__FILE__), "fangame_classes.txt")) { |k, v| census[k] = v }

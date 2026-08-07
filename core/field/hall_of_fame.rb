@@ -27,12 +27,20 @@ PokeAccess::Hooks.after_hook("HallOfFameScene", :writePokemonData) do |_s, _r, a
   PokeAccess.speak(t, false) if t && !t.to_s.empty?
 end
 
-# modern (HallOfFame_Scene): the entry sequence is pure sprite animation, so read the welcome and the
-# whole team from the party on entry, since there is no per-member text to catch.
-PokeAccess::Hooks.read_on_open("HallOfFame_Scene", :pbStartSceneEntry) do |_s|
-  party = (PokeAccess::Engine.player.party rescue nil)
-  names = party.is_a?(Array) ? party.compact.map { |pk| PokeAccess::HallOfFame.member_text(pk) }.compact : []
-  names.empty? ? nil : "#{PokeAccess::I18n.t(:hof_welcome)}. #{names.join('. ')}"
+# modern (HallOfFame_Scene): the welcome on entry, and the team only where there is no per-member read.
+#
+# The entry animation calls writePokemonData member by member, and the hook below speaks each one
+# INTERRUPTING -- so reading the whole team here as well meant the long queued line was cut mid-word a few
+# frames later. Where the scene has that method, the animation's own pass is the read; where it does not,
+# this is the only one there is.
+PokeAccess::Hooks.read_on_open("HallOfFame_Scene", :pbStartSceneEntry) do |s|
+  if (s.respond_to?(:writePokemonData) rescue false)
+    PokeAccess::I18n.t(:hof_welcome)
+  else
+    party = (PokeAccess::Engine.player.party rescue nil)
+    names = party.is_a?(Array) ? party.compact.map { |pk| PokeAccess::HallOfFame.member_text(pk) }.compact : []
+    names.empty? ? nil : "#{PokeAccess::I18n.t(:hof_welcome)}. #{names.join('. ')}"
+  end
 end
 
 # modern (HallOfFame_Scene): the PC viewer of past records (pbStartScenePC) DOES draw each member via

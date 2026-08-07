@@ -27,20 +27,21 @@ module PokeAccess
       PokeAccess::I18n.t(:hatch_far)
     end
 
-    # Reads the focused slot when it changes, deduped by slot index across both hooked methods.
+    # Reads the focused slot when it changes: the cursor moving, or an egg going into or out of the slot the
+    # cursor is already on. That second case is why the contents are in the key -- adding and removing both
+    # end in a redraw without touching @index, so an index-only key left the change unspoken.
     def self.announce(scene)
       idx = PokeAccess.ivar(scene, :@index)
-      return if idx == scene.instance_variable_get(:@access_hatch_idx)
-      scene.instance_variable_set(:@access_hatch_idx, idx)
-      t = text(scene)
-      PokeAccess.speak(t, true) if t && !t.to_s.empty?
+      return if idx.nil?
+      egg = ($PokemonGlobal.eggs[idx] rescue nil)
+      PokeAccess::Cursor.announce(scene, :hatch, [idx, egg ? egg.object_id : nil], true) { text(scene) }
     end
   end
 end
 
-# refresh runs on every cursor move, which covers navigating the grid. update does NOT: it is the screen's
-# blocking loop, so an after-hook on it spoke once the player had already closed the incubator. Bound before
-# it instead, which is the one moment the screen is built and nothing has been said yet -- the opening read
-# the loop never produces on its own, because it only calls refresh when a key is pressed.
+# refresh is the whole reader. It runs on every cursor move AND once from the constructor, in all five games
+# that ship this plugin (anil, armonia, awakening, realidea and royal), so it gives the opening read as well -- there is nothing left for a second hook to
+# cover. update is the screen's blocking loop and was bound before it "for the opening read the loop never
+# produces"; the loop does produce it, through the constructor, and that hook only ran announce into its own
+# dedup on every frame of the screen.
 PokeAccess::Hooks.after_hook("Hatcher", :refresh) { |scene, _result, _args| PokeAccess::Incubator.announce(scene) }
-PokeAccess::Hooks.before_hook("Hatcher", :update) { |scene, _args| PokeAccess::Incubator.announce(scene) }

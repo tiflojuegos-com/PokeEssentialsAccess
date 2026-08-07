@@ -8,10 +8,8 @@ module PokeAccess
     # reader: a module responding to watch(scene), unwatch and poll. The hook self-gates on the class
     # existing, so it no-ops in games without that scene.
     #
-    # opts go straight to the hook. A plugin reader passes :optional => true, because a third-party plugin
-    # shipping under the same class name with a renamed loop is variance and not a typo -- the rule that
-    # every plugin hook is optional applies here too, and it used to be missed because it is this helper
-    # that registers the hook rather than the plugin file the checker reads.
+    # param opts goes straight to the hook; a plugin reader passes :optional => true, since a third-party
+    #   plugin shipping under the same class name with a renamed loop is variance and not a typo
     def self.wire(cls, meth, reader, opts = {})
       PokeAccess::Game.define do
         around(cls, meth, opts) do |scene, call_next, _a|
@@ -27,19 +25,19 @@ module PokeAccess
     end
 
     # The one-call form of wire for the COMMON reader shape: hold the scene, poll it each frame, dedup by
-    # key and speak on change. The block yields the held scene and returns [key, text]: a changed key
-    # speaks the text (cleaned, interrupting); nil (or a non-pair) skips the frame; a nil key never speaks
-    # (Cursor's contract); a real key with nil/empty text consumes the key silently. Dedup lives in a
-    # Cursor slot on a generated holder, reset on open AND close so reopening on the same entry re-reads.
-    # A raising block is swallowed per frame (a reader bug must not kill the input loop). Returns the
-    # holder for readers that need extra hooks over the same state. Blocks use next, not return
-    # (define_method under 1.8.7). Modules with a non-poll shape (own speak timing, an extra API like
-    # ReminBag's watching?) keep using wire directly.
+    # key and speak on change. The block yields the held scene and returns [key, text]: a changed key speaks
+    # the text (cleaned, interrupting), nil or a non-pair skips the frame, a nil key never speaks (Cursor's
+    # contract), and a real key with empty text consumes the key silently. Dedup lives in a Cursor slot on a
+    # generated holder, reset on open AND close so reopening on the same entry re-reads. A raising block is
+    # swallowed per frame, since a reader bug must not kill the input loop, and blocks use next rather than
+    # return (define_method under 1.8.7). Returns the holder, for readers needing extra hooks over the same
+    # state; one with its own speak timing or an extra API keeps using wire directly.
     #
-    # text may instead be anything answering call, and then it is only called once the key has actually
-    # changed. Cursors sit still: the player picks an entry and stays on it, so the key matches on the
-    # other 39 frames of every second and the text built on them is thrown away unread. That is free for
-    # "#{name}" and not at all free for a reader that asks the game a question to word itself.
+    # text may instead be anything answering call, and is then called only once the key has changed: a
+    # cursor sits still, so the key matches on the other 39 frames of every second and text built on them is
+    # thrown away unread -- free for "#{name}", not for a reader that asks the game a question to word
+    # itself. The FIRST read after opening is queued rather than interrupting, because a screen often prints
+    # its own instruction line from inside the very method this polls.
     def self.reader(cls, meth, slot, opts = {}, &blk)
       holder = Object.new
       meta = class << holder; self; end
@@ -62,10 +60,6 @@ module PokeAccess
           t = pair[1]
           t = t.call if t.respond_to?(:call)
           next if t.nil? || t.to_s.empty?
-          # The FIRST read after opening is queued, not interrupting. A screen often prints its own line as
-          # it opens -- royal's random-mode selector displays "press X when you are done" from inside the
-          # very method this polls -- and cutting that leaves the player without the one instruction the
-          # screen gives. Every later read interrupts, which is what a moving cursor needs.
           PokeAccess.speak(PokeAccess.clean(t.to_s), !@opening)
           @opening = false
         rescue StandardError => e

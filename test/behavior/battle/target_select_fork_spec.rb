@@ -25,9 +25,9 @@ def target_scene(names)
   scene
 end
 
-# The gate used to be COPIED into this spec and the copy is what got asserted -- so changing the real one
-# (battle_g6.rb, inside a hook body on PokeBattle_Scene, a class the stubs do not have) broke nothing here.
-# This drives the real thing instead: give the fork its class, replay the registration, and call the method.
+# The gate is driven for real and never copied into the spec: give the fork its class, replay the
+# registration, and call the method. A copy would keep asserting itself while the real one -- a hook body on
+# PokeBattle_Scene, a class the stubs do not have -- changed underneath it.
 Suite.define("battle: pbSelectBattler only reads a target when the mode says it is choosing one") do
   # No pbUpdateSelected on purpose: its absence is exactly what makes battle_g6 take the fork branch.
   scene_cls = Class.new do
@@ -67,10 +67,15 @@ Suite.define("battle: pbSelectBattler only reads a target when the mode says it 
     hooked.pbSelectBattler(0, 2)
     spoke "deselecting on the way out lets re-entering read again", /Bulbasaur/
 
+    # El modo de area pasa el ARRAY de textos de objetivo en vez de un indice, y sus entradas no nulas son
+    # justo los huecos que la pantalla ilumina (pbCreateTargetTexts solo nombra los objetivos validos).
+    # Ademas en ese modo el cursor NO se mueve -- solo el modo 0 cambia el indice -- asi que este unico
+    # anuncio es toda la lectura que tiene la pantalla: descartarlo la dejaba muda de principio a fin.
     SpeakCapture.clear
     hooked.pbSelectBattler(-1)
     hooked.pbSelectBattler(["a", "b"], 2)
-    silent "the all-targets mode, which passes the text array instead of an index, is skipped"
+    spoke "el modo de area nombra los dos objetivos encendidos", /Bulbasaur/
+    spoke "y tambien el segundo", /Charmander/
   ensure
     Object.send(:remove_const, :PokeBattle_Scene) if Object.const_defined?(:PokeBattle_Scene)
     SpeakCapture.clear

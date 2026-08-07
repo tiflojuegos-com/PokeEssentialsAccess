@@ -52,10 +52,10 @@ module PokeAccess
 
     # What already uses this virtual-key, as an i18n key or an action symbol, or nil when it is free.
     #
-    # ONE check for BOTH assignment paths, because the tables can collide with each other: before this, the
-    # menu compared game buttons only against other game buttons, so binding the game's A to T silently
-    # made T do two things at once -- the mod key kept working and nothing warned. Excludes the action
-    # being assigned, so rebinding a key to itself is not a conflict.
+    # ONE check for BOTH assignment paths, because the tables can collide with each other: comparing game
+    # buttons only against other game buttons lets the game's A be bound to a key the mod already owns, so
+    # that key does two things at once with nothing to warn about it. Excludes the action being assigned,
+    # so rebinding a key to itself is not a conflict.
     def self.conflict(code, action)
       return nil if code.nil?
       return RESERVED[code] if RESERVED.has_key?(code)
@@ -104,9 +104,8 @@ module PokeAccess
 
     # Spoken label for an action (a per-game override wins); resolved through I18n, where an unknown
     # key returns itself. Looked up in `buttons`, the SAME list the remap menu shows, rather than in
-    # BUTTONS plus extras separately: the reset-all row lives only in that assembled list, so the split
-    # lookup missed it and the menu would have said "underscore underscore reset" while its perfectly
-    # good btn_reset_all string sat unused in both languages.
+    # BUTTONS plus extras separately: the reset-all row lives only in that assembled list, so a split lookup
+    # misses it and the menu speaks the raw symbol while btn_reset_all sits unused in both languages.
     def self.label(sym)
       row = buttons.assoc(sym)
       raw = (PokeAccess::Config.rebind_labels[sym] rescue nil) || (row ? row[2] : nil) || sym.to_s

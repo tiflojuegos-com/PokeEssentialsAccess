@@ -1,16 +1,14 @@
-# RSE starter choice (the Emerald UI Pack's RSESTarterChoice): the three starters as a carousel of Poke
-# Balls, chosen with left/right. Nothing is written anywhere -- the species is a sprite and the ball is a
-# picture -- so the screen is three identical clicks without a reader.
+# RSE starter choice (the Emerald UI Pack's RSESTarterChoice): three starters as a carousel of Poke Balls,
+# chosen with left/right. Ball and species are pictures; the only writing is a name and a "<category>
+# Pokemon" line painted once the ball opens, and none of it reaches a window reader.
 #
-# The mod already covers three other starter pickers; this is a fourth, unrelated implementation. pbUpdate
-# runs every frame of the scene's own input loop and repaints only when @index moves, so reading there
-# covers both the opening and every move, deduped on the index.
-#
-# @species_cache holds GameData::Species entries built in initialize, one per starter, parallel to @index.
-# Preferring it over @pokemon (the raw ids) is what gets the species' real name in the player's language.
+# pbUpdate runs every frame of the scene's input loop and repaints only when @index moves, so it covers the
+# opening and every move. @species_cache holds the GameData::Species entries parallel to @index, which is
+# what gets the real name in the player's language.
 module PokeAccess
   module RSEStarters
-    # The focused starter's name, plus where it sits in the row, or nil.
+    # The focused starter's name, category and place in the row, or nil. The category is printed only while
+    # the sprite is hidden, which is while the player is choosing, so it is spoken under that condition.
     def self.text(scene)
       idx = PokeAccess.ivar(scene, :@index)
       cache = PokeAccess.ivar(scene, :@species_cache)
@@ -18,14 +16,28 @@ module PokeAccess
       nm = (cache[idx].name rescue nil)
       nm = (PokeAccess::Data.species_name(cache[idx]) rescue nil) if nm.nil? || nm.to_s.empty?
       return nil if nm.nil? || nm.to_s.empty?
-      PokeAccess::I18n.t(:rse_starter, :name => nm, :n => idx + 1, :tot => cache.length)
+      line = PokeAccess::I18n.t(:rse_starter, :name => nm, :n => idx + 1, :tot => cache.length)
+      cat = category(scene, cache[idx])
+      cat ? "#{line}. #{cat}" : line
     rescue StandardError
       nil
     end
 
-    # Speaks the focused starter when the carousel moves, deduped per scene.
+    # The "<category> Pokemon" line, only while the screen is showing it.
+    def self.category(scene, species)
+      shown = (PokeAccess.sprite(scene, "pokemon").visible rescue true)
+      return nil if shown
+      c = (species.category rescue nil)
+      (c.nil? || c.to_s.empty?) ? nil : PokeAccess::I18n.t(:rse_category, :cat => c)
+    rescue StandardError
+      nil
+    end
+
+    # Speaks the focused starter when the carousel moves, deduped per scene. The sprite's visibility is in
+    # the key: opening the ball swaps the category line for the sprite, and that is a change worth hearing.
     def self.read(scene)
-      PokeAccess::Cursor.announce(scene, :rse_starter, PokeAccess.ivar(scene, :@index), true) { text(scene) }
+      key = [PokeAccess.ivar(scene, :@index), (PokeAccess.sprite(scene, "pokemon").visible rescue nil)]
+      PokeAccess::Cursor.announce(scene, :rse_starter, key, true) { text(scene) }
     rescue StandardError
       nil
     end

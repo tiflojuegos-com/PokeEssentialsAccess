@@ -58,7 +58,7 @@ module PokeAccess
       parts.push("Naturaleza #{nat}") if nat && !nat.to_s.empty?
       cond = status_phrase(pk); parts.push(cond) if cond
       sv = (stat_values(pk) rescue nil); parts.push(stat_line("Estadisticas", sv)) if sv
-      iv = (pk.iv rescue nil); parts.push(stat_line("IVs", iv)) if iv.is_a?(Array)
+      iv = (pk.iv rescue nil); parts.push(stat_line("Valoracion", iv_stars(iv), " de 3")) if iv.is_a?(Array)
       ev = (pk.ev rescue nil); parts.push(stat_line("EVs", ev)) if ev.is_a?(Array)
       bon = bonus_values(scene); parts.push(stat_line("Bonus", bon, "%")) if bon
       ab = (PBAbilities.getName(pk.ability) rescue nil)
@@ -75,6 +75,12 @@ module PokeAccess
     # line heading (Estadisticas / IVs / EVs / Bonus); param suffix appended to each value (e.g. "%")
     # A "title. label value, label value" line in the screen's own row order. A stat with no value is skipped
     # rather than read as an empty one, which is what lets the bonus line leave HP out.
+    # The 0-to-3 rating the IV column paints, by the screen's own thresholds. The column is a star image and
+    # the exact IV is not written anywhere on this page, so the rating is what there is to read.
+    def self.iv_stars(iv)
+      iv.map { |v| n = v.to_i; n >= 21 ? 3 : (n >= 11 ? 2 : (n >= 1 ? 1 : 0)) }
+    end
+
     def self.stat_line(title, vals, suffix = "")
       stats = STAT_ORDER.map { |i| vals[i].nil? ? nil : "#{STAT_LABELS[i]} #{vals[i]}#{suffix}" }
       "#{title}. #{stats.compact.join(', ')}"

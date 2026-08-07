@@ -65,26 +65,53 @@ module PokeAccess
       PokeAccess.clean(raw.to_s).to_s.strip
     end
 
-    # A section's text, page by page. The page is a LOCAL of mostrar_texto's loop with no ivar behind it, so
-    # it is read off the "Pagina n/m" stamp the loop redraws every frame -- the screen's own answer, which
-    # cannot drift from what is shown. The cursor is hidden for exactly as long as a section is open, and
-    # that is the gate that keeps the LIST's identical stamp from being taken for a page turn.
+    # A section's text, page by page. Both the page number and the section being shown are LOCALS of
+    # mostrar_texto's loop, so both are read off what the loop DRAWS every frame: the title first, then the
+    # body, then a "Pagina n/m" stamp. The screen's own answer, which cannot drift from what is displayed.
+    #
+    # Reading the section from the title rather than from the method's argument is not belt and braces. This
+    # copy does NOT recurse to move between sections the way the character glossary does: paging past either
+    # end REASSIGNS its own local (nombre = prev_section / next_section) and keeps looping, so the argument
+    # the hook was entered with goes stale the moment the player crosses a boundary -- and the reader would
+    # announce the previous section's title over the next section's text.
+    #
+    # The cursor is hidden for exactly as long as a section is open, which is what keeps the LIST's identical
+    # page stamp from being taken for a page turn.
     @open = nil
+    @title = nil
     @page = nil
 
-    def self.watch(scene, name); @open = [scene, name.to_s]; @page = nil; end
-    def self.unwatch; @open = nil; @page = nil; end
+    def self.watch(scene); @open = scene; @title = nil; @page = nil; end
+    def self.unwatch; @open = nil; @title = nil; @page = nil; end
 
     def self.on_draw(text)
       return unless @open
-      scene, name = @open
-      return unless text.to_s =~ REGEX_PAGE
+      s = text.to_s
+      unless s =~ REGEX_PAGE
+        @title = s.strip if @title.nil? && !s.strip.empty?
+        return
+      end
       i = $1.to_i - 1
+      title = @title
+      @title = nil
       return if i == @page
-      return unless (PokeAccess.ivar(scene, :@cursor).visible == false rescue false)
+      return unless (PokeAccess.ivar(@open, :@cursor).visible == false rescue false)
+      name = section_for(@open, title)
+      return unless name
       @page = i
-      t = body(scene, name, i)
+      t = body(@open, name, i)
       PokeAccess.speak(t, true) if t && !t.to_s.empty?
+    rescue StandardError
+      nil
+    end
+
+    # The raw section key behind the title the loop just drew. The title is the FIRST thing it draws each
+    # frame, so it is whatever was remembered since the last page stamp.
+    def self.section_for(scene, title)
+      return nil if title.nil? || title.empty?
+      names = PokeAccess.ivar(scene, :@nombres_secciones)
+      return nil unless names.is_a?(Array)
+      names.detect { |raw| section_label(scene, raw) == title }
     rescue StandardError
       nil
     end
@@ -106,7 +133,17 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("awakening") do
-  after("Glosario_Historia", :update) { |s, _r, _a| PokeAccess::AwakeningStoryGlossary.chapter(s) }
+  # NOT update. Pressing the confirm key there runs the WHOLE sections screen inside that one call
+  # (Glosario_Historia_Secciones.new is synchronous), and an after-hook makes the engine run the original
+  # under the reentrancy guard -- which then drops every hook nested inside it, so the three section readers
+  # below never fired and the entire Historia branch stayed as mute as before. draw_commands and
+  # update_cursor are the two calls that mean "the chapter list is showing something new": the first on open
+  # and on the way back from a section, the second on every arrow.
+  after("Glosario_Historia", :draw_commands) do |s, _r, _a|
+    PokeAccess::Cursor.reset(s, :awk_hist_chapter)
+    PokeAccess::AwakeningStoryGlossary.chapter(s)
+  end
+  after("Glosario_Historia", :update_cursor) { |s, _r, _a| PokeAccess::AwakeningStoryGlossary.chapter(s) }
   after("Glosario_Historia_Secciones", :mover_cursor) { |s, _r, _a| PokeAccess::AwakeningStoryGlossary.section(s) }
   # dibujar_lista as well, for the read on open: the constructor draws the list and then blocks, and
   # mover_cursor only runs on an arrow.
@@ -114,8 +151,8 @@ PokeAccess::Game.define("awakening") do
   # Held rather than hooked after: mostrar_texto IS the section's loop, and the section it is showing is its
   # argument. Leaving it redraws the list from INSIDE the loop, so the watch is dropped when that happens --
   # otherwise the list's own page stamp would be read as one last page turn on the way out.
-  around("Glosario_Historia_Secciones", :mostrar_texto) do |s, nxt, args|
-    PokeAccess::AwakeningStoryGlossary.watch(s, args[0])
+  around("Glosario_Historia_Secciones", :mostrar_texto) do |s, nxt, _args|
+    PokeAccess::AwakeningStoryGlossary.watch(s)
     begin; nxt.call; ensure; PokeAccess::AwakeningStoryGlossary.unwatch; end
   end
   before("Glosario_Historia_Secciones", :dibujar_lista) { |_s, _a| PokeAccess::AwakeningStoryGlossary.unwatch }

@@ -26,9 +26,8 @@ module PokeAccess
 
     # Seconds of play time, asked the way each era actually stores it. v19+ keeps a real counter on $stats;
     # gen-6 keeps none at all and every screen that shows the figure derives it from the saved frame count,
-    # which is exactly what all seven gen-6 games do. The reader used to ask $PokemonGlobal for a playTime
-    # accessor that exists in NONE of the thirteen, so the guard was never true and the line was simply never
-    # spoken on that half of the catalogue. nil when neither source answers.
+    # which is what all seven gen-6 games do. $PokemonGlobal is not asked: it carries no playTime accessor
+    # in any of the thirteen. nil when neither source answers.
     def self.playtime_seconds
       s = ($stats.play_time rescue nil)
       return s.to_i if s
