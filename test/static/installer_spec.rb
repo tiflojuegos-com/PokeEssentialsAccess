@@ -16,19 +16,29 @@ Suite.define("static/instalador: los .ps1 parsean y respetan su contrato") do
   inst = File.read(File.join(root, "installer", "install.ps1"))
   unin = File.read(File.join(root, "installer", "uninstall.ps1"))
 
-  shell = ["pwsh", "powershell"].find do |exe|
-    ok = system("#{exe} -NoProfile -Command \"exit 0\" > #{File::NULL} 2>&1")
-    ok
+  # Sin shell de por medio a proposito: en Linux los backticks de Ruby pasan por /bin/sh, que expande $e y
+  # $null a cadena vacia y le entrega a PowerShell un guion mutilado. La forma de array no invoca ningun shell.
+  run_ps = lambda do |exe, script|
+    begin
+      out = IO.popen([exe, "-NoProfile", "-NonInteractive", "-Command", script],
+                     :err => [:child, :out]) { |io| io.read }
+      [$?.success?, out.to_s]
+    rescue StandardError => e
+      [nil, e.message.to_s]
+    end
   end
+
+  shell = ["pwsh", "powershell"].find { |exe| run_ps.call(exe, "exit 0")[0] }
 
   if shell
     ["install.ps1", "uninstall.ps1"].each do |name|
       path = File.join(root, "installer", name).tr("\\", "/")
-      cmd = "#{shell} -NoProfile -Command \"$e=$null; " \
-            "[void][System.Management.Automation.Language.Parser]::ParseFile('#{path}', [ref]$null, [ref]$e); " \
-            "if ($e -and $e.Count -gt 0) { $e[0].Message; exit 1 } else { exit 0 }\""
-      out = `#{cmd} 2>&1`
-      Assert.check("#{name} parsea con el parser de PowerShell", $?.success?, out.to_s.strip[0, 160])
+      script = "$e = $null; " \
+               "[void][System.Management.Automation.Language.Parser]::ParseFile('#{path}', [ref]$null, [ref]$e); " \
+               "if ($e -and $e.Count -gt 0) { $e[0].Message } else { 'PARSE-OK' }"
+      ok, out = run_ps.call(shell, script)
+      Assert.check("#{name} parsea con el parser de PowerShell",
+                   ok && out.include?("PARSE-OK"), out.strip[0, 200])
     end
   else
     puts "  (parse de PowerShell omitido: no hay pwsh ni powershell en PATH)"

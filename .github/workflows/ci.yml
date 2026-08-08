@@ -8,16 +8,18 @@ jobs:
   test:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: '3.x'
+      # plugins/ entra en el barrido: el runner no lleva interprete 1.8.7, asi que check187_real se queda en
+      # PARCIAL y este paso es lo unico que llega a parsear esos ficheros.
       - name: syntax
         run: |
-          for f in $(find core games loader test -name '*.rb'); do ruby -c "$f" >/dev/null || exit 1; done
+          for f in $(find core games plugins loader test -name '*.rb'); do ruby -c "$f" >/dev/null || exit 1; done
       - name: tests
         run: ruby test/run_all.rb
       # Every profile on disk, never a hand-written list: the previous one had drifted and silently stopped
