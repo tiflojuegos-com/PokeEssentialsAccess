@@ -25,6 +25,7 @@ module PokeAccess
       @radar_key = nil; @radar_pos = nil
       @surf_here = nil; @surf_front = nil; @surf_pos = nil
       @lens_key = nil
+      @last_x = nil; @last_y = nil
       @was_blocked = false
     rescue StandardError
       nil

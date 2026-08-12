@@ -35,8 +35,17 @@ module PokeAccess
         PokeAccess.speak(sel, true)
       end
     end
+
+    # Drops the selector state. The module outlives the screen, so without this a later visit whose
+    # pointer opens on the option heard last would stay silent; any map change means the selector is gone.
+    def self.reset
+      @screen = nil
+      @last = nil
+    end
   end
 end
+
+PokeAccess::Caches.register(:opalo_modes) { PokeAccess::OpaloModes.reset }
 
 PokeAccess::Game.define("opalo") do
   on_picture { |name, args| PokeAccess::OpaloModes.handle(name, args[3]) }

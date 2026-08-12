@@ -85,6 +85,13 @@ module PokeAccess
       nil
     end
 
+    # Drops the last-announced gender. The module outlives the selection screen, so without this a second
+    # new game in the same session whose first portrait matches the last one heard would open silent; any
+    # map change means the selection is over.
+    def self.forget_picture_gender
+      @last_picture_gender = nil
+    end
+
     # Maps a selection-screen picture name to a gender key (:ap_boy/:ap_girl), or nil. Handles word names
     # (introBoy/introGirl) and numbered ones (pantallaGenero2).
     def self.gender_for_picture(name)
@@ -103,3 +110,5 @@ end
 
 # pbChangePlayer is a global function out of reach of the class hook; announce the new appearance after it.
 PokeAccess::Hooks.wrap_global("pbChangePlayer", "hook_pbChangePlayer", :after) { |args, _r| PokeAccess::Appearance.announce(args[0]) }
+
+PokeAccess::Caches.register(:appearance_gender) { PokeAccess::Appearance.forget_picture_gender }

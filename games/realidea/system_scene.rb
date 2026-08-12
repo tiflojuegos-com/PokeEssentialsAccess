@@ -49,9 +49,12 @@ module PokeAccess
       start(nil)
     end
 
-    # Restores the parent menu's tracking state, or clears it when no parent remains.
+    # Restores the parent menu's tracking state (or clears it when no parent remains), with the restored
+    # focus forgotten: coming back to a menu re-reads where you are, instead of staying quiet until the
+    # cursor moves because the popped frame still holds the selection as already spoken.
     def self.stop
       @active, @list, @sel, @last = @stack.pop || [nil, nil, 1, nil]
+      @last = nil
     end
 
     # Mirrors the scene's own navigation and speaks the focused option when it changes. Called once per frame
