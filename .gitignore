@@ -44,3 +44,10 @@ bridge/out/
 
 # Config local de Claude Code: privada, no se comparte.
 .claude/
+
+# graft's local graph cache — regenerable, not committed (run `graft build`).
+/graft/
+
+# MCP local (graft): va con .claude/, no se comparte.
+.mcp.json
+.ignore
