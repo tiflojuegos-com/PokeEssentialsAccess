@@ -52,6 +52,10 @@ end
 
 def pbGetMessage(type, id); "msg#{id}"; end
 def pbGetMessageFromHash(type, id); "place#{id}"; end
+
+# The modern message entry, a bare top-level function as Essentials v19+ defines it (private on Object):
+# the dialogue reader must wrap THIS one here, and the gen-6 stub's Kernel singleton there.
+def pbMessageDisplay(msgwindow, message, letterbyletter = true, commandProc = nil); message; end
 module MessageTypes; REGION_LOCATION_NAMES = 13; end
 
 # MapInfos for Locator.map_name, same shape and same synthetic ids as the gen-6 stub so both engines can be

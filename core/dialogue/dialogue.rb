@@ -35,31 +35,41 @@ module PokeAccess
 end
 
 # Dialogue and messages, queued (interrupt=false) so consecutive lines do not cut each other off.
-# OLD Essentials (the gen-6 era, and the fangames built on it) routes every message through
-# Kernel.pbMessageDisplay, a Kernel SINGLETON method, so that is the form to wrap there.
+#
+# Which form the GAME defines is read once, before anything is wrapped. OLD Essentials (the gen-6 era)
+# routes every message through Kernel.pbMessageDisplay, a Kernel SINGLETON; MODERN Essentials dropped the
+# prefix and everything (map events via command_101 -> pbMessage included) flows through a bare top-level
+# pbMessageDisplay, an Object instance method. Asking after the singleton wrap would lie on a modern
+# engine: aliasing inside `class << Kernel` finds Object's bare method and MAKES a public singleton the
+# game never had, which then read as "the engine's entry is the singleton" and left the real one
+# unwrapped -- six GameData games went mute at once.
+pa_msg_singleton = (Kernel.respond_to?(:pbMessageDisplay) rescue false)
+pa_msg_bare = (Object.private_method_defined?(:pbMessageDisplay) rescue false)
+
 begin
-  class << Kernel
-    unless method_defined?(:pbMessageDisplay__access_orig)
-      alias_method :pbMessageDisplay__access_orig, :pbMessageDisplay
-      def pbMessageDisplay(msgwindow, message, letterbyletter = true, commandProc = nil, &block)
-        PokeAccess.say_dialogue(message)
-        pbMessageDisplay__access_orig(msgwindow, message, letterbyletter, commandProc, &block)
+  if pa_msg_singleton
+    class << Kernel
+      unless method_defined?(:pbMessageDisplay__access_orig)
+        alias_method :pbMessageDisplay__access_orig, :pbMessageDisplay
+        def pbMessageDisplay(msgwindow, message, letterbyletter = true, commandProc = nil, &block)
+          PokeAccess.say_dialogue(message)
+          pbMessageDisplay__access_orig(msgwindow, message, letterbyletter, commandProc, &block)
+        end
       end
     end
   end
 rescue StandardError => e
-  PokeAccess.write_marker("hook_text: #{e.message}\n")
+  PokeAccess.write_marker("hook_text: #{e.message}
+")
 end
 
-# MODERN Essentials dropped the Kernel. prefix: dialogue (including map events via command_101 ->
-# pbMessage) flows through a bare top-level pbMessageDisplay, an Object instance method the singleton wrap
-# above does not intercept, so wrap it too. The Kernel singleton's PRESENCE decides which form is the
-# engine's entry: two gen-6 games (africanvs, awakening via BES-T compat) ALSO define a bare top-level
-# pbMessageDisplay that just delegates INTO the singleton, and wrapping both would voice a bare call
-# twice. No modern dump defines the singleton, so the check splits the eras exactly. Splat args to
-# survive signature differences.
+# The bare function is wrapped wherever the engine calls it: every modern game, and a gen-6 game that only
+# has the bare form. Two gen-6 games (africanvs, awakening via BES-T compat) define BOTH, with the bare one
+# delegating INTO the singleton, and wrapping both there would voice a line twice; on a modern engine a
+# compatibility singleton would be the delegate instead, so the era decides. Splat args to survive
+# signature differences.
 begin
-  if Object.private_method_defined?(:pbMessageDisplay) && !(Kernel.respond_to?(:pbMessageDisplay) rescue false)
+  if pa_msg_bare && (!pa_msg_singleton || PokeAccess::Engine.gamedata?)
     class Object
       unless private_method_defined?(:pbMessageDisplay__pa_inst) || method_defined?(:pbMessageDisplay__pa_inst)
         alias_method :pbMessageDisplay__pa_inst, :pbMessageDisplay

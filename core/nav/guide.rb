@@ -286,4 +286,4 @@ module PokeAccess
     end
   end
 end
-PokeAccess::Caches.register(:guide_jump) { PokeAccess::Guide.forget_jump }
+PokeAccess::Caches.register(:guide_jump) { PokeAccess::Locator.forget_jump }

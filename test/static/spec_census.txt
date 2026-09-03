@@ -30,6 +30,7 @@ behavior/field/minigames_spec.rb
 behavior/field/perf_probe_spec.rb
 behavior/field/puzzles_spec.rb
 behavior/field/realidea_mouse_minigames_spec.rb
+behavior/field/say_dialogue_gd_spec.rb
 behavior/field/say_dialogue_spec.rb
 behavior/field/triple_triad_gd_spec.rb
 behavior/field/triple_triad_spec.rb
