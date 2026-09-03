@@ -42,6 +42,10 @@ es el subconjunto del menú de depuración que copia esa sección **al portapape
 | 10 | `diag_polls` | Rendimiento | Capas de `Input.update` y nº de pollers por frame |
 | 11 | `diag_silence` | Escena y runtime | Pantallas que aparecieron y no dijeron nada en dos segundos |
 
+Aparte del volcado, el menú de configuración tiene la entrada **autochequeo del motor** (`core/util/selfcheck.rb`):
+sondea el motor real en vez de los stubs, cuenta las sondas que fallan y los hooks que no ataron, habla el
+resumen y lo escribe en `data/selfcheck.txt`.
+
 Cada sección va bajo `rescue`: si una falla se escribe `<seccion>: ERR <clase>: <mensaje>` y el resto sigue;
 un campo suelto sale como `ERR(<clase>)` y los largos se recortan con `...[cortado]`. Un perfil añade su
 sección con `Keys.register_diag_section(nombre, grupo) { |o| ... }`, grupo `:scene` por defecto.
@@ -52,7 +56,7 @@ Las emite `diag_engine` dentro de `diag_focus`. Son las que se leen primero.
 
 | Línea | Campo | Qué dice |
 |---|---|---|
-| `mod:` | — | Versión instalada, de `version.json`. `?` si no se pudo leer |
+| `mod:` | — | Versión instalada: `data/installed.json` (la sella el instalador) y, si falta, `version.json`. `?` si no se pudo leer |
 | `engine:` | `kind` | `gamedata` o `gen6`: la era de la API de datos |
 | | `version` | Float, **solo informativo**: los fangames mezclan eras. Los lectores gatean por capacidad, nunca por este número — ver [02-motores](02-motores.md) |
 | | `fork` | `nil`, o `:sky` en el fork de La Base de Sky |

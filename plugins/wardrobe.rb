@@ -44,13 +44,10 @@ module PokeAccess
   end
 end
 
-PokeAccess::Menus.def_extractor("Window_Wardrobe") { |win, i| PokeAccess::Wardrobe.text(win, i) }
-
-# Claimed on the WINDOW's own constructor, not on the scene's loop. The scene builds the window and then
-# pumps the sprite hash, both inside its constructor, so by the time the loop runs the generic command
-# reader has already queued the row through the extractor above and the poller would repeat it. The flag
-# lives on the instance, and the scene builds a fresh window each time it opens, so nothing has to release
-# it.
+# Claimed on the WINDOW's own constructor so the generic command reader never touches it: this fork's
+# loop assigns index directly and never pumps the window's update, but a variant that did would voice the
+# poller's row twice. The flag lives on the instance, and the scene builds a fresh window each time it
+# opens, so nothing has to release it.
 PokeAccess::Hooks.after_hook("Window_Wardrobe", :initialize, :optional => true) do |win, _r, _a|
   PokeAccess.dedicate(win)
 end

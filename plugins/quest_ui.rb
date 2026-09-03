@@ -118,10 +118,10 @@ PokeAccess::Hooks.after_hook("QuestList_Scene", :drawOtherInfo, :optional => tru
   PokeAccess::QuestUI.detail(args[0], :other)
 end
 
-# Volver del detalle a la lista. pbQuest ES el bucle del detalle, y al salir la escena reactiva la lista con
-# el MISMO indice, asi que la clave del lector generico no cambia y la fila se queda muda: el jugador vuelve
-# sin saber donde ha caido el cursor. Se envuelve en vez de engancharse despues para no anunciar nada desde
-# dentro -- lo unico que se hace es soltar la ranura, y la lectura la da el lector de siempre.
+# Back from the detail to the list. pbQuest IS the detail's loop, and on the way out the scene reactivates the
+# list with the SAME index, so the generic reader's key does not change and the row stays mute: the player
+# returns not knowing where the cursor landed. Wrapped rather than hooked after so nothing is announced from
+# inside -- all it does is release the slot, and the usual reader gives the reading.
 PokeAccess::Hooks.around_hook("QuestList_Scene", :pbQuest, :optional => true) do |scene, nxt, _a|
   begin
     nxt.call

@@ -9,7 +9,7 @@ PokeAccess::Game.define("royal") do
     vals = PokeAccess.ivar(scr, :@values)
     party = ($player.party rescue nil)
     next unless party && vals
-    lines = party.zip(vals).map { |pk, v| "#{pk.name} gana #{v} de experiencia" if pk && v && v != 0 }.compact
+    lines = party.zip(vals).map { |pk, v| PokeAccess::I18n.t(:mep_exp_gain, :name => pk.name, :n => v) if pk && v && v != 0 }.compact
     PokeAccess.speak_clean(lines.join(". "), true) unless lines.empty?
   end
 
@@ -18,6 +18,6 @@ PokeAccess::Game.define("royal") do
     party = ($player.party rescue nil)
     levels = PokeAccess.ivar(scr, :@levels)
     next unless party && levels && i && party[i] && levels[i]
-    PokeAccess.speak_clean("#{party[i].name} sube al nivel #{levels[i]}", false)
+    PokeAccess.speak_clean(PokeAccess::I18n.t(:mep_level_up, :name => party[i].name, :n => levels[i]), false)
   end
 end

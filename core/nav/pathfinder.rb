@@ -409,11 +409,11 @@ module PokeAccess
 
     # Jump point search: an A* whose successors are "jump points" (the next turning/goal tile in a
     # direction), so long straight corridors cost one expansion. Optimal on a uniform 4-connected grid;
-    # ice/slide tiles break that, so it sets @jps_fallback and the caller drops to plain A*. Un desnivel hace
-    # lo mismo y por la misma razon: el motor lo deja PASABLE desde el lado alto y el paso real cubre dos
-    # casillas, asi que en la rejilla uniforme de JPS se cruza como suelo llano -- el baston guia lleva al
-    # jugador ciego por un salto de un solo sentido sin avisar y el contador de pasos miente. Sale por
-    # :fallback al A* de siempre, que si sabe saltarlo. Returns the route, nil (out of reach), or :fallback.
+    # ice/slide tiles break that, so it sets @jps_fallback and the caller drops to plain A*. A ledge does the
+    # same for the same reason: the engine leaves it PASSABLE from the high side and the real step covers two
+    # tiles, so on JPS's uniform grid it is crossed like flat ground -- the guide cane walks the blind player
+    # over a one-way jump unannounced and the step counter lies. It exits through :fallback to the usual A*,
+    # which does know how to jump it. Returns the route, nil (out of reach), or :fallback.
     def self.jps_search(tx, ty)
       px = $game_player.x; py = $game_player.y
       return nil if (px - tx).abs + (py - ty).abs > reach
@@ -504,9 +504,9 @@ module PokeAccess
     # Bounded low-level A* between two EXACT tiles, within an optional [x0,y0,x1,y1] box and node cap;
     # returns [step-directions, cost] or nil. Ice/slide tiles are treated as walls, so any path needing
     # them fails here and the caller reverts to plain A*. Weights abstract edges and refines abstract hops.
-    # El desnivel se descarta como casilla, igual que el hielo y los deslizadores: cruzarlo es un salto de
-    # dos casillas en un solo sentido y aqui contaria como un paso normal de ida y vuelta. Sin ruta local el
-    # salto abstracto no se refina, y hpa_search devuelve :fallback al A* de siempre, que si sabe saltarlo.
+    # A ledge is discarded as a tile, like ice and the sliders: crossing it is a two-tile jump in one direction
+    # and here it would count as an ordinary step both ways. With no local route the abstract hop is not
+    # refined, and hpa_search returns :fallback to the usual A*, which does know how to jump it.
     def self.hpa_low(sx, sy, gx, gy, maxnodes, x0 = nil, y0 = nil, x1 = nil, y1 = nil)
       return [[], 0] if sx == gx && sy == gy
       heap = []; g = { pkey(sx, sy) => 0 }; came = {}; closed = {}; iter = 0

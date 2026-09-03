@@ -9,7 +9,6 @@
 {
   :modules => %w[
     constants
-    pausemenu
   ],
   :plugins => :auto
 }

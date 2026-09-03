@@ -1,5 +1,5 @@
 # Static check: every i18n key the CODE references must exist in lang/en.txt (the reference language;
-# the parity spec already keeps es<->en in sync). Without this, a key used in code but missing from both
+# the parity spec already keeps the languages in sync). Without this, a key used in code but missing from both
 # lang files speaks its raw key name at the player and nothing fails -- it happened (the throw_* battle
 # commands). Sources checked: literal I18n.t(:key) calls across core+games, the short t(:key) form of the
 # same call, plus the known tables whose symbols reach I18n.t indirectly (Config SCHEMA labels/help,

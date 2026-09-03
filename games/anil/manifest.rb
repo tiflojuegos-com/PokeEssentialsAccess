@@ -4,10 +4,9 @@
 {
   :modules => %w[
     constants
-    dppausemenu
     cableclub
     event_menus
     monotype
   ],
-  :plugins => %w[advanced_items bag_screen_party better_summary challenge_rules encounter_list_ui hall_of_fame_bw item_find misc_scripts_anil multi_save photo_album sv_summary_screen]
+  :plugins => %w[advanced_items bag_screen_party better_summary challenge_rules encounter_list_ui hall_of_fame_bw item_find misc_scripts_anil multi_save photo_album sv_summary_screen pokegear_themes hatcher dbk_battle dbk_enhanced_ui dp_pausemenu bag_search_entry sky_bag]
 }

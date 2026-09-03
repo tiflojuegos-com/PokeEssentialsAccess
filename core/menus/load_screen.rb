@@ -30,3 +30,30 @@ PokeAccess::Hooks.after_hook(PokeAccess::Engine.scene_class("PokemonLoad_Scene",
   txt = PokeAccess::LoadScreen.savefile_text(files, args[0])
   PokeAccess.speak_clean(txt, true) if txt
 end
+
+# The per-slot sub-chooser some forks add ("Normal Save / Autosave"): its own LEFT/RIGHT loop over two
+# panels, repainted through this method on entry and every move. The five strings -- slot name, the two
+# panel labels and the two dates -- are captured from the entry paint (per-language builds swap them) and
+# replayed per focus; the index is the second half of the dedup key, so each move speaks its panel.
+module PokeAccess
+  module LoadScreen
+    def self.auto_sub(scene, index, arrayindex)
+      rows = PokeAccess::PaintCapture.take(:ls_autosub)
+      scene.instance_variable_set(:@access_autosub_rows, rows) if rows.is_a?(Array) && rows.length >= 5
+      r = PokeAccess.ivar(scene, :@access_autosub_rows)
+      return unless r.is_a?(Array) && r.length >= 5
+      PokeAccess::Cursor.announce(scene, :ls_autosub, [arrayindex, index], true, false) do
+        index.to_i == 0 ? "#{r[0]}. #{r[1]}, #{r[3]}" : "#{r[2]}, #{r[4]}"
+      end
+    rescue StandardError
+      nil
+    end
+  end
+end
+
+PokeAccess::Hooks.before_hook("PokemonLoadScene", :pbChooseAutoSubFile, :optional => true) do |scene, _a|
+  PokeAccess::PaintCapture.arm(:ls_autosub) unless PokeAccess.sprite(scene, "autosavefile")
+end
+PokeAccess::Hooks.after_hook("PokemonLoadScene", :pbChooseAutoSubFile, :optional => true) do |scene, _r, args|
+  PokeAccess::LoadScreen.auto_sub(scene, args[0], args[1])
+end

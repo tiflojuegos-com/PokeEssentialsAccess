@@ -37,19 +37,62 @@ PokeAccess::Game.define("reminiscencia") do
     PokeAccess.speak(PokeAccess::I18n.t(k), true) if k
   end
 
-  # Support screen: @index selects a character whose name and friendship points are drawn to side windows;
-  # updatePoints runs on each move, so read the focused character there (deduped by @index). The partner
-  # command window is read by the generic hook. The cursor does NOT move with the arrows: the scene watches
-  # two raw scancodes of its own, outside anything the mod's remapping can reach, so nothing here should be
-  # wired to a direction.
+  # Support screen: @index selects the left character and @cmdwindow.index the partner; updatePoints runs
+  # on each move of EITHER cursor, repainting both point windows and the "Puntos necesarios" line, so both
+  # indexes join the dedup key and the whole pair (points, required, combined total) is read together --
+  # those numbers are what decide whether the interaction can start at all. The cursor does NOT move with
+  # the arrows: the scene watches two raw scancodes of its own, outside the mod's remapping.
   after("DatingSimSupportScreen", :updatePoints) do |scene, _r, _a|
     chars = PokeAccess.ivar(scene, :@characters)
     idx   = PokeAccess.ivar(scene, :@index)
     next unless chars.is_a?(Array) && idx && idx >= 0 && idx < chars.length
-    next unless PokeAccess::Cursor.changed?(scene, :support, idx)
+    cmdw = PokeAccess.ivar(scene, :@cmdwindow)
+    cidx = (cmdw.index rescue nil)
+    next unless PokeAccess::Cursor.changed?(scene, :support, [idx, cidx])
     name = chars[idx][0]
     pts  = (datingGet(name, "fpPoints") rescue nil)
-    txt  = pts ? PokeAccess::I18n.t(:rem_dating_points, :name => name, :n => pts) : name.to_s
+    parts = [pts ? PokeAccess::I18n.t(:rem_dating_points, :name => name, :n => pts) : name.to_s]
+    pname = (cmdw.commands[cidx] rescue nil)
+    if pname
+      ppts = (datingGet(pname, "fpPoints") rescue nil)
+      req  = (scene.getTotalPoints(name, pname) rescue nil)
+      parts.push(PokeAccess::I18n.t(:rem_dating_pair, :name => pname, :n => ppts.to_i,
+                                    :req => (req.nil? ? "----" : req),
+                                    :tot => (pts.to_i + ppts.to_i)))
+    end
+    txt = parts.join(". ")
     PokeAccess.speak_clean(txt, true) if txt && !txt.to_s.empty?
+  end
+end
+
+# The build screen's material table: recipe headers and the have/need count per material, repainted by
+# drawDataWindow on every selection or tab change and captured whole -- the rows are the screen's own
+# words and numbers. The green/red the sighted player gets is the count comparison, already in the rows.
+PokeAccess::Game.define("reminiscencia") do
+  around("DatingSimBuildScreen", :drawDataWindow, :optional => true) do |scene, nxt, _a|
+    PokeAccess::PaintCapture.arm(:rem_build)
+    begin
+      nxt.call
+    ensure
+      t = PokeAccess::PaintCapture.text(PokeAccess::PaintCapture.take(:rem_build))
+      PokeAccess.speak(t, true) if !t.empty? && PokeAccess::Cursor.changed?(scene, :rem_build, t)
+    end
+  end
+end
+
+# The build screen's material list (Window_CommandPokemonCraftSim) paints each row twice: the command
+# string on the left and, at a fixed column, how many of that material the dating bag holds -- the
+# quantity is the half the generic reader missed. The window's own translation-key table maps the row to
+# the bag name, with the single-row objective case mirrored from drawItem.
+PokeAccess::Menus.def_extractor("Window_CommandPokemonCraftSim") do |win, i|
+  cmds = win.instance_variable_get(:@commands)
+  if cmds.is_a?(Array) && cmds[i]
+    name = PokeAccess.clean(cmds[i].to_s)
+    tl = win.instance_variable_get(:@translation_list)
+    key = (cmds.length > 1) ? (tl.is_a?(Array) ? tl[i] : nil) : (($Trainer.nextObjective[0][0]) rescue nil)
+    qty = key ? (datingBagQuantity(key) rescue nil) : nil
+    qty.nil? ? name : "#{name}: #{qty}"
+  else
+    nil
   end
 end

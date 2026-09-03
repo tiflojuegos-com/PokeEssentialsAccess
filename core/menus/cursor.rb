@@ -39,13 +39,23 @@ module PokeAccess
     # param key the current selection key (an index, a string, or an array tuple); nil never changes
     def self.changed?(holder, slot, key)
       return false if key.nil?
-      slot, ivar = slot_pair(slot)
-      prev = holder ? (holder.instance_variable_get(ivar) rescue nil) : @global[slot]
-      return false if key == prev
-      holder ? holder.instance_variable_set(ivar, key) : (@global[slot] = key)
+      return false if key == current(holder, slot)
+      store(holder, slot, key)
       true
     rescue StandardError
       false
+    end
+
+    # The key a slot holds on holder (nil when fresh or reset), and its setter: the one place that knows
+    # whether the state lives in an ivar on holder or in the module-wide table.
+    def self.current(holder, slot)
+      slot, ivar = slot_pair(slot)
+      holder ? (holder.instance_variable_get(ivar) rescue nil) : @global[slot]
+    end
+
+    def self.store(holder, slot, val)
+      slot, ivar = slot_pair(slot)
+      holder ? holder.instance_variable_set(ivar, val) : (@global[slot] = val)
     end
 
     # Clears slot on holder so the next changed?/on_change speaks even if the key is unchanged. Call when a
@@ -63,9 +73,8 @@ module PokeAccess
     # open-coded this kept a separate "seen" ivar beside the dedup one; this reads it off the dedup state
     # itself, so there is nothing extra to reset. Checked BEFORE the change? call that records the key.
     def self.pending?(holder, slot)
-      slot, ivar = slot_pair(slot)
-      prev = holder ? (holder.instance_variable_get(ivar) rescue nil) : @global[slot]
-      prev.nil?
+      prev = current(holder, slot)
+      prev.nil? || retry_marker?(prev)
     rescue StandardError
       false
     end
@@ -81,18 +90,43 @@ module PokeAccess
     end
 
     # The common shape: on a cursor change, speak the line the block builds. Cleaned and, by default,
-    # interrupting (focus moves should cut the previous read). No-op when the line is nil/blank.
+    # interrupting (focus moves should cut the previous read). A nil/blank line UN-BURNS the key for the next
+    # RETRY_FRAMES polls, so a row whose data lands a few frames after the cursor does is retried until it has
+    # words, and a deliberately silent row stops costing a block call per frame once that budget is spent
+    # (moving away and back re-arms it, as any new key does). A RAISING block burns at once: a permanently
+    # broken reader must log once and stop, not spin.
     # param interrupt whether the spoken line interrupts the queue (true) or waits (false)
     # param first_interrupt interrupt value for the FIRST read of a fresh/reset cursor (when the slot is
     #   pending), for the "queue the opening read, interrupt later moves" pattern. nil (default) uses
     #   interrupt for every read, preserving the plain behaviour.
+    # return true when a line was spoken, else nil
     def self.announce(holder, slot, key, interrupt = true, first_interrupt = nil)
-      first = !first_interrupt.nil? && pending?(holder, slot)
-      t = on_change(holder, slot, key) { yield }
-      return if t.nil? || t.to_s.empty?
+      prev = current(holder, slot)
+      first = !first_interrupt.nil? && (prev.nil? || retry_marker?(prev))
+      return unless changed?(holder, slot, key)
+      t = yield
+      if t.nil? || t.to_s.empty?
+        retry_blank(holder, slot, key, prev)
+        return
+      end
       PokeAccess.speak(PokeAccess.clean(t.to_s), first ? first_interrupt : interrupt)
-    rescue StandardError
+      true
+    rescue StandardError => e
+      PokeAccess.log_once("cursor_#{slot}", e)
       nil
+    end
+
+    RETRY_FRAMES = 20
+
+    # Leaves the slot holding a retry marker for key instead of key itself, counting the blank polls, so
+    # changed? keeps answering true for it until RETRY_FRAMES blanks in a row; then the key stays burned.
+    def self.retry_blank(holder, slot, key, prev)
+      n = (retry_marker?(prev) && prev[1] == key) ? prev[2] + 1 : 1
+      store(holder, slot, [:pa_retry, key, n]) if n < RETRY_FRAMES
+    end
+
+    def self.retry_marker?(v)
+      v.is_a?(Array) && v[0] == :pa_retry
     end
   end
 end

@@ -27,9 +27,11 @@ module PokeAccess
     # The one-call form of wire for the COMMON reader shape: hold the scene, poll it each frame, dedup by
     # key and speak on change. The block yields the held scene and returns [key, text]: a changed key speaks
     # the text (cleaned, interrupting), nil or a non-pair skips the frame, a nil key never speaks (Cursor's
-    # contract), and a real key with empty text consumes the key silently. Dedup lives in a Cursor slot on a
-    # generated holder, reset on open AND close so reopening on the same entry re-reads. A raising block is
-    # swallowed per frame, since a reader bug must not kill the input loop, and blocks use next rather than
+    # contract), and a real key with empty text un-burns the key and retries -- text that lands a frame
+    # after the key still gets spoken, and a deliberately mute row stays silent by keeping its text blank.
+    # Speaking and dedup are Cursor.announce on a generated holder, reset on open AND close so reopening on
+    # the same entry re-reads. A raising block is swallowed per frame, since a reader bug must not kill the
+    # input loop, and blocks use next rather than
     # return (define_method under 1.8.7). Returns the holder, for readers needing extra hooks over the same
     # state; one with its own speak timing or an extra API keeps using wire directly.
     #
@@ -56,12 +58,11 @@ module PokeAccess
         begin
           pair = blk.call(s)
           next unless pair.is_a?(Array)
-          next unless PokeAccess::Cursor.changed?(self, slot, pair[0])
-          t = pair[1]
-          t = t.call if t.respond_to?(:call)
-          next if t.nil? || t.to_s.empty?
-          PokeAccess.speak(PokeAccess.clean(t.to_s), !@opening)
-          @opening = false
+          spoken = PokeAccess::Cursor.announce(self, slot, pair[0], !@opening) do
+            t = pair[1]
+            t.respond_to?(:call) ? t.call : t
+          end
+          @opening = false if spoken
         rescue StandardError => e
           PokeAccess.log_once("scene_watcher_#{slot}", e)
         end

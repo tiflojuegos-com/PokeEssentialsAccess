@@ -10,6 +10,6 @@ module PokeAccess
 end
 
 # pbUpdate runs each frame and highlights the @index button; read the focused theme name on change.
-PokeAccess::Hooks.after_hook("PokemonPokegearTheme_Scene", :pbUpdate) do |scene, _r, _a|
+PokeAccess::Hooks.after_hook("PokemonPokegearTheme_Scene", :pbUpdate, :optional => true) do |scene, _r, _a|
   PokeAccess::PokegearTheme.poll(scene)
 end

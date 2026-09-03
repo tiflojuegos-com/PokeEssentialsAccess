@@ -10,7 +10,7 @@ module PokeAccess
     "ItemStorageScene", "ItemStorage_Scene", "TossItemScene", "WithdrawItemScene",
     "PokemonSaveScene", "PokemonSave_Scene", "MoveRelearnerScene", "MoveRelearner_Scene",
     "PokemonMartScene", "PokemonMart_Scene", "BattlePointShop_Scene", "BattleSwapScene",
-    "PurifyChamberScene", "RelicStoneScene", "PokemonSummary_Scene"
+    "PurifyChamberScene", "RelicStoneScene", "PokemonSummary_Scene", "PokemonSummaryScene"
   ]
   # The message-drawing methods these scenes use (names vary by scene and engine).
   SCREEN_MSG_METHODS = [:pbDisplay, :pbDisplayPaused, :pbConfirm, :pbDisplayConfirm]
@@ -24,5 +24,20 @@ PokeAccess::SCREEN_MSG_SCENES.each do |cname|
     PokeAccess::Hooks.before_hook(cname, meth, :optional => true) do |_scene, args|
       PokeAccess.say_dialogue(args[0].to_s) if args[0] && !args[0].to_s.empty?
     end
+  end
+end
+
+# The item-storage TITLE ("Withdraw item" / "Toss item"): painted once by the opening refresh and the one
+# thing that tells the two modes apart -- same class, same window, same list. Captured on open, so it says
+# whatever this build says. Only the FIRST row: the same refresh goes on to paint the focused item's
+# description, which the row reader says in its turn.
+PokeAccess::Hooks.around_hook("ItemStorageScene", :pbStartScene, :optional => true) do |_s, nxt, _a|
+  PokeAccess::PaintCapture.arm(:itemstorage_title)
+  begin
+    nxt.call
+  ensure
+    rows = PokeAccess::PaintCapture.take(:itemstorage_title)
+    t = PokeAccess.clean(rows.is_a?(Array) ? rows.first.to_s : "").to_s.strip
+    PokeAccess.speak(t, false) unless t.empty?
   end
 end

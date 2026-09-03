@@ -90,6 +90,9 @@ Suite.define("static: no two plugin readers claim the same class and method") do
     /(?:after_hook|before_hook|around_hook|read_on_open|override)\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!=]*)/,
     /SceneWatcher\.reader\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!=]*)/,
     /def_extractor\(\s*"([A-Za-z_:][\w:]*)"()/,
+    # A bag decorator (plugins/sky_bag.rb) registers by pushing its module into Menus.bag_decorators: the
+    # module is what it claims, and a second decorator would claim its own.
+    /bag_decorators\.push\(\s*([A-Za-z_:][\w:]*)()/,
     # A hook registered in a loop names its method through a variable. What gets recorded is the VARIABLE's
     # name, not a wildcard: the class is claimed and the registration is visible, but two readers looping
     # over the same class under different variable names will not be seen to collide, and neither will a

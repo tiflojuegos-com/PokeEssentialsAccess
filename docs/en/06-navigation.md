@@ -219,7 +219,7 @@ tallies why each frame fell silent and `gate_report` summarises it for the diagn
 | `audio3d_water` / `audio3d_wind` | 70 / 55 | 0-100, step 10 | Loop volumes |
 | `footstep_volume` / `wall_volume` / `event_volume` | 80 / 80 / 70 | 0-100, step 10 | Footsteps, bumps and guide chime |
 | `audio3d_freq_npc` / `_object` / `_door` / `guide_freq` | 70 / 70 / 70 / 55 | 0-100, step 10 | Ping and chime cadence |
-| `audio3d_occlusion` | `:occlude` | `:hear` / `:occlude` / `:hide` | Emitter behind a wall (`line_clear?` raycast): as-is, muffled 80 of 100, or dropped |
+| `audio3d_occlusion` | `:hide` | `:hear` / `:occlude` / `:hide` | Emitter behind a wall (`line_clear?` raycast): as-is, muffled 80 of 100, or dropped |
 | `audio3d_air` | off | on/off | Air absorption |
 | `audio3d_wall_range` / `_wall_falloff` | 3 / 50 | 1-20 tiles; 0-100, step 10 | Wall probe and wind falloff, `v = vol / dist ** (falloff / 50.0)` |
 | `audio3d_desk_range` | 2 | 0-3 tiles | Service counters kept audible in `:hide` mode; 0 disables it |

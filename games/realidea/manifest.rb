@@ -7,7 +7,9 @@
     system_scene
     album
     minigames
+    mouse_minigames
     story_minigames
+    hall_of_fame
   ],
-  :plugins => %w[easy_questing gender_selection text_log]
+  :plugins => %w[easy_questing gender_selection text_log book_scene hatcher simple_encounter_list]
 }

@@ -79,7 +79,7 @@ module PokeAccess
     def self.alt_dist; (PokeAccess::Config.audio3d_alt_dist rescue 5).to_i; end
 
     # What to do with emitters behind a wall: :hear (normal), :occlude (muffled) or :hide (dropped).
-    def self.occlusion_mode; (PokeAccess::Config.audio3d_occlusion rescue :occlude); end
+    def self.occlusion_mode; (PokeAccess::Config.audio3d_occlusion rescue :hide); end
 
     # True if the positional-audio dll is present and its entry points resolved.
     def self.available?; INIT && CHAN && LIS && SET && MAST; end
@@ -302,9 +302,13 @@ module PokeAccess
       px = $game_player.x; py = $game_player.y
       LIS.call(px * TILE_UNITS, py * TILE_UNITS)
       unless nav_full?
-        silence_emitters
+        unless @basic_silenced
+          silence_emitters
+          @basic_silenced = true
+        end
         return
       end
+      @basic_silenced = false
       key = [px, py, $game_map.map_id]
       now = PokeAccess.clock
       if @scan_pos != key

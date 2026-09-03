@@ -84,3 +84,14 @@ end
 PokeAccess::Hooks.after_hook("HallOfFameViewerScene", :update_display, :optional => true) do |scene, _r, _a|
   PokeAccess::HallOfFameBW.read(scene)
 end
+
+# The entry CEREMONY (SalonDeFama.registrar -> HallDeLaFama): the plugin replaces the engine's
+# pbHallOfFameEntry wholesale, so the core HallOfFame reader never runs in these games. Every line the
+# ceremony shows -- titles, dex stats, per-Pokemon cards -- goes through its three window builders, the
+# one seam shared by all its gen-styled variants; read there and the whole ceremony speaks.
+["create_text_window", "create_title_window", "create_info_window"].each do |m|
+  PokeAccess::Hooks.after_hook("HallDeLaFama", m.to_sym, :optional => true) do |_s, _r, args|
+    t = args[0]
+    PokeAccess.say_dialogue(t.to_s) if t && !t.to_s.strip.empty?
+  end
+end

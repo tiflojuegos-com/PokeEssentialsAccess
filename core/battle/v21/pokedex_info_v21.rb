@@ -204,10 +204,10 @@ module PokeAccess
       PokeAccess.speak(text, true)
     end
 
-    # El parrafo que la seccion pinta, capturado de su propia llamada de dibujo. La pagina compone el texto
-    # por seccion y lo suelta de una vez con drawFormattedTextEx, asi que rehacerlo aqui seria reimplementar
-    # el plugin: se lee lo que PINTO. Sin esto solo se oia la etiqueta -- "Estadisticas" -- y nunca las
-    # cifras, que son el motivo de abrir la pagina.
+    # The paragraph the section paints, captured from its own draw call. The page composes the text per
+    # section and drops it in one drawFormattedTextEx, so rebuilding it here would mean reimplementing the
+    # plugin: what it PAINTED is what is read. Without this only the label -- "Stats" -- was heard, never
+    # the figures, which are the reason to open the page.
     @notes = nil
     @notes_armed = false
 
@@ -215,7 +215,7 @@ module PokeAccess
 
     def self.notes_off; @notes_armed = false; end
 
-    # param text el cuarto argumento de drawFormattedTextEx, el parrafo ya compuesto
+    # param text the fourth argument of drawFormattedTextEx, the paragraph already composed
     def self.note_text(text)
       return unless @notes_armed
       t = PokeAccess.clean(text.to_s).to_s.strip

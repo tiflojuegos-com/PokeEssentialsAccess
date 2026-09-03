@@ -1,6 +1,8 @@
 module PokeAccess
-  # Pokedex data entry: reads the page (category and description) the battle opens when a newly-caught
-  # species is registered. Name/category/description come from the engine's data provider.
+  # Shared numeric formatting for the pokedex readers. The dex page a battle opens on a new capture needs
+  # no hook here: pbShowPokedex lands in a scene a reader already covers on every game (drawPage on the
+  # modern family, pbChangeToDexEntry on gen-6), and a pre-read from the battle side spoke the same entry
+  # twice with the first copy cut off.
   module Pokedex
     # Formats a tenth-units integer (decimetres/hectograms) as one decimal, with the separator the active
     # language declares (lang key decimal_sep: comma in Spanish, point in English) rather than one fixed per
@@ -19,36 +21,5 @@ module PokeAccess
       f.to_s
     end
 
-    # Builds the spoken pokedex entry for a species (name, category, description), via PokeAccess::Data
-    # so it reads on either engine.
-    #
-    # A Pokemon is accepted as well as a species id, because one game hands over the Pokemon:
-    # infinitefusion_hoenn calls pbShowPokedex(pkmn) from 001_PokeBattle_BattleCommon and unwraps it inside
-    # the screen, while the other twelve pass an id. Fed a Pokemon,
-    # GameData::Species.get raises, this rescued to nil, and the dex page shown on a new capture was silent
-    # in that game alone. Unwrapped here rather than at each hook so every caller gets it.
-    def self.entry_text(species)
-      return nil unless species
-      species = species.species if species.respond_to?(:species)
-      parts = PokeAccess::Data.species_entry(species)
-      return nil unless parts
-      name, kind, desc = parts
-      name = species.to_s if name.nil? || name.to_s.empty?
-      return nil if name.to_s.empty? && (kind.nil? || kind.to_s.empty?) && (desc.nil? || desc.to_s.empty?)
-      t = PokeAccess::I18n.t(:pdx_entry_name, :name => name)
-      t += " " + PokeAccess::I18n.t(:pdx_entry_kind, :kind => kind) if kind && !kind.to_s.empty?
-      t += " #{desc}" if desc && !desc.to_s.empty?
-      (PokeAccess.clean(t) rescue t)
-    rescue StandardError
-      nil
-    end
   end
-end
-
-# Read the pokedex page shown when a new species is registered after capture, on either engine.
-PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbShowPokedex) do |_s, args|
-  PokeAccess.speak(PokeAccess::Pokedex.entry_text(args[0]), false)
-end
-PokeAccess::Hooks.before_hook("Battle::Scene", :pbShowPokedex) do |_s, args|
-  PokeAccess.speak(PokeAccess::Pokedex.entry_text(args[0]), false)
 end

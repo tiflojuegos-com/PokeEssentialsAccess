@@ -46,9 +46,10 @@ Dos trampas:
 1. **Un plugin que REABRE una clase vanilla aparece definiéndola.** Deluxe Battle Kit reabre `Battle` y
    Modular UI Scenes reabre `PokemonPokedexInfo_Scene`: la clase existe en todos los juegos, así que una
    sonda por clase responde "sí" siempre. Se detectan por método: `"Battle#pbToggleSpecialActions"`.
-2. **El fork de La Base de Sky mete en su motor cosas que parecen plugins.** Los juegos hechos sobre él
-   traen MUI y DBK dentro del árbol de scripts del motor, no en una carpeta de plugins. Lo que es del FORK,
-   y no de un juego, va a `core/<módulo>/skyflyer/`.
+2. **El fork de La Base de Sky mete en su motor cosas que siguen siendo plugins.** Los juegos hechos sobre
+   él traen MUI y DBK dentro del árbol de scripts del motor, no en una carpeta de plugins, pero son recursos
+   de terceros que varios juegos instalan: van a `plugins/` como cualquier otro, con sonda por MÉTODO cuando
+   solo reabren clases vanilla (`dbk_battle` sondea `"Battle#pbToggleSpecialActions"`).
 
 ## 1. Añadir un perfil de juego
 
@@ -125,6 +126,10 @@ Si el core ya trae el patrón, el fichero es una línea:
 PokeAccess::SpriteButtonMenu.define("africanus")
 ```
 
+Volver de un submenú lo señala `PokeAccess::MenuReturn`, una sola vez para todos los menús: un lector se
+apunta con `MenuReturn.on_return { ... }` y declara con `MenuReturn.bare("Clase", :metodo)` las pantallas que
+su juego abre sin fade ni diálogo. Solo la salida más externa dispara a los oyentes.
+
 La DSL completa está en [03-hooks](03-hooks.md); cómo se arma el texto y se deduplica, en
 [04-lectores](04-lectores.md). **Un perfil no reabre un módulo del core**: la vía declarada es `override`,
 que además queda listada en el diagnóstico, y `coupling_spec` rechaza la reapertura.
@@ -162,7 +167,7 @@ PokeAccess::Hooks.after_hook("EncounterList_Scene", :drawPresent, :optional => t
 ## 4. Añadir una opción al menú de configuración
 
 1. Una fila en `Config::SCHEMA`: `[clave, defecto, tipo, categoría, lbl_etiqueta, help_ayuda]`.
-2. Sus claves `lbl_` y `help_` en `lang/es.txt` y `lang/en.txt`.
+2. Sus claves `lbl_` y `help_` en los seis ficheros de `lang/`.
 
 ```ruby
 # core/foundation/config.rb
@@ -184,7 +189,7 @@ subir el alcance del sonar no ensanche de rebote la sonda de paredes.
 
 ## 5. Añadir texto hablado
 
-1. La clave en `lang/es.txt` Y en `lang/en.txt`, con los MISMOS huecos `%{var}`.
+1. La clave en los seis `lang/*.txt`, con los MISMOS huecos `%{var}`.
 2. Usarla con `PokeAccess::I18n.t(:clave)` o con el alias corto `t(:clave)`.
 
 ```

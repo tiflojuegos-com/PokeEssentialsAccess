@@ -209,6 +209,11 @@ PokeAccess::TownMap.register(
 # the keys are simply free here. Outside the map open_scene is nil and this costs one nil check per frame.
 PokeAccess::TownMap::DIRS = { :prev => :left, :next => :right, :route => :up, :where => :down }
 
+# A provider whose close hook fails to bind (an :optional dispose a fork renamed) would leave @open
+# pointing at a dead screen and the locator keys hijacked forever. A map screen cannot outlive a map
+# transition, so the transition is a safe moment to drop the reference.
+PokeAccess::Caches.register(:town_map_open) { PokeAccess::TownMap.closed(nil) }
+
 PokeAccess::Keys.on_frame do
   scene = PokeAccess::TownMap.open_scene
   if scene && (PokeAccess::Keys.enabled rescue true) && (PokeAccess::Keys.focused? rescue true)

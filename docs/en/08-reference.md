@@ -232,6 +232,20 @@ registered or the datum is genuinely absent; a provider exception is recorded in
 straight into the script list, so "none installed" would be a lie. The `undeclared` probe goes through
 `Engine.has?`, so it can name a method and not only a class.
 
+## Paint capture, menu return, per-build text and self-check
+
+`core/util/paint_capture.rb`, `core/menus/menu_return.rb`, `core/foundation/game_lang.rb`, `core/util/selfcheck.rb`.
+
+| Signature | Returns | When to use it |
+|---|---|---|
+| `PaintCapture.arm(tag)` / `PaintCapture.take(tag)` | `take`: the rows painted while `tag` was armed, or `nil` | Reading a screen by what it PAINTS (`drawTextEx`, `pbDrawTextPositions`), which stays correct across per-language builds |
+| `PaintCapture.speak_around(tag, interrupt) { nxt.call }` | The block's value | The common shape: arm, run the game's paint, speak what landed |
+| `PaintCapture.flush_pending(tag, interrupt)` | — | From a per-frame poll, for a tag armed before a blocking loop |
+| `MenuReturn.on_return { ... }` | — | A menu with its own loop that re-reads the option on the way back from a submenu; fires on the outermost exit only |
+| `MenuReturn.bare("Class", :method)` / `MenuReturn.bare_fn("function")` | — | Declaring a screen that opens with neither a fade nor a dialogue |
+| `GameLang.code` / `GameLang.pick(value, fallback)` | `:es`, `:en`, `:fr`... or `nil`; `pick` chooses the build's entry | Transcribed picture text in a game shipped as several per-language builds |
+| `SelfCheck.run` | The report lines; writes `data/selfcheck.txt` | The "engine self-check" entry of the configuration menu |
+
 ## Utilities
 
 `core/util/` — modules `Util` and `KVFile`.
@@ -370,8 +384,8 @@ and the v21+ rework both declare `PokemonRegionMap_Scene` with the cursor in dif
 only needed on a screen that knows its own set of destinations; without it, the generic rule derives it from
 `pbGetHealingSpot` plus `visitedMaps`.
 
-`core/nav/better_region_map.rb` is a core provider, for the BetterRegionMap addon both Infinite Fusion games
-install: it is a class of its own, with its own loop, its cursor in `$PokemonGlobal.regionMapSel` and no
+`plugins/better_region_map.rb` is a provider registered from the plugins layer, for Marin's BetterRegionMap addon
+both Infinite Fusion games install: it is a class of its own, with its own loop, its cursor in `$PokemonGlobal.regionMapSel` and no
 `pbGetMapLocation`, so none of the standard map hooks reach it.
 
 ## Audio

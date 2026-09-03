@@ -12,7 +12,7 @@
 # -- hence the size guard as well, the same shape as i18n_refs_spec's "lang/en.txt loaded".
 Suite.define("i18n: lang/ files are in parity (keys, duplicates, placeholders)") do
   langs = (PokeAccess::I18n.available_languages rescue [])
-  truthy "both language files are visible to the checker", langs.length >= 2
+  truthy "the language files are visible to the checker", langs.length >= 2
   langs.each { |c| truthy "lang/#{c}.txt loaded", (PokeAccess::I18n.table(c).length rescue 0) > 100 }
 
   issues = (PokeAccess::I18n.parity_issues rescue ["parity check raised"])

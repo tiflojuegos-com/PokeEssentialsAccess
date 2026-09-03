@@ -18,16 +18,27 @@ module PokeAccess
                   "Modo Refracción", "Modo Recuerdo", "Modo???"]
     @stack = []
 
-    # Pushes a menu as active and announces its focused option. param kind which menu: :load_main,
-    # :load_modes, :pause or :worldmap
+    # Pushes a menu as active and announces its focused option. Suspends the 3D loops on entry: this
+    # game's call_menu never writes $game_temp.in_menu, and these blocking loops starve tick, so neither
+    # of the usual silencers fires and the ambience would sound through the whole menu.
+    # param kind which menu: :load_main, :load_modes, :pause or :worldmap
     def self.open(scene, kind)
+      PokeAccess::MenuReturn.reset_nesting if @stack.empty?
       @stack.push({ :scene => scene, :kind => kind, :last => nil })
+      (PokeAccess::Audio3D.suspend rescue nil)
       poll
     end
 
     # Pops the top menu; the one underneath re-announces its option on the next poll.
     def self.close
       @stack.pop
+      @stack.last[:last] = nil if @stack.last
+    end
+
+    # Forgets the top menu's focus without popping, so it re-announces on the next poll. For screens the
+    # pause menu opens from inside its own loop WITHOUT registering a frame here (the help screen, the
+    # upgrade tree): on their way out the menu is still the top of the stack, just mute.
+    def self.refocus
       @stack.last[:last] = nil if @stack.last
     end
 
@@ -133,4 +144,16 @@ PokeAccess::Game.define("reminiscencia") do
   # Per-frame poll for the active custom menu, via the adapter API (the core runs it from its single
   # Input.update wrapper).
   poll_each_frame { PokeAccess::ReminMenu.poll }
+end
+
+# Every entry that only puts a message box (or a fade) over the menu returns to the same loop with the same
+# index; the shared return signal nudges the top menu into re-announcing, exactly once, when it closes.
+PokeAccess::MenuReturn.on_return { PokeAccess::ReminMenu.refocus }
+
+# The pause menu opens every entry BARE (pbEndScene, then the screen's own method, no fade): each is declared
+# a nesting level, or the first message box inside the party or the save screen counted as the return and
+# the poll re-announced the pause option over the screen the player was still on.
+[["PokemonScreen", :pbPokemonScreen], ["PokemonBagScreen", :pbStartScreen], ["PokemonSave", :pbSaveScreen],
+ ["PokemonOption", :pbStartScreen], ["Logros_Scene", :initialize]].each do |cname, meth|
+  PokeAccess::MenuReturn.bare(cname, meth)
 end

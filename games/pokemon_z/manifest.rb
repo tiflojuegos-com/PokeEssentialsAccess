@@ -5,13 +5,10 @@
   :modules => %w[
     constants
     puzzles
-    pause_menu
     battle_bag
     pokedex
     character_guide
     picture_cues
-    encounter_list
-    summary_extra
   ],
-  :plugins => %w[incubator item_crafting logros]
+  :plugins => %w[incubator item_crafting logros summary_habilidades dp_pausemenu simple_encounter_list bag_search_entry]
 }

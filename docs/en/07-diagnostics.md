@@ -43,6 +43,10 @@ menu subset that copies that section **to the clipboard**; the full dump goes to
 | 10 | `diag_polls` | Performance | `Input.update` layers and per-frame poller count |
 | 11 | `diag_silence` | Scene and runtime | Screens that came up and said nothing for two seconds |
 
+Besides the dump, the configuration menu has the **engine self-check** entry (`core/util/selfcheck.rb`): it
+probes the real engine rather than the stubs, counts the failing probes and the hooks that did not bind,
+speaks the summary and writes it to `data/selfcheck.txt`.
+
 Every section runs under `rescue`: a failing one writes `<section>: ERR <class>: <message>` and the rest
 continues. A single failing field reads `ERR(<class>)`, and long ones are truncated with `...[cortado]`. A
 profile adds its section with `Keys.register_diag_section(name, group) { |o| ... }` (`:scene` by default).
@@ -53,7 +57,7 @@ Emitted by `diag_engine`, inside `diag_focus`. These are read first.
 
 | Line | Field | What it says |
 |---|---|---|
-| `mod:` | — | Installed version, from `version.json`. `?` when it could not be read |
+| `mod:` | — | Installed version: `data/installed.json` (sealed by the installer), else `version.json`. `?` when it could not be read |
 | `engine:` | `kind` | `gamedata` or `gen6`: the data-API era |
 | | `version` | Float, **informative only**: real fangames mix eras. Readers gate on capability, never on this number — see [02-engines](02-engines.md) |
 | | `fork` | `nil`, or `:sky` on the La Base de Sky fork |

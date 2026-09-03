@@ -22,9 +22,20 @@ end
 PokeAccess::Hooks.after_hook("HallOfFameScene", :writeWelcome) do |_s, _r, _a|
   PokeAccess.speak(PokeAccess::I18n.t(:hof_welcome), false)
 end
-PokeAccess::Hooks.after_hook("HallOfFameScene", :writePokemonData) do |_s, _r, args|
-  t = PokeAccess::HallOfFame.member_text(args[0])
-  PokeAccess.speak(t, false) if t && !t.to_s.empty?
+# Read by CAPTURE: the panel paints dex number, name with its sex symbol, level, trainer ID and -- only
+# in the PC viewer, where args[1] carries the record number -- the hall header, all words the per-language
+# builds swap. The viewer path interrupts (browsing redraws member by member); the entry animation queues.
+# Composing off the pokemon is the fallback for a copy that painted nothing.
+PokeAccess::Hooks.around_hook("HallOfFameScene", :writePokemonData) do |_s, nxt, args|
+  PokeAccess::PaintCapture.arm(:hof_panel)
+  begin
+    nxt.call
+  ensure
+    t = PokeAccess::PaintCapture.text(PokeAccess::PaintCapture.take(:hof_panel))
+    t = PokeAccess::HallOfFame.member_text(args[0]).to_s if t.empty?
+    pc_view = args[1].is_a?(Integer) && args[1] > -1
+    PokeAccess.speak_clean(t, pc_view) unless t.strip.empty?
+  end
 end
 
 # modern (HallOfFame_Scene): the welcome on entry, and the team only where there is no per-member read.

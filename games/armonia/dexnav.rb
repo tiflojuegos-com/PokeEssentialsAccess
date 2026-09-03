@@ -7,17 +7,18 @@
 # the entire content of that page, were never read at all.
 module PokeAccess
   module ArmoniaDexNav
-    ZONES = { "dexnavtierra" => "Hierba", "dexnavsurf" => "Surf", "dexnavrio" => "Pesca" }
+    ZONES = { "dexnavtierra" => :dxn_zone_grass, "dexnavsurf" => :dxn_zone_surf, "dexnavrio" => :dxn_zone_fish }
 
     # The encounter page: the zone and the species it holds, each with the Pokedex state the screen shows by
     # tone (a species neither seen nor owned is painted as a black silhouette, so naming it is a spoiler).
     def self.encounters(scene)
       zone = (PokeAccess.ivar(scene, :@visibleZones)[PokeAccess.ivar(scene, :@index)] rescue nil)
-      zname = ZONES[zone && zone[1]] || "Zona"
+      zk = ZONES[zone && zone[1]]
+      zname = zk ? PokeAccess::I18n.t(zk) : PokeAccess::I18n.t(:dxn_zone)
       list = PokeAccess.ivar(scene, :@encounterArray) || []
-      return "#{zname}, sin especies detectadas" if list.empty?
+      return PokeAccess::I18n.t(:dxn_none, :zone => zname) if list.empty?
       names = list.map { |s| species_label(s) }
-      "#{zname}, #{list.length} especies: #{names.join(", ")}"
+      PokeAccess::I18n.t(:dxn_list, :zone => zname, :n => list.length, :names => names.join(", "))
     rescue StandardError
       nil
     end
@@ -25,8 +26,9 @@ module PokeAccess
     # A species as the icon shows it: silhouetted while unseen, named once seen, marked once owned.
     def self.species_label(sp)
       name = (PokeAccess::Data.species_name(sp) rescue nil) || sp.to_s
-      return "sin descubrir" if !($Trainer.hasSeen?(sp) rescue true) && !($Trainer.hasOwned?(sp) rescue true)
-      ($Trainer.hasOwned?(sp) rescue false) ? "#{name}, capturado" : "#{name}, visto"
+      owned = PokeAccess::Util.dex_owned?(sp)
+      return PokeAccess::I18n.t(:dex_unknown) unless owned || PokeAccess::Util.dex_seen?(sp)
+      "#{name}, #{PokeAccess::I18n.t(owned ? :dex_caught : :dex_seen)}"
     rescue StandardError
       sp.to_s
     end
@@ -36,7 +38,7 @@ module PokeAccess
     def self.rewards(scene)
       mapid = PokeAccess.ivar(scene, :@mapid)
       items = (::DEXNAV_REWARDS[mapid] rescue nil)
-      return "Recompensas, esta zona no tiene" unless items.is_a?(Array) && items.length > 1
+      return PokeAccess::I18n.t(:dxn_rewards_none) unless items.is_a?(Array) && items.length > 1
       got = ($PokemonGlobal.getDexNavRewards(mapid) rescue nil) || {}
       zones = items.length - 1
       taken = 0
@@ -45,13 +47,14 @@ module PokeAccess
         rw = items[i]
         claimed = (got[rw[0]] == true)
         taken += 1 if claimed
-        line = "#{item_label(rw[1])} por #{rw[2]}#{claimed ? ', recibida' : ''}"
+        line = PokeAccess::I18n.t(:dxn_reward_line, :item => item_label(rw[1]), :n => rw[2])
+        line += ", " + PokeAccess::I18n.t(:dxn_claimed) if claimed
         z = zone_name(rw[0])
         parts.push(z ? "#{z}: #{line}" : line)
       end
       final = item_label(items[items.length - 1])
-      done = (got[-1] == true) ? ", recibida" : ""
-      "Recompensas, #{taken} de #{zones}. #{parts.join(', ')}. Al completar: #{final}#{done}"
+      final += ", " + PokeAccess::I18n.t(:dxn_claimed) if got[-1] == true
+      PokeAccess::I18n.t(:dxn_rewards, :taken => taken, :tot => zones, :list => parts.join(", "), :final => final)
     rescue StandardError
       nil
     end
@@ -81,5 +84,19 @@ PokeAccess::Game.define("armonia") do
     showing = PokeAccess.ivar(scene, :@showPageRewards)
     t = showing ? PokeAccess::ArmoniaDexNav.rewards(scene) : PokeAccess::ArmoniaDexNav.encounters(scene)
     PokeAccess.speak_clean(t, true) if t && !t.to_s.empty?
+  end
+end
+
+# With zero encounter zones on the map startUI (the screen's own loop) returns at once without opening
+# anything; spoken at the return so the player learns why nothing happened.
+PokeAccess::Game.define("armonia") do
+  around("DexNav", :startUI, :optional => true) do |scene, nxt, _a|
+    begin
+      nxt.call
+    ensure
+      if PokeAccess.ivar(scene, :@num_enc).to_i == 0
+        PokeAccess.speak(PokeAccess::I18n.t(:dxn_no_zones), true)
+      end
+    end
   end
 end

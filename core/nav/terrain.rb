@@ -17,6 +17,26 @@ module PokeAccess
     GRASS = [:grass, :tall_grass, :soot_grass]
     SURF_NUMBERS = [5, 6, 7, 8, 9]
 
+    # GameData id symbol => kind, tried FIRST on tag objects: games can renumber the standard tags, so
+    # the NAME is the identity and the number only the fallback. Integers slip through respond_to?(:id)
+    # on 1.8.7 (old object_id alias); the IDS miss routes them to the numeric table.
+    IDS = { :Ledge => :ledge, :Grass => :grass, :Sand => :sand, :Rock => :rock,
+            :DeepWater => :deep_water, :StillWater => :still_water, :Water => :water,
+            :Waterfall => :waterfall, :WaterfallCrest => :waterfall_crest,
+            :TallGrass => :tall_grass, :UnderwaterGrass => :underwater_grass, :Ice => :ice,
+            :Neutral => :neutral, :SootGrass => :soot_grass, :Bridge => :bridge, :Puddle => :puddle }
+
+    # The stable kind of a raw terrain value: the tag object's id name when it maps, else the number. The
+    # Integer guard matters under 1.8.7, whose Object#id exists and warns on every call.
+    def self.kind_of(t)
+      return nil if t.nil?
+      if !t.is_a?(Integer) && t.respond_to?(:id)
+        k = IDS[(t.id rescue nil)]
+        return k if k
+      end
+      KIND[number(t)]
+    end
+
     # The engine's raw terrain at (x,y) (Integer or GameData::TerrainTag), or nil. count_bridge reports
     # bridge tiles even when not standing on the bridge; uses the cross-map lookup for seamless edges.
     def self.raw(x, y, count_bridge = false)
@@ -37,14 +57,14 @@ module PokeAccess
 
     # The stable kind symbol at (x,y) (e.g. :water, :bridge), or nil for none/custom tags.
     def self.kind(x, y, count_bridge = false)
-      KIND[number(raw(x, y, count_bridge))]
+      kind_of(raw(x, y, count_bridge))
     end
 
     # The surface localization key at (x,y), or nil; counts bridges and falls back to water for any
     # surfable custom tag with no explicit label.
     def self.label(x, y)
       t = raw(x, y, true)
-      LABEL[KIND[number(t)]] || (surfable?(t) ? :surf_water : nil)
+      LABEL[kind_of(t)] || (surfable?(t) ? :surf_water : nil)
     end
 
     # The three-step dual-engine probe every tag test shares: the modern object's boolean flag, then the
@@ -73,7 +93,7 @@ module PokeAccess
 
     # True if a raw terrain value is walkable grass (plain, tall or soot).
     def self.grass?(t)
-      GRASS.include?(KIND[number(t)])
+      GRASS.include?(kind_of(t))
     end
 
     # Surfable water directly at (x,y).

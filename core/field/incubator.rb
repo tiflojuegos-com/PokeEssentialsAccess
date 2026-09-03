@@ -1,6 +1,7 @@
 module PokeAccess
-  # Egg incubator (the Hatcher plugin): a grid of slots, drawn only as graphics. Reads the focused slot
-  # when it changes -- empty, or an egg with a progress hint (species hidden, as on screen).
+  # Slot narration shared by the two incubator plugins in the wild (KYU's Hatcher, and the Incubadora
+  # of opalo and Z): a grid of egg slots drawn only as graphics, read as empty or as an egg with a
+  # progress hint (species hidden, as on screen). The hooks live with each plugin.
   module Incubator
     # The spoken description of the focused incubator slot, or nil.
     def self.text(scene)
@@ -38,10 +39,3 @@ module PokeAccess
     end
   end
 end
-
-# refresh is the whole reader. It runs on every cursor move AND once from the constructor, in all five games
-# that ship this plugin (anil, armonia, awakening, realidea and royal), so it gives the opening read as well -- there is nothing left for a second hook to
-# cover. update is the screen's blocking loop and was bound before it "for the opening read the loop never
-# produces"; the loop does produce it, through the constructor, and that hook only ran announce into its own
-# dedup on every frame of the screen.
-PokeAccess::Hooks.after_hook("Hatcher", :refresh) { |scene, _result, _args| PokeAccess::Incubator.announce(scene) }

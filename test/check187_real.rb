@@ -6,9 +6,10 @@
 # construction: it only ever receives THIS repo's own source files (a dev-machine syntax check, no
 # external input), and the BEGIN throw aborts before any of it runs; 1.8.7 has no ripper/RubyVM
 # alternative, so eval IS the syntax checker here.
-# The MODERN skip list mirrors check187.py's -- keep both in sync.
+# The MODERN skip list mirrors check187.py's -- keep both in sync (spec: las tres derivan del catalogo).
 MODERN = ["games/anil/", "games/royal/", "games/relict/",
-          "games/infinitefusion_hoenn/", "games/infinitefusion/"]
+          "games/infinitefusion_hoenn/", "games/infinitefusion/",
+          "games/emerald/"]
 
 root = (ARGV[0] || File.expand_path(File.join(File.dirname(__FILE__), ".."))).gsub("\\", "/")
 files = Dir[File.join(root, "core", "**", "*.rb")] +
@@ -16,7 +17,7 @@ files = Dir[File.join(root, "core", "**", "*.rb")] +
         # plugins/ is NOT in MODERN and must not be: a third-party plugin can be installed in a gen-6
         # fangame, so its reader has to parse under 1.8.7 like the core does.
         Dir[File.join(root, "plugins", "**", "*.rb")] +
-        Dir[File.join(root, "loader", "*.rb")]
+        Dir[File.join(root, "loader", "**", "*.rb")]
 
 bad = []
 seen = {}
@@ -40,11 +41,14 @@ end
 # a manifest entry the sweep did not reach is precisely the file whose SyntaxError nobody would see.
 missing = []
 mf = File.join(root, "core", "manifest.rb")
-if File.exist?(mf)
-  (eval(File.read(mf)) rescue []).each do |entry|
-    rel = File.join(root, "core", "#{entry}.rb").gsub("\\", "/")
-    missing.push(entry) unless seen[rel]
-  end
+entries = File.exist?(mf) ? (eval(File.read(mf)) rescue nil) : nil
+unless entries.is_a?(Array) && !entries.empty?
+  puts "REAL 1.8.7 SWEEP INCOMPLETE: core/manifest.rb missing or unreadable at #{mf}"
+  exit 1
+end
+entries.each do |entry|
+  rel = File.join(root, "core", "#{entry}.rb").gsub("\\", "/")
+  missing.push(entry) unless seen[rel]
 end
 
 if !missing.empty?

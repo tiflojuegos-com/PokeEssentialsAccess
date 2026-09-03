@@ -31,30 +31,15 @@ module PokeAccess
     # carries on looping: update_button never runs again, so the menu returned in silence with the cursor
     # somewhere the player could no longer hear. Clearing the slot makes the next poll say it again.
     #
-    # Two signals, because the options split in two: the ones that leave the screen come back through
-    # pbFadeOutIn, and the ones that only put up a dialogue -- a cancelled save, a refused checkpoint, the
-    # empty-party notice -- come back through a message box that ends with the ring still on screen. Both are
-    # scoped to the held scene, so they cost nothing when the menu is closed.
+    # MenuReturn covers both kinds of option: the ones that leave the screen come back through pbFadeOutIn,
+    # and the ones that only put up a dialogue -- a cancelled save, a refused checkpoint, the empty-party
+    # notice -- come back through a message box that ends with the ring still on screen. Scoped to the held
+    # scene, so it costs nothing when the menu is closed.
     def self.returned
       PokeAccess::Cursor.reset(@scene, :radial) if @scene
     rescue StandardError
       nil
     end
-
-    @depth = 0
-
-    # Las tres señales anidan: una pbMessage dentro de la pantalla de guardado, un pbFadeOutIn dentro de la
-    # mochila. Solo la SALIDA de la más externa devuelve el anillo al frente; soltar la ranura desde dentro
-    # hace que el poll del frame siguiente cante el botón por encima de la pantalla hija, que es la que el
-    # jugador tiene delante.
-    def self.enter!; @depth += 1; end
-
-    def self.leave!
-      @depth = [@depth - 1, 0].max
-      returned if @depth == 0
-    end
-
-    def self.reset_nesting; @depth = 0; end
   end
 end
 
@@ -66,14 +51,10 @@ PokeAccess::Game.define("relict") do
   # way out. The poll covers both the opening read and the return from a subscreen.
   around("PokemonPauseMenu_Scene", :pickCommand) do |scene, nxt, _a|
     PokeAccess::RelictMenu.watch(scene)
-    PokeAccess::RelictMenu.reset_nesting
+    PokeAccess::MenuReturn.reset_nesting
     begin; nxt.call; ensure; PokeAccess::RelictMenu.unwatch end
-  end
-  %w[pbFadeOutIn pbMessage pbConfirmMessage].each do |fn|
-    kernel(fn, :around) do |_args, nxt|
-      PokeAccess::RelictMenu.enter!
-      begin; nxt.call; ensure; PokeAccess::RelictMenu.leave! end
-    end
   end
   poll_each_frame { PokeAccess::RelictMenu.poll }
 end
+
+PokeAccess::MenuReturn.on_return { PokeAccess::RelictMenu.returned }

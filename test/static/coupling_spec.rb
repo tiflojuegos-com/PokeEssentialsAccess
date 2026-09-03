@@ -1,7 +1,7 @@
 require File.expand_path(File.join(File.dirname(__FILE__), "twins"))
 # Static coupling check (F-L16-003): the architecture rule "no version depends on another" stops being
 # discipline and becomes CI. It maps every second-level module/class/constant of the mod to the layer
-# that DEFINES it (a core version folder gen6/v21/v22/skyflyer, core :shared, or a games/<profile>) and
+# that DEFINES it (a core version folder gen6/v21/v22, core :shared, or a games/<profile>) and
 # then scans every file's code (comments stripped) for cross-layer references. A name also defined in
 # core is owned by core -- a profile reopening Config to set constants is USE, not a definition.
 # Violations: a core version referencing another version's module; a profile referencing another
@@ -10,7 +10,7 @@ require File.expand_path(File.join(File.dirname(__FILE__), "twins"))
 # consciously documenting it here.
 Suite.define("static: no undeclared coupling between versions, profiles, or shared->version") do
   root = File.expand_path("../..", File.dirname(__FILE__))
-  versions = [:gen6, :v21, :v22, :skyflyer]
+  versions = [:gen6, :v21, :v22]
 
   # file => the referencing side may use the named module across layers (reason documented here).
   #
@@ -22,7 +22,7 @@ Suite.define("static: no undeclared coupling between versions, profiles, or shar
 
   layer_of = lambda do |rel|
     if rel =~ %r{\Acore/}
-      rel =~ %r{core/[^/]+/(gen6|v21|v22|skyflyer)/} ? $1.to_sym : :shared
+      rel =~ %r{core/[^/]+/(gen6|v21|v22)/} ? $1.to_sym : :shared
     elsif rel =~ %r{\Aplugins/}
       :plugins
     elsif rel =~ %r{\Agames/([^/]+)/}
@@ -59,6 +59,11 @@ Suite.define("static: no undeclared coupling between versions, profiles, or shar
     from = layer_of.call(rel)
     next unless from
     code = File.read(File.join(root, rel)).gsub(/#(?!\{).*/, "")
+    # String contents are name-coupling, the sanctioned kind (hook targets, Hooks.override): a word inside
+    # a game's _INTL format string is not a constant reference. Only bare identifiers are real edges --
+    # which is why the #{} interpolations survive the strip: a constant inside one is ordinary code.
+    code = code.gsub(/"(?:\\.|[^"\\])*"/) { |m| m.scan(/\#\{([^}]*)\}/).join(" ") }
+    code = code.gsub(/'(?:\\.|[^'\\])*'/, "''")
     code.scan(/\b([A-Z][A-Za-z0-9_]*)\b/).flatten.uniq.each do |id|
       deff = owner[id]
       next if deff.nil? || deff == rel

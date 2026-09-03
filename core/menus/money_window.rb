@@ -10,10 +10,12 @@ module PokeAccess
     clean(t.gsub(/<\/?ar>/i, " ")).gsub(/\s+/, " ").strip
   end
 
-  # Announces a money/coins/battle-points window's contents.
+  # Announces a money/coins/battle-points window's contents. Queued, never interrupting: these windows
+  # open from INSIDE pbMessageDisplay (the \g \cn \pt control codes), milliseconds after the message that
+  # opened them was queued, so an interrupting read cuts the NPC's own sentence to say the amount.
   def self.say_money_window(win)
     t = money_window_text(win)
-    speak(t, true) if t && !t.empty?
+    speak(t, false) if t && !t.empty?
   end
 end
 

@@ -9,5 +9,5 @@
     fusion_preview
     storage_fusion
   ],
-  :plugins => %w[easy_questing multi_save]
+  :plugins => %w[easy_questing multi_save better_region_map]
 }

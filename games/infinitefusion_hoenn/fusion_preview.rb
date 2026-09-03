@@ -81,7 +81,8 @@ module PokeAccess
         if sel.to_i < 0
           PokeAccess::I18n.t(:if_fusion_cancel)
         else
-          describe(side_species(scene, sel.to_i)) || PokeAccess::I18n.t(:if_fusion_unknown)
+          d = describe(side_species(scene, sel.to_i))
+          d || (PokeAccess.ivar(scene, :@poke1) ? PokeAccess::I18n.t(:if_fusion_unknown) : nil)
         end
       end
     rescue StandardError

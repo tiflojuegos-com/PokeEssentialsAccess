@@ -6,7 +6,6 @@
   :modules => %w[
     constants
     pausemenu
-    dexnav
     glossary
     outfits
     compendium
@@ -14,6 +13,7 @@
     fates_screens
     cmoon
     fates_extra
+    achievements
   ],
-  :plugins => %w[easy_questing gender_selection item_crafting logros text_log]
+  :plugins => %w[easy_questing gender_selection item_crafting logros text_log book_scene hatcher simple_encounter_list magic_gachapon]
 }

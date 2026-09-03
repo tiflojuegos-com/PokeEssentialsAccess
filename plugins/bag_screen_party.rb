@@ -41,9 +41,32 @@ module PokeAccess
       return unless pk
       PokeAccess::Info.set_info(:pokemon, pk)
       ann = PokeAccess.ivar(panel, :@text)
-      PokeAccess::UIV21.speak_changed(:party, PokeAccess::UIV21.party_member(pk, ann), i)
+      PokeAccess::UIV21.speak_changed(:party, PokeAccess::UIV21.party_member(pk, ann) + panel_extras(pk), i)
     rescue StandardError
       nil
+    end
+
+    # The panel paints four states beyond the standard party line -- status ailment, held item,
+    # shininess and an active Pokerus infection -- so they travel with the member. Status resolves through Data so both engines' shapes
+    # (gen-6 integer, modern symbol) read right.
+    def self.panel_extras(pk)
+      parts = []
+      st = (pk.status rescue nil)
+      if st && st != 0 && st.to_s != "NONE"
+        sn = (PokeAccess::Data.status_name(st) rescue nil)
+        parts.push(sn) if sn && !sn.to_s.empty?
+      end
+      it = (pk.item_id rescue nil)
+      it = (pk.item rescue nil) if it.nil?
+      if it && it != 0
+        iname = (PokeAccess::Data.item_name(it) rescue nil)
+        parts.push(PokeAccess::I18n.t(:pk_holds, :item => iname)) if iname && !iname.to_s.empty?
+      end
+      parts.push(PokeAccess::I18n.t(:dbk_shiny)) if (pk.shiny? rescue false)
+      parts.push(PokeAccess::I18n.t(:pk_pokerus)) if (pk.pokerusStage rescue 0).to_i == 1
+      parts.empty? ? "" : ", " + parts.join(", ")
+    rescue StandardError
+      ""
     end
   end
 end

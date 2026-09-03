@@ -120,8 +120,8 @@ PATH: the `MODERN` constant, in `check187.py` and `check187_real.rb`, both of th
 
 | Exempt (Ruby 3.x) | Checked (1.8.7) |
 |---|---|
-| any path containing `/v21/`, `/v22/` or `/skyflyer/` | the rest of `core/` and `loader/*.rb` |
-| `games/anil/`, `games/royal/`, `games/relict/`, `games/infinitefusion/`, `games/infinitefusion_hoenn/` | the rest of `games/`, `games/emerald/` included, which is GameData era |
+| any path containing `/v21/` or `/v22/` | the rest of `core/` and `loader/*.rb` |
+| `games/anil/`, `games/royal/`, `games/relict/`, `games/emerald/`, `games/infinitefusion/`, `games/infinitefusion_hoenn/` | the rest of `games/` |
 | | all of `plugins/`: a third-party plugin can be installed in a gen-6 fangame |
 
 ### Banned in dual code

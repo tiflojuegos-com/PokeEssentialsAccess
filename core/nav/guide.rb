@@ -166,6 +166,11 @@ module PokeAccess
       false
     end
 
+    # Drops the remembered jump tile (map change or guide shutdown), so a fresh map cannot inherit it.
+    def self.forget_jump
+      @jump_at = nil
+    end
+
     # Speaks "jump <dir>" once when the next step is a ledge hop, so the player jumps it instead of
     # walking into it. Tracks the tile so it is not repeated on every chime.
     def self.announce_jump_step(d)
@@ -281,3 +286,4 @@ module PokeAccess
     end
   end
 end
+PokeAccess::Caches.register(:guide_jump) { PokeAccess::Guide.forget_jump }

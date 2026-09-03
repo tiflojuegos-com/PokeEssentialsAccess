@@ -90,7 +90,12 @@ PokeAccess::Game.define("infinitefusion_hoenn") do
   after("Questlog", :draw_main_text) { |s, _r, _a| PokeAccess::IF2Quests.category(s) }
   after("Questlog", :switch_button) { |s, _r, _a| PokeAccess::IF2Quests.category(s) }
   after("Questlog", :move_selection) { |s, _r, _a| PokeAccess::IF2Quests.quest(s) }
-  after("Questlog", :show_quest_list) { |s, _r, _a| PokeAccess::IF2Quests.quest(s) }
+  # The list slot is cleared on every open, symmetric to :if2_qcat below: the holder lives for the whole
+  # log and reopening a category lands on last_index, the very row already recorded.
+  after("Questlog", :show_quest_list) do |s, _r, _a|
+    PokeAccess::Cursor.reset(s, :if2_quest)
+    PokeAccess::IF2Quests.quest(s)
+  end
   # Coming back from the list repaints the categories through redraw_main_screen, which is not the method
   # that painted them the first time, and lands on the same index -- so the slot is cleared to place the
   # player again.
@@ -101,4 +106,30 @@ PokeAccess::Game.define("infinitefusion_hoenn") do
   # draw_quest_details is the one point both routes into the brief share: the list's own confirm and the
   # jump the map's "open this quest" takes, which never touches show_quest_detail at all.
   after("Questlog", :draw_quest_details) { |s, _r, a| PokeAccess::IF2Quests.detail(s, a[0]) }
+end
+
+# The map's quest side panel (QuestMapPopup): its own loop over @quests, rows painted as outline text.
+# The header is the game's own "{1} Quests" line through its translator; a main quest is marked only by
+# row art, so the word is mod prose.
+PokeAccess::Game.define("infinitefusion_hoenn") do
+  before("QuestMapPopup", :run) do |s, _a|
+    loc = PokeAccess.ivar(s, :@location_name)
+    t = ((_INTL("{1} Quests", loc) rescue nil) || loc).to_s
+    PokeAccess.speak_clean(t, false) unless t.empty?
+  end
+end
+
+PokeAccess::SceneWatcher.reader("QuestMapPopup", :run, :qmp_row) do |s|
+  quests = PokeAccess.ivar(s, :@quests)
+  idx = PokeAccess.ivar(s, :@index)
+  if quests.is_a?(Array) && idx.is_a?(Integer) && quests[idx]
+    [idx, lambda do
+      q = quests[idx]
+      nm = PokeAccess.clean((q.name rescue "").to_s)
+      nm = "#{nm}, #{PokeAccess::I18n.t(:qmp_main)}" if ((q.type == :MAIN_QUEST) rescue false)
+      PokeAccess::I18n.t(:list_entry, :name => nm, :n => idx + 1, :tot => quests.length)
+    end]
+  else
+    nil
+  end
 end

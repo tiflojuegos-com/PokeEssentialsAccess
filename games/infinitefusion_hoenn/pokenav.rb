@@ -123,9 +123,29 @@ PokeAccess::Game.define("infinitefusion_hoenn") do
     PokeAccess::IF2PokeNav.focus(s)
   end
   after("ContactsAppScene", :pbStartScene, :optional => true) { |s, _r, _a| PokeAccess::IF2PokeNav.focus(s) }
-  # FusionQuizAppScene tambien redefine pbStartScene, asi que la guarda de arriba apaga el lector base y sin
-  # esta linea la app no decia nada al abrirse ni al volver de una ronda: su propio opener es el que sabe
-  # donde ha quedado el cursor.
+  # FusionQuizAppScene redefines pbStartScene too, so the guard above switches the base reader off and without
+  # this line the app said nothing on opening nor on coming back from a round: its own opener is the one that
+  # knows where the cursor ended up.
   after("FusionQuizAppScene", :pbStartScene, :optional => true) { |s, _r, _a| PokeAccess::IF2PokeNav.focus(s) }
   after("PokemonChallenges_Scene", :pbUpdate) { |s, _r, _a| PokeAccess::IF2Challenges.focus(s) }
+end
+
+# The trainer sheet's friendship level exists on screen only as a row of heart icons; spoken as a number.
+PokeAccess::Game.define("infinitefusion_hoenn") do
+  after("ContactsAppInfoPageScene", :showFriendshipIcons, :optional => true) do |scene, _r, _a|
+    n = (PokeAccess.ivar(scene, :@trainer).friendship_level rescue nil)
+    if n
+      PokeAccess::Cursor.announce(scene, :pnav_hearts, n.to_i, false) do
+        PokeAccess::I18n.t(:pnav_friendship, :n => n.to_i)
+      end
+    end
+  end
+end
+
+# pbEndScene repaints the PokeNav header on its way out, with the screen already gone; hushed so the
+# closing paint is not spoken over whatever comes next.
+PokeAccess::Game.define("infinitefusion_hoenn") do
+  around("ContactsAppInfoPageScene", :pbEndScene, :optional => true) do |_s, nxt, _a|
+    PokeAccess::HudText.hushed { nxt.call }
+  end
 end

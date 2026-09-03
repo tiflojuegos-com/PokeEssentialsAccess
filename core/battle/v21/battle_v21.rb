@@ -83,9 +83,9 @@ end
 # pbToggleSpecialActions first and this one a loop iteration later via "cw.mode = newMode", and both
 # interrupt. DBK wins because it knows WHICH mechanic fired, where this one can only say "another mechanic".
 #
-# Y tras anunciar la mecanica se relee el movimiento enfocado, encolado detras de ella: activar Dinamax, un
-# Movimiento Z o la Mega cambia los CUATRO nombres del menu de lucha sin mover el cursor, asi que sin esto
-# el jugador elige a ciegas entre cuatro movimientos que ya no son los que oyo.
+# After announcing the mechanic the focused move is read again, queued behind it: turning on Dynamax, a
+# Z-Move or the Mega changes all FOUR names of the fight menu without moving the cursor, so without this
+# the player picks blind among four moves that are no longer the ones they heard.
 unless PokeAccess::Engine.has?("Battle#pbToggleSpecialActions")
 PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :mode=, :optional => true) do |menu, _r, args|
   if defined?(::Battle::Scene::FightMenu) && menu.is_a?(::Battle::Scene::FightMenu)

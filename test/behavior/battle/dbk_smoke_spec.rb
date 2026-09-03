@@ -1,4 +1,4 @@
-# The four core/battle/skyflyer/dbk_*.rb readers (Deluxe Battle Kit, the battle plugin La Base de Sky
+# The plugins/dbk_*.rb readers (Deluxe Battle Kit, the battle plugin La Base de Sky
 # bundles) had ZERO assertions: nothing in CI ever executed a line of them. They are pure hook bodies --
 # every one binds with :optional => true against a class the test stubs do not have, so they bind nothing
 # at load and stay invisible even to a load error. A typo in any of them is a battle screen that says
@@ -66,14 +66,14 @@ Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on r
       # trusted source files, addressed by absolute path under Harness::ROOT, never any external input. It
       # is what replays a hook registration that ran, and bound nothing, before these classes existed.
       $VERBOSE = nil   # re-evaluating a file re-assigns its constants; that warning is noise here
-      %w[dbk_battle dbk_moveinfo dbk_battlerinfo dbk_selectors].each do |f|
-        path = File.join(Harness::ROOT, "core", "battle", "skyflyer", "#{f}.rb")
+      %w[dbk_battle dbk_enhanced_ui].each do |f|
+        path = File.join(Harness::ROOT, "plugins", "#{f}.rb")
         eval(File.read(path), TOPLEVEL_BINDING, path)
       end
     ensure
       $VERBOSE = verbose
     end
-    truthy "the four DBK files bound to the Sky-shaped classes, none reported as a typo",
+    truthy "the DBK files bound to the Sky-shaped classes, none reported as a typo",
            PokeAccess::Hooks.missing.none? { |m| m =~ /\ABattle(::Scene)?#pb/ }
 
     #--- dbk_battle: the special-mechanic toggle, shown only as an icon in the plugin ---
@@ -94,7 +94,7 @@ Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on r
     battle.pbToggleSpecialActions(0, nil)
     silent "a toggle with no mechanic named says nothing"
 
-    #--- dbk_selectors: the Poke Ball picker (sprite cursor, no command window) ---
+    #--- selectors: the Poke Ball picker (sprite cursor, no command window) ---
     scene = Battle::Scene.new
     items = [[:POKEBALL, 5], [:ULTRABALL, 2]]
     SpeakCapture.clear
@@ -117,7 +117,7 @@ Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on r
     truthy "REOPENING the selector re-reads the index it closed on (the open resets the dedup)",
            SpeakCapture.lines.length == 1
 
-    #--- dbk_selectors: the battler-selection grid ---
+    #--- selectors: the battler-selection grid ---
     mine = mk_battler.call("Sparky", 0, [])
     theirs_near = mk_battler.call("Nearby", 1, [])
     theirs_far = mk_battler.call("Faraway", 3, [])
@@ -145,7 +145,7 @@ Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on r
     scene.pbUpdateBattlerSelection(1, 5, true)
     silent "a cell with no battler behind it reads nothing"
 
-    #--- dbk_battlerinfo: the battler detail overlay (summary + focused effect) ---
+    #--- battler info: the battler detail overlay (summary + focused effect) ---
     effects = [["Drenadoras", "3", "Roba PS cada turno"], ["Toxico", "--", "Dano creciente"]]
     scene.instance_variable_set(:@enhancedUIToggle, :battler)
     SpeakCapture.clear
@@ -176,7 +176,7 @@ Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on r
     scene.pbUpdateBattlerInfo(mine, effects, 0)
     spoke "REOPENING on the very same battler reads again (closing reset the dedup)", rx.call("Sparky")
 
-    #--- dbk_moveinfo: the move-detail overlay over the fight menu ---
+    #--- move info: the move-detail overlay over the fight menu ---
     bolt = mk_move.call("Rayo", 90, 100, 0)
     swap = mk_move.call("Cambio", 0, 0, 2)
     fighter = mk_battler.call("Sparky", 0, [bolt, swap])

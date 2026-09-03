@@ -15,19 +15,23 @@ module PokeAccess
     LAYOUT = /<\s*\/?\s*(?:r|br)\s*\/?\s*>/i
     LINE = /\A(?:x|\303\227)\s*(\d+)(?:(?:\s*\$\s*|\s+)([\d.,]+)(?:\s*([A-Za-z]{1,3}))?)?\s*\z/
 
-    # Suelta la ultima cantidad dicha, para que reabrir el mismo aviso con el mismo importe vuelva a
-    # hablar. El dedup es de MODULO -- estas ventanas de texto son de usar y tirar, no hay instancia donde
-    # colgarlo -- asi que sin este reset una cantidad repetida (cancelar y volver a entrar en el mismo
-    # objeto, que es el gesto normal al comparar precios) entra en silencio.
+    # Drops the last amount spoken, so reopening the same prompt with the same amount speaks again. The
+    # dedup is MODULE-wide -- these text windows are throwaways, there is no instance to hang it on -- so
+    # without this reset a repeated amount (cancel and re-enter on the same item, the normal gesture when
+    # comparing prices) comes in silent.
     def self.forget; @last = nil; end
 
-    def self.on_text(raw)
+    # param win the text window the amount was painted into: its identity joins the dedup key, because
+    # every quantity prompt builds a FRESH window (UIHelper.pbChooseNumber, the marts) -- so reopening a
+    # prompt on the same item speaks again, while the same window re-asserting its text stays deduped.
+    # The window itself is held, not its id: 1.8.7 recycles object ids once the old window is collected.
+    def self.on_text(win, raw)
       t = PokeAccess.clean(raw.to_s.gsub(LAYOUT, " ")).to_s.strip
       return unless t =~ LINE
       amount = $1.to_i; price = $2; unit = $3
       price = price.gsub(/[.,]/, "") if price
-      return if t == @last
-      @last = t
+      return if @last && @last[0].equal?(win) && @last[1] == t
+      @last = [win, t]
       msg = amount.to_s
       if price
         msg += ", " + (unit ? "#{price.to_i} #{unit}" :
@@ -87,8 +91,8 @@ module PokeAccess
 end
 
 ["Window_UnformattedTextPokemon", "Window_AdvancedTextPokemon"].each do |cn|
-  PokeAccess::Hooks.after_hook(cn, :text=) do |_w, _r, args|
-    PokeAccess::NumberEntry.on_text(args[0])
+  PokeAccess::Hooks.after_hook(cn, :text=) do |w, _r, args|
+    PokeAccess::NumberEntry.on_text(w, args[0])
   end
 end
 
@@ -98,8 +102,8 @@ PokeAccess::Hooks.after_hook("Window_InputNumberPokemon", :update) do |win, _r, 
   PokeAccess::NumberEntry.on_digit_window(win) if (win.active rescue false)
 end
 
-# Cada aviso de cantidad construye su propio selector, asi que su nacimiento es el limite entre un aviso y
-# el siguiente: es donde se olvida la cantidad dicha la vez anterior.
+# Every quantity prompt builds its own selector, so its birth is the boundary between one prompt and the
+# next: that is where the amount spoken last time is forgotten.
 PokeAccess::Hooks.after_hook("Window_InputNumberPokemon", :initialize) do |_w, _r, _a|
   PokeAccess::NumberEntry.forget
 end

@@ -219,7 +219,7 @@ cuenta por qué calló cada frame y `gate_report` lo resume para el diagnóstico
 | `audio3d_water` / `audio3d_wind` | 70 / 55 | 0-100, paso 10 | Volumen de los bucles |
 | `footstep_volume` / `wall_volume` / `event_volume` | 80 / 80 / 70 | 0-100, paso 10 | Pasos, choques y chime de guía |
 | `audio3d_freq_npc` / `_object` / `_door` / `guide_freq` | 70 / 70 / 70 / 55 | 0-100, paso 10 | Cadencia de los pings y del chime |
-| `audio3d_occlusion` | `:occlude` | `:hear` / `:occlude` / `:hide` | Emisor tras pared (raycast `line_clear?`): igual, atenuado 80 de 100, u oculto |
+| `audio3d_occlusion` | `:hide` | `:hear` / `:occlude` / `:hide` | Emisor tras pared (raycast `line_clear?`): igual, atenuado 80 de 100, u oculto |
 | `audio3d_air` | off | on/off | Absorción del aire |
 | `audio3d_wall_range` / `_wall_falloff` | 3 / 50 | 1-20 casillas; 0-100, paso 10 | Sondeo de paredes y caída del viento, `v = vol / dist ** (falloff / 50.0)` |
 | `audio3d_desk_range` | 2 | 0-3 casillas | Mostradores de servicio audibles en modo `:hide`; 0 lo apaga |

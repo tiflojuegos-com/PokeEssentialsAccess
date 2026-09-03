@@ -59,8 +59,7 @@ module PokeAccess
       return unless xy
       t = PokeAccess::Cursor.on_change(scene, :better_map, xy) { square_text(scene, xy[0], xy[1]) }
       return if t.nil? || t.empty?
-      PokeAccess.speak(t, true)
-      PokeAccess::Cursor.changed?(nil, :regionmap, PokeAccess.clean(t))
+      PokeAccess::RegionMap.speak_marked(t)
     rescue StandardError
       nil
     end

@@ -28,6 +28,21 @@
   :regicode          => "RC",
   :rse_starters      => "RSESTarterChoice",
   :hgss_dexlist      => "PokedexListSprite",
+  :summary_habilidades => "PokemonSummaryScene#Habilidades",
+  :book_scene        => "BookScene",
+  :bag_search_entry  => "WindowTextEntryKeyboardPerKey",
+  # A METHOD probe on an engine class: the fork adds favourite? to the bag every game has.
+  :sky_bag           => "PokemonBag#favourite?",
+  :pokegear_themes   => "PokemonPokegearTheme_Scene",
+  :hatcher           => "Hatcher",
+  :better_region_map => "BetterRegionMap",
+  :dp_pausemenu      => "DP_PauseMenu",
+  :simple_encounter_list => "EncounterListUI",
+  :magic_gachapon    => "GachaScene",
+  # The DBK files hook vanilla battle classes with :optional gates, so each probes the METHOD the kit
+  # adds there -- the class alone would match every modern game.
+  :dbk_battle        => "Battle#pbToggleSpecialActions",
+  :dbk_enhanced_ui   => "Battle::Scene#pbUpdateBattlerInfo",
   :quest_ui          => "Window_Quest",
   :logros            => "Logros_Scene",
   # A METHOD probe, and it has to be: one more game defines a class called Questlog for a quest system of

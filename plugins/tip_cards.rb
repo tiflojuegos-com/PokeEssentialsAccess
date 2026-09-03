@@ -30,6 +30,14 @@ module PokeAccess
     nil
   end
 
+  # Holds the grouped browser while its loop runs, so the group-list popup below can tell it is being
+  # called from inside this screen and not from an ordinary dialogue choice.
+  module TipCards
+    def self.group_on(s); @group = s; end
+    def self.group_off; @group = nil; end
+    def self.group_scene; @group; end
+  end
+
   # The spoken title of the focused tip-card GROUP (the grouped browser), or nil.
   def self.tip_group_title(scene)
     groups = PokeAccess.ivar(scene, :@groups)
@@ -63,6 +71,29 @@ PokeAccess::Hooks.after_hook("TipCardGroups_Scene", :pbDrawTip, :optional => tru
   c = PokeAccess.tip_card_text(scene)
   parts.push(c) if c && !c.to_s.empty?
   PokeAccess.speak(parts.join(". "), true) unless parts.empty?
+end
+
+# The SPECIAL group-list popup goes through the global pbShowCommands, and when the player picks the group
+# they were already in, the screen redraws nothing at all -- no pbDrawGroup, no pbDrawTip, no sound. The
+# card is re-read as the popup closes so the return to it is audible; a changed group speaks right after
+# through the pbDrawTip hook, interrupting, and a same-group pick has only this line.
+PokeAccess::Hooks.around_hook("TipCardGroups_Scene", :pbScene, :optional => true) do |scene, nxt, _a|
+  PokeAccess::TipCards.group_on(scene)
+  begin
+    nxt.call
+  ensure
+    PokeAccess::TipCards.group_off
+  end
+end
+
+PokeAccess::Hooks.wrap_kernel("pbShowCommands", "hook_tipcards_grouplist", :around) do |_args, nxt|
+  ret = nxt.call
+  scene = PokeAccess::TipCards.group_scene
+  if scene
+    t = PokeAccess.tip_card_text(scene)
+    PokeAccess.speak(t, true) if t && !t.to_s.empty?
+  end
+  ret
 end
 
 # Tip-card group MENU (TipMenu_Scene): the screen you pick a group from. pbRedrawList redraws the focused

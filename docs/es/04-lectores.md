@@ -47,7 +47,7 @@ t = PokeAccess::I18n.t(:bt_state, :name => b.name, :level => b.level, :hp => hp)
 está, devuelve **el nombre de la clave**: el hueco se oye pero nunca peta. Una variable ausente interpola
 cadena vacía.
 
-**Una clave nueva va a `lang/es.txt` Y a `lang/en.txt`.** Dos checks estáticos lo obligan:
+**Una clave nueva va a los SEIS ficheros de `lang/` (`es`, `en`, `fr`, `pt`, `de`, `pl`).** Dos checks estáticos lo obligan:
 
 | Test | Qué exige |
 |---|---|
@@ -88,6 +88,12 @@ a nivel de módulo la dejaría muda. El `slot` separa a dos lectores que compart
 un índice, un texto o una tupla (`[página, índice]`); deduplicar por el TEXTO cubre la pantalla que cambia
 lo que muestra sin mover el índice. Con `holder` `nil` se cae a una tabla de módulo, solo para lectores sin
 instancia donde colgarse.
+
+**La regla del holder**: el objeto del que cuelga el slot debe vivir lo mismo que la pantalla que el
+lector sirve, ni más ni menos. Una escena que hospeda subpantallas (la Pokédex con su búsqueda, el PC con
+su menú de comandos, el combate con sus paneles) las **sobrevive**, y un slot colgado de ella hereda la
+clave de la visita anterior: la subpantalla reabre muda. En ese caso, `reset(holder, slot)` en el hook de
+(re)entrada de la subpantalla es parte del lector, no un remate opcional.
 
 ## La Data API
 

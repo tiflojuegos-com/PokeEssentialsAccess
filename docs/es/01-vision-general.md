@@ -10,11 +10,11 @@ como estaba.
 
 | | |
 |---|---|
-| Módulos de core | 129, en `core/manifest.rb` |
+| Módulos de core | 126, en `core/manifest.rb` |
 | Perfiles de juego | 14, en `games/` |
-| Lectores de plugin | 29, en `plugins/` |
-| Idiomas | `lang/es.txt`, `lang/en.txt` |
-| Suite | 1600 (gen-6, estáticos incluidos) + 137 (gamedata) |
+| Lectores de plugin | 41, en `plugins/` |
+| Idiomas | 6 (`es`, `en`, `fr`, `pt`, `de`, `pl`), en `lang/` |
+| Suite | 1790 (gen-6, estáticos incluidos) + 137 (gamedata) |
 | Ruby | 1.8.7 en el juego; el del sistema en los tests |
 
 ## Capas
@@ -26,7 +26,7 @@ como estaba.
 | `games/<perfil>/` | Código de un fangame concreto | No referencia otros perfiles |
 
 Dentro de `core/` el layout es **módulo primero**: `core/<módulo>/` con los lectores agnósticos y subcarpetas
-`gen6/`, `v21/`, `v22/`, `skyflyer/` solo para lo que difiere por era. Lo compartido por varias eras va a la
+`gen6/`, `v21/`, `v22/` solo para lo que difiere por era. Lo compartido por varias eras va a la
 raíz del módulo.
 
 Módulos: `audio`, `battle`, `data`, `dialogue`, `field`, `foundation`, `input`, `menus`, `nav`, `party`,
@@ -73,7 +73,7 @@ apunta en el log y se salta: una instalación a medias cuesta una pantalla, no e
 | Saber qué motor corre | `core/foundation/engine.rb` | [02-motores](02-motores.md) |
 | Introspección defensiva | `core/foundation/const.rb` | [08-referencia](08-referencia.md) |
 | Evitar lecturas repetidas | `core/menus/cursor.rb` | [04-lectores](04-lectores.md) |
-| Texto hablado | `lang/es.txt`, `lang/en.txt` | [05-extender](05-extender.md) |
+| Texto hablado | los seis `lang/*.txt` | [05-extender](05-extender.md) |
 | Rutas y sonar | `core/nav/`, `core/audio/` | [06-navegacion](06-navegacion.md) |
 | Diagnosticar un fallo | `core/input/diag.rb` | [07-diagnostico](07-diagnostico.md) |
 
@@ -93,8 +93,8 @@ ruby test/run_all.rb                    # los dos motores + checks estáticos
 ruby test/run_all.rb behavior/battle    # filtra por fragmento de ruta
 ```
 
-Los checks estáticos cubren integridad del manifiesto, paridad de claves entre `lang/es.txt` y
-`lang/en.txt`, compatibilidad con Ruby 1.8.7, acoplamiento entre capas y consistencia de `plugins/`.
+Los checks estáticos cubren integridad del manifiesto, paridad de claves entre los seis ficheros de
+`lang/`, compatibilidad con Ruby 1.8.7, acoplamiento entre capas y consistencia de `plugins/`.
 
 ## Instalar
 

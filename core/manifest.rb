@@ -8,8 +8,6 @@
 #   <module>/gen6/     the gen-6 era (Ruby 1.8.7: PokeBattle_Scene, PScreen, PB* data)
 #   <module>/v21/      GameData-era Essentials v19-v21.1 (Battle::Scene, GameData, the pre-rework scenes/MUI)
 #   <module>/v22/      the v22 UI:: rework (UI::BaseScreen / UI::*Visuals)
-#   <module>/skyflyer/ classes specific to La Base de Sky's fork and its bundled plugins (DBK, the
-#                      egg-move tutor...) that are not in vanilla Essentials
 # Everything directly under core/<module>/ stays universal: framework, nav/audio, cross-engine adapters.
 %w[
   foundation/config
@@ -23,6 +21,7 @@
   util/player
   foundation/game
   foundation/engine
+  foundation/game_lang
   foundation/settings
   foundation/events
   foundation/caches
@@ -38,6 +37,7 @@
   speech/text
   speech/speech
   input/hooks
+  util/paint_capture
   input/keyboard
   input/focus
   input/remap
@@ -53,15 +53,13 @@
   field/field_states
   field/minigames
   puzzles/puzzles
-  field/incubator
   field/location_banner
   menus/cursor
   menus/menus
   menus/scene_watcher
-  menus/dp_pausemenu
+  menus/menu_return
   menus/neo_pausemenu
   menus/ready_menu
-  menus/skyflyer/pokegear_theme
   menus/screen_messages
   menus/command_help
   menus/character_creator
@@ -82,10 +80,6 @@
   battle/gen6/battle_g6
   battle/v21/battle_v21
   battle/v22/battle_v22
-  battle/skyflyer/dbk_battle
-  battle/skyflyer/dbk_moveinfo
-  battle/skyflyer/dbk_battlerinfo
-  battle/skyflyer/dbk_selectors
   battle/pokedex
   menus/pokedex_entry
   battle/v21/pokedex_info_v21
@@ -97,6 +91,7 @@
   menus/v21/move_relearner_v21
   menus/gen6/move_relearner_g6
   field/hall_of_fame
+  field/incubator
   menus/v21/pausemenu_v21
   party/summary_gamedata
   party/v21/summary_v21
@@ -120,6 +115,7 @@
   party/gen6/party_g6
   party/v21/party_v21_pause
   menus/load
+  menus/save_panel
   field/berry
   nav/locator_naming
   nav/locator_surfaces
@@ -127,7 +123,6 @@
   party/gen6/summary_g6
   nav/region_map
   nav/town_map
-  nav/better_region_map
   nav/locator
   nav/guide
   nav/pathfinder
@@ -135,10 +130,10 @@
   field/mail
   field/fishing
   field/phone
-  field/book
   field/itemfinder
   menus/money_window
   menus/uihelper
   util/recorder
+  util/selfcheck
   util/silence
 ]

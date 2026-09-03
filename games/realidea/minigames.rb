@@ -58,10 +58,17 @@ module PokeAccess
       nil
     end
 
-    # Parfait: pick ingredients against a filling bar. @barra is the progress (it grows by 30 per correct
-    # pick and the round ends at 300), so the reader reports how full it is rather than trying to name the
-    # icons, which are pictures the game swaps with sacaricono.
+    # Parfait: pick ingredients against a filling bar. The column is the only thing the player controls
+    # (@cursor 0..2, LEFT/RIGHT, the same shape as the berry twin below), so it is read on every move;
+    # @barra is the progress (it grows by 30 per correct pick and the round ends at 300), reported when it
+    # fills rather than naming the icons, which are pictures the game swaps with sacaricono.
     def self.postres(scene)
+      cur = PokeAccess.ivar(scene, :@cursor)
+      if cur.is_a?(Integer)
+        PokeAccess::Cursor.announce(scene, :rea_postre_col, cur, true) do
+          PokeAccess::I18n.t(:rea_col, :n => cur + 1)
+        end
+      end
       bar = PokeAccess.ivar(scene, :@barra)
       return if bar.nil? || PokeAccess.ivar(scene, :@pa_barra) == bar
       scene.instance_variable_set(:@pa_barra, bar)

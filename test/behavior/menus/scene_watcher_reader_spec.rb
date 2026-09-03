@@ -56,6 +56,22 @@ Suite.define("scene_watcher: reader dedups by key, speaks on change, resets on r
   holder.poll
   spoke "a change after a muted key speaks again", /item 2/
 
+  # Text that lands a frame after the key: the un-burn contract. Without it the empty frame consumed the
+  # key and the row stayed mute until the cursor moved somewhere else and back.
+  SpeakCapture.clear
+  scene.instance_variable_set(:@v, :late)
+  scene.instance_variable_set(:@late_text, nil)
+  late = PokeAccess::SceneWatcher.reader("SwLateNoSuchScene_pa", :main, :sw_late) do |s|
+    [s.instance_variable_get(:@v), s.instance_variable_get(:@late_text).to_s]
+  end
+  late.watch(scene)
+  late.poll
+  silent "an empty-text frame stays silent"
+  scene.instance_variable_set(:@late_text, "late row")
+  late.poll
+  spoke "the SAME key speaks once its text arrives", /late row/
+  late.unwatch
+
   SpeakCapture.clear
   holder.unwatch
   scene.instance_variable_set(:@v, 3)
@@ -119,6 +135,6 @@ Suite.define("scene watcher: text that costs something is only built when it wil
   SpeakCapture.clear
   boom.poll
   silent "a raising callable does not speak and does not take the loop down"
-  truthy "but it is recorded", logged.call("scene_watcher_sw_lazy_boom")
+  truthy "but it is recorded", logged.call("cursor_sw_lazy_boom")
   boom.unwatch
 end

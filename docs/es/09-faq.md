@@ -21,7 +21,7 @@ mismo plugin sale en varios juegos.
 3. Una entrada en `games/catalog.json` con su `detect` (regex contra el nombre de la carpeta del juego).
    **Cuidado**: `generic` tiene que seguir siendo el ÚLTIMO, porque es el comodín; si lo adelantas, se come
    a los demás.
-4. Los textos hablados nuevos, en `lang/es.txt` **y** `lang/en.txt`. Hay un test que falla si falta una
+4. Los textos hablados nuevos, en los seis ficheros de `lang/`. Hay un test que falla si falta una
    clave en uno de los dos.
 
 Detalle: los perfiles pueden llevar literales en español a pelo, porque los fangames que cubrimos son solo

@@ -279,7 +279,9 @@ module PokeAccess
     # The one installer behind wrap_global and wrap_kernel: defines the wrapper for sym on receiver and
     # delegates to the ali alias. :before and :after bodies chain, each swallowed and logged once, because a
     # reader bug must not crash the game's function. :around gets (args, call_next), keeps control and is
-    # NOT swallowed, the same contract as around_hook. Only the FIRST :around runs.
+    # NOT swallowed, the same contract as around_hook; several :around bodies nest like the class hooks do,
+    # the first registered outermost (a shared return signal and a game's own frame on the same function
+    # both have to run -- when only the first ran, awakening's CMoon hub lost its frame for two screens).
     #
     # The :after bodies sit in an ensure because these functions are given BLOCKS, and a `return` inside the
     # caller's block unwinds straight through this wrapper. Menus written as `pbFadeOutIn { ...; return }`
@@ -293,7 +295,12 @@ module PokeAccess
           around = PokeAccess::Hooks.fn_bodies["#{name}|around"]
           if around && !around.empty?
             begin
-              r = around[0].call(args, lambda { send(ali, *args, &blk) })
+              call = lambda { send(ali, *args, &blk) }
+              around.reverse_each do |w|
+                nxt = call
+                call = lambda { w.call(args, nxt) }
+              end
+              r = call.call
             rescue StandardError => e
               PokeAccess::Hooks.log_body_failure("fn #{tag}", e)
               raise e

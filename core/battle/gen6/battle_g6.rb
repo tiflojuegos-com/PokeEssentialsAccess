@@ -135,8 +135,12 @@ end
 # inside Scene_Map, so the scene checks never fire for a wild encounter. pbBattleAnimation wraps the whole
 # fight, wild and trainer alike, so an around wrap holds the flag for its duration and clears it however it
 # ends. No-op where the function is absent.
+# Audio3D is suspended HERE as well as on the engine flag: the wild battle runs inside Game_Player#update,
+# so tick -- the other silencer -- never gets another frame, and the looping channels (water, the winds)
+# would keep sounding under the battle music for the whole fight.
 PokeAccess::Hooks.wrap_kernel("pbBattleAnimation", "hook_battle_sonar", :around) do |args, call_next|
   PokeAccess::Battle.battle_started
+  (PokeAccess::Audio3D.suspend rescue nil)
   begin
     call_next.call
   ensure

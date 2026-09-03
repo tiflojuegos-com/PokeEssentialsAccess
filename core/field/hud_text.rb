@@ -17,9 +17,10 @@ module PokeAccess
     @shown = []
     @batch = []
 
-    # Starts a new pass: what the last one wrote becomes what is on screen.
+    # Starts a new pass: what the last one wrote becomes what is on screen -- INCLUDING an empty write.
+    # An empty pass means the HUD went blank, so whatever paints after it is new to the player.
     def self.cleared
-      @shown = @batch unless @batch.empty?
+      @shown = @batch
       @batch = []
     end
 
@@ -31,7 +32,17 @@ module PokeAccess
     # Speaks a HUD label the first time this pass writes it, unless the previous pass had it too. Blank and
     # purely decorative strings are dropped, and the text goes through the shared cleaner so colour codes are
     # not spelled out.
+    # Mutes say for the block: a screen whose closing repaint reaches the HUD after it is gone wraps that
+    # paint here. Counted, so a nested hush releases only when the outermost block ends.
+    def self.hushed
+      @hush = @hush.to_i + 1
+      yield
+    ensure
+      @hush = @hush.to_i - 1
+    end
+
     def self.say(msg)
+      return if @hush.to_i > 0
       t = PokeAccess.clean(msg.to_s)
       return if t.nil? || t.strip.empty?
       return if @batch.include?(t)

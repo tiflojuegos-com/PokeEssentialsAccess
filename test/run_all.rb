@@ -46,6 +46,27 @@ if FILTER
   puts "[#{ENGINE}] filter matches no specs for this engine (nothing to run)" if specs.empty?
 end
 
+# The committed census is the sweep's floor: a glob that stops matching -- a renamed folder, a moved spec,
+# a typo in a filename -- must fail loudly here instead of shrinking the suite while every remaining spec
+# still passes. Regenerate with: ruby test/static/build_reader_census.rb
+if ENGINE == :gen6
+  census_path = File.join(testdir, "static", "spec_census.txt")
+  unless File.exist?(census_path)
+    puts "[gen6] SPEC CENSUS MISSING: test/static/spec_census.txt (ruby test/static/build_reader_census.rb)"
+    exit 1
+  end
+  census = File.read(census_path).split("\n").map { |l| l.strip }.reject { |l| l.empty? || l[0, 1] == "#" }
+  found = specs_all.map { |p| p[(testdir.length + 1)..-1].tr("\\", "/") }.sort
+  census_missing = census - found
+  census_extra = found - census
+  unless census_missing.empty? && census_extra.empty?
+    puts "[gen6] SPEC CENSUS MISMATCH (ruby test/static/build_reader_census.rb):"
+    census_missing.first(10).each { |m| puts "  censused but not on disk: #{m}" }
+    census_extra.first(10).each { |m| puts "  on disk but not censused: #{m}" }
+    exit 1
+  end
+end
+
 Assert.pass = 0; Assert.fail = 0; Assert.failures = []
 
 # Loading a spec runs its top-level code (requires, target class/method setup). A failure there -- a renamed
@@ -64,10 +85,8 @@ specs.each do |f|
   end
 end
 
-# A suite that asserts NOTHING (an early return, a helper that stopped registering asserts) prints the same
-# "ok" as one that verified twenty things, so silent coverage loss looks like success. Counting
-# the asserts it added names it -- a warning, not a failure: a suite may legitimately be a no-op on an
-# engine, and the run should say so rather than break.
+# A suite that asserts NOTHING (an early return, a helper that stopped registering asserts) is a
+# FAILURE, named as such: silent coverage loss must not print the same "ok" as verified work.
 Suite.all.each do |name, body|
   Reset.between_suites
   Assert.suite = name
@@ -80,7 +99,11 @@ Suite.all.each do |name, body|
   end
   added_fail = Assert.fail - before
   added = (Assert.pass - before_pass) + added_fail
-  status = added_fail > 0 ? "FAIL(#{added_fail})" : (added == 0 ? "ok(0 asserts!)" : "ok")
+  if added == 0 && added_fail == 0
+    Assert.check("la suite asevera algo", false, "0 asserts: un cuerpo que no comprueba nada")
+    added_fail = Assert.fail - before
+  end
+  status = added_fail > 0 ? "FAIL(#{added_fail})" : "ok"
   puts "  #{status}  #{name}"
 end
 

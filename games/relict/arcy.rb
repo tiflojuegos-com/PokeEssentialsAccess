@@ -21,9 +21,9 @@ module PokeAccess
     # Announces the plate being handed over and what it does. The screen draws its description twice -- first
     # in the Unown font, then translated -- into a bitmap, so nothing reached the reader; the text itself
     # comes from the scene's own pick_plate_descriptions, which is what it paints.
-    # La descripcion solo si la pantalla la TRADUCE. Con @translate a false la unica pasada que se dibuja
-    # es la de la fuente Unown, que es precisamente el texto que el guion dice que nadie sabe leer todavia:
-    # leerlo en claro adelanta la entrega entera. El nombre de la Losa si se dice, que eso si se ve.
+    # The description only when the screen TRANSLATES it. With @translate false the only pass drawn is the
+    # Unown-font one, which is precisely the text the script says nobody can read yet: reading it in the
+    # clear gives the whole delivery away. The Plate's name is said, since that much is visible.
     def self.plate(scene, plate)
       translated = PokeAccess.ivar(scene, :@translate)
       desc = translated ? (scene.pick_plate_descriptions(plate) rescue nil) : nil

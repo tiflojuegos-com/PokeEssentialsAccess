@@ -73,6 +73,8 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("realidea") do
-  after("Pesca", :input) { |s, _r, _a| PokeAccess::RealideaStory.pesca(s) }
+  # hook_container: at zero enemy HP input opens the whole ball-choosing bag screen from inside, so an
+  # atomic guard would discard every reader hook nested under it.
+  after("Pesca", :input, :hook_container => true) { |s, _r, _a| PokeAccess::RealideaStory.pesca(s) }
   after("Mankey", :inputs) { |s, _r, _a| PokeAccess::RealideaStory.mankey(s) }
 end

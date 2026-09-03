@@ -8,5 +8,5 @@
     dexnav
     starter_select
   ],
-  :plugins => %w[gender_selection]
+  :plugins => %w[gender_selection summary_habilidades hatcher]
 }

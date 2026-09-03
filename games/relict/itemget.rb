@@ -39,9 +39,9 @@ PokeAccess::Game.define("relict") do
   # and pbItemBall falls back to the engine's own message when it is Default (FAST_PICK_ITEM_ACTIVE == 0).
   # Speaking unconditionally would then announce the pickup twice for anyone who chose Default. Unknown or
   # missing constant means the addon's own default, Instant, so the line is spoken.
-  # Around y no before: pbItemBall devuelve true solo si $bag.add pudo meterlo, y anunciar antes afirmaba
-  # una obtencion que con la mochila llena no ocurre -- y encima duplicaba el aviso que el propio juego
-  # imprime al rechazarla. Se dice despues, y solo si de verdad se recogio.
+  # Around and not before: pbItemBall returns true only if $bag.add could take it, and announcing beforehand
+  # claimed a pickup that does not happen with a full bag -- and doubled the notice the game itself prints
+  # when refusing it. Spoken afterwards, and only if it was really picked up.
   kernel("pbItemBall", :around) do |args, nxt|
     got = nxt.call
     PokeAccess::RelictItemGet.say(args[0], args[1]) if got && (FAST_PICK_ITEM_ACTIVE rescue 1) != 0

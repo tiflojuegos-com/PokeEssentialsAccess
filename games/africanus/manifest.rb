@@ -4,6 +4,7 @@
     constants
     pausemenu
     minigames
+    tablas
   ],
   :plugins => %w[easy_questing logros]
 }

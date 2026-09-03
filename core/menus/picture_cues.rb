@@ -2,9 +2,17 @@ module PokeAccess
   # Picture-based screens with no readable text. Games register picture-name => text in TEXTS (read when
   # shown), and/or observer procs via register (for screens whose selection is not a single highlighted
   # picture). Skips the immediate duplicate the engine may re-show.
+  #
+  # A value may instead be a hash of build language => transcription, for a game shipped as several
+  # per-language builds that paint different words into the same picture file; GameLang picks the one the
+  # running build shows. These are TRANSCRIPTIONS of what is on screen, not mod prose, so they follow the
+  # build and never the reader's language setting.
   module PictureCues
     TEXTS = {}
     HANDLERS = []
+    # The language each game's picture strings were authored in, by profile, for the fallback when a build
+    # declares a language nobody transcribed.
+    BASE_LANG = {}
 
     # Registers an observer called as (name, show_args) on every picture shown.
     def self.register(&blk); HANDLERS.push(blk); end
@@ -31,7 +39,8 @@ module PokeAccess
       t = TEXTS[n]
       if t && n != @last
         @last = n
-        PokeAccess.speak(PokeAccess::I18n.t(t), true)
+        t = PokeAccess::GameLang.pick(t, BASE_LANG[n] || :es) if t.is_a?(Hash)
+        PokeAccess.speak(PokeAccess::I18n.t(t), true) if t
       end
       HANDLERS.each { |h| (h.call(n, args) rescue nil) }
     end

@@ -50,3 +50,13 @@ end
 PokeAccess::Game.define("awakening") do
   after("EVReorganizeScene", :drawScreen) { |s, _r, _a| PokeAccess::AwakeningExtras.evs(s) }
 end
+
+# The summary's extra Info page (drawInfo: ability name and description plus the held item's), painted
+# inside its own blocking loop; the paint lands at entry and the frame poll inside that loop flushes it,
+# so the words are this build's own.
+PokeAccess::Game.define("awakening") do
+  before("PokemonSummary_Scene", :drawInfo, :optional => true) do |_s, _a|
+    PokeAccess::PaintCapture.arm(:awk_suminfo)
+  end
+  poll_each_frame { PokeAccess::PaintCapture.flush_pending(:awk_suminfo, false) }
+end

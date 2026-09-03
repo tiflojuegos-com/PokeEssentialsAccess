@@ -49,9 +49,20 @@ Suite.define("config menu: cyclers and clamps") do
   eq "guide_refresh clamps at 10", PokeAccess::Config.guide_refresh, 10
   PokeAccess::Config.guide_refresh = 4
 
+  # The language toggle is data-driven off lang/*.txt, so this walks whatever ships instead of pinning
+  # two names: every language is visited exactly once and the cycle wraps. The floor pins the six that
+  # ship today (es, en, fr, pt, de, pl) so a lost file fails loudly.
+  langs = PokeAccess::I18n.available_languages
+  truthy "at least the six shipped languages are discovered", langs.length >= 6
   PokeAccess::Config.language = :es
-  PokeAccess::ConfigMenu.adjust_setting(PokeAccess::Config.schema_row(:language), 1)
-  eq "language toggles to en", PokeAccess::Config.language, :en
+  seen = []
+  langs.length.times do
+    PokeAccess::ConfigMenu.adjust_setting(PokeAccess::Config.schema_row(:language), 1)
+    seen.push(PokeAccess::Config.language)
+  end
+  eq "the toggle visits every shipped language once and wraps to the start",
+     seen.map { |c| c.to_s }.sort, langs.map { |c| c.to_s }.sort
+  eq "and a full lap lands back on the starting language", PokeAccess::Config.language, :es
   PokeAccess::Config.language = :es
 end
 

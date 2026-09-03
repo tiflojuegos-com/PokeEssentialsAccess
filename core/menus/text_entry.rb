@@ -118,3 +118,11 @@ PokeAccess::Hooks.after_hook("PokemonEntryScene2", :pbUpdate) do |scene, _r, _a|
   (PokeAccess::Keys.typing! rescue nil)
   PokeAccess::CursorNaming.poll(scene)
 end
+
+# The naming screen's help caption ("What is this Pokemon's nickname?"), painted once by pbStartScene and
+# never voiced. Captured on open, so it says whatever this build says.
+["PokemonEntryScene", "PokemonEntryScene2"].each do |cn|
+  PokeAccess::Hooks.around_hook(cn, :pbStartScene, :optional => true) do |_s, nxt, _a|
+    PokeAccess::PaintCapture.speak_around(:entry_caption, false) { nxt.call }
+  end
+end

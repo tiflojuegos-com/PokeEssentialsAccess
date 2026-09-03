@@ -49,15 +49,18 @@ module PokeAccess
       nil
     end
 
-    # Assembles "name. type. power. accuracy[. pp][. description]" from already-resolved parts. Options:
-    # :pp and :total_pp (both required to speak pp), :desc (appended when present and non-blank). A nil
-    # power/accuracy means UNRESOLVED and omits its phrase -- only a real 0 speaks "no damage"/"never
-    # misses"; callers with partial data stay honest instead of guessing.
+    # Assembles "name. type. power. accuracy[. category][. pp][. description]" from already-resolved parts.
+    # Options: :cat (the spoken damage-category word; screens paint it as an icon only), :pp and :total_pp
+    # (both required to speak pp), :desc (appended when present and non-blank). A nil power/accuracy means
+    # UNRESOLVED and omits its phrase -- only a real 0 speaks "no damage"/"never misses"; callers with
+    # partial data stay honest instead of guessing.
     def self.line(name, type_name, power, accuracy, opts = {})
       s = name.to_s
       s += ". " + PokeAccess::I18n.t(:mv_type, :t => type_name) if type_name && !type_name.to_s.empty?
       s += ". " + PokeAccess::I18n.t(:mv_power, :p => power_phrase(power)) unless power.nil?
       s += ". " + PokeAccess::I18n.t(:mv_acc, :a => accuracy_phrase(accuracy)) unless accuracy.nil?
+      cat = opts[:cat]
+      s += ". " + cat.to_s if cat && !cat.to_s.empty?
       pp = opts[:pp]; tot = opts[:total_pp]
       s += ". " + PokeAccess::I18n.t(:mv_pp, :pp => pp, :tot => tot) if pp && tot
       desc = opts[:desc]

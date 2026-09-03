@@ -1,12 +1,8 @@
-# Three more Fates screens reached from the CMoon hub.
+# Two more Fates screens reached from the CMoon hub.
 #
 # FatesCartas (0260) is the character relationship cards: a vertical list of panels with @posi as the focus,
 # each panel a ListaPersonaje carrying the character's @nombre and their rank. The cards themselves are art,
 # so the name and rank are the whole content for a blind player.
-#
-# GachaScene (0245) rolls for rewards: @banner_sel picks the banner (left/right) and @sel the action within
-# it. Banners and rewards are drawn as pictures, so neither which banner you are on nor what you won reached
-# the reader.
 #
 # Scene_HoraDelTe (0261) is the tea-time social minigame: @tes lists the teas to offer, @puntos is the
 # affinity earned and @personaje_nombre who you invited. The dialogue goes through pbMessage (already read);
@@ -42,11 +38,17 @@ module PokeAccess
       return unless idx.is_a?(Integer) && panels.is_a?(Hash)
       panel = panels[idx.to_s]
       return unless panel
-      PokeAccess::Cursor.announce(nil, :awk_cards, [idx, panels.__id__], true) do
+      rng = PokeAccess::AwakeningFatesExtra.mod_ivar(:@rng_pos)
+      PokeAccess::Cursor.announce(nil, :awk_cards, [idx, rng, panels.__id__], true) do
         pj = (panel.pj rescue nil)
         name = PokeAccess.clean((pj.nombre rescue "").to_s).to_s.strip
         rank = (pj.rango_letras rescue nil)
-        rank ? "#{name}, #{rank}" : name
+        t = rank ? "#{name}, #{rank}" : name
+        max = (panel.rango rescue nil)
+        if rng.is_a?(Integer) && max
+          t += ", " + PokeAccess::I18n.t(:awk_rank_pos, :n => rng + 1, :tot => max.to_i + 1)
+        end
+        t
       end
     rescue StandardError
       nil
@@ -56,31 +58,6 @@ module PokeAccess
     def self.mod_ivar(sym)
       k = @cards_class
       k ? (k.instance_variable_get(sym) rescue nil) : nil
-    rescue StandardError
-      nil
-    end
-
-    # The three buttons the screen paints under the banner, in cursor order. @sel == 3 is not a button: it is
-    # the banner strip itself, which is why the fourth entry is the banner rather than a label.
-    GACHA_BUTTONS = ["Información", "Tirar", "Salir"]
-
-    # Voices the focused gacha banner and action.
-    #
-    # By NAME, both of them. The banner has one -- refresh paints @banners[@banner_sel].name across the top --
-    # and each button carries its own word; announcing "banner 1 of 3, option 1" gave the player two index
-    # numbers for a screen that shows neither, and no way to tell Draw from Exit. Royal's reader for the same
-    # plugin has always read the labels; these two diverged for no reason.
-    def self.gacha(scene)
-      b = PokeAccess.ivar(scene, :@banner_sel)
-      s = PokeAccess.ivar(scene, :@sel)
-      banners = PokeAccess.ivar(scene, :@banners)
-      return unless b.is_a?(Integer) && banners.is_a?(Array) && b >= 0 && b < banners.length
-      PokeAccess::Cursor.announce(scene, :awk_gacha, [b, s], true) do
-        name = PokeAccess.clean((banners[b].name rescue "").to_s).to_s.strip
-        name = PokeAccess::I18n.t(:list_entry, :name => name, :n => b + 1, :tot => banners.length)
-        lbl = GACHA_BUTTONS[s.to_i]
-        lbl ? "#{name}. #{lbl}" : name
-      end
     rescue StandardError
       nil
     end
@@ -105,11 +82,6 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("awakening") do
-  # refresh, not update. GachaScene#update IS the screen's blocking loop -- it opens with `loop do` and is
-  # the last method of the class -- so an after-hook on it fired once, on the way out, and the whole screen
-  # was silent to navigate. refresh is what the loop calls after every LEFT/RIGHT and after each banner
-  # change, which is exactly the moment the focus moves.
-  after("GachaScene", :refresh) { |s, _r, _a| PokeAccess::AwakeningFatesExtra.gacha(s) }
   kernel("j_addExp", :before) { |args, _r| PokeAccess::AwakeningFatesExtra.affinity(args[0], args[1]) }
   override("FatesCartas", :main) do |mod, original, _args|
     PokeAccess::AwakeningFatesExtra.watch_cards(mod)

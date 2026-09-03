@@ -10,12 +10,11 @@ module PokeAccess
   end
 end
 
-# Read a book page when it changes (texto redraws every frame, so dedup on @page to speak once).
-PokeAccess::Hooks.after_hook("BookScene", :texto) do |scene, _r, _a|
+# Read a book page when it changes (texto redraws every frame, so the page index is the dedup key; the
+# scene dies with the book, so the slot needs no reset).
+PokeAccess::Hooks.after_hook("BookScene", :texto, :optional => true) do |scene, _r, _a|
   page = scene.instance_variable_get(:@page)
-  if page && page != scene.instance_variable_get(:@access_page)
-    scene.instance_variable_set(:@access_page, page)
-    t = PokeAccess.book_text(scene.instance_variable_get(:@libro), page)
-    PokeAccess.speak(t, true) if t && !t.to_s.empty?
+  PokeAccess::Cursor.announce(scene, :book_page, page, true) do
+    PokeAccess.book_text(scene.instance_variable_get(:@libro), page)
   end
 end

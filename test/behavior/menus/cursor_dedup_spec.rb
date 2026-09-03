@@ -57,6 +57,26 @@ Suite.define("cursor: pending? marks the first read of a fresh or reset cursor")
   truthy "after reset it is pending again", PokeAccess::Cursor.pending?(holder, :p)
 end
 
+# A blank line un-burns the key: the row whose text lands a frame after the cursor (sprite not painted,
+# ivar not assigned) must eventually speak, and before this contract the key was consumed on the empty
+# frame and the row stayed mute until the cursor moved. The mute-then-back shape stays intact: a row that
+# keeps yielding blank never records anything, so returning to the previous row re-reads it.
+Suite.define("cursor: a blank line does not consume the key") do
+  holder = Object.new
+  late = nil
+  PokeAccess::Cursor.announce(holder, :lb, 1) { late }
+  silent "the empty frame stays silent"
+  late = "arrived"
+  PokeAccess::Cursor.announce(holder, :lb, 1) { late }
+  spoke "the same key speaks once its text arrives", /arrived/
+
+  SpeakCapture.clear
+  PokeAccess::Cursor.announce(holder, :lb, 2) { nil }
+  silent "a mute row stays silent"
+  PokeAccess::Cursor.announce(holder, :lb, 1) { "back" }
+  spoke "and coming back from it re-reads the previous row", /back/
+end
+
 # announce's first_interrupt: the opening read of a fresh cursor is queued (interrupt false) so it does not
 # cut a title/question spoken just before, while every later move interrupts (true). This is the exact
 # Window_DrawableCommand pattern, now owned by Cursor instead of a per-reader "seen" ivar. The plain 4-arg

@@ -102,4 +102,8 @@ PokeAccess::Game.define("awakening") do
   kernel("pbDrawTextPositions", :before) { |args, _r| PokeAccess::AwakeningCompendium.note_positions(args[1]) }
   kernel("drawTextEx", :before) { |args, _r| PokeAccess::AwakeningCompendium.note(args[5]) }
   poll_each_frame { PokeAccess::AwakeningCompendium.sheet_poll }
+  # The "Z = Mas informacion" panel: a global function that paints its lore text into an own canvas and
+  # blocks in an own loop, drawing through neither of the two calls captured above. args[2] is the whole
+  # text; the same function also shows two battle tutorial notices, equally unread without this.
+  kernel("carteles", :before) { |args, _r| PokeAccess.speak_clean(args[2].to_s, true) }
 end

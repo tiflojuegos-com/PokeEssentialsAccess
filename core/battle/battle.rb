@@ -236,9 +236,9 @@ module PokeAccess
     # Announces the battler under the target cursor while choosing a move's target in doubles (gen-6
     # pbChooseTarget highlights via pbUpdateSelected). param index the highlighted battler index, or
     # negative to clear (so re-entering selection reads again)
-    # Un movimiento de area llega como ARRAY, no como indice: pbSelectBattler(idxBattler, mode) enciende
-    # cada hueco cuya entrada no sea nil, asi que un solo indice no describe lo que la pantalla ilumina.
-    # Con la guarda de entero a secas ese caso se descartaba entero y la eleccion de objetivo era muda.
+    # A spread move arrives as an ARRAY, not an index: pbSelectBattler(idxBattler, mode) lights every slot
+    # whose entry is not nil, so a single index cannot describe what the screen highlights. With a plain
+    # Integer guard that case was dropped whole and target selection went mute.
     def self.announce_targets(scene, list)
       lit = []
       list.each_index { |i| lit.push(i) unless list[i].nil? }

@@ -20,7 +20,7 @@ the same plugin turns up in several games.
 2. One `.rb` per module, listed in that manifest. Anything not listed is not loaded, and nothing warns you.
 3. An entry in `games/catalog.json` with its `detect` (a regex against the game folder's name).
    **Careful**: `generic` must stay LAST, because it is the catch-all; move it up and it swallows the rest.
-4. Any new spoken text, in `lang/es.txt` **and** `lang/en.txt`. A test fails if a key is missing from either.
+4. Any new spoken text, in all six `lang/` files. A test fails if a key is missing from any of them.
 
 Detail: profiles may carry bare Spanish literals, because the fangames covered are Spanish-only. The core
 may not.

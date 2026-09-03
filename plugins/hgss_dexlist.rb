@@ -63,3 +63,13 @@ end
 PokeAccess::Hooks.after_hook("PokemonPokedex_Scene", :pbRefresh, :optional => true) do |scene, _r, _a|
   PokeAccess::HGSSDexList.read(scene)
 end
+
+# Returning from a species entry repaints via pbRefresh on the SAME restored index, and the slot hangs off
+# the scene, which outlives the entry -- so the way back forgets it, and the focused row is read again.
+PokeAccess::Hooks.around_hook("PokemonPokedex_Scene", :pbDexEntry, :optional => true) do |scene, nxt, _a|
+  begin
+    nxt.call
+  ensure
+    PokeAccess::Cursor.reset(scene, :hgss_dex)
+  end
+end

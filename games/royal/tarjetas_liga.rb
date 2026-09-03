@@ -8,12 +8,14 @@ PokeAccess::Game.define("royal") do
   # button only buzzes there. The screen's own gate is a global, tarjeta_desbloqueada?(index), so it is asked
   # rather than guessed. "???" is what a sighted player sees; spoken, it says nothing useful, so the locked
   # state is named instead.
+  # Only the name and the position are spoken, which is all the list paints: the lore in card[3] is a
+  # five-hundred-character paragraph that lives on the card VIEW (opened with USE) and read here it
+  # interrupted itself on every arrow, so it goes to the info key. A locked card also drops whatever the
+  # info key held, or it would answer with the previous card's lore attributed to this one.
   after("TarjetasLiga_Scene", :actualizarTarjetasPantalla) do |scn, _ret, _args|
     i = PokeAccess.ivar(scn, :@tarjeta_elegida)
     next unless PokeAccess::Cursor.changed?(scn, :tl, i)
     unless (tarjeta_desbloqueada?(i) rescue true)
-      # Y se suelta lo que la tecla de info tuviera guardado: sin esto contesta con el lore de la carta
-      # anterior atribuido a esta, que es la unica pantalla donde el jugador no puede notarlo.
       PokeAccess::Info.clear_text
       next PokeAccess.speak(PokeAccess::I18n.t(:rl_card_locked), true)
     end
@@ -21,12 +23,37 @@ PokeAccess::Game.define("royal") do
     next unless card.is_a?(Array)
     name = card[1].to_s
     next if name.empty?
-    # Only the name and the position, which is all the list paints. The lore in card[3] is a paragraph of
-    # some five hundred characters that lives on the card VIEW, opened with USE -- read here it interrupted
-    # itself on every arrow and made the grid impossible to sweep. It goes to the info key instead, which is
-    # where the rest of the mod puts detail a keypress away.
     total = (TarjetasLiga.tarjetas.length rescue 0)
     PokeAccess.speak_clean(PokeAccess::I18n.t(:list_entry, :name => name, :n => i + 1, :tot => total), true)
     PokeAccess::Info.set_info(:text, card[3].to_s)
   end
+end
+
+module PokeAccess
+  # The single-card view (InfoTarjetasLiga_Scene): pbStartScene paints the card name and the two key hints
+  # (captured through PaintCapture), and the USE branch of its own loop paints the description with
+  # drawTextEx mid-loop, so that one is spoken live while pbStartActions runs.
+  module RoyalTarjetaInfo
+    def self.arm_desc; @desc = true; end
+    def self.disarm; @desc = nil; end
+
+    def self.desc_painted(text)
+      return unless @desc
+      t = PokeAccess.clean(text.to_s).to_s.strip
+      PokeAccess.speak(t, true) unless t.empty?
+    rescue StandardError
+      nil
+    end
+  end
+end
+
+PokeAccess::Game.define("royal") do
+  around("InfoTarjetasLiga_Scene", :pbStartScene) do |_s, nxt, _a|
+    PokeAccess::PaintCapture.speak_around(:royal_card, true) { nxt.call }
+  end
+  around("InfoTarjetasLiga_Scene", :pbStartActions) do |_s, nxt, _a|
+    PokeAccess::RoyalTarjetaInfo.arm_desc
+    begin; nxt.call; ensure; PokeAccess::RoyalTarjetaInfo.disarm; end
+  end
+  kernel("drawTextEx", :before) { |args, _r| PokeAccess::RoyalTarjetaInfo.desc_painted(args[5]) }
 end

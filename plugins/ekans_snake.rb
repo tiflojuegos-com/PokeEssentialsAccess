@@ -68,3 +68,14 @@ PokeAccess::Hooks.after_hook("Ekans_Interface_Hiscores", :get_text_pos, :optiona
   t = PokeAccess::EkansSnake.scores_text(ret)
   PokeAccess.speak(t, false) if t
 end
+
+# The pause and game-over panels: both are pure PNG artwork (their words live inside the image) that
+# BLOCK in their own loop, so a blind player got a game that just stopped answering the arrows. Image
+# text is the one case the mod's own prose is authorized for, via lang/.
+PokeAccess::Hooks.before_hook("Ekans_Interface_Game", :do_pause_menu, :optional => true) do |_s, _a|
+  PokeAccess.speak(PokeAccess::I18n.t(:ekans_pause), true)
+end
+PokeAccess::Hooks.before_hook("Ekans_Interface_Game", :lose_game, :optional => true) do |scene, _a|
+  n = (PokeAccess.ivar(scene, :@adapter).score rescue nil)
+  PokeAccess.speak(PokeAccess::I18n.t(:ekans_gameover, :n => n.to_i), true)
+end

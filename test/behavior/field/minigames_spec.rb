@@ -78,6 +78,21 @@ Suite.define("minigames: slot payout voices a win, a loss and a free game") do
   free.instance_variable_set(:@replay, true)
   PokeAccess::Minigames.slot_payout(free, 50)
   spoke "three replay symbols announce a free game", /#{PokeAccess::I18n.t(:mg_slot_replay_win)}/
+
+  # The extra rows depend on the wager, and pbPayout has already zeroed @wager when the reader runs: the
+  # value the hook sampled beforehand is what arms them, never the ivar.
+  SpeakCapture.clear
+  reel = Class.new { attr_reader :showing; def initialize(s); @showing = s; end }
+  rows = Object.new
+  rows.instance_variable_set(:@sprites, { "payout" => FakeSlotSprite.new(0), "credit" => FakeSlotSprite.new(50),
+                                          "reel1" => reel.new([0, 1, 2]), "reel2" => reel.new([0, 1, 2]),
+                                          "reel3" => reel.new([0, 1, 2]) })
+  rows.instance_variable_set(:@replay, false)
+  rows.instance_variable_set(:@wager, 0)
+  PokeAccess::Minigames.slot_payout(rows, 50, 3)
+  spoke "three coins voice the top row from the wager sampled before the payout",
+        /#{Regexp.escape(PokeAccess::I18n.t(:mg_slot_row_top, :syms => "").strip)}/
+  spoke "and the first diagonal", /#{Regexp.escape(PokeAccess::I18n.t(:mg_slot_diag1, :syms => "").strip)}/
 end
 
 # --- Tile Puzzle ----------------------------------------------------------------------------------------

@@ -8,5 +8,5 @@
     itemget
     arcy
   ],
-  :plugins => %w[bag_screen_party encounter_list_ui tip_cards]
+  :plugins => %w[bag_screen_party encounter_list_ui tip_cards dbk_battle dbk_enhanced_ui]
 }

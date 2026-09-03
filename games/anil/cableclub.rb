@@ -26,6 +26,9 @@ end
 
 PokeAccess::Game.define("anil") do
   before("CableClub_Scene", :pbShowCommands) { |_s, args| PokeAccess::AnilCableClub.say(args[0]) }
-  before("CableClub_Scene", :pbDisplay) { |_s, args| PokeAccess::AnilCableClub.say(args[0]) }
+  before("CableClub_Scene", :pbDisplay) do |s, args|
+    PokeAccess::Cursor.reset(s, :cc_dots)
+    PokeAccess::AnilCableClub.say(args[0])
+  end
   before("CableClub_Scene", :pbDisplayDots) { |s, args| PokeAccess::AnilCableClub.waiting(s, args[0]) }
 end

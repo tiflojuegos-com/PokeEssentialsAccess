@@ -46,9 +46,10 @@ Two traps:
 1. **A plugin that REOPENS a vanilla class looks like it defines it.** Deluxe Battle Kit reopens `Battle`
    and Modular UI Scenes reopens `PokemonPokedexInfo_Scene`: the class exists in every game, so a
    class probe always answers yes. Those are detected by method: `"Battle#pbToggleSpecialActions"`.
-2. **The Sky fork puts things that look like plugins inside its engine.** Games built on it carry MUI and
-   DBK inside the engine's own script tree, not in a plugins folder. What belongs to the FORK, rather than
-   to one game, goes in `core/<module>/skyflyer/`.
+2. **The Sky fork puts things inside its engine that are still plugins.** Games built on it carry MUI and
+   DBK inside the engine's own script tree, not in a plugins folder, but they are third-party resources several
+   games install: they go in `plugins/` like any other, with a METHOD probe when they only reopen vanilla
+   classes (`dbk_battle` probes `"Battle#pbToggleSpecialActions"`).
 
 ## 1. Adding a game profile
 
@@ -126,6 +127,10 @@ Where core already packages the pattern, the file is one line:
 PokeAccess::SpriteButtonMenu.define("africanus")
 ```
 
+Coming back from a submenu is signalled by `PokeAccess::MenuReturn`, once for every menu: a reader registers
+with `MenuReturn.on_return { ... }` and declares with `MenuReturn.bare("Class", :method)` the screens its game
+opens with neither a fade nor a dialogue. Only the outermost exit reaches the listeners.
+
 The full DSL is in [03-hooks](03-hooks.md); building the text and deduping it, in
 [04-readers](04-readers.md). **A profile never reopens a core module**: the declared route is `override`,
 which the diagnostic also lists, and `coupling_spec` rejects the reopen.
@@ -163,7 +168,7 @@ PokeAccess::Hooks.after_hook("EncounterList_Scene", :drawPresent, :optional => t
 ## 4. Adding a config-menu option
 
 1. One row in `Config::SCHEMA`: `[key, default, kind, group, lbl_label, help_help]`.
-2. Its `lbl_` and `help_` keys in `lang/es.txt` and `lang/en.txt`.
+2. Its `lbl_` and `help_` keys in the six `lang/` files.
 
 ```ruby
 # core/foundation/config.rb
@@ -185,7 +190,7 @@ widening the sonar range does not widen the wall probe as a side effect.
 
 ## 5. Adding spoken text
 
-1. The key in `lang/es.txt` AND in `lang/en.txt`, with the SAME `%{var}` placeholders.
+1. The key in all six `lang/*.txt`, with the SAME `%{var}` placeholders.
 2. Use it through `PokeAccess::I18n.t(:key)` or the short alias `t(:key)`.
 
 ```

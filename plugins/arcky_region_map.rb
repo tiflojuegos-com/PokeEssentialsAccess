@@ -95,8 +95,8 @@ PokeAccess::Hooks.after_hook("PokemonRegionMap_Scene", :updateSpeciesInfo, :opti
   PokeAccess::ArckyRegionMap.species(scene, args[0])
 end
 
-# El detalle del panel vive en la tecla de info mientras la rejilla esta abierta, y solo mientras: al cerrar
-# la pantalla la tecla contestaria por una casilla del mapa con los datos de una especie que ya no se ve.
+# The panel's detail lives on the info key while the grid is open, and only then: once the screen closes the
+# key would answer for a map square with the data of a species no longer on screen.
 PokeAccess::Hooks.after_hook("PokemonRegionMap_Scene", :pbEndScene, :optional => true) do |_s, _r, _a|
   PokeAccess::Info.clear_text
 end

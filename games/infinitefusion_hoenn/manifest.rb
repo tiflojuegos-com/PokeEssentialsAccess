@@ -22,6 +22,7 @@
     quests
     fusion_preview
     storage_fusion
+    pokeblocks
   ],
-  :plugins => %w[berrydex multi_save]
+  :plugins => %w[berrydex multi_save better_region_map]
 }

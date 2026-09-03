@@ -13,7 +13,8 @@ module MtsGuard
   # never applies there, so they are out of scope. La misma lista vive en test/check187.py y hasta ahora
   # se mantenian en paso a mano; el spec de abajo las compara.
   MODERN = ["games/anil/", "games/royal/", "games/relict/",
-            "games/infinitefusion_hoenn/", "games/infinitefusion/"]
+            "games/infinitefusion_hoenn/", "games/infinitefusion/",
+            "games/emerald/"]
 
   # The MODERN tuple as check187.py declares it, parsed out of the source.
   # return the list of path fragments, or nil when the declaration cannot be found
@@ -32,6 +33,20 @@ module MtsGuard
     m = src[/^MODERN\s*=\s*\[(.*?)\]/m, 1]
     return nil unless m
     m.scan(/"([^"]+)"/).flatten
+  end
+
+  # The machine-declared source: games/catalog.json marks each profile's engine, so the exemption is
+  # DERIVED here instead of trusted. Only engine "gamedata" profiles load under Ruby 3.x alone; keeping
+  # the three literal lists equal to each other proves nothing if all three drift from the catalog at once.
+  # return the sorted "games/<key>/" fragments, or nil when the catalog cannot be read
+  def self.modern_of_catalog(root)
+    require "json"
+    data = JSON.parse(File.read(File.join(root, "games", "catalog.json")))
+    profs = data["profiles"]
+    return nil unless profs.is_a?(Array)
+    profs.select { |p| p["engine"] == "gamedata" }.map { |p| "games/#{p['key']}/" }.sort
+  rescue StandardError
+    nil
   end
 
   # An uppercase constant of 3+ chars: the array constants that get corrupted (BUTTONS, TEXT_CODES, NUMERIC).
@@ -175,6 +190,9 @@ Suite.define("static/estilo: las tres listas MODERN coinciden") do
   truthy "check187_real.rb declara MODERN", !real.nil?
   eq "misma lista que el guard", (theirs || []).sort, MtsGuard::MODERN.sort
   eq "y la del parseo real tambien", (real || []).sort, MtsGuard::MODERN.sort
+  catalog = MtsGuard.modern_of_catalog(root)
+  truthy "games/catalog.json declara engines", !catalog.nil?
+  eq "y las tres derivan del catalogo (engine=gamedata)", MtsGuard::MODERN.sort, (catalog || [])
 end
 
 Suite.define("static: no Array#+/#- mutator landmine in gen-6/Z-loaded files") do
@@ -226,12 +244,19 @@ end
 
 # The allowlist must be minimal and honest: every entry must still correspond to a match the detector really
 # produces (a stale entry silently weakens the guard), and every allowed snippet must be integer arithmetic
-# (a `*` stride multiply on the same line), never an array op.
+# (a `*` stride multiply on the same line), never an array op. And the entry must stay anchored to the REAL
+# sweep, not just to the synthetic detector: during a mutation run the sweep glob was narrowed until both
+# allowlisted files fell out of scope and this suite stayed green -- so each entry now also proves its file
+# is still scanned and its snippet still occurs there.
 Suite.define("static: MTS mutator allowlist is live and scalar-only") do
+  scanned = MtsGuard.scanned_files.map { |f| MtsGuard.rel(f) }
   MtsGuard::ALLOW.each do |path, snippets|
+    truthy "allowlisted file is still inside the sweep: #{path}", scanned.include?(path)
+    text = (File.read(File.join(MtsGuard::ROOT, path)) rescue "")
     snippets.each do |snip|
       truthy "allowed snippet is a real detector match: #{path} #{snip}", mts_flags?(snip)
       truthy "allowed snippet is stride arithmetic: #{path} #{snip}", (snip =~ /\A[A-Z][A-Z0-9_]{2,}\s*\+/ ? true : false)
+      truthy "allowed snippet still occurs in its file: #{path} #{snip}", text.include?(snip)
     end
   end
 end

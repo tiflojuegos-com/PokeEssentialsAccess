@@ -7,7 +7,7 @@ PokeAccess::Game.define("armonia") do
     unlocked = 0
     4.times { |f| i = page * 4 + f; unlocked += 1 if ($game_switches[ALBUM_SWITCHES[i]] rescue false) }
     total = (ALBUM_PAGES rescue nil)
-    of_total = total ? " de #{total}" : ""
-    PokeAccess.speak("Galeria, pagina #{page + 1}#{of_total}, #{unlocked} de 4 fotos desbloqueadas", true)
+    pg = total ? PokeAccess::I18n.t(:alb_page, :n => page + 1, :tot => total) : PokeAccess::I18n.t(:alb_page_bare, :n => page + 1)
+    PokeAccess.speak(PokeAccess::I18n.t(:alb_gallery, :page => pg, :n => unlocked), true)
   end
 end

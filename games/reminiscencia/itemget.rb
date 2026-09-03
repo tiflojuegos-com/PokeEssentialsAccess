@@ -4,8 +4,15 @@ module PokeAccess
   # gifts which use pbMessage. We voice it ourselves from the pbItemBall arguments (the plugin never does).
   module ReminItemGet
     # The spoken "found X" line for a pbItemBall call, or nil. item may be an id, a name string or a symbol.
+    # A Symbol goes through the same getID conversion FastItemGet applies before using it: the reader gets
+    # the RAW argument, and gen-6 getName wants an Integer.
     def self.say(item, quantity)
       return if item.nil?
+      if item.is_a?(Symbol)
+        id = (getID(PBItems, item) rescue nil)
+        id = (PBItems.const_get(item) rescue nil) if id.nil?
+        item = id if id
+      end
       qty = (quantity || 1).to_i
       name = if item.is_a?(String)
                item

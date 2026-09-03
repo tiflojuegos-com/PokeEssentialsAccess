@@ -18,8 +18,9 @@ PokeAccess::Game.define("reminiscencia") do
     next unless data.is_a?(Array)
     ck   = cat_key.call(data[0])
     cat  = ck ? PokeAccess::I18n.t(ck) : ""
-    desc = PokeAccess.clean(data[3].to_s)
-    PokeAccess.speak([cat, desc].reject { |s| s.to_s.empty? }.join(". "), true)
+    rar  = data[1].is_a?(Integer) ? PokeAccess::I18n.t(:bless_rarity, :n => data[1] + 1) : ""
+    desc = PokeAccess.clean((_INTL(data[3].to_s) rescue data[3].to_s))
+    PokeAccess.speak([cat, rar, desc].reject { |s| s.to_s.empty? }.join(". "), true)
   end
 
   after("PickBlessing", :updateCursor) { |scene, _r, _a| read.call(scene) }

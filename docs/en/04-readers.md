@@ -47,7 +47,7 @@ t = PokeAccess::I18n.t(:bt_state, :name => b.name, :level => b.level, :hp => hp)
 (`:en`) and then to **the key name itself**: a gap is audible but never crashes. A missing variable
 interpolates to an empty string.
 
-**A new key goes into `lang/es.txt` AND `lang/en.txt`.** Two static checks enforce it:
+**A new key goes into ALL SIX `lang/` files (`es`, `en`, `fr`, `pt`, `de`, `pl`).** Two static checks enforce it:
 
 | Test | What it requires |
 |---|---|
@@ -88,6 +88,12 @@ state would leave it mute. The `slot` keeps two readers sharing one scene apart.
 string or a tuple (`[page, index]`); keying on the TEXT covers the screen that changes what it shows without
 moving the index. A `nil` holder falls back to a module-wide table, only for readers with no instance to
 hang on.
+
+**The holder rule**: the object the slot hangs on must live exactly as long as the screen the reader
+serves. A scene that hosts sub-screens (the Pokedex with its search, the PC with its command menu, the
+battle with its panels) **outlives** them, and a slot hung on it inherits the previous visit's key: the
+sub-screen reopens mute. There, `reset(holder, slot)` in the sub-screen's (re)entry hook is part of the
+reader, not an optional flourish.
 
 ## The Data API
 

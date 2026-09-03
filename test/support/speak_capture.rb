@@ -1,22 +1,21 @@
-# Records what the mod would speak, instead of driving the screen-reader DLL. It redefines PokeAccess.speak
-# to run the REAL PokeAccess.clean (where control-code and double-speak bugs live) and append the cleaned
-# line plus its interrupt flag to a log, so behaviour specs can assert on the spoken text.
+# Records what the mod would speak, instead of driving the screen-reader DLL. The stand-in mirrors the
+# REAL PokeAccess.speak exactly -- whitespace collapse and nothing else -- so every spec asserts on the
+# byte-for-byte text the synthesizer would receive. Cleaning stays where production keeps it: speak_clean.
+# A capture that cleans on its own asserts a text the player never hears.
 #
-# The REAL speak does NOT clean (cleaning lives in speak_clean), so a reader that feeds speak a text with
-# raw control codes looks impeccable in the captured log yet would utter "\c[3]" through the synthesizer.
-# The capture therefore also records every RAW text containing an escape-shaped code (\x[ , \PN, ...) in
-# raw_offenders BEFORE cleaning, tagged with the suite that produced it, and run_all fails the run if any
-# surfaced -- the net that catches a reader which should have called speak_clean.
+# A reader that feeds speak an uncleaned text therefore shows those codes in the log AND lands in
+# raw_offenders, tagged with the suite that produced it; run_all fails the run if any surfaced -- the net
+# that catches a reader which should have called speak_clean.
 #
 # The list survives clear() on purpose. clear() resets the spoken log between assertions and some specs
 # call it a dozen times, so wiping the offenders with it would leave the net holding only whatever the
 # last few lines of each suite produced. It is emptied once per engine pass, by clear_all.
 module SpeakCapture
-  # Exactly the escapes clean() removes (core/speech/text.rb): the \x[..] and \PN family, and the eight
-  # punctuation ones -- \. \! \| \^ \< \> \~ \\ -- which are RPG Maker's wait/instant codes and turn up in
-  # fangame dialogue constantly. Watching only \<letter> meant a reader could hand speak a line full of
-  # "\." and the net stayed quiet while the synthesizer read the backslashes out loud.
-  RAW_CODE = /\\[A-Za-z.!|^<>~\\]/
+  # Every family clean() removes (core/speech/text.rb): the backslash codes (\x[..], \PN, and the eight
+  # punctuation waits), markup tags (<br>, <b>...), the bare pipe, and non-whitespace control bytes. The
+  # real speak passes all of them straight to the synthesizer, so any of these reaching speak means a
+  # reader skipped speak_clean. Whitespace controls are excluded: speak itself collapses \t \n \r.
+  RAW_CODE = /\\[A-Za-z.!|^<>~\\]|<\/?[A-Za-z][^>]*>|\||[\x00-\x08\x0b\x0c\x0e-\x1f]/
 
   @log = []
   @raw_offenders = []
@@ -27,14 +26,14 @@ module SpeakCapture
     raw = @raw_offenders
     PokeAccess.define_singleton_method(:speak) do |text, interrupt = true|
       raw.push([(Assert.suite rescue nil), text.to_s]) if text.to_s =~ RAW_CODE
-      t = PokeAccess.clean(text)
-      next if t.to_s.empty?
+      t = text.to_s.gsub(/\s+/, " ").strip
+      next if t.empty?
       @last_spoken = t
+      PokeAccess.note_spoken
       # The observer and the counter are part of speak's contract -- the session recorder rides on the
       # first, the silence watch on the second -- so the stand-in honours both. Anything built on an effect
       # the capture drops is untestable here, and worse, looks tested.
       (@on_speak.call(t, interrupt) rescue nil) if @on_speak
-      PokeAccess.note_spoken
       log.push([t, interrupt])
       nil
     end

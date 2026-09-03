@@ -75,9 +75,9 @@ module PokeAccess
 
     # Voices the result of a Mining hit: every newly unearthed item, else nothing (digging stays quiet).
     #
-    # TODOS los nuevos, no solo el ultimo. Un martillazo puede descubrir dos piezas de golpe -- las dos se
-    # revelan en el mismo frame -- y nombrar won.last dejaba la otra sin decir: en una pantalla que existe
-    # para saber que has sacado, eso es un objeto que el jugador no sabe que tiene.
+    # ALL the new ones, not just the last. One hammer blow can uncover two pieces at once -- both are revealed
+    # in the same frame -- and naming won.last left the other unsaid: on a screen that exists to know what you
+    # dug up, that is an item the player does not know they have.
     def self.mining_hit(scene)
       won = scene.instance_variable_get(:@itemswon) || []
       prev = scene.instance_variable_get(:@pa_mine_won).to_i
@@ -104,9 +104,9 @@ module PokeAccess
     # Voices the wager as coins are inserted (@wager, 0..3, one row of paylines each). Deduped so the number
     # is spoken once per change, not every frame of the awaiting-coins loop.
     #
-    # El cero se traga la clave en vez de saltarse el dedup. Entre tirada y tirada @wager vuelve a 0, y si
-    # ese paso no se registra la ranura conserva la apuesta anterior: repetir la misma apuesta en la ronda
-    # siguiente -- que es lo que hace cualquiera -- se lee como "sin cambio" y entra muda.
+    # Zero consumes the key instead of skipping the dedup. Between spins @wager goes back to 0, and if that
+    # step is not recorded the slot keeps the previous wager: repeating the same wager next round -- which is
+    # what anyone does -- reads as "no change" and goes mute.
     def self.slot_wager(scene)
       w = scene.instance_variable_get(:@wager).to_i
       return unless PokeAccess::Cursor.changed?(scene, :slot_wager, w)
@@ -149,20 +149,45 @@ module PokeAccess
     # one coin at a time into the credit, so every win, in all thirteen games, was announced as a loss. Only
     # pbPayout adds to the credit (the wager is deducted elsewhere), so the difference IS the prize, whether
     # the player let the count run or skipped it.
-    # Premio y repeticion NO son excluyentes: una combinacion puede pagar monedas y regalar la tirada a la
-    # vez, y contarlos con un elsif hacia perder el premio detras del aviso de repeticion. "Has perdido" solo
-    # cuando no hay ninguna de las dos cosas.
-    def self.slot_payout(scene, before)
+    # Prize and replay are NOT exclusive: one combination can pay coins and grant the spin at the same time,
+    # and counting them with an elsif lost the prize behind the replay notice. "You lost" only when neither
+    # happened.
+    # param wager the coins played, sampled BEFORE pbPayout (which zeroes @wager on its way out)
+    def self.slot_payout(scene, before, wager = nil)
       after = slot_credit(scene)
       won = (before && after) ? (after.to_i - before.to_i) : 0
       replay = scene.instance_variable_get(:@replay) ? true : false
-      parts = []
+      parts = slot_board_lines(scene, wager)
       parts.push(PokeAccess::I18n.t(:mg_slot_won, :n => won)) if won > 0
       parts.push(PokeAccess::I18n.t(:mg_slot_replay_win)) if replay
-      parts.push(PokeAccess::I18n.t(:mg_slot_lost)) if parts.empty?
+      parts.push(PokeAccess::I18n.t(:mg_slot_lost)) if won <= 0 && !replay
+      parts.push(PokeAccess::I18n.t(:mg_slot_credit, :n => after.to_i)) if after
       PokeAccess.speak(parts.join(". "), false)
     rescue StandardError
       nil
+    end
+
+    # The played lines beyond the centre row, exactly as the wager arms them: 2 coins add the top and
+    # bottom rows, 3 the two diagonals as well. The centre row was already spoken reel by reel as each one
+    # landed, so it is not repeated here.
+    def self.slot_board_lines(scene, wager = nil)
+      wager = (wager.nil? ? scene.instance_variable_get(:@wager) : wager).to_i
+      return [] if wager < 2
+      sprites = scene.instance_variable_get(:@sprites)
+      cols = [1, 2, 3].map { |i| (sprites["reel#{i}"].showing rescue nil) }
+      return [] if cols.any? { |c| !c.is_a?(Array) }
+      row = lambda { |r| cols.map { |c| slot_symbol(c[r]) }.join(", ") }
+      out = [PokeAccess::I18n.t(:mg_slot_row_top, :syms => row.call(0)),
+             PokeAccess::I18n.t(:mg_slot_row_bottom, :syms => row.call(2))]
+      if wager >= 3
+        d1 = [cols[0][0], cols[1][1], cols[2][2]].map { |s| slot_symbol(s) }.join(", ")
+        d2 = [cols[0][2], cols[1][1], cols[2][0]].map { |s| slot_symbol(s) }.join(", ")
+        out.push(PokeAccess::I18n.t(:mg_slot_diag1, :syms => d1))
+        out.push(PokeAccess::I18n.t(:mg_slot_diag2, :syms => d2))
+      end
+      out
+    rescue StandardError
+      []
     end
 
     # Duel (PokemonDuel): a command duel whose narration already goes through pbMessage, so only the two
@@ -210,22 +235,39 @@ module PokeAccess
       parts.join(", ")
     end
 
+    # The legal moves the cursor sprite marks with its arrow overlays, as spoken direction words, or nil.
+    # The game's own fill order is numpad (down, left, right, up).
+    def self.tp_arrows(cur)
+      arr = cur.instance_variable_get(:@arrows)
+      return nil unless arr.is_a?(Array)
+      names = [:dir_down, :dir_left, :dir_right, :dir_up]
+      dirs = []
+      arr.each_with_index { |on, i| dirs.push(PokeAccess::I18n.t(names[i])) if on && names[i] }
+      dirs.empty? ? nil : dirs.join(", ")
+    rescue StandardError
+      nil
+    end
+
     # Voices the Tile Puzzle each frame: the win the moment the board is solved, else the cursor cell whenever
     # it changes.
     #
-    # La firma lleva el TEXTO de la celda, no solo la posicion. Coger una pieza y girarla son las dos acciones
-    # del puzle y ninguna mueve el cursor: sobre [pos, solved] la celda queda igual y las dos entran mudas,
-    # asi que el jugador gira a ciegas sin saber en que angulo esta.
+    # The key carries the cell's TEXT, not just its position. Picking a piece up and rotating it are the two
+    # actions of the puzzle and neither moves the cursor: keyed on [pos, solved] the cell reads the same and
+    # both go mute, so the player rotates blind without knowing the angle.
     def self.tile_puzzle(scene)
       cur = (scene.instance_variable_get(:@sprites)["cursor"] rescue nil)
       return unless cur
       pos = cur.position.to_i
       solved = (scene.pbCheckWin rescue false)
       text = solved ? PokeAccess::I18n.t(:tp_solved) : tp_cell(scene, pos)
+      unless solved
+        held = scene.instance_variable_get(:@heldtile)
+        text += ", " + PokeAccess::I18n.t(:tp_holding, :n => held.to_i + 1) if held && held.to_i >= 0
+        dirs = tp_arrows(cur)
+        text += ", " + PokeAccess::I18n.t(:tp_moves, :dirs => dirs) if dirs
+      end
       sig = [pos, solved, text]
-      prev = scene.instance_variable_get(:@pa_tp)
-      return if sig == prev
-      scene.instance_variable_set(:@pa_tp, sig)
+      return unless PokeAccess::Cursor.changed?(scene, :tp_cell, sig)
       PokeAccess.speak(text, true)
     rescue StandardError
       nil
@@ -233,9 +275,9 @@ module PokeAccess
   end
 end
 
-# hook_container: getInput abre la confirmacion de salir DENTRO de si mismo, asi que con la guarda de
-# reentrancia puesta el lector de mensajes cae como anidado y el si/no se queda sin leer -- se oye la
-# pregunta y despues nada, sin forma de saber que opcion esta marcada.
+# hook_container: getInput opens the quit confirmation INSIDE itself, so with the reentrancy guard on the
+# message reader is dropped as nested and the yes/no goes unread -- the question is heard and then nothing,
+# with no way to know which option is marked.
 PokeAccess::Hooks.after_hook("VoltorbFlip", :getInput, :hook_container => true) { |scene, _result, _args| PokeAccess::Minigames.voltorb_flip(scene) }
 PokeAccess::Hooks.after_hook("MiningGameCursor", :update) { |cursor, _result, _args| PokeAccess::Minigames.mining_cursor(cursor) }
 PokeAccess::Hooks.after_hook("MiningGameScene", :pbHit) { |scene, _result, _args| PokeAccess::Minigames.mining_hit(scene) }
@@ -245,10 +287,12 @@ PokeAccess::Hooks.after_hook("MiningGameScene", :pbHit) { |scene, _result, _args
 PokeAccess::Hooks.after_hook("SlotMachineScene", :update) { |scene, _r, _a| PokeAccess::Minigames.slot_wager(scene) }
 PokeAccess::Hooks.after_hook("SlotMachineReel", :update) { |reel, _r, _a| PokeAccess::Minigames.slot_reel_update(reel) }
 # pbPayout is the coin-counting animation: the prize exists only while it runs, and by the time it returns
-# the counter it was read from is back to zero. Wrapped instead, so the credit is sampled on both sides.
+# the counter it was read from is back to zero -- and so is the wager, which it resets last. Wrapped
+# instead, so the credit is sampled on both sides and the wager before.
 PokeAccess::Hooks.around_hook("SlotMachineScene", :pbPayout) do |scene, nxt, _a|
   before = PokeAccess::Minigames.slot_credit(scene)
-  begin; nxt.call; ensure; PokeAccess::Minigames.slot_payout(scene, before); end
+  wager = scene.instance_variable_get(:@wager)
+  begin; nxt.call; ensure; PokeAccess::Minigames.slot_payout(scene, before, wager); end
 end
 
 # Tile Puzzle (TilePuzzleScene): the cursor cell as it moves and the win when solved, polled on the scene's

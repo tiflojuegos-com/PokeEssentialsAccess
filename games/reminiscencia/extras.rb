@@ -110,8 +110,20 @@ module PokeAccess
       nil
     end
 
-    def self.help_text(rows)
+    # True when the bitmap is the held screen's own text panel: AyudasUI paints every row batch onto
+    # "desc", OpenWorldMap onto "info". Same fence as help_body -- without it any window drawing through
+    # the shared function while the screen is up (the text-entry prompt) leaked into the reading.
+    def self.own_panel?(bitmap)
+      return false unless bitmap
+      ["desc", "info"].any? do |n|
+        p = (PokeAccess.sprite(@help, n) rescue nil)
+        p && (p.bitmap.equal?(bitmap) rescue false)
+      end
+    end
+
+    def self.help_text(bitmap, rows)
       return unless @help && rows.is_a?(Array)
+      return unless own_panel?(bitmap)
       lines = []
       rows.each do |r|
         t = (r.is_a?(Array) ? r[0] : nil)
@@ -150,7 +162,11 @@ PokeAccess::Game.define("reminiscencia") do
     PokeAccess::ReminExtras.list_on(s)
     begin; nxt.call; ensure; PokeAccess::ReminExtras.list_off; end
   end
+  # Both screens run whole from their constructor, called from INSIDE the pause menu's own loop and
+  # registered nowhere in ReminMenu's stack -- so leaving them must nudge the menu into saying where the
+  # cursor is again (the world map gets this for free by being a registered frame).
+  [["AyudasUI", :initialize], ["ScrollTree", :initialize]].each { |cname, meth| PokeAccess::MenuReturn.bare(cname, meth) }
   poll_each_frame { PokeAccess::ReminExtras.list_poll }
-  kernel("pbDrawTextPositions", :before) { |args, _r| PokeAccess::ReminExtras.help_text(args[1]) }
+  kernel("pbDrawTextPositions", :before) { |args, _r| PokeAccess::ReminExtras.help_text(args[0], args[1]) }
   kernel("drawTextEx", :before) { |args, _r| PokeAccess::ReminExtras.help_body(args[0], args[5]) }
 end

@@ -25,10 +25,10 @@ module PokeAccess
       return unless idx.is_a?(Integer) && list.is_a?(Array) && idx >= 0 && idx < list.length
       t = list[idx]
       return unless t.is_a?(Hash)
-      PokeAccess::Cursor.announce(scene, :awk_talisman, idx, true) do
+      open = (scene.unlocked?(t[:symbol]) rescue true)
+      PokeAccess::Cursor.announce(scene, :awk_talisman, [idx, open ? true : false], true) do
         name = PokeAccess.clean(t[:name].to_s).to_s.strip
         head = PokeAccess::I18n.t(:list_entry, :name => name, :n => idx + 1, :tot => list.length)
-        open = (scene.unlocked?(t[:symbol]) rescue true)
         body = open ? PokeAccess.clean(t[:description].to_s).to_s.strip : locked_talisman(t)
         body.empty? ? head : [head, body].join(". ")
       end
@@ -171,4 +171,19 @@ PokeAccess::Game.define("awakening") do
   # dropped there so the list's own page stamp is not read as one last page turn on the way out.
   before("Glosario_Personajes", :dibujar_lista) { |_s, _a| PokeAccess::AwakeningFates.unwatch }
   kernel("pbDrawOutlineText", :before) { |args, _r| PokeAccess::AwakeningFates.on_draw(args[5]) }
+end
+
+# The talisman lore window: opened with A over the description, painted with drawTextEx into its own
+# scrollable window and read by CAPTURE (per-language-proof); the same capture replays on every scroll
+# step, deduped by the captured text so an unmoved wheel stays quiet.
+["open_lore_window", "update_lore_window"].each do |m|
+  PokeAccess::Hooks.around_hook("EquipScreen", m.to_sym, :optional => true) do |scene, nxt, _a|
+    PokeAccess::PaintCapture.arm(:awk_lore)
+    begin
+      nxt.call
+    ensure
+      t = PokeAccess::PaintCapture.text(PokeAccess::PaintCapture.take(:awk_lore))
+      PokeAccess.speak(t, true) if !t.empty? && PokeAccess::Cursor.changed?(scene, :awk_lore, t)
+    end
+  end
 end

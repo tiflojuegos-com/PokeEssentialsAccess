@@ -40,16 +40,16 @@ module PokeAccess
     # Resolves an item symbol parsed from an event script to [symbol, name] (modern items are keyed by
     # symbol, so the symbol is the id).
     # param sym the item symbol/name string
-    # try_get antes que get, y exists? antes que ninguno de los dos. get de un id que no existe no siempre
-    # lanza StandardError: en Infinite Fusion recursiona hasta SystemStackError, que NO es StandardError y
-    # por tanto atraviesa todos los rescue de la cadena hasta tumbar el juego. Y el disparador es pasar el
-    # cursor del localizador por un evento cualquiera que nombre un objeto que ese juego no tiene.
+    # try_get before get, and exists? before either: get on an id that does not exist does not always raise
+    # StandardError -- in Infinite Fusion it recurses into SystemStackError, which is NOT a StandardError and
+    # so passes through every rescue in the chain and takes the game down. The trigger is the locator cursor
+    # passing over any event that names an item that game does not have.
     def self.item_id(sym)
       s = sym.to_s.to_sym
       [s, (safe_item_name(s) rescue nil)]
     end
 
-    # El nombre de un objeto, o nil, sin preguntar nunca por un id que la tabla no reconoce.
+    # An item's name, or nil, never asking the table about an id it does not know.
     def self.safe_item_name(s)
       return (GameData::Item.try_get(s).name rescue nil) if GameData::Item.respond_to?(:try_get)
       return nil if GameData::Item.respond_to?(:exists?) && !GameData::Item.exists?(s)

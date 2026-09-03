@@ -6,14 +6,10 @@ module PokeAccess
   # Queued rather than interrupting, so the detail follows the slot label instead of cutting it. The load
   # side needs nothing: its outer loop re-calls pbStartScene per slot and core/menus/load reads that.
   module MultiSave
-    # The box separates its fields with markup, not punctuation: <r>, <br> and the <ac> centring pair, which
-    # clean deletes outright. They become the pause the layout implied. </ac> counts because the map name is
-    # wrapped in it and the field after it carries no separator of its own.
-    LAYOUT = /<\s*\/?\s*(r|br|ac)\s*\/?\s*>/i
-
+    # The box separates its fields with markup, not punctuation (clean_fields turns that into the pause the
+    # layout implied).
     def self.slot_info(scene, text)
-      t = PokeAccess.clean(text.to_s.gsub(LAYOUT, ", ")).to_s.strip
-      t = t.gsub(/(,\s*)+/, ", ").sub(/\A,\s*/, "").sub(/,\s*\z/, "")
+      t = PokeAccess.clean_fields(text)
       return if t.empty?
       PokeAccess::Cursor.reset(scene, :ams_slot) if moving?
       PokeAccess::Cursor.announce(scene, :ams_slot, t, false) { t }
@@ -44,13 +40,20 @@ end
 
 # The dedup lives on the scene, which is built fresh per opening, so reopening describes the focused slot
 # again instead of inheriting the previous visit's.
-# pbClearSlotInfo destruye el panel de detalle, que es lo que el plugin hace al salir de la lista hacia el
-# submenu de una ranura. Soltar aqui la ranura de dedup es lo que hace que al volver se relea la fecha, el
-# mapa y el tiempo: la etiqueta se oye igual porque su ventana nace de nuevo, pero el detalle es el mismo
-# texto sobre la misma ranura y sin esto entra mudo -- justo la mitad del panel que solo se puede consultar
-# ahi.
-PokeAccess::Hooks.after_hook("PokemonSave_Scene", :pbClearSlotInfo, :optional => true) do |scene, _r, _a|
-  PokeAccess::Cursor.reset(scene, :ams_slot)
+#
+# The reset rides the slot SUBMENU (slotSelectCommands, the one method all five copies share -- only anil
+# has pbClearSlotInfo), on both edges: its loop repaints the detail per frame through pbUpdateSlotInfo, so
+# entering re-reads the focused entry's info under the question, and leaving re-arms the list detail --
+# including the "exit without saving?, no" path, which re-enters this method with the text unchanged and
+# used to come back mute.
+PokeAccess::Hooks.around_hook("PokemonSaveScreen", :slotSelectCommands, :optional => true) do |screen, nxt, _a|
+  scene = PokeAccess.ivar(screen, :@scene)
+  PokeAccess::Cursor.reset(scene, :ams_slot) if scene
+  begin
+    nxt.call
+  ensure
+    PokeAccess::Cursor.reset(scene, :ams_slot) if scene
+  end
 end
 
 PokeAccess::Hooks.before_hook("PokemonSave_Scene", :pbUpdateSlotInfo, :optional => true) do |scene, args|

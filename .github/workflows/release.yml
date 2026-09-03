@@ -39,25 +39,49 @@ jobs:
           fi
           echo "tag $TAG matches version.json ($FILE)"
 
-      # The same suite CI runs, on the exact tree about to be packaged: pushing a tag must never publish a
-      # build that does not pass its own tests.
+      # The same three gates CI runs, on the exact tree about to be packaged: pushing a tag must never publish
+      # a build that does not pass its own tests. The syntax sweep is the only parse plugins/ gets on a runner
+      # with no 1.8.7 interpreter; the marker grep refuses a filtered pass that skipped the static checks
+      # while still printing "0 fail"; the profile smoke loads every games/*/manifest.rb in isolation.
+      - name: syntax
+        run: |
+          for f in $(find core games plugins loader test -name '*.rb'); do ruby -c "$f" >/dev/null || exit 1; done
       - name: tests
-        run: ruby test/run_all.rb
+        run: |
+          set -o pipefail
+          ruby test/run_all.rb 2>&1 | tee /tmp/suite.log
+          grep -q "=== static checks ===" /tmp/suite.log || { echo "::error::static checks did not run (filtered invocation?)"; exit 1; }
+      - name: profiles
+        run: |
+          want=$(ls games/*/manifest.rb | wc -l)
+          got=0
+          for d in games/*/; do
+            p=$(basename "$d")
+            [ -f "$d/manifest.rb" ] || continue
+            echo "-- $p"
+            ruby -e "require './test/support/harness'; e = Harness.load_all('$p'); abort('FAIL '+ARGV[0]+': '+e.inspect) unless e.empty?" "$p" || exit 1
+            got=$((got+1))
+          done
+          [ "$got" -eq "$want" ] || { echo "::error::profiles smoke ran $got of $want"; exit 1; }
 
       - name: build zip
         run: |
           mkdir -p stage
           cp -r assets core lang loader installer version.json stage/
           cp -r games stage/games
-          # plugins/ is not optional. install.ps1 copies it behind a Test-Path, so a zip missing it
-          # installs SILENTLY without the third-party plugin readers -- no error, just a dozen screens
-          # that stopped talking. The loop below is the guard: the packaging step fails instead.
+          # plugins/ and lang/ are not optional: install.ps1 aborts without them, so a zip missing either
+          # would not install at all. The loop below makes the PACKAGING step fail instead.
           cp -r plugins stage/plugins
           for d in assets core games plugins lang loader installer; do
             [ -d "stage/$d" ] || { echo "::error::stage/$d missing from the zip"; exit 1; }
           done
+          # version.json is the one FILE in the payload, so the directory loop above cannot see it -- and
+          # without it every install seals mod_version 0.0.0 and the launcher's update decision breaks.
+          [ -f "stage/version.json" ] || { echo "::error::stage/version.json missing from the zip"; exit 1; }
           cp LICENSE stage/
-          [ -f README.md ] && cp README.md stage/ || true
+          # The three READMEs and docs/ travel together: README.md only links to the other two and to docs/.
+          for f in README.md README.es.md README.en.md; do [ -f "$f" ] && cp "$f" stage/; done
+          cp -r docs stage/docs
           (cd stage && zip -rq "../PokeEssentialsAccess_${TAG}.zip" .)
           sha256sum "PokeEssentialsAccess_${TAG}.zip" > "PokeEssentialsAccess_${TAG}.zip.sha256"
 

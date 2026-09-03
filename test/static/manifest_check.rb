@@ -82,6 +82,22 @@ begin
   # display ("Pokémon Z" -> "pokemon z"); a detect regex that cannot even match that form is dead.
   normalize = lambda { |s| s.to_s.downcase.tr("áéíóúüñ", "aeiouun") }
 
+  # Every non-generic profile must keep at least one identity layer (titles, detect or exes): with all
+  # three empty the game can never be auto-detected, and the installer and launcher fall back to the
+  # manual numbered menu -- for a blind player, the difference between installing and guessing.
+  valid_engines = ["gen6", "gamedata", "any"]
+  catalog.each do |q|
+    e = q["engine"]
+    problems << "profile #{q['key']} engine invalid or missing (#{e.inspect})" unless valid_engines.include?(e)
+  end
+
+  catalog.each do |q|
+    next if q["key"] == "generic"
+    layers = [q["titles"], q["exes"]].map { |a| a.is_a?(Array) ? a.length : 0 }.inject(0) { |s, n| s + n }
+    layers += 1 if q["detect"] && !q["detect"].to_s.empty?
+    problems << "profile #{q['key']} has no identity layer (titles/detect/exes all empty)" if layers == 0
+  end
+
   catalog.each do |q|
     next unless q["detect"]
     begin

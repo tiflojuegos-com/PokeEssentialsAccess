@@ -34,7 +34,10 @@ module PokeAccess
 
     def self.open
       return if @active
-      return unless ($scene.is_a?(Scene_Map) rescue true)
+      unless ($scene.is_a?(Scene_Map) rescue true)
+        PokeAccess.speak(PokeAccess::I18n.t(:cfg_map_only), true)
+        return
+      end
       @active = true; @mode = :top; @index = 0; @capturing = false; @stack = []
       (PokeAccess::Audio3D.suspend rescue nil)
       say("#{t(:cfg)}. #{describe}")
@@ -52,6 +55,7 @@ module PokeAccess
         break unless ($scene.is_a?(Scene_Map) rescue false)
         step
       end
+      @active = false
     rescue StandardError => e
       @active = false
       PokeAccess.write_marker("config_menu: #{e.class}: #{e.message}\n")
@@ -93,7 +97,8 @@ module PokeAccess
                 { :kind => :action, :action => :diag_scene,  :label => :dbg_diag_scene },
                 { :kind => :action, :action => :diag_full,   :label => :dbg_diag_full },
                 { :kind => :action, :action => :rec_toggle,
-                  :label => (PokeAccess::Recorder.recording? ? :dbg_rec_stop : :dbg_rec_start) }]
+                  :label => (PokeAccess::Recorder.recording? ? :dbg_rec_stop : :dbg_rec_start) },
+                { :kind => :action, :action => :selfcheck, :label => :dbg_selfcheck }]
         PokeAccess::Config.schema_group(:debug).each { |r| rows.push({ :kind => :setting, :row => r }) }
         rows.push({ :kind => :back, :label => :back })
         rows
@@ -307,6 +312,7 @@ module PokeAccess
       when :diag_map    then PokeAccess::Keys.diag_section_to_clip(:map)
       when :diag_scene  then PokeAccess::Keys.diag_section_to_clip(:scene)
       when :diag_full   then PokeAccess::Keys.diag_dump
+      when :selfcheck   then PokeAccess::SelfCheck.run
       when :rec_toggle  then record_toggle
       end
     end

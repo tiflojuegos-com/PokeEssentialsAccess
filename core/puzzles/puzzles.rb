@@ -59,9 +59,9 @@ module PokeAccess
 
     # True when the current puzzle has something the locator's puzzles category should list (grid cells,
     # obstacle walls, or facing statues), so the category appears only when it is useful.
-    # Una lista VACIA no cuenta como algo que listar. d[:cells] y d[:obstacles] se declaran en el perfil y
-    # pueden venir a cero en un mapa concreto: con la comprobacion de presencia a secas la categoria del
-    # localizador aparecia igual y el jugador la recorria entera sin encontrar nada.
+    # An EMPTY list does not count as something to list. d[:cells] and d[:obstacles] are declared in the
+    # profile and can come out empty on one map: with a bare presence check the locator category showed up
+    # anyway and the player walked through all of it finding nothing.
     def self.has_locator_targets?
       d = current
       return false unless d
@@ -427,8 +427,8 @@ module PokeAccess
       false
     end
 
-    # Los eventos que el puzle declara como obstaculo, cacheados por mapa: los eventos de un mapa no se
-    # crean ni se destruyen, solo se mueven, asi que la lista es estable aunque las coordenadas no lo sean.
+    # The events the puzzle declares as obstacles, cached per map: a map's events are never created or
+    # destroyed, only moved, so the list is stable even though the coordinates are not.
     def self.obstacle_events
       mid = ($game_map.map_id rescue 0)
       if @obs_events.nil? || @obs_map != mid
@@ -443,10 +443,10 @@ module PokeAccess
     # Speaks a heads-up the moment the player becomes newly adjacent to a puzzle obstacle (debounced by
     # tile, so it fires once per approach). The spoken layer; the positional audio pans the obstacle in
     # 3D when enabled, but the warning works with positional audio off too.
-    # La firma incluye la ADYACENCIA, no solo la casilla del jugador. Un obstaculo movil se acerca a un
-    # jugador quieto -- que es precisamente lo que hay que avisar -- y sobre la posicion sola ese caso salia
-    # por el return de arriba sin comprobar nada. La lista de obstaculos se cachea por mapa, asi que mirar
-    # las cuatro casillas de al lado cada frame recorre unos pocos eventos y no los de todo el mapa.
+    # The key includes the ADJACENCY, not just the player's tile. A moving obstacle approaches a standing
+    # player -- exactly the case to warn about -- and keyed on position alone that case left through the
+    # return above without checking anything. The obstacle list is cached per map, so looking at the four
+    # neighbouring tiles every frame walks a handful of events, not the whole map's.
     def self.obstacle_tick(d)
       px = $game_player.x; py = $game_player.y
       mid = ($game_map.map_id rescue 0)

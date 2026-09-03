@@ -4,7 +4,7 @@
 # visit, which is why no play session catches them; the reset path is the whole difference, so its absence
 # is what this check hunts.
 #
-# Two rules, both heuristic, both aimed at the ABSENCE family only (a reset that restores a stale key, as
+# Four rules, all heuristic, all aimed at the ABSENCE family only (a reset that restores a stale key, as
 # a stack pop can, is beyond a static scan):
 #   1. a file that speaks and guards on a module ivar named like dedup state (@last*/@prev*/@seen*) must
 #      also assign nil to that ivar somewhere INSIDE a method. The module-body initializer does not count:
@@ -14,10 +14,17 @@
 #      line self-invalidates per screen (__id__ / object_id).
 #   3. every literal speak_changed tag needs a UIV21.reset of that tag somewhere: those tags reach the
 #      module-wide table through a VARIABLE slot, which rule 2 cannot see.
+#   4. every INSTANCE-held Cursor slot must either have a reset somewhere or sit in SELF_SCOPED below.
+#      The list is the claim, made explicit: this slot's holder is born and dies with the screen it
+#      serves (or its key self-invalidates), so no reset is needed. A scene that HOSTS sub-screens
+#      outlives them -- the family that muted the Pokedex search and the PC grid -- and a new slot on
+#      such a scene must ship a reset, not a new line here.
 # Files where a missing reset IS the design carry their justification in ALLOW.
 Suite.define("static/dedup: el estado de modulo tiene camino de reset") do
   root = File.expand_path("../..", File.dirname(__FILE__))
   files = Dir[File.join(root, "{core,games,plugins}", "**", "*.rb")].sort
+  truthy("el barrido alcanza las tres raices",
+         files.length > 150 && ["/core/", "/games/", "/plugins/"].all? { |d| files.any? { |f| f.tr("\\", "/").include?(d) } })
 
   # dialogue.rb: @last_say pairs with @last_say_t, a clock -- the time window is the reset.
   allow = ["core/dialogue/dialogue.rb"]
@@ -46,6 +53,7 @@ Suite.define("static/dedup: el estado de modulo tiene camino de reset") do
   offenders = []
   cursor_slots = {}
   cursor_resets = {}
+  scene_slots = {}
   sc_tags = {}
 
   files.each do |path|
@@ -59,8 +67,10 @@ Suite.define("static/dedup: el estado de modulo tiene camino de reset") do
         selfkey = (l =~ /__id__|object_id/) ? true : false
         prev = cursor_slots[slot]
         cursor_slots[slot] = [rel, (prev ? prev[1] : false) || selfkey]
+      elsif l =~ /Cursor\.(?:announce|changed\?|on_change)\(\s*[A-Za-z_@][A-Za-z0-9_.]*\s*,\s*:(\w+)/
+        scene_slots[$1] ||= rel
       end
-      cursor_resets[$1] = true if l =~ /Cursor\.reset\(\s*nil\s*,\s*:(\w+)/
+      cursor_resets[$1] = true if l =~ /Cursor\.reset\(\s*[^,]+,\s*:(\w+)/
       cursor_resets[$1] = true if l =~ /UIV21\.reset\(\s*:(\w+)/
       sc_tags[$1] ||= rel if l =~ /speak_changed\(\s*:(\w+)/
     end
@@ -83,4 +93,18 @@ Suite.define("static/dedup: el estado de modulo tiene camino de reset") do
   bare_tags = sc_tags.reject { |tag, _f| cursor_resets[tag] }
   eq("tags de speak_changed sin su UIV21.reset",
      bare_tags.map { |tag, f| "#{f}: :#{tag}" }.sort, [])
+
+  # Rule 4. Each entry asserts: the holder is born and dies with its screen, or the key self-invalidates.
+  self_scoped = %w[
+    afr_archer afr_tables album_state arcky_species auto_focus awk_ach awk_ball awk_comp awk_evs
+    awk_glos awk_hist_section awk_lore awk_talisman bdx_page cc_dots charcreate dex_page
+    gacha gacha_banner gender_sel hatch hof hof_pk if2_challenge if2_door if2_starter if_fusion
+    list_entry ls_autosub mgift_card mono_type move_idx opt_tab pchm_ring place_idx place_row pm
+    rea_baya rea_mankey rea_morse rea_postre_col rea_ppt rea_timon rea_timon_dir ready_last rem_build
+    rem_tree ribbon_idx rse_starter sb_place slot_wager starter_sel sum_key sumkey support tl tm_name
+    vp_msg wardrobe_row opt_val tp_cell pnav_hearts bb_key mbs_sel ck_target mm_help mm_sel mg_score
+   book_page rea_hof_slide]
+  scene_missing = scene_slots.reject { |slot, _f| cursor_resets[slot] || self_scoped.include?(slot) }
+  eq("slots de instancia sin reset y sin declaracion en SELF_SCOPED",
+     scene_missing.map { |slot, f| "#{f}: :#{slot}" }.sort, [])
 end

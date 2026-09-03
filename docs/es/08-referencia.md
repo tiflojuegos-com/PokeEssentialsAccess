@@ -234,6 +234,20 @@ para que el lector degrade sin romperse.
 el código del plugin en la lista de scripts y "ninguno instalado" sería mentira. La sonda de `undeclared`
 pasa por `Engine.has?`, así que puede nombrar un método y no solo una clase.
 
+## Captura de pintado, retorno de menú, texto por build y autochequeo
+
+`core/util/paint_capture.rb`, `core/menus/menu_return.rb`, `core/foundation/game_lang.rb`, `core/util/selfcheck.rb`.
+
+| Firma | Devuelve | Cuándo usarlo |
+|---|---|---|
+| `PaintCapture.arm(tag)` / `PaintCapture.take(tag)` | `take`: las filas pintadas mientras `tag` estuvo armado, o `nil` | Leer una pantalla por lo que PINTA (`drawTextEx`, `pbDrawTextPositions`), que es correcto en builds por idioma |
+| `PaintCapture.speak_around(tag, interrupt) { nxt.call }` | El valor del bloque | La forma común: arma, corre el pintado del juego y habla lo que cayó |
+| `PaintCapture.flush_pending(tag, interrupt)` | — | Desde un poll por frame, para una etiqueta armada antes de un bucle bloqueante |
+| `MenuReturn.on_return { ... }` | — | Un menú con bucle propio que re-lee la opción al volver de un submenú; se dispara solo en la salida más externa |
+| `MenuReturn.bare("Clase", :metodo)` / `MenuReturn.bare_fn("funcion")` | — | Declarar una pantalla que se abre sin fade ni diálogo |
+| `GameLang.code` / `GameLang.pick(value, fallback)` | `:es`, `:en`, `:fr`... o `nil`; `pick` elige la entrada de la build | Texto transcrito de una imagen en un juego con varias builds por idioma |
+| `SelfCheck.run` | Las líneas del informe; escribe `data/selfcheck.txt` | La entrada "autochequeo del motor" del menú de configuración |
+
 ## Utilidades
 
 `core/util/` — módulos `Util` y `KVFile`.
@@ -372,8 +386,8 @@ Map y el rework de v21+ declaran ambos `PokemonRegionMap_Scene` con el cursor en
 `flyable` solo hace falta en una pantalla que conozca su propio conjunto de destinos; sin él, la regla
 genérica lo deriva de `pbGetHealingSpot` más `visitedMaps`.
 
-`core/nav/better_region_map.rb` es un proveedor de core, para el addon BetterRegionMap que instalan los dos
-Infinite Fusion: es una clase propia, con su bucle, su cursor en `$PokemonGlobal.regionMapSel` y sin
+`plugins/better_region_map.rb` es un proveedor registrado desde la capa de plugins, para el addon BetterRegionMap
+(Marin) que instalan los dos Infinite Fusion: es una clase propia, con su bucle, su cursor en `$PokemonGlobal.regionMapSel` y sin
 `pbGetMapLocation`, así que ningún hook del mapa estándar la alcanza.
 
 ## Audio

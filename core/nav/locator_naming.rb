@@ -37,10 +37,10 @@ module PokeAccess
                   [/hidden\s*item/i, :loc_hidden_item], [/berry\s*plant/i, :loc_berry_plant]]
 
     # The field-move obstacle/pickup key for an event, or nil (matched on the engine's own name marker).
-    # Un evento que HABLA no es un obstaculo de movimiento oculto, por muy bien que case su nombre. Las
-    # alternativas de nombre desnudo -- \Arock\z, \Atree\z, \Aboulder\z -- existen porque gen-6 los llama
-    # asi, pero tambien casan con un personaje llamado "Rock", y entonces un NPC con dialogo se anuncia como
-    # roca rompible y el jugador no vuelve a hablar con el.
+    # An event that TALKS is not a hidden field-move obstacle, however well its name matches. The bare-name
+    # alternatives -- \Arock\z, \Atree\z, \Aboulder\z -- exist because gen-6 names them that way, but they
+    # also match a character called "Rock", and then an NPC with dialogue is announced as a breakable rock
+    # and the player never talks to them again.
     def self.fieldmove_label(ev)
       n = (ev.name.to_s rescue "")
       return nil if n.empty?
@@ -563,14 +563,14 @@ module PokeAccess
     # Change Weapons (128) and Change Party Member (117) -- the marks of a hidden item / reward event.
     GOODS_CODES = [125, 126, 127, 128, 117]
     # Event name/sprite patterns that mark a door/exit (matched on the event's name and charset).
-    # Con frontera de palabra: como subcadena, "door" casa dentro de "outdoor" y "puerta" dentro de
-    # "puertaventana", y un decorado cualquiera se anuncia como salida a un sitio al que no lleva.
+    # With word boundaries: as a substring, "door" matches inside "outdoor" and "puerta" inside
+    # "puertaventana", and any piece of scenery is announced as an exit to somewhere it does not lead.
     EXIT_NAME_RE = /\b(door|puerta|salida|exit)\b/i
 
-    # Anotaciones que el editor de mapas deja pegadas al nombre del evento y que no forman parte de
-    # el: size(3,1) para un objeto de varias baldosas, .sl y forced_z=N para la capa en que se dibuja.
-    # Sin quitarlas se pronuncian tal cual -- "maquina expendedora size(3,1)" -- porque el guardia que
-    # ya habia solo las quitaba cuando ocupaban el nombre entero.
+    # Annotations the map editor leaves stuck to the event name that are no part of it: size(3,1) for a
+    # multi-tile object, .sl and forced_z=N for the layer it is drawn on. Left in, they are pronounced as
+    # they are -- "vending machine size(3,1)" -- because the guard that already existed only stripped them
+    # when they were the whole name.
     EDITOR_NOTE_RE = /\s*(?:size\s*\(\s*\d+\s*,\s*\d+\s*\)|\.sl\b|\bforced_z\s*=\s*-?\d+)/i
     # Action-button command codes that mean an event does something: text/choices, script, or item/money.
     # Built on a duped array with concat, never `+`: a fangame script patch redefines Array#+ as an in-place

@@ -19,10 +19,9 @@ module PokeAccess
     # (core/input/input.rb), never the info key.
     def self.watching?; !@scene.nil?; end
 
-    # Reads the focused item when it changes. The generic Window_PokemonBag extractor already prefixes the
-    # pocket name into the same line when the pocket changes ("Objetos. Llave: 3"), so dedup on the SPOKEN
-    # TEXT, not on index/pocket -- the index can settle over two frames after a pocket switch, which a
-    # key-based dedup would read twice (once with the prefix, once without, cutting the first off).
+    # Reads the focused item when it changes. Dedup keys on [pocket, row] -- the PREFIX-FREE row -- and the
+    # spoken line adds the pocket prefix on top: keying on the rendered text re-reads the same row the frame
+    # after a pocket switch, because the prefix legitimately appears once and then goes away.
     def self.poll
       s = @scene
       return unless s
@@ -30,10 +29,13 @@ module PokeAccess
       return unless win
       idx = (win.index rescue nil)
       return if idx.nil? || idx < 0
-      txt = PokeAccess.clean(PokeAccess::Menus.focused_text(win).to_s)
-      return if txt.empty? || txt == @last
-      @last = txt
-      PokeAccess.speak(txt, true)
+      row = PokeAccess.clean(PokeAccess::Menus.bag_row(win, idx).to_s)
+      return if row.empty?
+      key = [(win.pocket rescue nil), row]
+      return if key == @last
+      @last = key
+      PokeAccess.speak(PokeAccess.clean("#{PokeAccess::Menus.bag_prefix(win)}#{row}"), true)
+      PokeAccess::Menus.mark_bag_pocket(win)
     rescue StandardError
       nil
     end

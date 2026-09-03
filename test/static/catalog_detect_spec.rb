@@ -6,6 +6,8 @@
 # A bare \bz\b in the pokemon_z pattern matches a "Z:" drive letter and "mkxp-z.exe", which makes pokemon_z
 # shadow every other game. This asserts the pattern still matches real Pokemon Z folders
 # but never a drive letter or mkxp-z, and that another profile still wins on such paths.
+require "json"
+
 CATALOG_JSON = File.join(File.expand_path("../..", __dir__), "games", "catalog.json")
 
 # Builds the match haystack exactly as the launcher/installer do: "<folder> <exe>", lowercased.
@@ -13,29 +15,33 @@ def catalog_haystack(path)
   path.downcase
 end
 
+# The catalog through a real JSON parser, like both consumers (ConvertFrom-Json, serde_json). The old
+# readers scraped the RAW text with regexps and undid the escapes by hand, so a broken escape in a detect
+# pattern handed this spec a different regexp than the one either consumer would run; parsed, all three
+# see the same string, and a catalog that stops parsing fails loudly here too.
+def catalog_profiles
+  JSON.parse(File.read(CATALOG_JSON))["profiles"]
+end
+
 # The detect regexp for a profile key, compiled case-insensitively like both consumers, or nil if the
 # profile is absent or has a null pattern.
 def detect_regexp_for(key)
-  raw = File.read(CATALOG_JSON)
-  entry = raw[/\{[^{}]*"key"\s*:\s*"#{Regexp.escape(key)}".*?\}/m]
-  return nil unless entry
-  pat = entry[/"detect"\s*:\s*"((?:[^"\\]|\\.)*)"/, 1]
-  return nil if pat.nil?
-  Regexp.new(pat.gsub('\\\\', '\\'), Regexp::IGNORECASE)
+  entry = catalog_profiles.find { |e| e["key"] == key }
+  return nil unless entry && entry["detect"]
+  Regexp.new(entry["detect"], Regexp::IGNORECASE)
 end
 
 # Resolves which profile key wins for a haystack, mirroring the consumers' layer 2: among every detect
 # that matches, the one whose MATCHED TEXT is longest wins (ties keep file order, as both consumers do).
 def detect_profile(path)
-  raw = File.read(CATALOG_JSON)
   hay = catalog_haystack(path)
   best = nil
   best_len = -1
-  raw.scan(/"key"\s*:\s*"([^"]+)"[^{}]*?"detect"\s*:\s*(null|"((?:[^"\\]|\\.)*)")/m).each do |key, detect, pat|
-    next if detect == "null"
-    m = hay.match(Regexp.new(pat.gsub('\\\\', '\\'), Regexp::IGNORECASE))
+  catalog_profiles.each do |e|
+    next unless e["detect"]
+    m = hay.match(Regexp.new(e["detect"], Regexp::IGNORECASE))
     next if m.nil? || m[0].length <= best_len
-    best = key
+    best = e["key"]
     best_len = m[0].length
   end
   best
@@ -79,12 +85,10 @@ end
 # Data and not code: catalog.json is the one place both consumers already read, so there is no two-language
 # port to keep in sync. This keeps it that way as games are added.
 Suite.define("catalog: every unaccented pokemon title carries its accented twin") do
-  raw = File.read(CATALOG_JSON)
-  # Only the titles arrays: the detect patterns are regexps and "pokemon ?z\b" is not a title.
-  plain = raw.scan(/"titles"\s*:\s*\[(.*?)\]/m).flatten.join(",").scan(/"(pokemon [^"]*)"/).flatten.uniq
+  titles = catalog_profiles.map { |e| e["titles"] || [] }.flatten
+  plain = titles.select { |t| t =~ /\Apokemon / }.uniq
   truthy "the catalog really does list unaccented titles", plain.length >= 5
-  missing = plain.reject do |t|
-    raw.index("\"" + t.sub(/\Apokemon\b/, [0x70, 0x6f, 0x6b, 0xe9, 0x6d, 0x6f, 0x6e].pack("U*")) + "\"")
-  end
+  accented = [0x70, 0x6f, 0x6b, 0xe9, 0x6d, 0x6f, 0x6e].pack("U*")
+  missing = plain.reject { |t| titles.include?(t.sub(/\Apokemon\b/, accented)) }
   eq "each has its accented twin", missing.sort, []
 end

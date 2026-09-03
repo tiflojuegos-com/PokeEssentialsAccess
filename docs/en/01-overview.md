@@ -10,11 +10,11 @@ the game as it was.
 
 | | |
 |---|---|
-| Core modules | 129, in `core/manifest.rb` |
+| Core modules | 126, in `core/manifest.rb` |
 | Game profiles | 14, in `games/` |
-| Plugin readers | 29, in `plugins/` |
-| Languages | `lang/es.txt`, `lang/en.txt` |
-| Suite | 1600 (gen-6, static checks included) + 137 (gamedata) |
+| Plugin readers | 41, in `plugins/` |
+| Languages | 6 (`es`, `en`, `fr`, `pt`, `de`, `pl`), in `lang/` |
+| Suite | 1790 (gen-6, static checks included) + 137 (gamedata) |
 | Ruby | 1.8.7 in the game; the system one in tests |
 
 ## Layers
@@ -26,7 +26,7 @@ the game as it was.
 | `games/<profile>/` | Code for one fangame | Never references another profile |
 
 Inside `core/` the layout is **module first**: `core/<module>/` holds the engine-agnostic readers, and the
-`gen6/`, `v21/`, `v22/`, `skyflyer/` subfolders hold only what differs per era. Anything shared by several
+`gen6/`, `v21/`, `v22/` subfolders hold only what differs per era. Anything shared by several
 eras lives at the module root.
 
 Modules: `audio`, `battle`, `data`, `dialogue`, `field`, `foundation`, `input`, `menus`, `nav`, `party`,
@@ -73,7 +73,7 @@ exist is logged and skipped: a half-finished install costs one screen, not the w
 | To know which engine is running | `core/foundation/engine.rb` | [02-engines](02-engines.md) |
 | Defensive introspection | `core/foundation/const.rb` | [08-reference](08-reference.md) |
 | To avoid repeated reads | `core/menus/cursor.rb` | [04-readers](04-readers.md) |
-| Spoken text | `lang/es.txt`, `lang/en.txt` | [05-extending](05-extending.md) |
+| Spoken text | the six `lang/*.txt` | [05-extending](05-extending.md) |
 | Routes and sonar | `core/nav/`, `core/audio/` | [06-navigation](06-navigation.md) |
 | To diagnose a failure | `core/input/diag.rb` | [07-diagnostics](07-diagnostics.md) |
 
@@ -94,7 +94,7 @@ ruby test/run_all.rb                    # both engines + static checks
 ruby test/run_all.rb behavior/battle    # filter by path fragment
 ```
 
-The static checks cover manifest integrity, key parity between `lang/es.txt` and `lang/en.txt`, Ruby 1.8.7
+The static checks cover manifest integrity, key parity across the six `lang/` files, Ruby 1.8.7
 compatibility, cross-layer coupling and `plugins/` consistency.
 
 ## Installing

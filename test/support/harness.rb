@@ -6,6 +6,12 @@
 # OWN trusted .rb files from the repo, in a fixed local folder, never external input. It is the only way to
 # load the mod -- which expects the RGSS runtime -- under a plain desktop Ruby for testing.
 ENGINE = (ENV["PA_ENGINE"] || "gen6").to_sym
+
+# Runtime files (markers, settings, recordings) go to a throwaway dir under test/, never to an
+# accessibility/ folder inside the repo -- which is where they silently piled up when the suite ran from
+# the repo root, Paths::DATA being relative to the CWD inside a game.
+ENV["POKEACCESS_DATA_DIR"] ||= File.expand_path("../tmp_data", File.dirname(__FILE__))
+
 require File.expand_path(ENGINE == :gamedata ? "stubs/engine_gamedata" : "stubs/engine_gen6", File.dirname(__FILE__))
 
 module Harness

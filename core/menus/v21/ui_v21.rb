@@ -58,11 +58,26 @@ module PokeAccess
       PokeAccess::MoveInfo.by_id(id)
     end
 
-    # Detail of a single reminder-list entry: a [move_id, "Nv. X"] pair, an id, or a move object.
+    # Detail of a single reminder-list entry: a [move_id, label] pair, an id, or a move object. The row
+    # label leads the line ("Nv. 12" relearns free, "MT" spends the machine: the label is where the cost
+    # lives). PP and the icon-only damage category join through MoveInfo.line.
     def self.move_from_entry(m)
       return nil unless m
       id = m.is_a?(Array) ? m[0] : (m.id rescue m)
-      move_by_id(id)
+      lbl = m.is_a?(Array) ? PokeAccess.clean(m[1].to_s).to_s.strip : ""
+      data = (GameData::Move.get(id) rescue nil)
+      return move_by_id(id) unless data
+      ty = (GameData::Type.get(data.type).name rescue nil)
+      pw = PokeAccess.attr_of(data, :power, :base_damage)
+      tot = PokeAccess.attr_of(data, :total_pp, :totalpp)
+      ci = (data.category rescue nil)
+      ck = [:cat_physical, :cat_special, :cat_status][ci] if ci.is_a?(Integer)
+      line = PokeAccess::MoveInfo.line((data.name rescue "").to_s, ty, pw || 0,
+                                       (data.accuracy rescue 0),
+                                       :pp => tot, :total_pp => tot,
+                                       :cat => (ck ? PokeAccess::I18n.t(ck) : nil),
+                                       :desc => (data.description rescue ""))
+      lbl.empty? ? line : "#{lbl}. #{line}"
     rescue StandardError
       nil
     end
@@ -164,4 +179,15 @@ end
 # the same one focused last time.
 PokeAccess::Hooks.before_hook("PokemonPokegear_Scene", :pbStartScene) do |_s, _a|
   PokeAccess::UIV21.reset(:pokegear)
+end
+PokeAccess::Hooks.before_hook("Scene_Pokegear", :main, :optional => true) do |_s, _a|
+  PokeAccess::UIV21.reset(:pokegear)
+end
+
+# Scene_Pokegear (the RMXP-style copy) keeps a HIDDEN but active Window_CommandPokemon underneath its
+# sprite buttons, and the generic command hook read it in step with the button hook above: every option
+# arrived twice. Claiming the window leaves the buttons as the single voice; dedicate is idempotent, so
+# per-frame is fine.
+PokeAccess::Hooks.after_hook("Scene_Pokegear", :update, :optional => true) do |scene, _r, _a|
+  PokeAccess.dedicate(PokeAccess.sprite(scene, "command_window"))
 end

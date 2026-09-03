@@ -12,7 +12,8 @@ module PokeAccess
       if o.respond_to?(:values)
         (o.values[v] rescue v).to_s
       elsif o.respond_to?(:optstart)
-        (o.optstart + v).to_s
+        tot = (o.respond_to?(:optend) ? (o.optend - o.optstart + 1) : nil)
+        tot ? "#{o.optstart + v}/#{tot}" : (o.optstart + v).to_s
       elsif o.respond_to?(:lowest_value)
         (o.lowest_value + v).to_s
       else

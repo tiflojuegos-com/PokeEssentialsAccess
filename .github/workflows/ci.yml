@@ -20,16 +20,26 @@ jobs:
       - name: syntax
         run: |
           for f in $(find core games plugins loader test -name '*.rb'); do ruby -c "$f" >/dev/null || exit 1; done
+      # The marker grep is the floor: a filtered invocation left behind after debugging would skip every
+      # static check while still printing "0 fail", and nothing else distinguishes the two passes.
       - name: tests
-        run: ruby test/run_all.rb
+        run: |
+          set -o pipefail
+          ruby test/run_all.rb 2>&1 | tee /tmp/suite.log
+          grep -q "=== static checks ===" /tmp/suite.log || { echo "::error::static checks did not run (filtered invocation?)"; exit 1; }
       # Every profile on disk, never a hand-written list: the previous one had drifted and silently stopped
       # covering three profiles (awakening and both Infinite Fusion) even though they were shipping. Deriving
-      # it means a new profile is smoke-loaded from the moment its folder exists.
+      # it means a new profile is smoke-loaded from the moment its folder exists. The executed count is
+      # compared against the manifests on disk, so a filter slipped into the loop cannot shrink it quietly.
       - name: profiles
         run: |
+          want=$(ls games/*/manifest.rb | wc -l)
+          got=0
           for d in games/*/; do
             p=$(basename "$d")
             [ -f "$d/manifest.rb" ] || continue
             echo "-- $p"
             ruby -e "require './test/support/harness'; e = Harness.load_all('$p'); abort('FAIL '+ARGV[0]+': '+e.inspect) unless e.empty?" "$p" || exit 1
+            got=$((got+1))
           done
+          [ "$got" -eq "$want" ] || { echo "::error::profiles smoke ran $got of $want"; exit 1; }

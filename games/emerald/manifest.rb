@@ -8,5 +8,5 @@
   :modules => %w[
     battle_point_mart
   ],
-  :plugins => %w[bag_screen_party bw_mystery_gift challenge_rules encounter_list_ui hgss_dexlist item_crafting item_find multi_save quest_ui regicode rse_starters secret_bases video_poker wardrobe]
+  :plugins => %w[bag_screen_party bw_mystery_gift challenge_rules encounter_list_ui hgss_dexlist item_crafting item_find multi_save quest_ui regicode rse_starters secret_bases video_poker wardrobe dbk_battle dbk_enhanced_ui]
 }

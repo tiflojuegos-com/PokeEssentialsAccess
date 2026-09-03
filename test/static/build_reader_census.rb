@@ -263,3 +263,16 @@ blocking = hooked.keys.sort.select { |k| !hooked[k].empty? }
 puts "wrote #{LOOP_OUT}: #{hooked.length} after-hook sites, #{blocking.length} blocking, " +
      "#{no_evidence.length} with no dump, #{unresolved.values.flatten.length} unresolved"
 puts "blocking: #{blocking.join(', ')}" unless blocking.empty?
+
+# The spec census: every *_spec.rb the runner must discover, committed so run_all can refuse a sweep
+# whose glob went quiet (a renamed folder shrinks the suite without failing anything). Needs no dumps,
+# so it regenerates on any machine.
+SPEC_OUT = File.join(File.dirname(__FILE__), "spec_census.txt")
+test_root = File.expand_path(File.join(File.dirname(__FILE__), ".."))
+spec_rel = Dir.glob(File.join(test_root, "{unit,behavior,static}", "**", "*_spec.rb"))
+              .map { |p| File.expand_path(p)[(test_root.length + 1)..-1].tr("\\", "/") }.sort
+File.open(SPEC_OUT, "wb") do |io|
+  io.print("# Spec files run_all must discover. Regenerate: ruby test/static/build_reader_census.rb\n")
+  spec_rel.each { |r| io.print(r, "\n") }
+end
+puts "wrote #{SPEC_OUT}: #{spec_rel.length} spec files"

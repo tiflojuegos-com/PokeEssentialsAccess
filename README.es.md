@@ -73,7 +73,7 @@ Hay un perfil por juego en `games/`; la lista que usan el instalador y el launch
 
 **Era gen-6** (Essentials v16-v17): Pokémon Z, Pokémon Ópalo, Pokémon Reminiscencia, Pokémon Armonía, Pokémon Realidea, Pokémon Africanus, Pokémon Awakening.
 
-**Era GameData** (Essentials v18 en adelante): Pokémon Añil, Pokémon Royal, Pokémon Relict, Pokémon Infinite Fusion, Pokémon Infinite Fusion 2 Hoenn.
+**Era GameData** (Essentials v18 en adelante): Pokémon Añil, Pokémon Royal, Pokémon Relict, Pokémon Eternal Emerald, Pokémon Infinite Fusion, Pokémon Infinite Fusion 2 Hoenn.
 
 Y un **perfil genérico** para cualquier otro fangame sobre Essentials: da toda la accesibilidad común (lectura de menús, diálogos y combate, navegación y rutas) sin los lectores propios de un juego concreto.
 
@@ -124,9 +124,10 @@ Estas son las carpetas principales del repositorio y qué contienen:
 
 | Carpeta | Contenido |
 |---------|-----------|
-| `core/` | El motor compartido del mod, agnóstico al juego. Se organiza por módulos, y dentro por versión de Essentials (`gen6`, `v21`, `v22`, `skyflyer`) cuando hace falta. |
+| `core/` | El motor compartido del mod, agnóstico al juego. Se organiza por módulos, y dentro por versión de Essentials (`gen6`, `v21`, `v22`) cuando hace falta. |
 | `games/` | Un perfil por juego: sus lectores específicos y su configuración. Cada carpeta es un fangame soportado (`pokemon_z`, `opalo`, `anil`, `relict`, etc.). |
-| `lang/` | Los textos que habla el mod, traducidos (`es.txt` español, `en.txt` inglés). |
+| `plugins/` | Lectores de plugins de terceros que instalan varios fangames. |
+| `lang/` | Los textos que habla el mod, traducidos a seis idiomas (`es`, `en`, `fr`, `pt`, `de`, `pl`). |
 | `loader/` | El preload que espera al juego y el boot que carga el mod en orden. |
 | `native/` | Código C del backend de audio 3D (`pa3d_steam.c` → `PA3D_steam.dll`). |
 | `bridge/` | Código C del puente con prism, el que habla con el lector de pantalla. |

@@ -82,6 +82,15 @@ module PokeAccess
       # Maps picture file names to spoken text, for screens that light one picture per option.
       def picture_texts(map); PokeAccess::PictureCues::TEXTS.merge!(map); end
 
+      # picture_texts for a game shipped as several per-language builds: each value is a hash of build
+      # language => transcription, resolved at speak time against what the RUNNING build declares
+      # (GameLang). base names the language the pictures were authored in -- the fallback when a build
+      # declares a language nobody transcribed.
+      def picture_texts_multibuild(base, map)
+        map.each_key { |k| PokeAccess::PictureCues::BASE_LANG[k.to_s] = base }
+        PokeAccess::PictureCues::TEXTS.merge!(map)
+      end
+
       # Registers a handler invoked when a picture is shown. Yields (picture_name, args).
       def on_picture(&blk); PokeAccess::PictureCues.register(&blk); end
     end

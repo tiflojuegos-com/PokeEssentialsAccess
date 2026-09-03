@@ -66,9 +66,13 @@ module PokeAccess
       storage = PokeAccess.expect!("pc.storage", scene.instance_variable_get(:@storage))
       held    = (screen.pbHeldPokemon rescue nil)
       box     = (storage.currentBox rescue -9)
-      key     = [box, selection, (held ? held.object_id : nil), !party.nil?]
-      return if key == PokeAccess.ivar(scene, :@access_pc_key)
-      scene.instance_variable_set(:@access_pc_key, key)
+      slot_pk = nil
+      if selection.is_a?(Integer) && selection >= 0
+        slot_pk = party ? (party[selection] rescue nil) : (storage[box, selection] rescue nil)
+      end
+      key = [box, selection, (held ? held.object_id : nil), !party.nil?,
+             (slot_pk ? slot_pk.object_id : nil)]
+      return unless PokeAccess::Cursor.changed?(scene, :pc_key, key)
       case selection
       when -1 then PokeAccess.speak(PokeAccess::I18n.t(:pc_box, :name => (storage[box].name rescue '')), true)
       when -2 then PokeAccess.speak(PokeAccess::I18n.t(:pc_team), true)
@@ -76,7 +80,7 @@ module PokeAccess
       when -4 then PokeAccess.speak(PokeAccess::I18n.t(:pc_prev), true)
       when -5 then PokeAccess.speak(PokeAccess::I18n.t(:pc_next), true)
       else
-        pkmn = party ? (party[selection] rescue nil) : (storage[box, selection] rescue nil)
+        pkmn = slot_pk
         pos = party ? "" : PokeAccess::I18n.t(:pc_pos, :row => selection / BOX_COLUMNS + 1, :col => selection % BOX_COLUMNS + 1)
         if held
           if pkmn

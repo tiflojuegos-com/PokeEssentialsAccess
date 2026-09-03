@@ -1,19 +1,16 @@
 import os, re, glob, subprocess, sys
 # 1.8.7 compatibility checks. core/ loads in BOTH engines (gen-6 Ruby 1.8.7 and modern 3.1) and the
-# gen-6 game adapters run on 1.8.7, so their code must be 1.8.7-safe. Files under a module's v21/, v22/
-# or skyflyer/ subfolder (and games/anil/) load ONLY in the modern engine (Ruby 3.1+), so 1.9+
-# syntax/APIs are fine there: skipped.
-# Modern (Ruby 3.x) profiles are exempt; gen-6 (Ruby 1.8.7) games are NOT (their game code must stay
-# 1.8.7-safe). MODERN: anil/royal/relict run on Ruby 3.x with the GameData API, and so does
-# infinitefusion_hoenn (Essentials v18 on an mkxp-z built against Ruby 3.1). GEN-6 (linted): pokemon_z,
-# opalo, armonia (Essentials 16.3), realidea, africanus, reminiscencia (PScreen_*/PB* pre-GameData), and
-# generic/unknown (conservative).
-# Only the profiles of games that RUN on Ruby 3.x. The version folders of core/ are deliberately NOT here:
-# core/manifest.rb is a flat list with no engine condition, so every one of them is loaded in the 1.8.7
-# games too, and a file that does not parse there lands in loader_error.txt on every boot. Exempting them
-# assumed a gate that does not exist.
+# gen-6 game profiles run on 1.8.7, so their code must be 1.8.7-safe. Only the profiles of games that RUN
+# on Ruby 3.x are exempt -- MODERN below: anil, royal, relict, emerald, infinitefusion and
+# infinitefusion_hoenn (GameData-era engines on an mkxp-z built against Ruby 3.1). GEN-6 (linted):
+# pokemon_z, opalo, armonia (Essentials 16.3), realidea, africanus, reminiscencia (PScreen_*/PB*
+# pre-GameData), and generic/unknown (conservative).
+# The version folders of core/ are deliberately NOT exempt: core/manifest.rb is a flat list with no engine
+# condition, so every one of them is loaded in the 1.8.7 games too, and a file that does not parse there
+# lands in loader_error.txt on every boot. Exempting them assumed a gate that does not exist.
 MODERN = ("games/anil/", "games/royal/", "games/relict/",
-          "games/infinitefusion_hoenn/", "games/infinitefusion/")
+          "games/infinitefusion_hoenn/", "games/infinitefusion/",
+          "games/emerald/")
 def is_modern(path):
     p = path.replace("\\", "/")
     return any(m in p for m in MODERN)
@@ -33,6 +30,21 @@ def is_opener_block(line):
 def is_opener_safe(line):
     s = line.strip()
     return bool(re.match(r"(begin|def |class |module |ensure\b)", s)) or s == "begin"
+
+# The owner of a rescue at line i: walk upward for the nearest OPENER line. A plain statement found at
+# <= the current indent is not the owner -- it lowers the bar and the walk continues, which is what
+# catches the orphan shape (a rescue indented like the block BODY, whose owner is the block itself) that
+# the old "first line at <= indent wins" rule read as harmless.
+def find_opener(lines, i):
+    n = indent(lines[i])
+    for j in range(i - 1, -1, -1):
+        p = lines[j]
+        if p.strip() == "" or p.strip().startswith("#"): continue
+        if indent(p) <= n:
+            if is_opener_block(p) or is_opener_safe(p):
+                return p
+            n = indent(p)
+    return ""
 
 # (1b) leading-dot method chaining: valid in 1.9+, SYNTAX ERROR in 1.8.7 (the dot must trail the
 # previous line). Caught in the wild: a chained SCAN_CODES literal killed config_menu.rb, and with the
@@ -143,6 +155,36 @@ SHAPE_CASES = [
     ("def is a safe opener", lambda s: is_opener_safe(s), "def foo", "foo.each do"),
 ]
 
+# The WALK itself, on whole snippets: which line owns a rescue. This is the only part of rule (1) the
+# per-line cases above cannot reach, and the mutation sweep showed it was defended by the shape of the
+# tree, not by a test (flipping `<=` to `<` only failed by turning eight legitimate nested begins into
+# false positives). Each case is (label, snippet, does rule (1) flag it).
+WALK_CASES = [
+    ("rescue in a do-block is flagged",
+     "items.each do |i|\n  risky\nrescue\nend", True),
+    ("rescue owned by begin is not",
+     "begin\n  risky\nrescue\nend", False),
+    ("begin/rescue NESTED in a block is not (the <= mutation breaks this)",
+     "items.each do |i|\n  begin\n    risky\n  rescue\n  end\nend", False),
+    ("an orphan rescue at the block BODY's indent is flagged too",
+     "items.each do |i|\n  risky\n  rescue\nend", True),
+    ("a method body rescue is not",
+     "def foo\n  x\nrescue\nend", False),
+]
+
+def block_rescue_at(lines, i):
+    s = lines[i].strip()
+    if not (s == "rescue" or s.startswith("rescue ")):
+        return None
+    opener = find_opener(lines, i)
+    if is_opener_block(opener) and not is_opener_safe(opener):
+        return opener
+    return None
+
+def walk_flags(snippet):
+    lines = snippet.split("\n")
+    return any(block_rescue_at(lines, i) is not None for i in range(len(lines)))
+
 # Runs every pattern against the line it exists to catch and against a 1.8.7-safe twin. A pattern that stops
 # matching its own case, or starts matching the safe one, fails HERE -- loudly and before the scan, instead
 # of quietly passing every file for the rest of the project's life.
@@ -158,6 +200,9 @@ def self_test():
             bad.append("%s: no longer recognises %r" % (label, must))
         if fn(must_not):
             bad.append("%s: now recognises %r" % (label, must_not))
+    for label, snippet, expected in WALK_CASES:
+        if walk_flags(snippet) != expected:
+            bad.append("opener walk: %s" % label)
     if bad:
         print("CHECK187 ROTO: los patrones no hacen lo que dicen hacer.")
         for b in bad: print("  " + b)
@@ -173,7 +218,32 @@ flagged = []
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def tree(pat):
     return glob.glob(os.path.join(REPO, pat), recursive=True)
-paths = sys.argv[1:] or (tree("core/**/*.rb") + tree("games/**/*.rb") + tree("plugins/**/*.rb") + tree("loader/*.rb"))
+paths = sys.argv[1:] or (tree("core/**/*.rb") + tree("games/**/*.rb") + tree("plugins/**/*.rb") + tree("loader/**/*.rb"))
+
+# Floor for the sweep itself: every core/manifest.rb entry must be among the scanned files, and none of
+# the roots may match zero files. A glob that goes quiet must fail here, not report a smaller OK.
+if not sys.argv[1:]:
+    _man = os.path.join(REPO, "core", "manifest.rb")
+    try:
+        with open(_man, encoding="utf-8") as _fh:
+            _entries = re.findall(r'^\s+([a-z0-9_/]+)\s*$', _fh.read(), re.M)
+    except OSError:
+        _entries = []
+    _required = set(os.path.normpath(os.path.join(REPO, "core", _e + ".rb")) for _e in _entries)
+    _have = set(os.path.normpath(_p) for _p in paths)
+    _missing = sorted(_required - _have)
+    _thin = [_name for _name, _pat in (("plugins", "plugins/**/*.rb"), ("games", "games/**/*.rb"),
+                                       ("loader", "loader/*.rb")) if not tree(_pat)]
+    if not _entries or _missing or _thin:
+        print("1.8.7 SWEEP INCOMPLETE:")
+        if not _entries:
+            print("  core/manifest.rb missing or unreadable")
+        for _m in _missing[:10]:
+            print("  manifest entry never scanned: " + os.path.relpath(_m, REPO))
+        for _t in _thin:
+            print("  zero files matched under " + _t + "/")
+        sys.exit(1)
+
 for f in paths:
     if is_modern(f): continue
     try:
@@ -185,16 +255,9 @@ for f in paths:
         s = ln.strip()
         if s.startswith("#"): continue
         # (1) block-rescue
-        if s == "rescue" or s.startswith("rescue "):
-            n = indent(ln)
-            for j in range(i - 1, -1, -1):
-                p = lines[j]
-                if p.strip() == "" or p.strip().startswith("#"): continue
-                if indent(p) <= n: opener = p; break
-            else:
-                opener = ""
-            if is_opener_block(opener) and not is_opener_safe(opener):
-                flagged.append("%s:%d  block-rescue (1.8.7 syntax error) -> %r" % (f, i + 1, opener.strip()))
+        opener = block_rescue_at(lines, i)
+        if opener is not None:
+            flagged.append("%s:%d  block-rescue (1.8.7 syntax error) -> %r" % (f, i + 1, opener.strip()))
         # (1b) leading-dot chain
         if LEADING_DOT.match(ln):
             flagged.append("%s:%d  leading-dot chain (1.8.7 syntax error) -> %r" % (f, i + 1, s[:72]))

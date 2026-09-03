@@ -19,17 +19,16 @@ module PokeAccess
       key ? PokeAccess::I18n.t(key) : nil
     end
 
-    # Las ranuras de params que pinta cada FILA de la rejilla, y la lista de la que sale cada valor. La fila
-    # NO es el indice de params: tipo, altura y peso ocupan DOS ranuras cada una (dos tipos, y el minimo y
-    # el maximo de un rango), asi que de la fila 3 en adelante params[fila] es el filtro de al lado --
-    # "Altura" leyendo el segundo tipo, "Color" leyendo la altura maxima. params[8] y params[9], que son el
-    # color y la forma de verdad, no los leia nadie.
+    # The params slots each ROW of the grid paints, and the list each value comes from. The row is NOT the
+    # params index: type, height and weight take TWO slots each (two types, and the minimum and maximum of a
+    # range), so from row 3 on params[row] is the filter next door -- "Height" reading the second type,
+    # "Color" reading the maximum height. params[8] and params[9], the real colour and shape, went unread.
     SLOTS = [[0], [1], [2, 3], [4, 5], [6, 7], [8], [9]]
     LISTS = [:@orderCommands, :@nameCommands, :@typeCommands, :@heightCommands,
              :@weightCommands, :@colorCommands, :@shapeCommands]
 
-    # Un elemento de una lista de comandos como lo dice la pantalla: los tipos, los colores y las formas son
-    # objetos de GameData y su to_s es el volcado del objeto; las alturas y los pesos son numeros crudos.
+    # A command-list entry as the screen says it: types, colours and shapes are GameData objects whose to_s
+    # is the object dump; heights and weights are raw numbers.
     def self.option_text(item)
       return nil if item.nil?
       n = (item.name rescue nil)
@@ -117,6 +116,19 @@ end
 PokeAccess::Menus.def_extractor("Window_ComplexCommandPokemon") do |win, i|
   cmds = (win.commands rescue nil)
   cmds ? win.getText(cmds, i).to_s : ""
+end
+
+# Entering the search (and each filter sub-screen) forgets its dedup slots: the holder is the Pokedex
+# scene, which outlives the sub-screen, and the game reopens both on the very same index with the very
+# same values -- so without the reset every visit after the first opens silent.
+["PokemonPokedex_Scene", "PokemonPokedexScene"].each do |cn|
+  PokeAccess::Hooks.before_hook(cn, :pbDexSearch, :optional => true) do |scene, _a|
+    PokeAccess::Cursor.reset(scene, :dex_search)
+    PokeAccess::Cursor.reset(scene, :dex_search_param)
+  end
+  PokeAccess::Hooks.before_hook(cn, :pbDexSearchCommands, :optional => true) do |scene, _a|
+    PokeAccess::Cursor.reset(scene, :dex_search_param)
+  end
 end
 
 PokeAccess::Hooks.after_hook("PokemonPokedex_Scene", :pbRefreshDexSearch) do |scene, _r, args|

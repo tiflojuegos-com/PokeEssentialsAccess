@@ -15,7 +15,10 @@ module PokeAccess
       return unless win
       txt = PokeAccess.clean(PokeAccess::Menus.focused_text(win).to_s)
       return if txt.empty?
-      PokeAccess::Cursor.announce(scene, :ready_last, [side(scene), txt], true) { txt }
+      PokeAccess::Cursor.announce(scene, :ready_last, [side(scene), (win.index rescue nil), txt], true) do
+        extra = row_extra(win)
+        extra ? "#{txt}, #{extra}" : txt
+      end
     rescue StandardError
       nil
     end
@@ -32,4 +35,25 @@ end
 # pbUpdate runs each frame and re-syncs the hidden window; read the focus on change.
 PokeAccess::Hooks.after_hook("PokemonReadyMenu_Scene", :pbUpdate) do |scene, _r, _a|
   PokeAccess::ReadyMenu.poll(scene)
+end
+
+module PokeAccess
+  module ReadyMenu
+    # The extra the focused row's own tuple carries: the OWNER for a move row (one row per party member
+    # that knows it, so the owner is the only thing being chosen), or the quantity for an item row.
+    # Row tuples are [id, name, is_move, party_index_or_qty], built by pbStartReadyMenu.
+    def self.row_extra(win)
+      cmds = (win.commands rescue nil) || PokeAccess.ivar(win, :@commands)
+      idx = (win.index rescue nil)
+      e = (cmds.is_a?(Array) && idx) ? cmds[idx] : nil
+      return nil unless e.is_a?(Array) && e.length >= 4
+      if e[2]
+        (PokeAccess::Engine.player.party[e[3]].name rescue nil)
+      elsif e[3].is_a?(Integer)
+        "x#{e[3]}"
+      end
+    rescue StandardError
+      nil
+    end
+  end
 end

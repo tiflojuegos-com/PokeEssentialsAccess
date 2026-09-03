@@ -53,11 +53,13 @@ end
 
 # MODERN Essentials dropped the Kernel. prefix: dialogue (including map events via command_101 ->
 # pbMessage) flows through a bare top-level pbMessageDisplay, an Object instance method the singleton wrap
-# above does not intercept, so wrap it too. gen-6 defines only the Kernel singleton (def Kernel.
-# pbMessageDisplay), which is NOT an Object instance method, so this capability check is false there and
-# never double-wraps -- no engine-version guard is needed. Splat args to survive signature differences.
+# above does not intercept, so wrap it too. The Kernel singleton's PRESENCE decides which form is the
+# engine's entry: two gen-6 games (africanvs, awakening via BES-T compat) ALSO define a bare top-level
+# pbMessageDisplay that just delegates INTO the singleton, and wrapping both would voice a bare call
+# twice. No modern dump defines the singleton, so the check splits the eras exactly. Splat args to
+# survive signature differences.
 begin
-  if Object.private_method_defined?(:pbMessageDisplay)
+  if Object.private_method_defined?(:pbMessageDisplay) && !(Kernel.respond_to?(:pbMessageDisplay) rescue false)
     class Object
       unless private_method_defined?(:pbMessageDisplay__pa_inst) || method_defined?(:pbMessageDisplay__pa_inst)
         alias_method :pbMessageDisplay__pa_inst, :pbMessageDisplay

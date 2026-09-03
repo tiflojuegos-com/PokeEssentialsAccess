@@ -33,9 +33,11 @@ module PokeAccess
       d = (GameData::Move.get(id) rescue nil)
       return unless d
       nm = (d.name rescue PokeAccess::I18n.t(:info_move))
-      ty = (GameData::Type.get(d.display_type(pk)).name rescue nil)
-      pw = (d.display_damage(pk) rescue PokeAccess.attr_of(d, :power, :base_damage)).to_i
-      acc = (d.display_accuracy(pk) rescue (d.accuracy rescue 0)).to_i
+      ty = (GameData::Type.get((d.display_type(pk) rescue d.type)).name rescue nil)
+      pw = (d.display_damage(pk) rescue PokeAccess.attr_of(d, :power, :base_damage))
+      pw = pw.to_i if pw
+      acc = (d.display_accuracy(pk) rescue (d.accuracy rescue nil))
+      acc = acc.to_i if acc
       tot = PokeAccess.attr_of(d, :total_pp, :totalpp)
       desc = (d.description rescue "")
       s = PokeAccess::MoveInfo.line(nm.to_s, ty, pw, acc, :pp => tot, :total_pp => tot, :desc => desc)

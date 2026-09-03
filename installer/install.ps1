@@ -7,7 +7,7 @@
   Uso:
     - Ejecuta "Instalar mod.bat": se abre un selector de carpetas para elegir el juego y
       el perfil se detecta solo (o se pregunta). Tambien puedes arrastrar la carpeta encima.
-    - powershell -ExecutionPolicy Bypass -File install.ps1 "<carpeta del juego>" [pokemon_z|opalo|reminiscencia|anil|royal|armonia|relict|realidea|africanus|awakening|generic]
+    - powershell -ExecutionPolicy Bypass -File install.ps1 "<carpeta del juego>" [pokemon_z|opalo|reminiscencia|anil|royal|armonia|relict|realidea|africanus|awakening|emerald|infinitefusion|infinitefusion_hoenn|generic]
 #>
 param([string]$GameDir, [string]$Game = "", [switch]$Check, [switch]$Force)
 
@@ -31,9 +31,13 @@ function Fail($msg) { Write-Host "`n[ERROR] $msg" -ForegroundColor Red; Pause-Ex
 # sin error. Get-ChildItem -LiteralPath enumera los hijos y cada uno viaja por PSPath, que Copy-Item ata
 # a -LiteralPath. Falla si el origen no existe: copiar cero ficheros y seguir es el modo de fallo que
 # esto viene a cerrar.
+# Cada arbol copiado queda anotado en $script:deployed: la verificacion del despliegue recorre ESA lista,
+# asi que una carpeta nueva que pase por aqui queda comprobada sin tocar nada mas.
+$script:deployed = @()
 function Copy-Tree($src, $dstDir) {
     if (-not (Test-Path -LiteralPath $src)) { Fail "no existe la carpeta de origen: $src" }
     Get-ChildItem -LiteralPath $src -Force | Copy-Item -Destination $dstDir -Recurse -Force
+    $script:deployed += @{ Src = $src; Dst = $dstDir }
 }
 
 # opens the Windows folder picker (a standard dialog, easy with a screen reader); if it
@@ -390,15 +394,16 @@ try {
     foreach ($sub in @("core", "game", "plugins", "sounds", "lib", "data", "lang")) {
         New-Item -ItemType Directory -Force (Join-Path $dst $sub) | Out-Null
     }
+    $script:deployed = @()
     Copy-Tree $core   (Join-Path $dst "core")
     Copy-Tree $gaming (Join-Path $dst "game")
     # Los lectores de plugins de terceros: se copia la carpeta ENTERA y el manifiesto del perfil decide
     # cuales se cargan. Que el instalador resolviera esa lista pondria la misma logica en dos instaladores
     # y volveria por perfil la contabilidad de la desinstalacion, para ahorrar unos KB de Ruby sin evaluar.
-    $plug = Join-Path $root "plugins"
-    if (Test-Path -LiteralPath $plug) { Copy-Tree $plug (Join-Path $dst "plugins") }
-    $lang = Join-Path $root "lang"
-    if (Test-Path -LiteralPath $lang) { Copy-Tree $lang (Join-Path $dst "lang") }
+    # Obligatorias las dos, igual que core: un arbol sin plugins\ o sin lang\ no es el mod, y Copy-Tree
+    # aborta si faltan en vez de sellar una instalacion muda.
+    Copy-Tree (Join-Path $root "plugins") (Join-Path $dst "plugins")
+    Copy-Tree (Join-Path $root "lang")    (Join-Path $dst "lang")
     Copy-Item -LiteralPath (Join-Path $loader "boot.rb")           -Destination $dst -Force
     Copy-Item -LiteralPath (Join-Path $loader "preload_access.rb") -Destination $dst -Force
 
@@ -415,6 +420,7 @@ try {
     # launcher la desplegaria (baja el arbol entero) y el PS la perderia en silencio.
     Copy-Tree (Join-Path $assets "sounds") (Join-Path $dst "sounds")
     Copy-Tree (Join-Path $assets $arch)     (Join-Path $dst "lib")
+
     Write-Host "[OK] Mod '$Game' copiado a $dst (voz $arch)" -ForegroundColor Green
 
     # restaura data\ entera (configuracion, etiquetas, nombres de mapa, grabaciones) tras actualizar.
@@ -445,6 +451,28 @@ try {
             $tmpSave = $null
             if ($restored -gt 0) { Write-Host "[OK] Conservados tus datos del mod ($restored archivos de accessibility\data)." -ForegroundColor Green }
         }
+    }
+
+    # La verdad del despliegue viene del ORIGEN: lo que se pidio copiar, fichero a fichero, no lo que
+    # aparecio. Copy-Item -Force no lanza por un fichero bloqueado, una ruta larga o un antivirus, asi
+    # que sin esto un hueco solo bajaba el numero del sello y todo seguia diciendo [OK]. Aqui aborta con
+    # el primer ausente, ANTES de tocar mkxp.json y de sellar.
+    $missing = @()
+    foreach ($pair in $script:deployed) {
+        $have = @{}
+        foreach ($f in @(Get-ChildItem -LiteralPath $pair.Dst -Recurse -File -ErrorAction SilentlyContinue)) {
+            $have[($f.FullName.Substring($pair.Dst.Length) -replace '^[\\/]+', '').ToLowerInvariant()] = $true
+        }
+        foreach ($f in @(Get-ChildItem -LiteralPath $pair.Src -Recurse -File -ErrorAction SilentlyContinue)) {
+            $rel = $f.FullName.Substring($pair.Src.Length) -replace '^[\\/]+', ''
+            if (-not $have.ContainsKey($rel.ToLowerInvariant())) { $missing += (Join-Path $pair.Dst $rel) }
+        }
+    }
+    foreach ($f in @("boot.rb", "preload_access.rb")) {
+        if (-not (Test-Path -LiteralPath (Join-Path $dst $f))) { $missing += (Join-Path $dst $f) }
+    }
+    if ($missing.Count -gt 0) {
+        Fail "Faltan $($missing.Count) archivos del despliegue (el primero: $($missing[0])). No se sella nada; cierra el antivirus o libera los archivos y reinstala."
     }
 
     # 2) Registrar el cargador en mkxp.json (con copia de seguridad del original). VA ANTES DE SELLAR:

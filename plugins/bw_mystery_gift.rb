@@ -46,11 +46,20 @@ module PokeAccess
     def self.card(scene)
       cards = PokeAccess.ivar(scene, :@cards)
       idx = PokeAccess.ivar(scene, :@selected_card)
-      return unless cards.is_a?(Array) && idx.is_a?(Integer) && cards[idx]
+      return unless cards.is_a?(Array) && idx.is_a?(Integer) && !cards.empty?
+      idx = cards.length - 1 if idx >= cards.length
+      return unless idx >= 0 && cards[idx]
       title = PokeAccess.clean((cards[idx].title rescue "").to_s).to_s.strip
       return if title.empty?
-      PokeAccess::Cursor.announce(scene, :mgift_card, [idx, title], true) do
+      claimed = (cards[idx].claimed? rescue nil)
+      PokeAccess::Cursor.announce(scene, :mgift_card, [idx, title, claimed], true) do
         line = PokeAccess::I18n.t(:list_entry, :name => title, :n => idx + 1, :tot => cards.length)
+        unless claimed.nil?
+          line += ", " + PokeAccess::I18n.t(claimed ? :mgift_claimed : :mgift_unclaimed)
+        end
+        rd = (cards[idx].date_received rescue nil)
+        rt = (rd.strftime("%d %b %Y") rescue nil) if rd
+        line += ", #{rt}" if rt
         per = (WonderCardAlbumScene::CARDS_PER_PAGE rescue nil)
         pages = (per.is_a?(Integer) && per > 0) ? (cards.length.to_f / per).ceil : nil
         if pages && pages > 1

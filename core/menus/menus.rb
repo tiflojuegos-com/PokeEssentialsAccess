@@ -101,38 +101,127 @@ module PokeAccess
       "#{o.name}: #{PokeAccess::Options.value_of(o, win[i])}"
     end
 
-    # Bag: the pocket name is prefixed only when the pocket changes, so switching category and the
-    # focused item are read in a single utterance. In choose-item mode the window filters the pocket via
-    # @filterlist and exposes the mapped id through #item; the visual index is honoured through it (and the
-    # matching real index for the quantity) so a filtered list never announces a neighbouring item, and the
-    # trailing "Close bag" row is read as such, not as an item.
-    def_extractor("Window_PokemonBag") do |win, i|
+    # Bag focused row WITHOUT the pocket prefix: "Pocion: 5" / "Cerrar mochila". Pure on purpose -- it is
+    # polled every frame by per-frame readers and by the diagnostic, so it must never move reader state.
+    # In choose-item mode the window filters the pocket via @filterlist and exposes the mapped id through
+    # #item; the visual index is honoured through it (and the matching real index for the quantity) so a
+    # filtered list never announces a neighbouring item, and the trailing "Close bag" row is read as such.
+    def self.bag_row(win, i)
       bag = win.instance_variable_get(:@bag)
       pocket = win.pocket
-      prefix = ""
-      if pocket != PokeAccess.ivar(win, :@access_bag_pocket)
-        win.instance_variable_set(:@access_bag_pocket, pocket)
-        pn = (PokemonBag.pocketNames[pocket] rescue nil)
-        pn = (PokemonBag.pocket_names[pocket - 1] rescue nil) if pn.nil? || pn.to_s.empty?
-        prefix = "#{pn}. " if pn && !pn.to_s.empty?
-      end
       pocket_entries = (bag.pockets[pocket] rescue nil)
       filterlist = (win.instance_variable_get(:@filterlist) rescue nil)
       visible = (filterlist && filterlist[pocket]) ? filterlist[pocket] : pocket_entries
       count = (win.respond_to?(:itemCount) ? (win.itemCount rescue nil) : nil)
       count = visible.length + 1 if count.nil? && visible
-      next "#{prefix}#{PokeAccess::I18n.t(:mn_close_bag)}" if count.nil? || i >= count - 1
+      return PokeAccess::I18n.t(:mn_close_bag) if count.nil? || i >= count - 1
       real = (filterlist && filterlist[pocket]) ? filterlist[pocket][i] : i
       itemid = (win.item rescue nil) if win.respond_to?(:item)
       itemid = (pocket_entries[real][0] rescue nil) if itemid.nil? && real
-      next "#{prefix}#{PokeAccess::I18n.t(:mn_close_bag)}" if itemid.nil?
+      return PokeAccess::I18n.t(:mn_close_bag) if itemid.nil?
       ad = win.instance_variable_get(:@adapter)
       (PokeAccess::Info.set_info(:item, itemid) rescue nil)
       (PokeAccess::Info.note_item_desc(itemid, ad.getDescription(itemid)) rescue nil) if ad && ad.respond_to?(:getDescription)
       name = (ad.getDisplayName(itemid) rescue nil) if ad
       name = (PokeAccess::Data.item_name(itemid) || itemid.to_s) if name.nil? || name.to_s.empty?
+      name = bag_decorated_name(ad, itemid, name)
       qty = (pocket_entries[real][1] rescue nil)
-      qty ? "#{prefix}#{name}: #{qty}" : "#{prefix}#{name}"
+      qty = nil if bag_hides_qty?(itemid)
+      row = qty ? "#{name}: #{qty}" : "#{name}"
+      bag_marks(bag, itemid).each { |k| row += ", #{PokeAccess::I18n.t(k)}" }
+      row += ", #{PokeAccess::I18n.t(:bag_registered)}" if bag_registered?(bag, itemid)
+      moving = ((win.instance_variable_get(:@sortIndex) rescue -1) == i) ||
+               ((win.instance_variable_get(:@sorting) rescue false) && (win.index rescue -1) == i)
+      moving ? "#{row}, #{PokeAccess::I18n.t(:bag_moving)}" : row
+    end
+
+    # The cheap per-frame change witness for a bag row: the focused entry's id and raw count plus the marks
+    # bag_row appends (favourite, registered, being moved), read straight off the bag. Toss/Use rewrite the
+    # row without moving the index, so the index alone misses them; keying on the formatted row itself would
+    # build it 60 times a second (with bag_row's Info side effects) for a cursor that sits still.
+    def self.bag_witness(win, i)
+      bag = win.instance_variable_get(:@bag)
+      pocket = win.pocket
+      filterlist = (win.instance_variable_get(:@filterlist) rescue nil)
+      real = (filterlist && filterlist[pocket]) ? filterlist[pocket][i] : i
+      entry = (bag.pockets[pocket][real] rescue nil)
+      return nil unless entry.is_a?(Array)
+      moving = ((win.instance_variable_get(:@sortIndex) rescue -1) == i) ||
+               ((win.instance_variable_get(:@sorting) rescue false) && (win.index rescue -1) == i)
+      [entry[0], entry[1], bag_marks(bag, entry[0]), bag_registered?(bag, entry[0]), moving]
+    end
+
+    # Row decorators registered by a plugin whose bag adds what the vanilla row does not have (a machine's
+    # move name, a favourite mark): each answers name(adapter, itemid) with a replacement name or nil and
+    # marks(bag, itemid) with the i18n keys to append. A protocol rather than a lambda because the witness
+    # above has to see the same marks the row shows. Core itself probes nothing fork-specific here.
+    def self.bag_decorators; @bag_decorators ||= []; end
+
+    def self.bag_decorated_name(ad, itemid, name)
+      bag_decorators.each do |d|
+        n = (d.name(ad, itemid) rescue nil)
+        name = n.to_s if n && !n.to_s.empty?
+      end
+      name
+    end
+
+    def self.bag_marks(bag, itemid)
+      bag_decorators.inject([]) { |all, d| all + ((d.marks(bag, itemid) rescue nil) || []) }
+    end
+
+    # True when the screen hides the quantity for this item (key items, machines): twelve of the
+    # thirteen copies paint those without a count, and the item-storage extractor already follows the
+    # same rule -- the criterion was split inside the mod until this call.
+    def self.bag_hides_qty?(itemid)
+      return true if (pbIsImportantItem?(itemid) rescue false)
+      (::GameData::Item.get(itemid).is_important? rescue false)
+    end
+
+    # Whether the bag has this item registered, across the three shapes in the wild: the modern
+    # predicate, the gen-6 single slot, and the multi-register arrays two games patch in.
+    def self.bag_registered?(bag, itemid)
+      r = (bag.registered?(itemid) rescue nil)
+      return (r ? true : false) unless r.nil?
+      ri = (bag.registeredItem rescue nil)
+      ri = (bag.instance_variable_get(:@registeredItem) rescue nil) if ri.nil?
+      ri.is_a?(Array) ? ri.include?(itemid) : (!ri.nil? && ri == itemid)
+    rescue StandardError
+      false
+    end
+
+    # The pocket prefix due when the pocket differs from the last one marked as spoken, or "". Pure: the
+    # mark moves only via mark_bag_pocket, from the site that actually spoke.
+    def self.bag_prefix(win)
+      pocket = win.pocket
+      return "" if pocket == PokeAccess.ivar(win, :@access_bag_pocket)
+      pn = (PokemonBag.pocketNames[pocket] rescue nil)
+      pn = (PokemonBag.pocket_names[pocket - 1] rescue nil) if pn.nil? || pn.to_s.empty?
+      (pn && !pn.to_s.empty?) ? "#{pn}. " : ""
+    end
+
+    # Records the pocket as spoken, so the next row read in it carries no prefix.
+    def self.mark_bag_pocket(win)
+      win.instance_variable_set(:@access_bag_pocket, win.pocket)
+    rescue StandardError
+      nil
+    end
+
+    # Bag: the pocket name is prefixed only when the pocket changes, so switching category and the
+    # focused item are read in a single utterance.
+    def_extractor("Window_PokemonBag") do |win, i|
+      "#{bag_prefix(win)}#{bag_row(win, i)}"
+    end
+
+    # The region list of the multi-dex Pokedex menu: each row paints VISTOS and PROPIOS counters beside
+    # the name, and choosing a region IS a comparison of those numbers.
+    def_extractor("Window_DexesList") do |win, i|
+      base = generic_focus(win, i).to_s
+      seen = (win.instance_variable_get(:@seen) rescue nil)
+      owned = (win.instance_variable_get(:@owned) rescue nil)
+      pair = (seen.is_a?(Array) && i < seen.length) ? [seen[i], (owned.is_a?(Array) ? owned[i] : 0)] : nil
+      c2 = (win.instance_variable_get(:@commands2) rescue nil)
+      pair = [c2[i][0], c2[i][1]] if pair.nil? && c2.is_a?(Array) && c2[i].is_a?(Array)
+      pair ? PokeAccess::I18n.t(:dex_region_counts, :name => base, :seen => pair[0], :owned => pair[1]) : base
     end
 
     def_extractor("Window_PokemonMart") do |win, i|
@@ -148,7 +237,9 @@ module PokeAccess
       bag = win.instance_variable_get(:@bag)
       next PokeAccess::I18n.t(:pc_cancel) if i >= bag.length
       PokeAccess::Info.set_info(:item, bag[i][0])
-      "#{win.instance_variable_get(:@adapter).getDisplayName(bag[i][0])}: #{bag[i][1]}"
+      nm = win.instance_variable_get(:@adapter).getDisplayName(bag[i][0])
+      hide_qty = (defined?(pbIsImportantItem?) && pbIsImportantItem?(bag[i][0]) rescue false)
+      hide_qty ? nm.to_s : "#{nm}: #{bag[i][1]}"
     end
 
     # Naming grid: read the focused character, the space/switch/ok controls by name.
@@ -200,18 +291,23 @@ module PokeAccess
   end
 end
 
-# Command-window navigation (the game changes @index directly). The first read is queued so it does not cut
-# a question or title spoken just before, and later navigation interrupts (Cursor's first_interrupt). Battle
-# menus (@ignore_input) are skipped, as they have dedicated readers; a bag window re-reads on a pocket change
-# too, so its dedup key is [index, pocket]. @access_dedicated is the mod's own "a dedicated reader owns this
-# window" flag: gen-6 gates navigation itself on @ignore_input, so a reader that set it would freeze the cursor.
+# Command-window navigation (the game changes @index directly). First read queued, later moves interrupt
+# (Cursor's first_interrupt); battle menus (@ignore_input) have dedicated readers. A bag window keys on
+# [index, pocket, witness]: Toss/Use rewrite the focused row without moving the index. @access_dedicated is
+# the mod's own claim flag; gen-6 gates navigation on @ignore_input, so setting that would freeze the
+# cursor.
 PokeAccess::Hooks.after_hook("Window_DrawableCommand", :update) do |win, _r, _a|
   next if (win.instance_variable_get(:@ignore_input) rescue false)
   next if PokeAccess.dedicated?(win)
   idx = win.instance_variable_get(:@index)
   next unless win.active && idx && idx >= 0
   pkt = (win.respond_to?(:pocket) ? (win.pocket rescue nil) : nil)
-  PokeAccess::Cursor.announce(win, :cmd_focus, [idx, pkt], true, false) { PokeAccess::Menus.focused_text(win) }
+  wit = pkt ? (PokeAccess::Menus.bag_witness(win, idx) rescue nil) : nil
+  PokeAccess::Cursor.announce(win, :cmd_focus, [idx, pkt, wit], true, false) do
+    t = PokeAccess::Menus.focused_text(win)
+    PokeAccess::Menus.mark_bag_pocket(win) if pkt && t && !t.to_s.empty?
+    t
+  end
 end
 
 # Generic auto-detection (Config.auto_detect, on by default): reads navigable SpriteWindow_Selectable

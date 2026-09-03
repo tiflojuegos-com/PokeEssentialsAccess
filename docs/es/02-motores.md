@@ -120,8 +120,8 @@ desaparece. La exención es por RUTA: la constante `MODERN`, en `check187.py` y 
 
 | Exento (Ruby 3.x) | Comprobado (1.8.7) |
 |---|---|
-| cualquier ruta con `/v21/`, `/v22/` o `/skyflyer/` | el resto de `core/` y `loader/*.rb` |
-| `games/anil/`, `games/royal/`, `games/relict/`, `games/infinitefusion/`, `games/infinitefusion_hoenn/` | el resto de `games/`, incluido `games/emerald/`, que es era GameData |
+| cualquier ruta con `/v21/` o `/v22/` | el resto de `core/` y `loader/*.rb` |
+| `games/anil/`, `games/royal/`, `games/relict/`, `games/emerald/`, `games/infinitefusion/`, `games/infinitefusion_hoenn/` | el resto de `games/` |
 | | todo `plugins/`: un plugin de terceros puede instalarse en un fangame gen-6 |
 
 ### Prohibido en código dual

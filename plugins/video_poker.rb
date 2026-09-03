@@ -166,8 +166,9 @@ module PokeAccess
   end
 end
 
-PokeAccess::Hooks.around_hook("VideoPoker::Scene", :select_wager_loop, :optional => true) do |_s, nxt, _a|
+PokeAccess::Hooks.around_hook("VideoPoker::Scene", :select_wager_loop, :optional => true) do |scene, nxt, _a|
   PokeAccess::VideoPokerRead.hold(:wager)
+  PokeAccess::Cursor.reset(scene, :vp_wager)
   begin; nxt.call; ensure; PokeAccess::VideoPokerRead.release; end
 end
 
@@ -200,9 +201,9 @@ PokeAccess::Hooks.after_hook("VideoPoker::Scene", :update_all, :optional => true
   PokeAccess::VideoPokerRead.poll(scene)
 end
 
-# La tabla de pagos vive en la tecla de info mientras se juega. main_loop es la partida entera -- el bucle
-# de VideoPoker::Screen del que solo se sale al dejar la maquina -- asi que al volver de el se suelta: si no,
-# la tecla de info sigue recitando combinaciones de poker en pleno mapa.
+# The pay table lives on the info key while playing. main_loop is the whole session -- the VideoPoker::Screen
+# loop that is only left by leaving the machine -- so it is released on the way back from it: otherwise the
+# info key keeps reciting poker hands out on the map.
 PokeAccess::Hooks.around_hook("VideoPoker::Screen", :main_loop, :optional => true) do |_s, nxt, _a|
   begin; nxt.call; ensure; PokeAccess::Info.clear_text; end
 end
