@@ -169,6 +169,19 @@ module PokeAccess
     # An empty name binds nothing, the same no-op an absent class is, so no registration needs an if.
     SCENE = PokeAccess::Engine.era_scene(:gen6, "PokemonSummaryScene", "PokemonSummary_Scene")
 
+    # The page methods that only exist where the game kept Essentials' multi-page summary.
+    MULTIPAGE = ["drawPageTwo", "drawPageThree", "drawPageFour", "drawPageFive"]
+
+    # True when this game's summary has that multi-page API. A game that replaced the screen with a single
+    # page (Reminiscencia) defines none of the four, and that is not a typo: registering them there parks
+    # four permanent entries in Hooks.missing, which by contract is the list of TYPOS, and a list full of
+    # expected absences is how a real typo stops being noticed. A game carrying SOME of them keeps the whole
+    # set registered, so a name we got wrong still reports. Page one is registered either way: every summary
+    # has it, and single_page (set by a profile, which loads after this) silences its read at call time.
+    def self.multipage?(scene = SCENE)
+      MULTIPAGE.any? { |m| PokeAccess::Engine.has?("#{scene}##{m}") }
+    end
+
     # The Pokemon a page redraw is about. Vanilla passes it as the first argument; awakening's summary takes
     # no parameters at all and reads the scene's own @pokemon, which every one of these scenes keeps and
     # keeps current as the player switches Pokemon in place without leaving the screen.
@@ -208,24 +221,27 @@ PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageOne) do |s
   end
 end
 
-# Summary trainer-memo page (nature, met info, characteristic).
-PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageTwo) do |s, _r, args|
-  PokeAccess.speak(PokeAccess::SummaryGen6.memo_text(PokeAccess::SummaryGen6.subject(s, args)), false)
-end
+# Pages two to five, only where the game kept Essentials' multi-page summary (see multipage?).
+if PokeAccess::SummaryGen6.multipage?
+  # Summary trainer-memo page (nature, met info, characteristic).
+  PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageTwo) do |s, _r, args|
+    PokeAccess.speak(PokeAccess::SummaryGen6.memo_text(PokeAccess::SummaryGen6.subject(s, args)), false)
+  end
 
-# Summary stats page (the five stats and ability).
-PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageThree) do |s, _r, args|
-  PokeAccess.speak(PokeAccess::SummaryGen6.stats_text(PokeAccess::SummaryGen6.subject(s, args)), false)
-end
+  # Summary stats page (the five stats and ability).
+  PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageThree) do |s, _r, args|
+    PokeAccess.speak(PokeAccess::SummaryGen6.stats_text(PokeAccess::SummaryGen6.subject(s, args)), false)
+  end
 
-# Summary moves page (drawPageFour lists the four moves): read them on arrival.
-PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFour) do |s, _r, args|
-  PokeAccess.speak(PokeAccess::Summary.moves_text(PokeAccess::SummaryGen6.subject(s, args)), false)
-end
+  # Summary moves page (drawPageFour lists the four moves): read them on arrival.
+  PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFour) do |s, _r, args|
+    PokeAccess.speak(PokeAccess::Summary.moves_text(PokeAccess::SummaryGen6.subject(s, args)), false)
+  end
 
-# Summary ribbons page.
-PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFive) do |s, _r, args|
-  PokeAccess.speak(PokeAccess::SummaryGen6.ribbons_text(PokeAccess::SummaryGen6.subject(s, args)), false)
+  # Summary ribbons page.
+  PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFive) do |s, _r, args|
+    PokeAccess.speak(PokeAccess::SummaryGen6.ribbons_text(PokeAccess::SummaryGen6.subject(s, args)), false)
+  end
 end
 
 # Move detail: each move read with its data when selected.

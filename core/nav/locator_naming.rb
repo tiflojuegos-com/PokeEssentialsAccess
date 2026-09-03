@@ -135,8 +135,21 @@ module PokeAccess
       nil
     end
 
-    # The destination map id of a SCRIPT-based transfer (pbTransfer / player_new_map_id=), or nil. Many
-    # fangame doors transfer by script, not the editor's command 201, so 201-only detection would miss them.
+    # Script calls that mean "this event transfers the player", each capturing the destination map id. The
+    # two Essentials shapes ship here; a game whose doors call a function of its OWN (Reminiscencia's
+    # dungeon entrances are a bare `getToDungeon(319)`, with no editor Transfer command anywhere) declares
+    # its pattern from its profile, because that function name is the game's and not the engine's. Without
+    # it such a door is not an exit, not a pathfinder target and, having no sprite either, not even a sonar
+    # ping: one verdict feeds all three.
+    TRANSFER_SCRIPTS = [/\bpbTransfer\w*\(\s*(\d+)/, /player_new_map_id\s*=\s*(\d+)/]
+
+    # Registers an extra script-transfer pattern. It must capture the destination map id, which is what
+    # names the exit ("exit to <map>").
+    def self.register_transfer_script(re); TRANSFER_SCRIPTS.push(re); end
+
+    # The destination map id of a SCRIPT-based transfer (pbTransfer / player_new_map_id=, plus whatever the
+    # profile registered), or nil. Many fangame doors transfer by script, not the editor's command 201, so
+    # 201-only detection would miss them.
     def self.transfer_script_dest(ev)
       verdict(ev, :tscript) { transfer_script_dest_uncached(ev) }
     end
@@ -144,7 +157,9 @@ module PokeAccess
     # The uncached script-transfer scan (see transfer_script_dest).
     def self.transfer_script_dest_uncached(ev)
       script_call_find(ev, transfer_command_lists(ev)) do |s|
-        ($1.to_i if s =~ /\bpbTransfer\w*\(\s*(\d+)/ || s =~ /player_new_map_id\s*=\s*(\d+)/)
+        m = nil
+        TRANSFER_SCRIPTS.each { |re| m ||= re.match(s) }
+        m ? m[1].to_i : nil
       end
     rescue StandardError
       nil

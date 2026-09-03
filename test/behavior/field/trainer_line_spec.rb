@@ -9,6 +9,7 @@ Suite.define("trainer line (reminiscencia): coins and heart scales instead of th
   info = PokeAccess::Info
   saved = TrainerLineCases.snapshot
   tables = [PokeAccess::Config.status_names.dup, PokeAccess::Config.field_weather_names.dup, PokeAccess::Config.money_label]
+  patterns = PokeAccess::Locator::TRANSFER_SCRIPTS.dup
   old_bag = $PokemonBag
   begin
     bag = Object.new
@@ -25,6 +26,9 @@ Suite.define("trainer line (reminiscencia): coins and heart scales instead of th
     eq "and a price spoken through the money label counts coins too", PokeAccess::Config.money_label, :rem_coins
   ensure
     $PokemonBag = old_bag
+    PokeAccess::Locator::TRANSFER_SCRIPTS.clear
+    patterns.each { |re| PokeAccess::Locator::TRANSFER_SCRIPTS.push(re) }
+    (PokeAccess::Locator.clear_verdicts rescue nil)
     TrainerLineCases.restore(saved)
     PokeAccess::Config.status_names.clear; PokeAccess::Config.status_names.merge!(tables[0])
     PokeAccess::Config.field_weather_names.clear; PokeAccess::Config.field_weather_names.merge!(tables[1])

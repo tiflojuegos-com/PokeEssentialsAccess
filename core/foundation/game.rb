@@ -87,6 +87,11 @@ module PokeAccess
       # Registers an overworld hazard sprite pattern so matching events read with a label and a hazard cue.
       def hazard(pattern, label); PokeAccess::Locator.register_hazard(pattern, label); end
 
+      # Registers a script call that means an event transfers the player, for a game whose doors call a
+      # function of its own instead of the editor's Transfer Player command. The pattern must capture the
+      # destination map id, which is what names the exit.
+      def transfer_script(pattern); PokeAccess::Locator.register_transfer_script(pattern); end
+
       # Maps picture file names to spoken text, for screens that light one picture per option.
       def picture_texts(map); PokeAccess::PictureCues::TEXTS.merge!(map); end
 

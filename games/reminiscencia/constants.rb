@@ -13,6 +13,11 @@ PokeAccess::Game.define("reminiscencia") do
   # overworld weathers that fill the screen were announced as clear skies. The ids are the game's own, from
   # its PBStatuses and PBFieldWeather; two of the weather names are translated here, because the game names
   # them in English while everything else it says is in Spanish.
+  # Every dungeon entrance is a sprite-less touch tile whose only command is getToDungeon(<map id>) --
+  # no editor Transfer command anywhere -- so without this the doors of 33 maps were neither locatable nor
+  # audible. The captured number is the destination map, which names the exit.
+  transfer_script(/\bgetTo\w*Dungeon\s*\(\s*(\d+)/)
+
   names(:status_names, 6 => "Alarmado")
   names(:field_weather_names, 8 => "Charco", 9 => "Ceniza", 10 => "Fuego")
 end

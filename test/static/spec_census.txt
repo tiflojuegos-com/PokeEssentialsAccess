@@ -38,6 +38,8 @@ behavior/field/say_dialogue_spec.rb
 behavior/field/slide_banners_spec.rb
 behavior/field/trainer_line_gd_spec.rb
 behavior/field/trainer_line_spec.rb
+behavior/field/transfer_script_gd_spec.rb
+behavior/field/transfer_script_spec.rb
 behavior/field/triple_triad_gd_spec.rb
 behavior/field/triple_triad_spec.rb
 behavior/field/turbo_gd_spec.rb
