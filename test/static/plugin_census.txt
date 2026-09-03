@@ -37,6 +37,7 @@ Questlog#pbMain = africanus, awakening, infinitefusion, realidea
 RC = emerald
 RSESTarterChoice = emerald
 Scene#pbUpdateBattlerInfo = anil, emerald, relict, royal
+Scene_Map#addSprite = awakening, pokemon_z, relict, reminiscencia, royal
 SelectMoveMenu_Scene = anil
 StarterMenu_Scene = anil
 TipCard_Scene = relict, royal

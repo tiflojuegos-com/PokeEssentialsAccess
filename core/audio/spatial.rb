@@ -37,6 +37,28 @@ module PokeAccess
       Audio.se_play("#{DIR}/#{name}", volume, pitch) rescue nil
     end
 
+    # The rate factor a family's tone applies to a flat cue, held inside what mkxp accepts for an SE (50 to
+    # 150): the factor is reduced until the highest pitch the cue uses fits under 150 and the lowest stays
+    # over 50, so a pair like the guide's 140 ahead and 70 behind keeps its ratio, and its meaning, at any
+    # tone. low and high are that cue's extreme base pitches.
+    def self.tone_factor(key, low = 100, high = 100)
+      f = PokeAccess.tone_to_pitch(PokeAccess::Config.send(key)) / 100.0
+      f = 150.0 / high if high * f > 150
+      f = 50.0 / low if low * f < 50
+      f
+    rescue StandardError
+      1.0
+    end
+
+    # The guide family's tone factor, one for every path. The cane's ahead/behind code (140 and 70) lives on
+    # the flat channel by design, because HRTF cannot place front and back on plain stereo headphones; so
+    # the whole family, the engine's left and right included, moves by the factor that keeps that pair
+    # inside 50-150. The guide tone therefore goes down almost half an octave and up about a semitone, and
+    # its four directions never disagree.
+    def self.guide_tone_factor
+      tone_factor(:guide_tone, 70, 140)
+    end
+
     # The named NON-positional earcons: symbol => [file, default pitch]. One vocabulary so a sound keeps a
     # single meaning across readers -- the 3D/panned cues (walls, guide cane, puzzle tones) already mean
     # "wall", "npc" or "control" and stay out of this table on purpose: reusing one here would read as the
@@ -54,12 +76,14 @@ module PokeAccess
       cue(e[0], volume, pitch || e[1])
     end
 
-    # The pitch range a gauge sweeps: it starts at LOW and spans SPAN, reaching 180. Low enough to read as
-    # "far" and high enough to read as "now" without leaving the range where the 60 ms tick still sounds
-    # like the same sound. A base and a span rather than a low and a high, so the mapping below needs no
-    # subtraction: the MTS guard cannot prove a constant minus a constant is scalar.
+    # The pitch range a gauge sweeps: it starts at LOW and spans SPAN, reaching 150, the most the flat SE
+    # channel plays (mkxp pins anything above it, which is what let an older top of 180 flatten the last
+    # third of every approach). Low enough to read as "far" and high enough to read as "now" without
+    # leaving the range where the 60 ms tick still sounds like the same sound. A base and a span rather
+    # than a low and a high, so the mapping below needs no subtraction: the MTS guard cannot prove a
+    # constant minus a constant is scalar.
     GAUGE_LOW = 80
-    GAUGE_SPAN = 100
+    GAUGE_SPAN = 70
 
     # A cue whose PITCH carries a magnitude: 0.0 at the low end, 1.0 at the high end. The shared answer to
     # "how close am I to the good moment", which every timing minigame needs, defined here alongside the
@@ -168,7 +192,8 @@ module PokeAccess
       key = hit ? [fx, fy] : nil
       if key && key != @radar_key
         v = PokeAccess::Config.event_volume
-        earcon(:radar_blip, (v * 0.45).to_i) if v && v > 0
+        pitch = [(EARCONS[:radar_blip][1] * guide_tone_factor).round, 150].min
+        earcon(:radar_blip, (v * 0.45).to_i, pitch) if v && v > 0
       end
       @radar_key = key
     end
@@ -225,7 +250,8 @@ module PokeAccess
           routed = (PokeAccess::Audio3D.footstep(kind, v) rescue false)
           unless routed
             file = (kind == :fstep_water) ? "pa_water" : (kind == :grass ? "pa_grass" : "pa_step")
-            cue(file, v, @flip ? 90 : 100)
+            f = tone_factor(:footstep_tone, 90, 100)
+            cue(file, v, ((@flip ? 90 : 100) * f).round)
             @flip = !@flip
           end
         end
@@ -260,11 +286,12 @@ module PokeAccess
         ev = event_at(fx, fy)
         interact = !ev.nil? && (PokeAccess::Locator.interactable?(ev) rescue false)
         unless (PokeAccess::Audio3D.bump(dir, interact) rescue false)
+          f = tone_factor(:wall_tone, 80, 120)
           case dir
-          when 4 then cue("pa3d_wall_l", v)
-          when 6 then cue("pa3d_wall_r", v)
-          when 8 then cue("pa3d_wall_c", v, 120)
-          else        cue("pa3d_wall_c", v, 80)
+          when 4 then cue("pa3d_wall_l", v, (100 * f).round)
+          when 6 then cue("pa3d_wall_r", v, (100 * f).round)
+          when 8 then cue("pa3d_wall_c", v, (120 * f).round)
+          else        cue("pa3d_wall_c", v, (80 * f).round)
           end
         end
         @bump_time = PokeAccess.clock

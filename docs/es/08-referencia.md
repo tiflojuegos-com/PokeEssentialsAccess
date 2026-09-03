@@ -279,6 +279,7 @@ texto hablado. Un fichero que no existe no cede nada y no es error.
 | `format_error(e)` | `"Clase: mensaje @ frame <- frame <- frame"` | Formatear una excepción para el marker |
 | `clock` | Float: segundos desde que cargó el mod | Única fuente del ritmo de las señales |
 | `freq_to_seconds(f)` | Float: segundos entre señales para un ajuste 0-100 | ~0,15 s a 100, ~1,5 s a 0 |
+| `tone_to_pitch(tone)` | Integer: tasa de reproducción en porcentaje para un tono 0-100 | 50 a 0, 100 a 50, 200 a 100: una octava por lado |
 | `uptime_scale` | Float, o `nil` mientras no se pueda medir | Divisor para comparar dos `System.uptime` del motor |
 | `Perf.measure(label, &blk)` | El valor del bloque | Medir un hook por frame; acumula suma, máximo y cuenta |
 | `Perf.report` | String de una línea, o `"(sin datos)"` | Imprimir medias y máximos en ms |
@@ -410,6 +411,11 @@ genérica lo deriva de `pbGetHealingSpot` más `visitedMaps`.
 | `Audio3D.bump(dir, interact = false)` | `true` si atendió la señal | Choque contra pared u objeto, paneado a esa casilla |
 | `Audio3D.guide(dir, vol)` | `true` si atendió | Señal del bastón guía, paneada hacia el siguiente paso |
 | `Audio3D.footstep(kind, vol)` | `true` si atendió | Paso, centrado en el jugador |
+| `Audio3D.preview(sym, vol, pitch)` | `true` si atendió | Audición del menú: un canal centrado en el jugador al volumen y tono dados |
+| `Audio3D.preview_stop(sym)` | Nada | Cortar la audición de un bucle (agua, viento) |
+| `Audio3D.sync_tones` | Nada | Enviar a la dll los tonos que cambiaron, una vez por cambio; lo llama `tick` |
+| `Audio3D.tone_pitch(sym)` | Porcentaje de la grabación | Tono configurado de la familia de un canal (`TONE_KEYS`) |
+| `Audio3D.loop?(sym)` | `true`/`false` | ¿El canal es un bucle? |
 | `Audio3D.silence_all` | Nada | Callar todos los canales |
 | `Audio3D.silence_emitters` | Nada | Callar emisores y bucles dejando pasos y choques (modo `:basic`) |
 | `Audio3D.reset_map_state` | Nada | Soltar el escaneo del mapa anterior |
@@ -418,6 +424,8 @@ genérica lo deriva de `pbGetHealingSpot` más `visitedMaps`.
 | `Audio3D.gate_report` | `"n/total playing by=..."` y limpia la ventana | Por qué un tick sonó o calló |
 | `Spatial.cue(name, volume, pitch = 100)` | Nada | Reproducir un fichero de `sounds/`; volumen 0 o `nil` no suena |
 | `Spatial.earcon(name, volume, pitch = nil)` | Nada | Earcon con nombre de `EARCONS`; el pitch de la tabla es el defecto |
+| `Spatial.tone_factor(key, low = 100, high = 100)` | Float | Factor del tono de una familia para una cue plana, reducido hasta que el par `low`/`high` cabe en el 50-150 de mkxp |
+| `Spatial.guide_tone_factor` | Float | El factor de toda la familia guía (motor y canal plano): el que mantiene su par 140/70 dentro de 50-150 |
 | `Spatial.busy?` | `true`/`false` | El jugador NO tiene control libre: el paisaje sonoro calla |
 | `Spatial.busy_reason` | Símbolo (`:message`, `:in_menu`, `:battle`...) o `nil` | Nombrar la causa en el diagnóstico |
 | `Spatial.keys_locked?` | `true`/`false` | Otra pantalla posee de verdad las flechas |
@@ -500,6 +508,8 @@ cruda. Ver [05-extender](05-extender.md).
 | `kernel(fname, timing = :before, &body)` | Nada | `Hooks.wrap_kernel` para una función suelta |
 | `screen_reader(cname, &blk)` | Nada | Lector de la opción enfocada de una ventana de comandos |
 | `poll_each_frame(&blk)` | Nada | `Keys.on_frame`, para menús con bucle propio |
+| `trainer_part(key, &reader)` | La clave | Define o sustituye una pieza de la línea del entrenador (cintas en vez de medallas, monedas en vez de dinero). Cede el objeto jugador; una clave nueva se añade al final |
+| `trainer_order(keys)` | El orden asignado | Orden de las piezas de la línea del entrenador; una pieza omitida no se dice |
 | `diag_section(name, group = :scene, &body)` | Nada | `Keys.register_diag_section` |
 | `config(key, value)` | El valor asignado | Sobrescribir un ajuste de `Config` |
 | `button_labels(map)` | El hash resultante | Fusionar etiquetas de botón propias del juego |

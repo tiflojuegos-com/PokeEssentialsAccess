@@ -9,7 +9,7 @@
 # there because a name can be present in the game and still sit on the WRONG OBJECT, which is a
 # silent nil just the same, and this turns finding out into one grep.
 # surveyed profiles (14): africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla
-# names read: 276 / never found: 9
+# names read: 277 / never found: 10
 @active = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  CompatBits, DexNavPokemonSpeciesIconSprite, MenuBase, PartyVisualsPanel, PokeSelectionSprite, PokemonBagPartyPanel, PokemonIconSprite, PokemonPartyPanel, +4 more
 @activecmd = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  PokemonBag_Scene, PokemonParty_Scene, PokemonScreen_Scene
 @adapter = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  BattlePointShopScreen, BattlePointShop_Scene, BuyAdapter, BuyAdapter_BattlePoints, ClothesShopPresenter, ClothesShopView, Ekans_Interface_Game, HairShopPresenter, +21 more
@@ -266,6 +266,7 @@
 @tiles = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  CustomTilemap, CustomTilemapAutotiles, MTS_Element_BG1, MarinMapExporter, TilePuzzleScene, TileSprite, Weather
 @tipo_de_curry = royal  |  ResultadosCurry_Scene
 @tips = relict, royal  |  TipCardGroups_Scene, TipCard_Scene
+@tone_sent = 
 @total = realidea  |  Miniorgame
 @totalPages = pokemon_z, royal  |  AdvancedPokedexScene, PokemonRegionMap_Scene
 @total_paginas = awakening  |  Glosario_Historia_Secciones, Glosario_Personajes

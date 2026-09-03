@@ -76,4 +76,12 @@ module PokeAccess
     base = 4 if base < 4
     base / FPS
   end
+
+  # Playback rate, in percent of the recording, for a 0-100 tone setting: 50 is the recording itself, 0 an
+  # octave down (half rate) and 100 an octave up (double rate), in equal steps of pitch rather than of rate.
+  # Shared by the positional engine, the flat cues and the menu preview so one setting sounds the same on
+  # every path.
+  def self.tone_to_pitch(tone)
+    (100 * (2 ** ((tone.to_i - 50) / 50.0))).round
+  end
 end

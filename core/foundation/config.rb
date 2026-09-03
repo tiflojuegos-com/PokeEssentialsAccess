@@ -48,6 +48,15 @@ module PokeAccess
       [:audio3d_freq_object, 10,    :vol,  :audio3d_freq, :lbl_freq_objects,   :help_freq_objects],
       [:audio3d_freq_door,   70,    :vol,  :audio3d_freq, :lbl_freq_doors,     :help_freq_doors],
       [:guide_freq,          55,    :vol,  :audio3d_freq, :lbl_guide_freq,     :help_guide_freq],
+      [:audio3d_tone_npc,        50, :tone, :audio3d_tone, :lbl_tone_people,     :help_tone_people],
+      [:audio3d_tone_object,     50, :tone, :audio3d_tone, :lbl_tone_objects,    :help_tone_objects],
+      [:audio3d_tone_door,       50, :tone, :audio3d_tone, :lbl_tone_doors,      :help_tone_doors],
+      [:audio3d_tone_teleporter, 50, :tone, :audio3d_tone, :lbl_tone_teleporter, :help_tone_teleporter],
+      [:audio3d_tone_water,      50, :tone, :audio3d_tone, :lbl_tone_water,      :help_tone_water],
+      [:audio3d_tone_wind,       50, :tone, :audio3d_tone, :lbl_tone_wind,       :help_tone_wind],
+      [:footstep_tone,           50, :tone, :audio3d_tone, :lbl_footstep_tone,   :help_footstep_tone],
+      [:wall_tone,               50, :tone, :audio3d_tone, :lbl_wall_tone,       :help_wall_tone],
+      [:guide_tone,              50, :tone, :audio3d_tone, :lbl_guide_tone,      :help_guide_tone],
       [:audio3d_occlusion,   :hide,    :occ, :audio3d_walls, :lbl_occlusion,   :help_occlusion],
       [:audio3d_air,         false, :flag,  :audio3d_walls, :lbl_pos_air,      :help_pos_air],
       [:audio3d_wall_range,  3,     :tiles, :audio3d_walls, :lbl_wall_range,   :help_wall_range],
@@ -62,6 +71,8 @@ module PokeAccess
     # clamping (Settings) and stepping (ConfigMenu); non-numeric kinds are handled separately.
     KIND_BOUNDS = {
       :vol   => [0, 100, 10, nil],
+      # A tone: 50 plays the recording and each step of 5 is a tenth of an octave either way (tone_to_pitch).
+      :tone  => [0, 100, 5, nil],
       :sec   => [1, 10, 1, :secs],
       :tiles => [1, 20, 1, :tiles_unit],
       # The sonar's own range, apart from :tiles because it is the only one the player has a reason to
@@ -83,7 +94,7 @@ module PokeAccess
 
     # Internal/structural config (not user settings, not in the menu).
     OTHER = [:keys, :bump_cooldown, :rebinds, :rebind_labels, :categories,
-             :status_names, :weather_names, :field_weather_names, :gender_numbers, :money_label]
+             :status_names, :weather_names, :field_weather_names, :gender_numbers, :money_label, :trainer_parts]
 
     class << self
       attr_accessor(*(SCHEMA.map { |row| row[0] } + OTHER))
@@ -123,6 +134,9 @@ module PokeAccess
     self.gender_numbers = {}
     # i18n key for the spoken money amount; a game with a different currency overrides it.
     self.money_label = :tr_money
+    # The trainer line the info key speaks, as the ordered names of its parts (readers in Info::TRAINER_PARTS).
+    # A profile reorders, drops or adds names here; Info.set_trainer_part appends a new one by itself.
+    self.trainer_parts = [:name, :money, :badges, :pokedex, :playtime]
 
     # Locator target categories as language-neutral symbols (spoken names come from tcat_* keys).
     self.categories = [:all, :people, :objects, :exits, :signs, :extras, :surfaces]

@@ -277,6 +277,7 @@ text. A missing file yields nothing and is not an error.
 | `format_error(e)` | `"Class: message @ frame <- frame <- frame"` | Format an exception for the marker |
 | `clock` | Float: seconds since the mod loaded | The single source of cue pacing |
 | `freq_to_seconds(f)` | Float: seconds between cues for a 0-100 setting | ~0.15 s at 100, ~1.5 s at 0 |
+| `tone_to_pitch(tone)` | Integer: playback rate in percent for a 0-100 tone | 50 at 0, 100 at 50, 200 at 100: an octave each way |
 | `uptime_scale` | Float, or `nil` while it cannot be measured | Divisor for comparing two engine `System.uptime` stamps |
 | `Perf.measure(label, &blk)` | The block's value | Time a per-frame hook; accumulates sum, max and count |
 | `Perf.report` | One-line string, or `"(sin datos)"` | Print averages and maxima in ms |
@@ -408,6 +409,11 @@ both Infinite Fusion games install: it is a class of its own, with its own loop,
 | `Audio3D.bump(dir, interact = false)` | `true` if it handled the cue | Wall or object collision, panned to that tile |
 | `Audio3D.guide(dir, vol)` | `true` if handled | Guide-cane cue, panned toward the next step |
 | `Audio3D.footstep(kind, vol)` | `true` if handled | Footstep, centred on the player |
+| `Audio3D.preview(sym, vol, pitch)` | `true` if handled | Menu audition: one channel centred on the player at that volume and pitch |
+| `Audio3D.preview_stop(sym)` | Nothing | Cut a looping audition (water, wind) |
+| `Audio3D.sync_tones` | Nothing | Send the dll the tones that changed, once per change; `tick` calls it |
+| `Audio3D.tone_pitch(sym)` | Percent of the recording | The configured tone of a channel's family (`TONE_KEYS`) |
+| `Audio3D.loop?(sym)` | `true`/`false` | Is the channel a loop? |
 | `Audio3D.silence_all` | Nothing | Stop every channel |
 | `Audio3D.silence_emitters` | Nothing | Stop emitters and loops, keeping steps and bumps (`:basic` mode) |
 | `Audio3D.reset_map_state` | Nothing | Drop the previous map's scan |
@@ -416,6 +422,8 @@ both Infinite Fusion games install: it is a class of its own, with its own loop,
 | `Audio3D.gate_report` | `"n/total playing by=..."`, then clears the window | Why a tick played or fell silent |
 | `Spatial.cue(name, volume, pitch = 100)` | Nothing | Play a file from `sounds/`; volume 0 or `nil` plays nothing |
 | `Spatial.earcon(name, volume, pitch = nil)` | Nothing | Named earcon from `EARCONS`; the table's pitch is the default |
+| `Spatial.tone_factor(key, low = 100, high = 100)` | Float | A family's tone factor for a flat cue, reduced until the `low`/`high` pair fits mkxp's 50-150 |
+| `Spatial.guide_tone_factor` | Float | The whole guide family's factor (engine and flat channel): the one that keeps its 140/70 pair inside 50-150 |
 | `Spatial.busy?` | `true`/`false` | The player is NOT under free control: the soundscape falls silent |
 | `Spatial.busy_reason` | A symbol (`:message`, `:in_menu`, `:battle`...) or `nil` | Name the cause in the diagnostic |
 | `Spatial.keys_locked?` | `true`/`false` | Another screen genuinely owns the arrow keys |
@@ -498,6 +506,8 @@ See [05-extending](05-extending.md).
 | `kernel(fname, timing = :before, &body)` | Nothing | `Hooks.wrap_kernel` for a loose function |
 | `screen_reader(cname, &blk)` | Nothing | Reader for the focused option of a command window |
 | `poll_each_frame(&blk)` | Nothing | `Keys.on_frame`, for menus with their own loop |
+| `trainer_part(key, &reader)` | The key | Defines or replaces one part of the trainer line (ribbons instead of badges, coins instead of money). Yields the player object; a new key joins the end |
+| `trainer_order(keys)` | The order set | Order of the trainer line's parts; a part left out is not spoken |
 | `diag_section(name, group = :scene, &body)` | Nothing | `Keys.register_diag_section` |
 | `config(key, value)` | The assigned value | Override a `Config` setting |
 | `button_labels(map)` | The resulting hash | Merge the game's own button relabels |

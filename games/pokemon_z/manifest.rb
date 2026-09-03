@@ -10,5 +10,5 @@
     character_guide
     picture_cues
   ],
-  :plugins => %w[incubator item_crafting logros summary_habilidades dp_pausemenu simple_encounter_list bag_search_entry]
+  :plugins => %w[incubator item_crafting logros summary_habilidades dp_pausemenu simple_encounter_list bag_search_entry slide_banners]
 }

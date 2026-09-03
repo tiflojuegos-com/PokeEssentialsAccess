@@ -17,5 +17,5 @@
     puntos
     rhythm
   ],
-  :plugins => %w[arcky_region_map bag_screen_party berrydex better_summary ekans_snake encounter_list_ui hall_of_fame_bw item_find logros multi_save photo_album secret_bases tip_cards pokegear_themes hatcher dbk_battle dbk_enhanced_ui magic_gachapon bag_search_entry sky_bag]
+  :plugins => %w[arcky_region_map bag_screen_party berrydex better_summary ekans_snake encounter_list_ui hall_of_fame_bw item_find logros multi_save photo_album secret_bases tip_cards pokegear_themes hatcher dbk_battle dbk_enhanced_ui magic_gachapon bag_search_entry sky_bag slide_banners]
 }

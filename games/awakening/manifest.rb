@@ -15,5 +15,5 @@
     fates_extra
     achievements
   ],
-  :plugins => %w[easy_questing gender_selection item_crafting logros text_log book_scene hatcher simple_encounter_list magic_gachapon]
+  :plugins => %w[easy_questing gender_selection item_crafting logros text_log book_scene hatcher simple_encounter_list magic_gachapon slide_banners]
 }

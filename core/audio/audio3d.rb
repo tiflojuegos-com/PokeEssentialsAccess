@@ -39,6 +39,7 @@ module PokeAccess
     LAT_FN  = (Win32API.new(DLL, "PA3D_Latency", [], "i") rescue nil)
     OCCL = (Win32API.new(DLL, "PA3D_Occl", ["i", "i"], "v") rescue nil)
     AIR  = (Win32API.new(DLL, "PA3D_Air",  ["i"],      "v") rescue nil)
+    PITCH = (Win32API.new(DLL, "PA3D_Pitch", ["i", "i"], "v") rescue nil)
     # How much a source behind a wall is muffled, 0-100, when the occlusion mode is "occlude".
     OCCLUDE_AMOUNT = 80
 
@@ -67,6 +68,7 @@ module PokeAccess
     @mover_time = nil
     @rate = nil
     @latency = nil
+    @tone_sent = {}
 
     # Emitter (sonar) detection radius in tiles, user-tunable.
     def self.range; (PokeAccess::Config.audio3d_range rescue RANGE).to_i; end
@@ -117,6 +119,18 @@ module PokeAccess
       [:step, "pa_step.wav", 0], [:grass, "pa_grass.wav", 0], [:fstep_water, "pa_water.wav", 0],
       [:guide, "pa_guide_c.wav", 0]
     ]
+
+    # Channel => the tone setting that pitches it. A channel follows the family whose VOLUME it follows:
+    # objects and their hazard/trap/control/push cues share one tone, the interact bump plays at the wall
+    # volume so it takes the wall tone, and the four winds are one wind.
+    TONE_KEYS = {
+      :npc => :audio3d_tone_npc, :object => :audio3d_tone_object, :hazard => :audio3d_tone_object,
+      :trap => :audio3d_tone_object, :control => :audio3d_tone_object, :push => :audio3d_tone_object,
+      :door => :audio3d_tone_door, :teleporter => :audio3d_tone_teleporter, :water => :audio3d_tone_water,
+      :wind_w => :audio3d_tone_wind, :wind_e => :audio3d_tone_wind, :wind_n => :audio3d_tone_wind,
+      :wind_s => :audio3d_tone_wind, :wall => :wall_tone, :interact => :wall_tone,
+      :step => :footstep_tone, :grass => :footstep_tone, :fstep_water => :footstep_tone, :guide => :guide_tone
+    }
 
     # Initialises the engine and its channels once (a missing dll/wav must not re-init every frame).
     # Returns whether it is ready.
@@ -195,6 +209,71 @@ module PokeAccess
       (PokeAccess::Config.send(key) rescue 80).to_i
     end
 
+    # True for a channel that loops (water, the winds) rather than plays once.
+    def self.loop?(sym)
+      row = CHANNEL_FILES.find { |r| r[0] == sym }
+      row ? row[2] == 1 : false
+    end
+
+    # Playback rate percent for a channel from its family's tone setting; 100 when the channel has no family.
+    def self.tone_pitch(sym)
+      key = TONE_KEYS[sym]
+      return 100 unless key
+      PokeAccess.tone_to_pitch(PokeAccess::Config.send(key))
+    rescue StandardError
+      100
+    end
+
+    # Sends every channel whose tone changed its new rate, once: the dll keeps the value and the setting
+    # only moves from the config menu, so this is one comparison per channel per frame and a native call
+    # almost never. The guide channel is left out because its chime sets its own pitch per direction.
+    def self.sync_tones
+      return unless PITCH
+      @ch.each do |sym, ch|
+        next if sym == :guide || ch.nil? || ch < 0
+        p = tone_pitch(sym)
+        next if @tone_sent[sym] == p
+        PITCH.call(ch, p)
+        @tone_sent[sym] = p
+      end
+    rescue StandardError
+      nil
+    end
+
+    # Pushes the master volume to the dll only when it changed (the dll keeps it).
+    def self.send_master
+      v = (PokeAccess::Config.audio3d_volume rescue 80).to_i
+      return if v == @master_sent
+      MAST.call(v)
+      @master_sent = v
+    end
+
+    # Plays one channel centred on the player at a volume and pitch: the config menu's audition of a volume
+    # or tone row, through the engine the field uses so the whole octave is audible (a flat SE tops out at
+    # 150). False when the engine is down or the channel failed to load, so the caller plays the flat sample.
+    def self.preview(sym, vol, pitch)
+      return false unless @ready && $game_player
+      ch = @ch[sym]
+      return false unless ch && ch >= 0
+      send_master
+      if PITCH
+        PITCH.call(ch, pitch)
+        @tone_sent[sym] = pitch
+      end
+      SET.call(ch, $game_player.x * TILE_UNITS, $game_player.y * TILE_UNITS, vol.to_i, 1)
+      true
+    rescue StandardError
+      false
+    end
+
+    # Stops a channel a preview started (the water and wind loops would otherwise play on under the menu).
+    def self.preview_stop(sym)
+      ch = @ch[sym]
+      SET.call(ch, 0, 0, 0, 0) if @ready && ch && ch >= 0
+    rescue StandardError
+      nil
+    end
+
     # Plays a collision sound at the bumped tile so HRTF pans it to that side: the wall sound for
     # terrain, or a distinct interact sound when bumping an npc/object. Returns true if it handled the cue.
     def self.bump(dir, interact = false)
@@ -208,12 +287,16 @@ module PokeAccess
       false
     end
 
-    # Plays the guide cue one tile toward the next step so HRTF pans it that way; works in any sound-nav
-    # mode (the guide is explicit navigation). Returns true if handled.
+    # Plays the guide cue gd tiles left or right of the player so HRTF pans it. Ahead and behind are not
+    # taken on purpose: on plain stereo headphones HRTF cannot place front and back, so those two stay on
+    # the flat pitched cue (high = ahead, low = behind) where the caller keeps them. The guide tone shifts
+    # left and right by the same factor as that flat pair, so the four directions never drift apart. Works
+    # in any sound-nav mode (the guide is explicit navigation). Returns true if handled.
     def self.guide(dir, vol)
-      return false unless @ready && $game_player
+      return false unless @ready && $game_player && (dir == 4 || dir == 6)
       ch = @ch[:guide]
       return false unless ch && ch >= 0
+      PITCH.call(ch, (100 * PokeAccess::Spatial.guide_tone_factor).round) if PITCH
       gd = (PokeAccess::Config.guide_distance rescue 3).to_i
       gd = 1 if gd < 1
       bx, by = DIR_DELTA[dir] || [0, 0]
@@ -287,11 +370,8 @@ module PokeAccess
       end
       gate(:playing)
       @active = true
-      v = (PokeAccess::Config.audio3d_volume rescue 80).to_i
-      if v != @master_sent
-        MAST.call(v)
-        @master_sent = v
-      end
+      send_master
+      sync_tones
       if AIR
         a = (PokeAccess::Config.audio3d_air rescue false) ? 1 : 0
         if a != @air_sent

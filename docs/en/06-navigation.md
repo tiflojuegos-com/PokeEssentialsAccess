@@ -118,7 +118,7 @@ through it too. It needs `phonon.dll` of the matching architecture in `accessibi
 | `PA3D_Master` | `["i"] → v` | master volume |
 
 Each entry point resolves under `rescue`, so a missing dll leaves it `nil`: `available?` requires those five,
-while `PA3D_Rate`, `PA3D_Latency`, `PA3D_Occl` and `PA3D_Air` are optional. `boot` runs exactly once, requires
+while `PA3D_Rate`, `PA3D_Latency`, `PA3D_Occl`, `PA3D_Air` and `PA3D_Pitch` (per-channel pitch as a percentage of the recording; the tones menu) are optional. `boot` runs exactly once, requires
 `INIT.call == 1`, reads the device rate and latency and loads the channels; assets already ship at the native
 rate (44100 in `accessibility/sounds/`, 48000 in `sounds/48000/`, and `wav(name)` picks).
 

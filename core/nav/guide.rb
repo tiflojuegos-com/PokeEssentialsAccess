@@ -84,7 +84,8 @@ module PokeAccess
     end
 
     # Plays the panned/pitched guide chime for a step, louder as the target nears. Left/right go through
-    # the 3D engine; up/down (front/back, which HRTF cannot place) use a pitched flat cue (high=up, low=down).
+    # the 3D engine; up/down (front/back, which HRTF cannot place on plain stereo headphones) use a pitched
+    # flat cue (high = up, low = down). The guide tone moves all four by the pair's shared factor.
     def self.guide_cue(dir, dist)
       return if dir == 0
       v = PokeAccess::Config.event_volume
@@ -93,14 +94,13 @@ module PokeAccess
       factor = 0.35 if factor < 0.35
       factor = 1.0 if factor > 1.0
       vol = (v * factor).to_i
-      if (dir == 4 || dir == 6) && (PokeAccess::Audio3D.guide(dir, vol) rescue false)
-        return
-      end
+      return if (PokeAccess::Audio3D.guide(dir, vol) rescue false)
+      f = PokeAccess::Spatial.guide_tone_factor
       case dir
-      when 4 then PokeAccess::Spatial.cue("pa_guide_l", vol)
-      when 6 then PokeAccess::Spatial.cue("pa_guide_r", vol)
-      when 8 then PokeAccess::Spatial.cue("pa_guide_c", vol, 140)
-      else        PokeAccess::Spatial.cue("pa_guide_c", vol, 70)
+      when 4 then PokeAccess::Spatial.cue("pa_guide_l", vol, (100 * f).round)
+      when 6 then PokeAccess::Spatial.cue("pa_guide_r", vol, (100 * f).round)
+      when 8 then PokeAccess::Spatial.cue("pa_guide_c", vol, (140 * f).round)
+      else        PokeAccess::Spatial.cue("pa_guide_c", vol, (70 * f).round)
       end
     end
 

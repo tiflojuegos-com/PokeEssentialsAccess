@@ -1,7 +1,12 @@
-# Reminiscencia v2.3 profile: same Essentials base as the core defaults. Its currency is shown as a bare
-# "$" (not "pokedolares"), so the spoken money uses a neutral label.
+# Reminiscencia v2.3 profile: same Essentials base as the core defaults. The run does not spend the
+# trainer's money (it sits at its starting value for the whole game): its economy is the Coin item, picked
+# up on the maps and charged by the shop, Hoopa, the blessing cards and the upgrade tree, with Heart Scales
+# as the second currency. The trainer line says those two and drops the dead money.
 PokeAccess::Game.define("reminiscencia") do
-  config(:money_label, :tr_money_generic)
+  config(:money_label, :rem_coins)
+  trainer_part(:coins)  { |_tr| PokeAccess::I18n.t(:rem_coins,  :n => $PokemonBag.pbQuantity(:COIN)) }
+  trainer_part(:scales) { |_tr| PokeAccess::I18n.t(:rem_scales, :n => $PokemonBag.pbQuantity(:HEARTSCALE)) }
+  trainer_order [:name, :coins, :scales, :badges, :pokedex, :playtime]
 
   # This game extends two engine enums past the vanilla range, so the core tables stopped short and the
   # additions read as nothing: a Pokemon with the sixth status had no condition spoken at all, and three

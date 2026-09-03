@@ -190,47 +190,76 @@ module PokeAccess
       end
     end
 
-    # Describes the trainer: name, money, badges, pokedex and play time. Dispatched on which player global
-    # the engine exposes ($player => the modern reader, else gen-6 $Trainer), not on a version flag.
-    def self.trainer_info
-      return gamedata_trainer_info if defined?($player) && $player
-      return nil unless defined?($Trainer) && $Trainer
-      parts = ["#{$Trainer.name}"]
-      money = ($Trainer.money rescue nil)
-      parts.push(PokeAccess::I18n.t(PokeAccess::Config.money_label, :n => money)) if money
-      badges = PokeAccess::Util.badge_count($Trainer)
-      parts.push(PokeAccess::I18n.t(:tr_badges, :n => badges)) if badges
-      if ($Trainer.pokedex rescue false)
-        seen = ($Trainer.pokedexSeen rescue nil)
-        own  = ($Trainer.pokedexOwned rescue nil)
-        parts.push(PokeAccess::I18n.t(:tr_pokedex, :owned => own, :seen => seen)) if seen && own
+    # The trainer line the info key and the trainer card speak, built from NAMED parts: each is a reader
+    # that gets the player object and answers a spoken fragment or nil. The order is Config.trainer_parts
+    # and the readers live here, so a profile can swap one (ribbons where a game has no badges, coins where
+    # the money is dead weight), add one or drop one without rewriting the line, and a part that fails costs
+    # only its fragment. The player object is $player where the engine exposes it, else gen-6 $Trainer; the
+    # era differences (how the Pokedex tally is kept) stay inside the default readers.
+    TRAINER_PARTS = {
+      :name     => lambda { |tr| tr.name.to_s },
+      :money    => lambda { |tr|
+        m = (tr.money rescue nil)
+        m.nil? ? nil : PokeAccess::I18n.t(PokeAccess::Config.money_label, :n => m)
+      },
+      :badges   => lambda { |tr|
+        n = PokeAccess::Util.badge_count(tr)
+        n.nil? ? nil : PokeAccess::I18n.t(:tr_badges, :n => n)
+      },
+      :pokedex  => lambda { |tr| PokeAccess::Info.pokedex_tally(tr) },
+      :playtime => lambda { |_tr|
+        hm = PokeAccess::Util.playtime_parts(PokeAccess::Util.playtime_seconds)
+        hm ? PokeAccess::I18n.t(:tr_playtime, :h => hm[0], :m => hm[1]) : nil
+      }
+    }
+
+    # The player object the engine exposes: $player (GameData era) else gen-6 $Trainer, nil before a game.
+    def self.player_object
+      return $player if defined?($player) && $player
+      return $Trainer if defined?($Trainer) && $Trainer
+      nil
+    end
+
+    # The Pokedex tally fragment: v19+ keeps the counts on a Pokedex object, gen-6 on the trainer itself
+    # behind a boolean pokedex flag.
+    def self.pokedex_tally(tr)
+      dex = (tr.pokedex rescue nil)
+      return nil unless dex
+      if (dex.respond_to?(:owned_count) rescue false)
+        return PokeAccess::I18n.t(:tr_pokedex, :owned => dex.owned_count, :seen => dex.seen_count)
       end
-      hm = PokeAccess::Util.playtime_parts(PokeAccess::Util.playtime_seconds)
-      parts.push(PokeAccess::I18n.t(:tr_playtime, :h => hm[0], :m => hm[1])) if hm
-      parts.join(". ")
+      seen = (tr.pokedexSeen rescue nil)
+      own  = (tr.pokedexOwned rescue nil)
+      (seen && own) ? PokeAccess::I18n.t(:tr_pokedex, :owned => own, :seen => seen) : nil
+    end
+
+    # Describes the trainer: the configured parts, in order, those that answered.
+    def self.trainer_info
+      tr = player_object
+      return nil unless tr
+      parts = PokeAccess::Config.trainer_parts.map { |key| trainer_part(key, tr) }.compact
+      parts.empty? ? nil : parts.join(". ")
     rescue StandardError
       nil
     end
 
-    # GameData-era ($player) trainer summary: name, money, badges, pokedex tally and play time. Used when
-    # $Trainer is absent (Essentials v17+).
-    def self.gamedata_trainer_info
-      p = ($player rescue nil)
-      return nil unless p
-      parts = ["#{p.name}"]
-      money = (p.money rescue nil)
-      parts.push(PokeAccess::I18n.t(PokeAccess::Config.money_label, :n => money)) if money
-      badges = PokeAccess::Util.badge_count(p)
-      parts.push(PokeAccess::I18n.t(:tr_badges, :n => badges)) if badges
-      dex = (p.pokedex rescue nil)
-      if dex && (dex.respond_to?(:owned_count) rescue false)
-        parts.push(PokeAccess::I18n.t(:tr_pokedex, :owned => dex.owned_count, :seen => dex.seen_count))
-      end
-      hm = PokeAccess::Util.playtime_parts(PokeAccess::Util.playtime_seconds)
-      parts.push(PokeAccess::I18n.t(:tr_playtime, :h => hm[0], :m => hm[1])) if hm
-      parts.join(". ")
+    # One named part, rescued on its own: a reader that fails costs its fragment, not the line.
+    def self.trainer_part(key, tr)
+      reader = TRAINER_PARTS[key]
+      return nil unless reader
+      t = reader.call(tr)
+      (t.nil? || t.to_s.empty?) ? nil : t.to_s
     rescue StandardError
       nil
+    end
+
+    # Defines or replaces a named part (a profile's ribbons, coins...). A NEW name joins the end of the
+    # order; a replaced one keeps its place. Yields the player object.
+    def self.set_trainer_part(key, &reader)
+      TRAINER_PARTS[key] = reader
+      order = PokeAccess::Config.trainer_parts
+      order.push(key) unless order.include?(key)
+      key
     end
   end
 end

@@ -4,6 +4,8 @@
   source with Steam Audio's binaural effect; device output and mixing use miniaudio.
   Coordinates are tile units times 100; the listener faces north (-z), map x->x, map y->z.
   Distance attenuation is linear, clamped between the reference (1) and max (14) tile distance.
+  Each channel has a playback rate in percent (PA3D_Pitch): the mixer already resamples to the device
+  rate with linear interpolation, so a tone is one more factor on that step and costs nothing extra.
 */
 #include <windows.h>
 #include <stdio.h>
@@ -35,6 +37,7 @@ typedef struct {
     volatile double head;
     volatile int   playing;
     volatile int   vol100;
+    volatile int   pitch100;   /* playback rate percent: 100 = the recording, 50 an octave down, 200 up */
     volatile int   x100;
     volatile int   y100;
     volatile int   occ100;
@@ -106,6 +109,7 @@ static float dist_gain(float dist) {
    telephone" sound). */
 static void pull_samples(Channel* c, float* dst) {
     int k; double h = c->head; int playing = c->playing;
+    double step = c->step * (c->pitch100 / 100.0);
     for (k = 0; k < FRAME; k++) {
         int idx; double frac; float a, b;
         if (!playing || c->count <= 0) { dst[k] = 0.0f; continue; }
@@ -117,7 +121,7 @@ static void pull_samples(Channel* c, float* dst) {
         a = c->pcm[idx];
         b = (idx + 1 < c->count) ? c->pcm[idx + 1] : (c->loop ? c->pcm[0] : a);
         dst[k] = (float)(a + ((double)b - (double)a) * frac);
-        h += c->step;
+        h += step;
     }
     c->head = h;
     if (!playing) c->playing = 0;
@@ -265,6 +269,7 @@ EXPORT int PA3D_Channel(const char* path, int loop) {
     g_ch[i].head = 0.0;
     g_ch[i].playing = 0;
     g_ch[i].vol100 = 100;
+    g_ch[i].pitch100 = 100;
     g_ch[i].x100 = 0;
     g_ch[i].y100 = 0;
     g_ch[i].occ100 = 0;
@@ -298,6 +303,15 @@ EXPORT void PA3D_Set(int ch, int x100, int y100, int vol100, int play) {
 
 EXPORT void PA3D_Master(int vol100) {
     g_master100 = vol100;
+}
+
+/* per-channel playback rate in percent (100 = as recorded), clamped to 25-400 so a bad value can neither
+   freeze a channel nor make it skip whole samples. Takes effect from the next block, mid-sound too. */
+EXPORT void PA3D_Pitch(int ch, int pitch100) {
+    if (ch < 0 || ch >= MAXCH || !g_ch[ch].used) return;
+    if (pitch100 < 25) pitch100 = 25;
+    if (pitch100 > 400) pitch100 = 400;
+    g_ch[ch].pitch100 = pitch100;
 }
 
 /* per-channel occlusion amount 0-100 (0 = clear, 100 = fully muffled behind a wall). */

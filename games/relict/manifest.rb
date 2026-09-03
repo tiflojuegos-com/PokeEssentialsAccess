@@ -5,8 +5,7 @@
     pausemenu
     difficulty
     plates
-    itemget
     arcy
   ],
-  :plugins => %w[bag_screen_party encounter_list_ui tip_cards dbk_battle dbk_enhanced_ui]
+  :plugins => %w[bag_screen_party encounter_list_ui tip_cards dbk_battle dbk_enhanced_ui slide_banners]
 }

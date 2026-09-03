@@ -25,6 +25,29 @@ module PokeAccess
     @ri = 0
     @capturing = false
     @cap_down = {}
+    @preview = nil
+
+    # Setting => the glossary sound that demonstrates it: a volume or tone row plays its family's sample as
+    # the value moves, so the player hears the level or the pitch instead of only a number.
+    PREVIEWS = {
+      :audio3d_volume => :npc, :audio3d_npc => :npc, :audio3d_object => :object, :audio3d_door => :door,
+      :audio3d_teleporter => :teleporter, :audio3d_water => :water, :audio3d_wind => :wind_n,
+      :footstep_volume => :step, :wall_volume => :wall, :event_volume => :guide,
+      :audio3d_tone_npc => :npc, :audio3d_tone_object => :object, :audio3d_tone_door => :door,
+      :audio3d_tone_teleporter => :teleporter, :audio3d_tone_water => :water, :audio3d_tone_wind => :wind_n,
+      :footstep_tone => :step, :wall_tone => :wall, :guide_tone => :guide
+    }
+
+    # Glossary sound => the volume setting its family plays at in the field, so an audition that is not
+    # about that volume (a tone row, the master row) sounds as loud as the field will.
+    FAMILY_VOLUME = {
+      :npc => :audio3d_npc, :object => :audio3d_object, :door => :audio3d_door, :teleporter => :audio3d_teleporter,
+      :water => :audio3d_water, :wind_n => :audio3d_wind, :step => :footstep_volume, :wall => :wall_volume,
+      :guide => :event_volume
+    }
+
+    # How long a looping sample (water, wind) auditions before the menu stops it.
+    PREVIEW_LOOP_SECONDS = 2.0
 
     def self.t(key, vars = nil); PokeAccess::I18n.t(key, vars); end
 
@@ -63,8 +86,37 @@ module PokeAccess
 
     def self.close
       @active = false; @capturing = false
+      stop_preview
       (PokeAccess::Settings.write rescue nil)
       say(t(:cfg_saved))
+    end
+
+    # Auditions a volume or tone row: through the positional engine when it is up (the whole octave, centred
+    # on the player), else through the flat glossary preview. A family's volume row plays at the value just
+    # set; a tone row, and the master row, play at the family's own volume, so between two presses only the
+    # thing being adjusted changes and the sample is as loud as the field will be.
+    def self.preview(key, kind, v)
+      entry = PokeAccess::SoundGlossary.entry(PREVIEWS[key])
+      return unless entry
+      own = kind == :vol && key != :audio3d_volume
+      vol = own ? v : (PokeAccess::Config.send(FAMILY_VOLUME[entry[0]]) rescue 100).to_i
+      stop_preview
+      pitch = PokeAccess::SoundGlossary.engine_pitch(entry)
+      played = (PokeAccess::Audio3D.preview(entry[0], vol, pitch) rescue false)
+      return PokeAccess::SoundGlossary.play(entry, vol) unless played
+      @preview = [entry[0], PokeAccess.clock + PREVIEW_LOOP_SECONDS] if PokeAccess::Audio3D.loop?(entry[0])
+    end
+
+    # Ends a looping audition whose time is up (called every modal frame).
+    def self.expire_preview
+      stop_preview if @preview && PokeAccess.clock >= @preview[1]
+    end
+
+    # Stops the looping audition, if one plays (the menu is closing or its time is up).
+    def self.stop_preview
+      return unless @preview
+      (PokeAccess::Audio3D.preview_stop(@preview[0]) rescue nil)
+      @preview = nil
     end
 
     # The items of the current mode. Each is a hash with :kind and the data that kind needs.
@@ -116,6 +168,7 @@ module PokeAccess
         rows = PokeAccess::Config.schema_group(:audio).map { |r| { :kind => :setting, :row => r } }
         rows.push({ :kind => :enter, :group => :audio3d_vol,   :label => :cat_pos_vol })
         rows.push({ :kind => :enter, :group => :audio3d_freq,  :label => :cat_pos_freq })
+        rows.push({ :kind => :enter, :group => :audio3d_tone,  :label => :cat_pos_tone })
         rows.push({ :kind => :enter, :group => :audio3d_walls, :label => :cat_pos_walls })
         rows.push({ :kind => :enter, :group => :audio3d_adv,   :label => :cat_positional_adv })
         rows.push({ :kind => :back, :label => :back })
@@ -166,6 +219,7 @@ module PokeAccess
     # One modal frame: up/down move, left/right change the focused value, confirm enters/toggles/runs,
     # cancel goes back a level (or closes from the top), help re-reads the description.
     def self.step
+      expire_preview
       return capture_step if @capturing
       return rebind_step if @mode == :remap
       help = (PokeAccess::Keys.key(:info) rescue false)
@@ -266,6 +320,7 @@ module PokeAccess
         v = b[0] if v < b[0]
         v = b[1] if v > b[1]
         set_config(key, v)
+        preview(key, row[2], v)
         unit = b[3] ? " #{t(b[3])}" : ""
         return say("#{t(row[4])}, #{v}#{unit}")
       end

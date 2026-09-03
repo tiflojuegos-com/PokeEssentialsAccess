@@ -54,6 +54,7 @@
   field/minigames
   puzzles/puzzles
   field/location_banner
+  field/turbo
   menus/cursor
   menus/menus
   menus/scene_watcher

@@ -196,6 +196,7 @@ module PokeAccess
       c = PokeAccess::Config
       o.push("config: sound_nav=#{dv { c.sound_nav }} auto_guide=#{dv { c.auto_guide }} radar=#{dv { c.proximity_radar }} surface_cues=#{dv { c.surface_cues }} vols=#{dv { c.footstep_volume }}/#{dv { c.wall_volume }}/#{dv { c.event_volume }}")
       o.push("filters: hide_unreachable=#{dv { c.hide_unreachable }} hide_noninteractive=#{dv { c.hide_noninteractive }}")
+      o.push("trainer_line: #{dv { c.trainer_parts.inspect }}")
       o.push("rebinds=#{dv { c.rebinds.inspect }}")
     end
 
@@ -273,10 +274,11 @@ module PokeAccess
     def self.diag_audio3d(o)
       c = PokeAccess::Config
       a3 = PokeAccess::Audio3D
-      o.push("audio3d: engine=Steam Audio (phonon+miniaudio) available=#{dv { a3.available? }} sound_nav=#{dv { c.sound_nav }} ready=#{dv { a3.instance_variable_get(:@ready) }} boot_tried=#{dv { a3.instance_variable_get(:@boot_tried) }} active=#{dv { a3.instance_variable_get(:@active) }}")
+      o.push("audio3d: engine=Steam Audio (phonon+miniaudio) available=#{dv { a3.available? }} sound_nav=#{dv { c.sound_nav }} ready=#{dv { a3.instance_variable_get(:@ready) }} boot_tried=#{dv { a3.instance_variable_get(:@boot_tried) }} active=#{dv { a3.instance_variable_get(:@active) }} pitch_export=#{dv { a3::PITCH ? 'yes' : 'no' }}")
       o.push("audio3d device: rate=#{dv { a3.device_rate }}Hz latency=#{dv { a3.device_latency }}ms asset_set=#{dv { a3.device_rate == 48000 ? '48000' : '44100' }}")
       o.push("audio3d cfg: master=#{dv { c.audio3d_volume }} occlusion=#{dv { c.audio3d_occlusion }} air=#{dv { c.audio3d_air }} range=#{dv { a3.range }} wall_range=#{dv { a3.wall_range }} alt_dist=#{dv { a3.alt_dist }} wind=#{dv { c.audio3d_wind }} falloff=#{dv { c.audio3d_wall_falloff }}")
       o.push("audio3d vols: npc=#{dv { c.audio3d_npc }} object=#{dv { c.audio3d_object }} door=#{dv { c.audio3d_door }} water=#{dv { c.audio3d_water }}")
+      o.push("audio3d tones: npc=#{dv { c.audio3d_tone_npc }} object=#{dv { c.audio3d_tone_object }} door=#{dv { c.audio3d_tone_door }} teleporter=#{dv { c.audio3d_tone_teleporter }} water=#{dv { c.audio3d_tone_water }} wind=#{dv { c.audio3d_tone_wind }} step=#{dv { c.footstep_tone }} wall=#{dv { c.wall_tone }} guide=#{dv { c.guide_tone }} sent=#{dv { a3.instance_variable_get(:@tone_sent).inspect }}")
       o.push("audio3d chans=#{dv { a3.instance_variable_get(:@ch).inspect }}")
       o.push("audio3d state: scan_pos=#{dv { a3.instance_variable_get(:@scan_pos).inspect }} walls=#{dv { a3.instance_variable_get(:@wall).inspect }} near=#{dv { a3.instance_variable_get(:@near).inspect }}")
       o.push("audio3d gate: now=#{dv { PokeAccess::Spatial.busy_reason.inspect }} #{dv { a3.gate_report }}")

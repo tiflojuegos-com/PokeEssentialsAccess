@@ -3,6 +3,8 @@ behavior/audio/audio3d_classify_spec.rb
 behavior/audio/audio3d_nav_modes_spec.rb
 behavior/audio/audio3d_pacing_spec.rb
 behavior/audio/audio3d_scan_spec.rb
+behavior/audio/audio3d_tone_spec.rb
+behavior/audio/gauge_range_spec.rb
 behavior/battle/announce_field_spec.rb
 behavior/battle/announce_hp_spec.rb
 behavior/battle/announce_target_spec.rb
@@ -30,10 +32,16 @@ behavior/field/minigames_spec.rb
 behavior/field/perf_probe_spec.rb
 behavior/field/puzzles_spec.rb
 behavior/field/realidea_mouse_minigames_spec.rb
+behavior/field/remin_picker_spec.rb
 behavior/field/say_dialogue_gd_spec.rb
 behavior/field/say_dialogue_spec.rb
+behavior/field/slide_banners_spec.rb
+behavior/field/trainer_line_gd_spec.rb
+behavior/field/trainer_line_spec.rb
 behavior/field/triple_triad_gd_spec.rb
 behavior/field/triple_triad_spec.rb
+behavior/field/turbo_gd_spec.rb
+behavior/field/turbo_spec.rb
 behavior/field/verdict_cache_spec.rb
 behavior/foundation/boot_loader_spec.rb
 behavior/foundation/game_lang_spec.rb
@@ -45,6 +53,7 @@ behavior/menus/bag_v22_gd_spec.rb
 behavior/menus/berrydex_spec.rb
 behavior/menus/challenge_rules_spec.rb
 behavior/menus/character_creator_spec.rb
+behavior/menus/config_preview_spec.rb
 behavior/menus/cursor_dedup_spec.rb
 behavior/menus/dedicated_flag_spec.rb
 behavior/menus/extractor_dispatch_spec.rb

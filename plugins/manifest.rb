@@ -39,6 +39,7 @@
   :dp_pausemenu      => "DP_PauseMenu",
   :simple_encounter_list => "EncounterListUI",
   :magic_gachapon    => "GachaScene",
+  :slide_banners     => "Scene_Map#addSprite",
   # The DBK files hook vanilla battle classes with :optional gates, so each probes the METHOD the kit
   # adds there -- the class alone would match every modern game.
   :dbk_battle        => "Battle#pbToggleSpecialActions",

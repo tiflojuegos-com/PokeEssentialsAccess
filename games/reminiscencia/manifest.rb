@@ -10,8 +10,8 @@
     command_help
     move_relearner
     datingsim_place
-    itemget
+    picker
     extras
   ],
-  :plugins => %w[item_find logros text_log]
+  :plugins => %w[item_find logros text_log slide_banners]
 }

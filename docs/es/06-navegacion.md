@@ -118,7 +118,7 @@ pasos y los choques. Necesita `phonon.dll` de la misma arquitectura en `accessib
 | `PA3D_Master` | `["i"] → v` | volumen maestro |
 
 Cada entrada se resuelve bajo `rescue`, así que una dll ausente la deja en `nil`: `available?` exige esas cinco
-y `PA3D_Rate`, `PA3D_Latency`, `PA3D_Occl` y `PA3D_Air` son opcionales. `boot` corre una sola vez, exige
+y `PA3D_Rate`, `PA3D_Latency`, `PA3D_Occl`, `PA3D_Air` y `PA3D_Pitch` (tono por canal, en porcentaje de la grabación; el menú de tonos) son opcionales. `boot` corre una sola vez, exige
 `INIT.call == 1`, lee tasa y latencia del dispositivo y carga los canales; los assets ya vienen en la tasa
 nativa (44100 en `accessibility/sounds/`, 48000 en `sounds/48000/`, y `wav(name)` escoge).
 

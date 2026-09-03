@@ -73,6 +73,14 @@ module PokeAccess
       # Runs a block once per frame in every scene, for menus the game drives from its own blocking loop.
       def poll_each_frame(&blk); PokeAccess::Keys.on_frame(&blk); end
 
+      # Defines or replaces a named part of the trainer line the info key speaks (ribbons instead of badges,
+      # coins instead of money). Yields the player object; answers a spoken fragment or nil. A new name joins
+      # the end of the order (see trainer_order to place it).
+      def trainer_part(key, &reader); PokeAccess::Info.set_trainer_part(key, &reader); end
+
+      # Sets the trainer line's parts and their order; a default part left out is simply not spoken.
+      def trainer_order(keys); PokeAccess::Config.trainer_parts = keys.map { |k| k.to_sym }; end
+
       # Registers a map puzzle (see Puzzles.register).
       def puzzle(map_id, opts); PokeAccess::Puzzles.register(map_id, opts); end
 
