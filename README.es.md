@@ -15,7 +15,6 @@ Mod de accesibilidad para fangames de Pokémon. Permite que una persona ciega pu
 - [Teclas del mod](#teclas-del-mod)
 - [Estructura del mod](#estructura-del-mod)
 - [Documentación](#documentación)
-- [Cambios](#cambios)
 - [Licencia](#licencia)
 
 ---
@@ -151,18 +150,6 @@ Buenos puntos de entrada:
 Si vas a tocar el código, lee antes las **invariantes** de la visión general: entre otras cosas, `core/` corre bajo Ruby 1.8.7 y eso limita qué sintaxis puedes escribir.
 
 Para leer los scripts de tu propio juego, `ruby tools/dump_scripts.rb "<carpeta del juego>"` los extrae a ficheros `.rb` legibles.
-
-## Cambios
-
-Las descargas de cada versión están en la [página de releases](https://github.com/tiflojuegos-com/PokeEssentialsAccess/releases). Aquí se anotan las novedades, la versión más reciente primero, con este formato:
-
-<!--
-### 0.0.0
-
-- Añadido: ...
-- Corregido: ...
-- Eliminado: ...
--->
 
 ## Licencia
 

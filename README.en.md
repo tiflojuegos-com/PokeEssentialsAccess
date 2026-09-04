@@ -15,7 +15,6 @@ An accessibility mod for Pokémon fangames. It lets a blind person play them wit
 - [The mod's keys](#the-mods-keys)
 - [Repository layout](#repository-layout)
 - [Documentation](#documentation)
-- [Changes](#changes)
 - [Licence](#licence)
 
 ---
@@ -172,12 +171,6 @@ If you are going to touch the code, read the **invariants** in the overview firs
 
 To read your own game's scripts, `ruby tools/dump_scripts.rb "<game folder>"` extracts them to readable
 `.rb` files.
-
-## Changes
-
-The downloads for each version are on the
-[releases page](https://github.com/tiflojuegos-com/PokeEssentialsAccess/releases). Release notes go here,
-most recent first.
 
 ## Licence
 
