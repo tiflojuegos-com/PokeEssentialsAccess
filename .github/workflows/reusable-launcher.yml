@@ -27,50 +27,56 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: stable
-          targets: x86_64-pc-windows-gnu
 
-      - name: Verify GNU build tools
-        shell: bash
+      - name: Initialize MSVC environment
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Install and verify Windows build tools
+        shell: pwsh
         run: |
-          set -euo pipefail
-          gcc --version
-          g++ --version
+          $ErrorActionPreference = 'Stop'
+          if (-not (Get-Command ninja -ErrorAction SilentlyContinue)) {
+            choco install ninja --yes --no-progress
+          }
+          cl
           cmake --version
+          ninja --version
 
       - name: Test launcher
         working-directory: launcher
-        run: cargo test --locked --release --target x86_64-pc-windows-gnu --no-run --verbose
+        run: cargo test --locked --release --no-run --verbose
 
       - name: Build launcher
         working-directory: launcher
-        run: cargo build --locked --release --target x86_64-pc-windows-gnu --verbose
+        run: cargo build --locked --release --verbose
 
       - name: Inspect native libraries
         if: ${{ always() }}
-        shell: bash
+        shell: pwsh
         run: |
-          set -u
-          if [ -d "launcher/target" ]; then
-            find launcher/target -type f \
-              \( -name '*.a' -o -name '*.dll' -o -name '*.lib' \) \
-              | sort
-          else
-            echo "launcher/target does not exist"
-          fi
+          $target = 'launcher/target'
+          if (Test-Path $target) {
+            Get-ChildItem -Path $target -Recurse -File |
+              Where-Object { $_.Extension -in @('.a', '.dll', '.lib') } |
+              Sort-Object FullName |
+              Select-Object -ExpandProperty FullName
+          } else {
+            Write-Host "$target does not exist"
+          }
 
       - name: Prepare launcher artifact
         id: package
-        shell: bash
+        shell: pwsh
         run: |
-          set -euo pipefail
-          src="launcher/target/x86_64-pc-windows-gnu/release/pokeessentialsaccess-launcher.exe"
-          dst="pokeessentialsaccess-launcher.exe"
-          [ -f "$src" ] || { echo "::error::missing launcher binary: $src"; exit 1; }
-          cp "$src" "$dst"
-          echo "artifact_name=$dst" >> "$GITHUB_OUTPUT"
-          echo "artifact_name=$dst" >> "$GITHUB_ENV"
+          $ErrorActionPreference = 'Stop'
+          $src = 'launcher/target/release/pokeessentialsaccess-launcher.exe'
+          $dst = 'pokeessentialsaccess-launcher.exe'
+          if (-not (Test-Path $src -PathType Leaf)) {
+            Write-Error "missing launcher binary: $src"
+          }
+          Copy-Item $src $dst
+          "artifact_name=$dst" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "artifact_name=$dst" | Out-File -FilePath $env:GITHUB_ENV -Encoding utf8 -Append
 
 
       - name: Upload launcher artifact
