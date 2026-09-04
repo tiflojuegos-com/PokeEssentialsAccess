@@ -63,6 +63,8 @@ behavior/menus/failure_paths_spec.rb
 behavior/menus/fates_cards_spec.rb
 behavior/menus/focus_key_spec.rb
 behavior/menus/fusion_preview_spec.rb
+behavior/menus/gender_numbers_spec.rb
+behavior/menus/gender_pictures_gd_spec.rb
 behavior/menus/gender_selection_spec.rb
 behavior/menus/hall_of_fame_bw_spec.rb
 behavior/menus/load_save_v22_gd_spec.rb

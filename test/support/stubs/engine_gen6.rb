@@ -332,3 +332,16 @@ $PokemonGlobal = Object.new
 def $PokemonGlobal.surfing; false; end
 def $PokemonGlobal.diving; false; end
 def $PokemonGlobal.bridge; 0; end
+
+# Pictures. Every RMXP game has this pair and the mod hooks Game_Picture#show to narrate picture-only
+# screens (a new-game character slider is nothing but this), so a stub without it left that whole family
+# bound to nothing and untestable.
+class Game_Picture
+  attr_reader :number, :name, :x, :y
+  def initialize(number = 1); @number = number; @name = ""; @x = 0; @y = 0; end
+  def show(name, origin = 0, x = 0, y = 0, zoom_x = 100, zoom_y = 100, opacity = 255, blend_type = 0)
+    @name = name; @x = x; @y = y
+    self
+  end
+  def erase; @name = ""; self; end
+end

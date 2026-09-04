@@ -2,7 +2,13 @@
 # at a time, so those read directly via TEXTS. The first screen (Normal vs Nuzlocke) lights BOTH options at
 # once, so there the pointer Y marks the selection (y~60 = Normal on top, y~210 = Nuzlocke below). ASCII
 # only (ruby 1.8.7 / 3.1).
+# The gender screen numbers its portraits the other way round from the core default: map 1's selector shows
+# pantallaGenero2 for var 150 = 1, which the intro then answers with hombreArio/Mulato/Negro, and
+# pantallaGenero1 for var 150 = 2, answered with mujerAria/Mulata/Negra. Read through the default table the
+# mod announced each one as the other, which is worse than saying nothing.
 PokeAccess::Game.define("opalo") do
+  config(:gender_numbers, 1 => :ap_girl, 2 => :ap_boy)
+
   picture_texts(
     "MenuNuzNormalDif1Claro" => "Maestro. Los Pokemon debilitados mueren permanentemente; si pierdes un combate pierdes el reto.",
     "MenuNuzNormalDif2Claro" => "Normal. Los Pokemon debilitados mueren permanentemente; tienes 1 resurreccion por gimnasio y 2 oportunidades mas si pierdes un combate.",
