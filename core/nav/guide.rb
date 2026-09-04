@@ -1,7 +1,14 @@
 module PokeAccess
-  # Locator part 4 of 4: the guide cane. A panned/pitched chime points to the next step toward the
-  # selected target. The route is computed once by A* and then CONSUMED as the player walks it
-  # (recomputing only on deviation, target change or a freshness check), which keeps it cheap on big maps.
+  # Locator part 4 of 4: the two guides toward the selected target, both fed by one route.
+  #
+  #   - the CANE (Shift+I): a panned/pitched chime on a timer, pointing at the next step.
+  #   - the STEP guide (Ctrl+I): the route spoken one leg at a time, "6 up", the next leg only once that
+  #     one has been walked.
+  #
+  # The route is computed once by A* and then CONSUMED as the player walks it (recomputing only on
+  # deviation, target change or a freshness check), which keeps it cheap on big maps and is what lets the
+  # step guide read the leg it is on without searching again. Both may run at once; they share the route,
+  # the "no route" latch and the end of the journey, so nothing is announced twice.
   module Locator
     # rpg direction code => its localization key (for the "jump <dir>" cue).
     DIR_NAMES = { 8 => :dir_up, 2 => :dir_down, 4 => :dir_left, 6 => :dir_right }
@@ -40,6 +47,16 @@ module PokeAccess
       @guide_noroute = false
     end
 
+    # Starts the step guide toward the current target when its auto setting is enabled. Silent: the target
+    # was just announced by whatever selected it, and the first leg follows on the next frame anyway.
+    def self.auto_steps_on
+      return unless (PokeAccess::Config.auto_steps rescue false)
+      return unless @target
+      @steps = true
+      @steps_at = nil
+      @steps_leg = nil
+    end
+
     # Toggles the guide-cane mode (Shift+I): a panned chime points to the next step toward the target.
     def self.toggle_guide
       @guide = !@guide
@@ -56,6 +73,42 @@ module PokeAccess
       else
         PokeAccess.speak(PokeAccess::I18n.t(:loc_guide_off), true)
       end
+    end
+
+    # Toggles the step-by-step guide (Ctrl+I): speaks the leg of the route being walked now and the next
+    # one as each is finished. The spoken counterpart of the cane, and independent of it.
+    def self.toggle_steps
+      @steps = !@steps
+      if @steps
+        ensure_target
+        unless @target
+          @steps = false
+          return PokeAccess.speak(PokeAccess::I18n.t(:loc_nothing_selected), true)
+        end
+        @steps_at = nil
+        @steps_leg = nil
+        @guide_noroute = nil
+        PokeAccess.speak(PokeAccess::I18n.t(:loc_steps_to, :name => target_name(@target)), true)
+      else
+        forget_steps
+        PokeAccess.speak(PokeAccess::I18n.t(:loc_steps_off), true)
+      end
+    end
+
+    # Drops what the step guide remembers about the leg it was on, so the next tick speaks afresh.
+    def self.forget_steps
+      @steps_at = nil
+      @steps_leg = nil
+    end
+
+    # Ends both guides at once and says why. Arrival and a lost target end the JOURNEY, not one mode of
+    # travelling it: with the cane and the step guide both running, each would otherwise reach the same
+    # conclusion on the same frame and the player would hear it twice.
+    def self.stop_guides(key)
+      @guide = false
+      @steps = false
+      forget_steps
+      PokeAccess.speak(PokeAccess::I18n.t(key), true)
     end
 
     # The straight-line direction toward the target, used only when A* cannot route. Prefers a WALKABLE
@@ -112,10 +165,7 @@ module PokeAccess
       dist = ((@target.x - $game_player.x).abs + (@target.y - $game_player.y).abs rescue nil)
       return if @guide_time && (now - @guide_time) < guide_interval(dist)
       @guide_time = now
-      unless target_valid?
-        @guide = false
-        return PokeAccess.speak(PokeAccess::I18n.t(:loc_target_lost), true)
-      end
+      return stop_guides(:loc_target_lost) unless target_valid?
       refresh_guide_path
       path = @guide_path
       if path && !path.empty? && !ledge_step?(path[0]) && !($game_player.passable?($game_player.x, $game_player.y, path[0]) rescue true)
@@ -128,10 +178,7 @@ module PokeAccess
       else
         @blocked_recheck_at = nil
       end
-      if path && path.empty?
-        @guide = false
-        return PokeAccess.speak(PokeAccess::I18n.t(@guide_surf ? :loc_surf_here : :loc_arrived), true)
-      end
+      return stop_guides(@guide_surf ? :loc_surf_here : :loc_arrived) if path && path.empty?
       if path.nil?
         unless @guide_noroute
           @guide_noroute = true
@@ -143,6 +190,45 @@ module PokeAccess
       @noroute_cue_at = nil
       announce_jump_step(path[0])
       guide_cue(path[0], dist)
+    end
+
+    # Runs each map frame while the step guide is on. Driven by the player's TILE and the target's, not by
+    # a clock: the instruction only changes when one of them moves, so standing still costs one comparison
+    # a frame and walking gets the next leg on the frame the player lands on it. Shares the cane's "no
+    # route" latch so the pair never says it twice.
+    def self.steps_tick
+      return unless @steps
+      return stop_guides(:loc_target_lost) unless target_valid?
+      here = [$game_player.x, $game_player.y, @target.x, @target.y]
+      return if @steps_at == here
+      @steps_at = here
+      refresh_guide_path
+      path = @guide_path
+      return stop_guides(@guide_surf ? :loc_surf_here : :loc_arrived) if path && path.empty?
+      if path.nil?
+        @steps_leg = nil
+        unless @guide_noroute
+          @guide_noroute = true
+          PokeAccess.speak(PokeAccess::I18n.t(:loc_no_route), false)
+        end
+        return
+      end
+      @guide_noroute = false
+      announce_leg(path)
+    end
+
+    # Speaks the leg at the head of the route, but only when it is NEW information. Walking a leg merely
+    # shortens it, which the player already knows, so a falling count in the same direction passes in
+    # silence; a different direction means the leg is done, and a LONGER one in the same direction means
+    # the route was recomputed after a wrong turn -- both are worth saying.
+    def self.announce_leg(path)
+      leg = PokeAccess::Pathfinder.legs(path)[0]
+      return if leg.nil?
+      last = @steps_leg
+      @steps_leg = leg
+      return if last && last[0] == leg[0] && leg[1] <= last[1]
+      announce_jump_step(path[0])
+      PokeAccess.speak(PokeAccess::Pathfinder.leg_text(leg), false)
     end
 
     # The cue for an unreachable target: still points straight at it (so the guide keeps nudging the player

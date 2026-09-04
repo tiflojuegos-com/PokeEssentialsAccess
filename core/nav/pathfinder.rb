@@ -807,19 +807,30 @@ module PokeAccess
       nil
     end
 
+    # A route split into legs: runs of the same direction merged into [direction, count] pairs. This is the
+    # shape a route is spoken in, whether the whole thing is read at once or one leg at a time as it is
+    # walked, so both readers share the split and cannot drift apart on how a corner is counted.
+    def self.legs(path)
+      return [] if path.nil? || path.empty?
+      out = []; cur = path[0]; count = 0
+      path.each do |d|
+        if d == cur then count += 1
+        else out.push([cur, count]); cur = d; count = 1 end
+      end
+      out.push([cur, count])
+      out
+    end
+
+    # One leg as the player hears it, e.g. "3 up".
+    def self.leg_text(leg)
+      "#{leg[1]} #{PokeAccess::I18n.t(PokeAccess::Locator::DIR_NAMES[leg[0]])}"
+    end
+
     # Turns a list of step directions into a spoken route (e.g. "3 up, 2 left").
     def self.path_to_text(path)
       return PokeAccess::I18n.t(:loc_no_route) if path.nil?
       return PokeAccess::I18n.t(:loc_next_to) if path.empty?
-      names = { 8 => PokeAccess::I18n.t(:dir_up), 2 => PokeAccess::I18n.t(:dir_down),
-                4 => PokeAccess::I18n.t(:dir_left), 6 => PokeAccess::I18n.t(:dir_right) }
-      parts = []; cur = path[0]; count = 0
-      path.each do |d|
-        if d == cur then count += 1
-        else parts.push("#{count} #{names[cur]}"); cur = d; count = 1 end
-      end
-      parts.push("#{count} #{names[cur]}")
-      parts.join(", ")
+      legs(path).map { |l| leg_text(l) }.join(", ")
     end
   end
 end

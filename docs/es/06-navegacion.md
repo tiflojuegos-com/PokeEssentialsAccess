@@ -1,7 +1,7 @@
 # Navegación
 
 Dos subsistemas orientan al jugador por el mapa: `core/nav/pathfinder.rb` calcula la ruta hasta un objetivo y
-`core/audio/audio3d.rb` construye el paisaje sonoro. El Locator elige el objetivo; la guía consume la ruta.
+`core/audio/audio3d.rb` construye el paisaje sonoro. El Locator elige el objetivo; las guías consumen la ruta.
 
 ## Búsqueda de rutas
 
@@ -9,6 +9,7 @@ Dos subsistemas orientan al jugador por el mapa: `core/nav/pathfinder.rb` calcul
 |---|---|
 | `find_path(tx, ty)` | Direcciones RPG (`8` `2` `4` `6`) hasta una casilla **adyacente** al destino; `[]` si ya está al lado, `nil` si no hay ruta |
 | `path_to_text(path)` | La ruta hablada ("3 arriba, 2 izquierda"), o el texto de "no hay ruta" / "al lado" |
+| `legs(path)` | La ruta en tramos `[dirección, casillas]`; `leg_text(leg)` habla uno |
 | `reachable_set` | `{ pkey => true }` de casillas alcanzables, cacheado por casilla del jugador |
 | `surf_launch(tx, ty)` | Ruta a la orilla alcanzable más cercana al destino, o `nil` |
 | `reach` | Tope de distancia manhattan configurado (`route_reach`) |
@@ -84,6 +85,21 @@ Por defecto la búsqueda corta por **nodos** (`astar_max`, 2500); con `route_aut
 **llamada a `find_path`**, no por búsqueda: las hasta tres que puede lanzar una ruta lo comparten y anidar
 `with_budget` conserva el de fuera. Lo respetan todas salvo el A* local de `hpa_low`. Agotado el plazo, aún se
 devuelve una **ruta parcial** si el mejor nodo quedó a 2 casillas o menos del destino.
+
+### Las dos guías
+
+Las dos consumen la MISMA ruta cacheada -- `refresh_guide_path` la calcula una vez y `advance_guide_path` la
+va gastando conforme el jugador anda -- y se diferencian solo en lo que emiten:
+
+| Guía | Tecla | Emite | Cadencia |
+|---|---|---|---|
+| Bastón (`toggle_guide`) | Mayús+I | Chime panoramizado hacia el siguiente paso | Reloj (`guide_freq`), se espacia con la distancia |
+| Paso a paso (`toggle_steps`) | Ctrl+I | El tramo actual hablado, "6 arriba" | Al cambiar de casilla, y solo si el tramo es nuevo |
+
+`Pathfinder.legs` parte la ruta en tramos `[dirección, casillas]`: `path_to_text` los une todos (tecla I) y
+`announce_leg` lee solo el primero. Habla cuando cambia la dirección, o cuando el mismo tramo se ALARGA tras
+un desvío; mientras solo encoge, calla. Comparten el pestillo de "sin ruta" y el final del trayecto
+(`stop_guides`), así que llegar no se anuncia dos veces aunque las dos estén encendidas.
 
 ## Categorías del localizador
 
@@ -187,8 +203,8 @@ cuenta por qué calló cada frame y `gate_report` lo resume para el diagnóstico
 | `astar_max` | 2500 | 1000-10000, paso 500 | Tope por nodos, el corte por defecto |
 | `path_algorithm` | `:astar` | los 8 de `ALGORITHMS` | Algoritmo de búsqueda |
 | `straight_routes` / `edge_relax` / `ledge_directions` / `route_cache` | off / off / on / on | on/off | Penalizar giros; tolerar el borde del mapa; respetar la dirección del salto; memoizar la pasabilidad |
-| `guide_refresh` / `guide_distance` | 4 / 3 | 1-10 s; 1-6 casillas | Frescura de la ruta cacheada y a cuántas casillas va el chime |
-| `auto_guide` / `hide_unreachable` | off / off | on/off | Guiar al seleccionar objetivo; ocultar los objetivos sin ruta |
+| `guide_refresh` / `guide_distance` | 1 / 3 | 1-10 s; 1-6 casillas | Frescura de la ruta cacheada y a cuántas casillas va el chime |
+| `auto_guide` / `auto_steps` / `hide_unreachable` | off / off / off | on/off | Arrancar el bastón y la guía paso a paso al seleccionar objetivo; ocultar los objetivos sin ruta |
 | `route_auto` / `route_budget_ms` | off / 8 | on/off; 2-40 ms, paso 2 | Cortar por tiempo, y ese plazo (menú de Depuración) |
 
 **Localizador y campo**
@@ -218,7 +234,7 @@ cuenta por qué calló cada frame y `gate_report` lo resume para el diagnóstico
 | `audio3d_npc` / `_object` / `_door` / `_teleporter` | 85 / 85 / 85 / 90 | 0-100, paso 10 | Volumen por tipo de emisor |
 | `audio3d_water` / `audio3d_wind` | 70 / 55 | 0-100, paso 10 | Volumen de los bucles |
 | `footstep_volume` / `wall_volume` / `event_volume` | 80 / 80 / 70 | 0-100, paso 10 | Pasos, choques y chime de guía |
-| `audio3d_freq_npc` / `_object` / `_door` / `guide_freq` | 70 / 70 / 70 / 55 | 0-100, paso 10 | Cadencia de los pings y del chime |
+| `audio3d_freq_npc` / `_object` / `_door` / `guide_freq` | 70 / 70 / 70 / 75 | 0-100, paso 10 | Cadencia de los pings y del chime |
 | `audio3d_occlusion` | `:hide` | `:hear` / `:occlude` / `:hide` | Emisor tras pared (raycast `line_clear?`): igual, atenuado 80 de 100, u oculto |
 | `audio3d_air` | off | on/off | Absorción del aire |
 | `audio3d_wall_range` / `_wall_falloff` | 3 / 50 | 1-20 casillas; 0-100, paso 10 | Sondeo de paredes y caída del viento, `v = vol / dist ** (falloff / 50.0)` |

@@ -307,6 +307,8 @@ change, so they follow the player even with the turbo held.
 |---|---|---|
 | `Pathfinder.find_path(tx, ty)` | Array of RPG direction codes, or `nil` when there is no route | Route to a tile adjacent to the target; the origin is always `$game_player` |
 | `Pathfinder.path_to_text(path)` | `"3 up, 2 left"` | Speak a route; `nil` gives "no route" and `[]` gives "next to it" |
+| `Pathfinder.legs(path)` | `[[8, 3], [4, 2]]` | Split a route into legs; `nil` and `[]` give `[]` |
+| `Pathfinder.leg_text(leg)` | `"3 up"` | Speak one leg (the step guide) |
 | `Pathfinder.reachable_set` | `pkey => true` hash, cached per player tile | The hide-unreachable filter and the sonar's line of sight |
 | `Pathfinder.reachable_tiles` | The same hash, uncached | Force a recomputation |
 | `Pathfinder.pkey(x, y)` | `x * 100000 + y` | Pack or unpack `reachable_set` keys |
@@ -359,6 +361,7 @@ events would trigger a costly re-flood per event. Pass `true` from callers that 
 | `Locator.map_poll` | Nothing | The locator's per-frame work; the frame driver calls it |
 | `Locator.forget_map` | Nothing | Forget the current map so it is announced again |
 | `Locator.toggle_guide` | Nothing | Flip the guide cane |
+| `Locator.toggle_steps` | Nothing | Flip the step-by-step guide |
 | `Locator.register_hazard(re, label_key)` | Nothing | Hazard sprite: a label plus its own cue |
 | `Locator.register_teleporter(re)` | Nothing | Sprite that counts as a teleporter |
 

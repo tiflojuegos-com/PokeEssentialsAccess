@@ -309,6 +309,8 @@ así que siguen al jugador aunque acelere con el turbo.
 |---|---|---|
 | `Pathfinder.find_path(tx, ty)` | Array de códigos de dirección RPG, o `nil` si no hay ruta | Ruta a una casilla contigua al destino; el origen es `$game_player` |
 | `Pathfinder.path_to_text(path)` | `"3 arriba, 2 izquierda"` | Hablar una ruta; `nil` da "sin ruta" y `[]` da "al lado" |
+| `Pathfinder.legs(path)` | `[[8, 3], [4, 2]]` | Partir la ruta en tramos; `nil` y `[]` dan `[]` |
+| `Pathfinder.leg_text(leg)` | `"3 arriba"` | Hablar un solo tramo (la guía paso a paso) |
 | `Pathfinder.reachable_set` | Hash `pkey => true`, cacheado por casilla del jugador | Filtro de inalcanzables y línea de visión del sonar |
 | `Pathfinder.reachable_tiles` | El mismo hash, sin caché | Recalcular a la fuerza |
 | `Pathfinder.pkey(x, y)` | `x * 100000 + y` | Empaquetar o desempaquetar las claves de `reachable_set` |
@@ -362,6 +364,7 @@ cambió.
 | `Locator.map_poll` | Nada | El trabajo por frame del localizador; lo llama el driver por frame |
 | `Locator.forget_map` | Nada | Olvidar el mapa actual para que se vuelva a anunciar |
 | `Locator.toggle_guide` | Nada | Alternar el bastón guía |
+| `Locator.toggle_steps` | Nada | Alternar la guía paso a paso |
 | `Locator.register_hazard(re, label_key)` | Nada | Sprite de peligro: etiqueta más señal propia |
 | `Locator.register_teleporter(re)` | Nada | Sprite que cuenta como teletransporte |
 

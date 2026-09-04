@@ -55,11 +55,35 @@ PokeAccess::Game.define("pokemon_z") do
   }
   [143, 144, 145].each { |m| puzzle(m, ship) }
 
-  # 3rd gym "Bastion Pokemon" (maps 87/89): electric barriers (sprite "rayos...") you toggle to cross.
-  # Obstacles-only (no watched flags): they sound as walls and are trackable in the puzzles category
-  # (they already cue via the /rayos/ hazard in constants; this adds them to the category).
-  beam = { :kind => :state, :obstacles => [{ :match => /rayos/i, :kind => :wall }] }
-  [87, 89].each { |m| puzzle(m, beam) }
+  # 3rd gym "Bastion Pokemon" (maps 87 and 89, two floors of one puzzle): floor plates toggle the electric
+  # barriers ("rayos..." sprites) that wall the room off. The page a plate reacts on carries NO graphic, so
+  # nothing announced them and the pathfinder had nothing to route to; declaring the switches they write is
+  # what lets build_controls find them by what they DO, and each plate becomes a locatable control. Map 89
+  # puts two plates on one switch, which is why they are declared by switch and not by position.
+  #
+  # Colours are the sprites' own, sampled from the graphics rather than guessed from the file names:
+  # rayosR and rayosRojosV red, rayosBarrera and rayosAzulesV blue, rayosV green. WHICH colour a switch
+  # raises is inverted between the two floors, so the state is spoken as on/off and never as "the blue wall
+  # is up", which would be true on one floor and a lie on the other.
+  #
+  # The last watched switch is the Rotom lever (map 87 @4,17; map 89 @23,19): optional, powers the leader
+  # up for a bigger reward, and its state is otherwise only readable by walking over and reading the sign.
+  #
+  # Deliberately no :solved. The room never settles -- the leader can be beaten and the player walk back
+  # in -- so the state of the plates stays the answer to "how do I get through" for the rest of the game.
+  gym3 = lambda do |red, blue, green, power|
+    { :kind => :state,
+      :watch => [
+        { :switch => red,   :label => :gym3_red,   :on => :gym3_on, :off => :gym3_off },
+        { :switch => blue,  :label => :gym3_blue,  :on => :gym3_on, :off => :gym3_off },
+        { :switch => green, :label => :gym3_green, :on => :gym3_on, :off => :gym3_off },
+        { :switch => power, :label => :gym3_power, :on => :gym3_power_on, :off => :gym3_power_off }
+      ],
+      :hint => :gym3_hint,
+      :obstacles => [{ :match => /rayos/i, :kind => :wall }] }
+  end
+  puzzle(87, gym3.call(142, 141, 143, 147))
+  puzzle(89, gym3.call(144, 145, 146, 148))
 
   # Palacio Luminalia statue puzzle (maps 172/191): rotate the 3 King Malvo "malvoBusto" busts so each
   # sets its flag (172@35,11 -> east; 191@18,52 -> west; 191@12,7 -> north); EV007 on map 191 opens the

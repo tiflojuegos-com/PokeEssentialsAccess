@@ -231,6 +231,7 @@ module PokeAccess
       @target = @targets[@ti]
       announce_selected(true)
       auto_guide_on
+      auto_steps_on
     end
 
     # Moves the selection (+1/-1) keeping focus on the current target: the list is rebuilt fresh and the
@@ -400,6 +401,7 @@ module PokeAccess
       @ti = 0; rebuild_targets; @target = @targets[0]
       PokeAccess.speak(PokeAccess::I18n.t(:loc_category, :cat => cat_name(cats[@cat]), :n => @targets.length), true)
       auto_guide_on
+      auto_steps_on
     end
 
     # Speaks the A* route to the current target.
@@ -475,6 +477,7 @@ module PokeAccess
     def self.clear_targets
       @targets = []; @target = nil; @ti = 0
       @guide_path = nil; @guide_from = nil; @guide_target = nil; @noroute_key = nil
+      @steps_at = nil; @steps_leg = nil
       @surface_cache = nil; @surface_cache_pos = nil
     end
 
@@ -501,6 +504,7 @@ module PokeAccess
       run = ($game_system && $game_system.map_interpreter && $game_system.map_interpreter.running?) rescue false
       if @interp_running && !run
         (PokeAccess::Pathfinder.invalidate_cache rescue nil)
+        (PokeAccess::Puzzles.forget_obstacles rescue nil)
         (PokeAccess::Locator.forget_noroute rescue nil)
         (PokeAccess::Locator.clear_verdicts rescue nil)
         rebuild_targets unless @targets.empty?
@@ -510,7 +514,7 @@ module PokeAccess
       @interp_running = false
     end
 
-    # Runs every map frame: map-change announce, battle/info reset, spatial audio, guide, keys.
+    # Runs every map frame: map-change announce, battle/info reset, spatial audio, guides, keys.
     def self.map_poll
       return unless $game_map && $game_player
       return unless (PokeAccess::Keys.enabled rescue true)
@@ -522,6 +526,7 @@ module PokeAccess
       PokeAccess::Info.set_info(:trainer, nil)
       PokeAccess::Spatial.tick
       guide_tick
+      steps_tick
       PokeAccess::Puzzles.tick rescue nil
       return if (($game_temp && $game_temp.in_menu) rescue false)
       return unless PokeAccess::Keys.focused?
@@ -539,7 +544,11 @@ module PokeAccess
           ensure_target; announce_selected(true)
         end
       elsif PokeAccess::Keys.key(:route)
-        PokeAccess::Keys.shift_down? ? toggle_guide : announce_route
+        if PokeAccess::Keys.ctrl_down?
+          toggle_steps
+        else
+          PokeAccess::Keys.shift_down? ? toggle_guide : announce_route
+        end
       end
     end
   end

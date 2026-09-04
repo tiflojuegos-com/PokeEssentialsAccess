@@ -120,6 +120,7 @@ Combined with the keys above, they extend them:
 | `Shift` + `K` | Rename the selected target |
 | `Ctrl` + `K` | Open the target's tag menu |
 | `Shift` + `I` | Turn the audible guidance towards the target on or off |
+| `Ctrl` + `I` | Turn the step-by-step guidance on or off: it speaks the leg you are walking ("6 up") and the next one as you finish it |
 | `Shift` + `T` | Repeat the last line of dialogue read |
 | `Shift` + `H` | Read the opposing team's HP |
 | `Shift` + `M` | Rename the current map |

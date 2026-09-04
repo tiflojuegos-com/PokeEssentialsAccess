@@ -1,7 +1,7 @@
 # Navigation
 
 Two subsystems orient the player around the map: `core/nav/pathfinder.rb` computes the route to a target and
-`core/audio/audio3d.rb` builds the soundscape. The locator picks the target; the guide consumes the route.
+`core/audio/audio3d.rb` builds the soundscape. The locator picks the target; the guides consume the route.
 
 ## Pathfinding
 
@@ -9,6 +9,7 @@ Two subsystems orient the player around the map: `core/nav/pathfinder.rb` comput
 |---|---|
 | `find_path(tx, ty)` | RPG direction codes (`8` `2` `4` `6`) to a tile **adjacent** to the target; `[]` when already beside it, `nil` when there is no route |
 | `path_to_text(path)` | The spoken route ("3 up, 2 left"), or the "no route" / "next to it" text |
+| `legs(path)` | The route as `[direction, tiles]` legs; `leg_text(leg)` speaks one |
 | `reachable_set` | `{ pkey => true }` of walkable-to tiles, cached per player tile |
 | `surf_launch(tx, ty)` | A route to the reachable shore tile nearest the target, or `nil` |
 | `reach` | The configured manhattan distance cap (`route_reach`) |
@@ -84,6 +85,21 @@ By default the search stops on **node count** (`astar_max`, 2500); with `route_a
 one per **`find_path` call**, not per search: the up to three a route may run share it, and nesting
 `with_budget` keeps the outer one. Every search honours it except the local A* in `hpa_low`. Once it runs out,
 a **partial route** is still returned when the best node ended within 2 tiles of the target.
+
+### The two guides
+
+Both consume the SAME cached route -- `refresh_guide_path` computes it once and `advance_guide_path` eats it
+as the player walks -- and differ only in what they emit:
+
+| Guide | Key | Emits | Cadence |
+|---|---|---|---|
+| Cane (`toggle_guide`) | Shift+I | Panned chime toward the next step | Clock (`guide_freq`), widening with distance |
+| Step (`toggle_steps`) | Ctrl+I | The current leg spoken, "6 up" | On changing tile, and only when the leg is new |
+
+`Pathfinder.legs` splits a route into `[direction, tiles]` legs: `path_to_text` joins them all (the I key) and
+`announce_leg` reads only the first. It speaks when the direction changes, or when the same leg gets LONGER
+after a wrong turn; while it merely shrinks, it stays quiet. Both share the "no route" latch and the end of
+the journey (`stop_guides`), so arriving is not announced twice when both are on.
 
 ## Locator categories
 
@@ -187,8 +203,8 @@ tallies why each frame fell silent and `gate_report` summarises it for the diagn
 | `astar_max` | 2500 | 1000-10000, step 500 | Node cap, the default cut-off |
 | `path_algorithm` | `:astar` | the 8 in `ALGORITHMS` | Search algorithm |
 | `straight_routes` / `edge_relax` / `ledge_directions` / `route_cache` | off / off / on / on | on/off | Penalise turns; tolerate the map border; honour the hop direction; memoise passability |
-| `guide_refresh` / `guide_distance` | 4 / 3 | 1-10 s; 1-6 tiles | Freshness of the cached route and how far ahead the chime goes |
-| `auto_guide` / `hide_unreachable` | off / off | on/off | Guide on target selection; hide targets with no route |
+| `guide_refresh` / `guide_distance` | 1 / 3 | 1-10 s; 1-6 tiles | Freshness of the cached route and how far ahead the chime goes |
+| `auto_guide` / `auto_steps` / `hide_unreachable` | off / off / off | on/off | Start the cane and the step guide on target selection; hide targets with no route |
 | `route_auto` / `route_budget_ms` | off / 8 | on/off; 2-40 ms, step 2 | Cut on time, and that deadline (Debug menu) |
 
 **Locator and field**
@@ -218,7 +234,7 @@ tallies why each frame fell silent and `gate_report` summarises it for the diagn
 | `audio3d_npc` / `_object` / `_door` / `_teleporter` | 85 / 85 / 85 / 90 | 0-100, step 10 | Volume per emitter type |
 | `audio3d_water` / `audio3d_wind` | 70 / 55 | 0-100, step 10 | Loop volumes |
 | `footstep_volume` / `wall_volume` / `event_volume` | 80 / 80 / 70 | 0-100, step 10 | Footsteps, bumps and guide chime |
-| `audio3d_freq_npc` / `_object` / `_door` / `guide_freq` | 70 / 70 / 70 / 55 | 0-100, step 10 | Ping and chime cadence |
+| `audio3d_freq_npc` / `_object` / `_door` / `guide_freq` | 70 / 70 / 70 / 75 | 0-100, step 10 | Ping and chime cadence |
 | `audio3d_occlusion` | `:hide` | `:hear` / `:occlude` / `:hide` | Emitter behind a wall (`line_clear?` raycast): as-is, muffled 80 of 100, or dropped |
 | `audio3d_air` | off | on/off | Air absorption |
 | `audio3d_wall_range` / `_wall_falloff` | 3 / 50 | 1-20 tiles; 0-100, step 10 | Wall probe and wind falloff, `v = vol / dist ** (falloff / 50.0)` |

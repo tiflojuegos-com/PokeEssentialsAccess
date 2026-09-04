@@ -45,6 +45,7 @@ behavior/field/triple_triad_spec.rb
 behavior/field/turbo_gd_spec.rb
 behavior/field/turbo_spec.rb
 behavior/field/verdict_cache_spec.rb
+behavior/field/z_gym3_spec.rb
 behavior/foundation/boot_loader_spec.rb
 behavior/foundation/game_lang_spec.rb
 behavior/foundation/settings_apply_spec.rb
@@ -102,6 +103,7 @@ behavior/nav/lens_category_spec.rb
 behavior/nav/region_map_cursor_spec.rb
 behavior/nav/region_map_details_spec.rb
 behavior/nav/route_budget_spec.rb
+behavior/nav/step_guide_spec.rb
 behavior/nav/surface_targets_spec.rb
 behavior/nav/town_map_spec.rb
 behavior/nav/town_map_v22_gd_spec.rb

@@ -61,14 +61,14 @@ module PokeAccess
 
     # The diagnostic section helpers, in order. The full dump runs them all; the debug menu copies named
     # subsets to the clipboard so a tester can paste just the part that matters.
-    DIAG_ALL = [:diag_perf, :diag_focus, :diag_map, :diag_locator, :diag_pathfinder, :diag_surface,
-                :diag_audio3d, :diag_scene, :diag_runtime, :diag_polls]
+    DIAG_ALL = [:diag_perf, :diag_focus, :diag_map, :diag_locator, :diag_pathfinder, :diag_puzzle,
+                :diag_surface, :diag_audio3d, :diag_scene, :diag_runtime, :diag_polls]
     # Named subsets for the debug menu (small enough to read off the clipboard).
     DIAG_SECTIONS = {
       :audio  => [:diag_audio3d],
       :events => [:diag_locator, :diag_focus],
       :perf   => [:diag_perf, :diag_polls],
-      :map    => [:diag_map, :diag_pathfinder, :diag_surface],
+      :map    => [:diag_map, :diag_pathfinder, :diag_puzzle, :diag_surface],
       :scene  => [:diag_scene, :diag_runtime]
     }
 
@@ -228,7 +228,8 @@ module PokeAccess
       cats = dv { PokeAccess::Config.categories }
       ci = dv { l.instance_variable_get(:@cat) }
       o.push("categories(#{dv { cats.size }})=#{cats.inspect}")
-      o.push("locator: cat=#{ci} (#{dv { cats[ci] }}) ti=#{dv { l.instance_variable_get(:@ti) }} targets=#{dv { l.instance_variable_get(:@targets).size }} target=#{dv { (t = l.instance_variable_get(:@target)) ? t.name : 'none' }} guide=#{dv { l.instance_variable_get(:@guide) }}")
+      o.push("locator: cat=#{ci} (#{dv { cats[ci] }}) ti=#{dv { l.instance_variable_get(:@ti) }} targets=#{dv { l.instance_variable_get(:@targets).size }} target=#{dv { (t = l.instance_variable_get(:@target)) ? t.name : 'none' }}")
+      o.push("guides: cane=#{dv { l.instance_variable_get(:@guide) }} steps=#{dv { l.instance_variable_get(:@steps) }} leg=#{dv { l.instance_variable_get(:@steps_leg).inspect }} auto_cane=#{dv { PokeAccess::Config.auto_guide }} auto_steps=#{dv { PokeAccess::Config.auto_steps }}")
       o.push("targetlist=#{cut(dv { l.instance_variable_get(:@targets)[0, 10].map { |t| "#{t.name rescue '?'}@#{t.x},#{t.y}" } }.inspect, 300)}")
     end
 
@@ -254,6 +255,23 @@ module PokeAccess
         o.push("  walk_only=#{dv { pf.find_path_to(tg.x, tg.y, false).nil? ? 'NIL(ruta usa ledges/parcial)' : 'ok' }} target_reachable=#{dv { s = pf.reachable_set; [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].any? { |dx, dy| s[pf.pkey(tg.x + dx, tg.y + dy)] } }}")
         o.push("  route=#{cut(dv { pf.path_to_text(pf.find_path(tg.x, tg.y)) }.to_s, 220)}")
       end
+    end
+
+    # The puzzle declared for this map, if any: the flags it watches and what it found on the map for them.
+    # Without this a silent puzzle had to be diagnosed by reading the map data by hand, which is exactly how
+    # the 3rd gym of Z was found to be declaring barriers and no switches at all.
+    def self.diag_puzzle(o)
+      pz = PokeAccess::Puzzles
+      d = dv { pz.current }
+      return o.push("puzzle: none for this map") unless d.is_a?(Hash)
+      o.push("puzzle: kind=#{dv { pz.kind(d) }} active=#{dv { pz.active? }} owns_info=#{dv { PokeAccess::Keys.puzzle_owns_info? }} locator_targets=#{dv { pz.has_locator_targets? }}")
+      w = (d[:watch] || [])
+      flags = dv { w.map { |e| (e[:switch] ? "sw" + e[:switch].to_s : "var" + e[:var].to_s) + "=" + pz.flag_value(e).to_s } }
+      ctrls = dv { pz.controls.map { |c| "ev" + c[0].id.to_s + "@" + c[0].x.to_s + "," + c[0].y.to_s + ":" + pz.label_of(c[1][:label]) } }
+      obs = dv { pz.obstacle_events.map { |ev| ev.character_name.to_s + "@" + ev.x.to_s + "," + ev.y.to_s } }
+      o.push("  watch(#{w.size})=#{cut(flags.inspect, 250)}")
+      o.push("  controls=#{cut(ctrls.inspect, 250)}")
+      o.push("  obstacles=#{cut(obs.inspect, 250)}")
     end
 
     # The surface-cue label map and its targets.

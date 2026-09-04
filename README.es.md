@@ -104,6 +104,7 @@ Combinados con las teclas de arriba amplían su función:
 | `Shift` + `K` | Renombrar el objetivo seleccionado |
 | `Ctrl` + `K` | Abrir el menú de etiquetas del objetivo |
 | `Shift` + `I` | Activar/desactivar la guía sonora hacia el objetivo |
+| `Ctrl` + `I` | Activar/desactivar la guía paso a paso: te va diciendo el tramo actual ("6 arriba") y el siguiente cuando lo completas |
 | `Shift` + `T` | Repetir el último diálogo leído |
 | `Shift` + `H` | Leer los PS del equipo rival |
 | `Shift` + `M` | Renombrar el mapa actual |

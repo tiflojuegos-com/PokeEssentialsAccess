@@ -9,7 +9,7 @@
 # there because a name can be present in the game and still sit on the WRONG OBJECT, which is a
 # silent nil just the same, and this turns finding out into one grep.
 # surveyed profiles (14): africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla
-# names read: 277 / never found: 10
+# names read: 279 / never found: 11
 @active = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  CompatBits, DexNavPokemonSpeciesIconSprite, MenuBase, PartyVisualsPanel, PokeSelectionSprite, PokemonBagPartyPanel, PokemonIconSprite, PokemonPartyPanel, +4 more
 @activecmd = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  PokemonBag_Scene, PokemonParty_Scene, PokemonScreen_Scene
 @adapter = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal  |  BattlePointShopScreen, BattlePointShop_Scene, BuyAdapter, BuyAdapter_BattlePoints, ClothesShopPresenter, ClothesShopView, Ekans_Interface_Game, HairShopPresenter, +21 more
@@ -247,6 +247,8 @@
 @squares = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  VoltorbFlip
 @stages = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  Battler, PokeBattle_Battler, QuestInfo
 @starters_species = infinitefusion_hoenn  |  StartersSelectionScene
+@steps = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  Pathfinder, PoketchSafariHelper, SafariState, Sprite_Character, StepCounter
+@steps_leg = 
 @stock = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  BPShop, BPShopVisuals, BagSell, BagSellVisuals, BattlePointShopScreen, BattlePointShop_Scene, ClothesShopPresenter, ClothesShopView, +20 more
 @storage = africanus, anil, armonia, awakening, emerald, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, vanilla  |  BoxAutoSortOverride, BoxSorter, PokemonBoxSprite, PokemonDebugMixin, PokemonStorage, PokemonStorageScene, PokemonStorageScreen, PokemonStorageVisuals, +2 more
 @subpage = royal  |  BerrydexInfo_Scene

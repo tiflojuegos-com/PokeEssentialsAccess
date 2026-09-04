@@ -419,6 +419,17 @@ module PokeAccess
       false
     end
 
+    # Drops the cached obstacle list so the next look rescans the map.
+    #
+    # Called from the same event-end hook that invalidates the pathfinder caches, which is the moment a
+    # switch an event just wrote can have raised one barrier and lowered another. Keyed on the map alone,
+    # the list froze the room as it stood when the player walked in: a barrier raised afterwards never
+    # became an obstacle, and one lowered went on warning forever.
+    def self.forget_obstacles
+      @obs_events = nil
+      @obs_map = nil
+    end
+
     # True if a puzzle obstacle event sits on tile (x,y).
     def self.obstacle_at?(x, y)
       return false unless $game_map
@@ -427,8 +438,9 @@ module PokeAccess
       false
     end
 
-    # The events the puzzle declares as obstacles, cached per map: a map's events are never created or
-    # destroyed, only moved, so the list is stable even though the coordinates are not.
+    # The events the puzzle declares as obstacles, cached until an event ends. A map's events are never
+    # created or destroyed, but WHICH of them is an obstacle is read off the current page's graphic, and
+    # swapping that page is exactly what a puzzle switch does -- so the map, alone, is not enough of a key.
     def self.obstacle_events
       mid = ($game_map.map_id rescue 0)
       if @obs_events.nil? || @obs_map != mid
