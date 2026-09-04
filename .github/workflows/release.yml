@@ -155,8 +155,28 @@ jobs:
           [ -n "$LAUNCHER_BIN" ] || { echo "::error::launcher exe not found"; exit 1; }
 
           ASSETS=("$MOD_ZIP" "$MOD_SHA" "$MOD_VERSION" "$LAUNCHER_BIN")
+
+          # The changelog is the annotated tag's own message, so a release needs no editing by hand after it
+          # is published: whoever tags writes the notes once, in the words the players read. Read through the
+          # API rather than with --notes-from-tag because this job has no checkout, and a LIGHTWEIGHT tag
+          # simply carries no message: that publishes an empty changelog instead of aborting, since half a
+          # release is worse than a blank one.
+          NOTES_FILE=""
+          REF=$(gh api "repos/${GH_REPO}/git/ref/tags/${TAG}" 2>/dev/null || echo "")
+          if [ -n "$REF" ] && [ "$(echo "$REF" | jq -r .object.type)" = "tag" ]; then
+            OBJ_SHA=$(echo "$REF" | jq -r .object.sha)
+            gh api "repos/${GH_REPO}/git/tags/${OBJ_SHA}" --jq .message > tag-notes.md
+            if [ -s tag-notes.md ]; then NOTES_FILE=tag-notes.md; fi
+          fi
+
           if gh release view "$TAG" >/dev/null 2>&1; then
             gh release upload "$TAG" "${ASSETS[@]}" --clobber
+            BODY=$(gh release view "$TAG" --json body --jq .body || echo "")
+            if [ -n "$NOTES_FILE" ] && [ -z "$BODY" ]; then
+              gh release edit "$TAG" --notes-file "$NOTES_FILE"
+            fi
+          elif [ -n "$NOTES_FILE" ]; then
+            gh release create "$TAG" "${ASSETS[@]}" --title "${TAG#v}" --notes-file "$NOTES_FILE"
           else
             gh release create "$TAG" "${ASSETS[@]}" --title "${TAG#v}" --notes ""
           fi
