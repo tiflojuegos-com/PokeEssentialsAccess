@@ -8,6 +8,11 @@ on:
         required: false
         type: boolean
         default: false
+      run_tests:
+        description: 'Whether to run the launcher test suite'
+        required: false
+        type: boolean
+        default: false
     outputs:
       artifact_name:
         description: 'Name of the generated launcher artifact'
@@ -43,6 +48,7 @@ jobs:
           ninja --version
 
       - name: Test launcher
+        if: ${{ inputs.run_tests }}
         working-directory: launcher
         run: cargo test --locked --release --no-run --verbose
 
@@ -69,9 +75,16 @@ jobs:
         shell: pwsh
         run: |
           $ErrorActionPreference = 'Stop'
-          $src = 'launcher/target/release/pokeessentialsaccess-launcher.exe'
+          $releaseDir = 'launcher/target/x86_64-pc-windows-msvc/release'
+          $src = Join-Path $releaseDir 'pokeessentialsaccess-launcher.exe'
           $dst = 'pokeessentialsaccess-launcher.exe'
           if (-not (Test-Path $src -PathType Leaf)) {
+            Write-Host "Executable files found under launcher/target:"
+            if (Test-Path 'launcher/target') {
+              Get-ChildItem -Path 'launcher/target' -Recurse -Filter '*.exe' -File |
+                Sort-Object FullName |
+                Select-Object -ExpandProperty FullName
+            }
             Write-Error "missing launcher binary: $src"
           }
           Copy-Item $src $dst

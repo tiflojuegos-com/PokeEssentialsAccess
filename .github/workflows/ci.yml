@@ -55,3 +55,4 @@ jobs:
     uses: ./.github/workflows/reusable-launcher.yml
     with:
       create_artifact: false
+      run_tests: true

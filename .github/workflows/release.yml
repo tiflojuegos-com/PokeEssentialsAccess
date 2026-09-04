@@ -118,6 +118,7 @@ jobs:
     uses: ./.github/workflows/reusable-launcher.yml
     with:
       create_artifact: true
+      run_tests: false
 
   publish_release:
     needs:
