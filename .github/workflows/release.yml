@@ -136,6 +136,7 @@ jobs:
       - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           TAG: ${{ needs.package_mod.outputs.tag }}
         shell: bash
         run: |
