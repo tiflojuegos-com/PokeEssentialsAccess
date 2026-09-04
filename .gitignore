@@ -1,3 +1,6 @@
+# vscode files
+.vscode/
+
 # Build artifacts (the release ZIP is built outside the repo, but ignore any local copy)
 *.zip
 Mod_Accesibilidad_Pokemon_*.zip

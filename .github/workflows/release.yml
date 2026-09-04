@@ -14,10 +14,17 @@ permissions:
   contents: write
 
 jobs:
-  build:
+  package_mod:
     runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      zip_name: ${{ steps.meta.outputs.zip_name }}
+      zip_sha: ${{ steps.meta.outputs.zip_sha }}
+      launcher_version: ${{ steps.meta.outputs.launcher_version }}
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: recursive
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
@@ -25,19 +32,21 @@ jobs:
         with:
           python-version: '3.x'
 
-      # The launcher decides whether an update exists by comparing the release tag with the version.json it
-      # downloads, so a mismatch between the two ships a build that announces the wrong version. Checked
-      # before anything is built, so the run fails early and publishes nothing.
-      - name: version matches tag
+      - name: Resolve release metadata
+        id: meta
+        shell: bash
         run: |
+          set -euo pipefail
           TAG="${{ github.event.inputs.version || github.ref_name }}"
+          LAUNCHER_VERSION=$(ruby -ne 'print $1 if /^version = "([^"]+)"/ && $~.captures.first' launcher/Cargo.toml)
+          ZIP="PokeEssentialsAccess_${TAG}.zip"
+          SHAZIP="${ZIP}.sha256"
           echo "TAG=$TAG" >> "$GITHUB_ENV"
-          FILE=$(ruby -rjson -e 'print JSON.parse(File.read("version.json"))["version"]')
-          if [ "${TAG#v}" != "$FILE" ]; then
-            echo "::error::tag $TAG does not match version.json ($FILE)"
-            exit 1
-          fi
-          echo "tag $TAG matches version.json ($FILE)"
+          echo "LAUNCHER_VERSION=$LAUNCHER_VERSION" >> "$GITHUB_ENV"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+          echo "zip_name=$ZIP" >> "$GITHUB_OUTPUT"
+          echo "zip_sha=$SHAZIP" >> "$GITHUB_OUTPUT"
+          echo "launcher_version=$LAUNCHER_VERSION" >> "$GITHUB_OUTPUT"
 
       # The same three gates CI runs, on the exact tree about to be packaged: pushing a tag must never publish
       # a build that does not pass its own tests. The syntax sweep is the only parse plugins/ gets on a runner
@@ -64,35 +73,89 @@ jobs:
           done
           [ "$got" -eq "$want" ] || { echo "::error::profiles smoke ran $got of $want"; exit 1; }
 
-      - name: build zip
+      - name: generate version.json
+        shell: bash
         run: |
+          set -euo pipefail
+          cat > version.json <<JSON
+          {
+            "version": "${TAG}",
+            "min_launcher": "0.2.0",
+            "launcher": "${LAUNCHER_VERSION}"
+          }
+          JSON
+
+      - name: build zip
+        shell: bash
+        run: |
+          set -euo pipefail
           mkdir -p stage
           cp -r assets core lang loader installer version.json stage/
           cp -r games stage/games
-          # plugins/ and lang/ are not optional: install.ps1 aborts without them, so a zip missing either
-          # would not install at all. The loop below makes the PACKAGING step fail instead.
           cp -r plugins stage/plugins
           for d in assets core games plugins lang loader installer; do
             [ -d "stage/$d" ] || { echo "::error::stage/$d missing from the zip"; exit 1; }
           done
-          # version.json is the one FILE in the payload, so the directory loop above cannot see it -- and
-          # without it every install seals mod_version 0.0.0 and the launcher's update decision breaks.
           [ -f "stage/version.json" ] || { echo "::error::stage/version.json missing from the zip"; exit 1; }
           cp LICENSE stage/
-          # The three READMEs and docs/ travel together: README.md only links to the other two and to docs/.
           for f in README.md README.es.md README.en.md; do [ -f "$f" ] && cp "$f" stage/; done
           cp -r docs stage/docs
           (cd stage && zip -rq "../PokeEssentialsAccess_${TAG}.zip" .)
           sha256sum "PokeEssentialsAccess_${TAG}.zip" > "PokeEssentialsAccess_${TAG}.zip.sha256"
 
-      - name: publish release
+      - name: upload mod artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pokeessentialsaccess-mod
+          path: |
+            version.json
+            PokeEssentialsAccess_${{ env.TAG }}.zip
+            PokeEssentialsAccess_${{ env.TAG }}.zip.sha256
+          if-no-files-found: error
+          retention-days: 1
+
+  launcher:
+    uses: ./.github/workflows/reusable-launcher.yml
+    with:
+      create_artifact: true
+      run_tests: false
+
+  publish_release:
+    needs:
+      - package_mod
+      - launcher
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Download release artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: release-artifacts
+
+      - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.package_mod.outputs.tag }}
+        shell: bash
         run: |
-          ZIP="PokeEssentialsAccess_${TAG}.zip"
-          SUM="$ZIP.sha256"
+          set -euo pipefail
+          MOD_DIR="release-artifacts/pokeessentialsaccess-mod"
+          LAUNCHER_DIR="release-artifacts/pokeessentialsaccess-launcher"
+
+          MOD_ZIP=$(find "$MOD_DIR" -name "PokeEssentialsAccess_${TAG}.zip" -type f | head -n 1)
+          MOD_SHA=$(find "$MOD_DIR" -name "PokeEssentialsAccess_${TAG}.zip.sha256" -type f | head -n 1)
+          MOD_VERSION=$(find "$MOD_DIR" -name "version.json" -type f | head -n 1)
+          LAUNCHER_BIN=$(find "$LAUNCHER_DIR" -name 'pokeessentialsaccess-launcher.exe' -type f | head -n 1)
+
+          [ -n "$MOD_ZIP" ] || { echo "::error::mod zip not found"; exit 1; }
+          [ -n "$MOD_SHA" ] || { echo "::error::mod sha file not found"; exit 1; }
+          [ -n "$MOD_VERSION" ] || { echo "::error::mod version.json not found"; exit 1; }
+          [ -n "$LAUNCHER_BIN" ] || { echo "::error::launcher exe not found"; exit 1; }
+
+          ASSETS=("$MOD_ZIP" "$MOD_SHA" "$MOD_VERSION" "$LAUNCHER_BIN")
           if gh release view "$TAG" >/dev/null 2>&1; then
-            gh release upload "$TAG" "$ZIP" "$SUM" --clobber
+            gh release upload "$TAG" "${ASSETS[@]}" --clobber
           else
-            gh release create "$TAG" "$ZIP" "$SUM" --title "${TAG#v}" --notes ""
+            gh release create "$TAG" "${ASSETS[@]}" --title "${TAG#v}" --notes ""
           fi
