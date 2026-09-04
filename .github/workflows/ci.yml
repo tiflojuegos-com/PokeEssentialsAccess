@@ -9,6 +9,8 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
+        with:
+          submodules: recursive
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
@@ -43,3 +45,8 @@ jobs:
             got=$((got+1))
           done
           [ "$got" -eq "$want" ] || { echo "::error::profiles smoke ran $got of $want"; exit 1; }
+
+  launcher:
+    uses: ./.github/workflows/reusable-launcher.yml
+    with:
+      create_artifact: false
