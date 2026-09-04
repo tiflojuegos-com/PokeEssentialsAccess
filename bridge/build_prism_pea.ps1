@@ -16,9 +16,13 @@ if (-not (Test-Path (Join-Path $inc "prism.h"))) { throw "No encuentro prism.h e
 foreach ($arch in @("x86", "x64")) {
     $lib = Join-Path $PrismRoot "build_$($arch)_claude\prism.lib"
     if (-not (Test-Path $lib)) { throw "Falta $lib (compila prism para $arch primero)" }
+    # prism.h includes prism_version.h, which cmake GENERATES per build directory (it carries the version
+    # macros), so the generated include tree has to be on the path beside the checked-in one.
+    $gen = Join-Path $PrismRoot "build_$($arch)_claude\generated\include"
+    if (-not (Test-Path (Join-Path $gen "prism_version.h"))) { throw "Falta $gen\prism_version.h (compila prism para $arch primero)" }
     $out = Join-Path $here "out\$arch"
     New-Item -ItemType Directory -Force $out | Out-Null
-    $cmd = "`"$VcVarsAll`" $arch >nul 2>&1 && cl /nologo /LD /O2 /W4 /I`"$inc`" `"$src`" `"$lib`" /Fe:`"$out\prism_pea.dll`" /Fo:`"$out\prism_pea.obj`""
+    $cmd = "`"$VcVarsAll`" $arch >nul 2>&1 && cl /nologo /LD /O2 /W4 /I`"$inc`" /I`"$gen`" `"$src`" `"$lib`" /Fe:`"$out\prism_pea.dll`" /Fo:`"$out\prism_pea.obj`""
     cmd /c $cmd
     if ($LASTEXITCODE -ne 0) { throw "cl fallo para $arch" }
     Write-Host "[OK] $out\prism_pea.dll"
