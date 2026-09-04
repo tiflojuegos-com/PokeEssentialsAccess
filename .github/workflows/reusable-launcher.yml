@@ -41,11 +41,24 @@ jobs:
 
       - name: Test launcher
         working-directory: launcher
-        run: cargo test --locked --release --target x86_64-pc-windows-gnu --no-run
+        run: cargo test --locked --release --target x86_64-pc-windows-gnu --no-run --verbose
 
       - name: Build launcher
         working-directory: launcher
-        run: cargo build --locked --release --target x86_64-pc-windows-gnu
+        run: cargo build --locked --release --target x86_64-pc-windows-gnu --verbose
+
+      - name: Inspect native libraries
+        if: ${{ always() }}
+        shell: bash
+        run: |
+          set -u
+          if [ -d "launcher/target" ]; then
+            find launcher/target -type f \
+              \( -name '*.a' -o -name '*.dll' -o -name '*.lib' \) \
+              | sort
+          else
+            echo "launcher/target does not exist"
+          fi
 
       - name: Prepare launcher artifact
         id: package
