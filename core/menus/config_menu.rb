@@ -31,10 +31,10 @@ module PokeAccess
     # the value moves, so the player hears the level or the pitch instead of only a number.
     PREVIEWS = {
       :audio3d_volume => :npc, :audio3d_npc => :npc, :audio3d_object => :object, :audio3d_door => :door,
-      :audio3d_teleporter => :teleporter, :audio3d_water => :water, :audio3d_wind => :wind_n,
+      :audio3d_teleporter => :teleporter, :audio3d_mark => :mark, :audio3d_water => :water, :audio3d_wind => :wind_n,
       :footstep_volume => :step, :wall_volume => :wall, :event_volume => :guide,
       :audio3d_tone_npc => :npc, :audio3d_tone_object => :object, :audio3d_tone_door => :door,
-      :audio3d_tone_teleporter => :teleporter, :audio3d_tone_water => :water, :audio3d_tone_wind => :wind_n,
+      :audio3d_tone_teleporter => :teleporter, :audio3d_tone_mark => :mark, :audio3d_tone_water => :water, :audio3d_tone_wind => :wind_n,
       :footstep_tone => :step, :wall_tone => :wall, :guide_tone => :guide
     }
 
@@ -42,12 +42,32 @@ module PokeAccess
     # about that volume (a tone row, the master row) sounds as loud as the field will.
     FAMILY_VOLUME = {
       :npc => :audio3d_npc, :object => :audio3d_object, :door => :audio3d_door, :teleporter => :audio3d_teleporter,
+      :mark => :audio3d_mark,
       :water => :audio3d_water, :wind_n => :audio3d_wind, :step => :footstep_volume, :wall => :wall_volume,
       :guide => :event_volume
     }
 
     # How long a looping sample (water, wind) auditions before the menu stops it.
     PREVIEW_LOOP_SECONDS = 2.0
+
+    # The three shareable dictionaries as the menu sees them: the store module, the label of its list, and
+    # the labels and result messages of its import and export. One table drives the import submenu, the
+    # export submenu and the three editable lists, so a fourth dictionary is one more row and nothing else.
+    DICTS = {
+      :tags  => { :mod => PokeAccess::Tags, :list => :cat_list_tags,
+                  :import => :act_import, :import_done => :act_import_done,
+                  :export => :act_export, :export_done => :act_export_done, :export_none => :act_export_none },
+      :marks => { :mod => PokeAccess::Marks, :list => :cat_list_marks,
+                  :import => :act_import_marks, :import_done => :act_import_marks_done,
+                  :export => :act_export_marks, :export_done => :act_export_marks_done, :export_none => :act_export_marks_none },
+      :maps  => { :mod => PokeAccess::MapNames, :list => :cat_list_maps,
+                  :import => :act_import_maps, :import_done => :act_import_maps_done,
+                  :export => :act_export_maps, :export_done => :act_export_maps_done, :export_none => :act_export_maps_none }
+    }
+    # The order the dictionaries are offered in (a 1.8.7 Hash keeps none).
+    DICT_ORDER = [:tags, :marks, :maps]
+    # Menu mode => the dictionary whose entries it lists.
+    LIST_MODES = { :list_tags => :tags, :list_marks => :marks, :list_maps => :maps }
 
     def self.t(key, vars = nil); PokeAccess::I18n.t(key, vars); end
 
@@ -137,10 +157,17 @@ module PokeAccess
         rows.push({ :kind => :back, :label => :back })
         rows
       when :tags
-        [{ :kind => :action, :action => :export, :label => :act_export },
-         { :kind => :action, :action => :import, :label => :act_import },
-         { :kind => :enter, :group => :hidden, :label => :cat_hidden },
-         { :kind => :back, :label => :back }]
+        rows = [{ :kind => :enter, :group => :dict_import, :label => :cat_import },
+                { :kind => :enter, :group => :dict_export, :label => :cat_export }]
+        DICT_ORDER.each { |d| rows.push({ :kind => :enter, :group => LIST_MODES.invert[d], :label => DICTS[d][:list] }) }
+        rows.push({ :kind => :back, :label => :back })
+        rows
+      when :dict_import, :dict_export
+        transfer_rows(@mode == :dict_import ? :import : :export)
+      when :list_tags, :list_marks, :list_maps
+        entry_rows(LIST_MODES[@mode])
+      when :entry_actions
+        entry_action_rows(@entry)
       when :debug
         rows = [{ :kind => :action, :action => :diag_audio,  :label => :dbg_diag_audio },
                 { :kind => :action, :action => :diag_events, :label => :dbg_diag_events },
@@ -152,11 +179,6 @@ module PokeAccess
                   :label => (PokeAccess::Recorder.recording? ? :dbg_rec_stop : :dbg_rec_start) },
                 { :kind => :action, :action => :selfcheck, :label => :dbg_selfcheck }]
         PokeAccess::Config.schema_group(:debug).each { |r| rows.push({ :kind => :setting, :row => r }) }
-        rows.push({ :kind => :back, :label => :back })
-        rows
-      when :hidden
-        rows = []
-        (PokeAccess::Tags.each_hidden { |mid, eid, r| rows.push({ :kind => :unhide, :mid => mid, :eid => eid, :rec => r }) } rescue nil)
         rows.push({ :kind => :back, :label => :back })
         rows
       when :pathfinder
@@ -181,17 +203,73 @@ module PokeAccess
     end
 
     def self.label_of(item)
-      return hidden_label(item) if item[:kind] == :unhide
+      return entry_label(item) if item[:kind] == :entry
       t(item[:row] ? item[:row][4] : item[:label])
     end
 
-    # the spoken label of a hidden-object entry: the map it is on and its name (or a generic object).
-    def self.hidden_label(item)
-      mapname = (PokeAccess::Locator.map_name(item[:mid]) rescue nil)
-      mapname = "?" if mapname.nil? || mapname.to_s.empty?
-      nm = (item[:rec]["name"] rescue nil)
-      obj = (nm && !nm.to_s.empty?) ? nm : t(:loc_object)
-      t(:hidden_entry, :map => mapname, :name => obj)
+    # The import or export submenu: one action per dictionary, then all of them at once.
+    def self.transfer_rows(op)
+      rows = DICT_ORDER.map { |d| { :kind => :action, :action => [op, d], :label => DICTS[d][op] } }
+      rows.push({ :kind => :action, :action => [op, :all], :label => (op == :import ? :act_import_all : :act_export_all) })
+      rows.push({ :kind => :back, :label => :back })
+      rows
+    end
+
+    # The editable list of one dictionary: an :entry row per record (with what the actions need to find it
+    # again), a note when there is nothing yet, and back. Guarded per dictionary so a store that fails to
+    # load still shows an empty, navigable list.
+    def self.entry_rows(dict)
+      rows = []
+      begin
+        case dict
+        when :tags
+          PokeAccess::Tags.each_record { |mid, eid, r| rows.push({ :kind => :entry, :dict => :tags, :key => [mid, eid], :rec => r }) }
+        when :marks
+          PokeAccess::Marks.each_mark { |mid, x, y, nm| rows.push({ :kind => :entry, :dict => :marks, :key => [mid, x, y], :name => nm }) }
+        when :maps
+          PokeAccess::MapNames.each_name { |mid, nm| rows.push({ :kind => :entry, :dict => :maps, :key => mid, :name => nm }) }
+        end
+      rescue StandardError
+        rows = []
+      end
+      rows.push({ :kind => :note, :label => :list_empty }) if rows.empty?
+      rows.push({ :kind => :back, :label => :back })
+      rows
+    end
+
+    # What can be done to the focused entry: show it again (a hidden object only), rename it, forget it.
+    def self.entry_action_rows(item)
+      rows = []
+      return [{ :kind => :back, :label => :back }] unless item
+      rows.push({ :kind => :entry_action, :op => :show, :label => :entry_show }) if item[:dict] == :tags && item[:rec]["hidden"]
+      rows.push({ :kind => :entry_action, :op => :rename, :label => :tag_rename })
+      rows.push({ :kind => :entry_action, :op => :forget, :label => :entry_forget })
+      rows.push({ :kind => :back, :label => :back })
+      rows
+    end
+
+    # The spoken label of a list entry: where it is and what it is called, so two "Puerta" on different maps
+    # can be told apart, and a hidden object says so.
+    def self.entry_label(item)
+      case item[:dict]
+      when :tags
+        nm = item[:rec]["name"]
+        nm = t(:loc_object) if nm.nil? || nm.to_s.empty?
+        s = t(:entry_tag, :map => map_label(item[:key][0]), :name => nm)
+        item[:rec]["hidden"] ? "#{s}, #{t(:entry_hidden)}" : s
+      when :marks
+        t(:entry_mark, :map => map_label(item[:key][0]), :name => item[:name], :x => item[:key][1], :y => item[:key][2])
+      when :maps
+        t(:entry_map, :name => item[:name], :id => item[:key])
+      else
+        ""
+      end
+    end
+
+    # A map's spoken name for a list entry, "?" when the game names it nothing.
+    def self.map_label(mid)
+      nm = (PokeAccess::Locator.map_name(mid) rescue nil)
+      (nm.nil? || nm.to_s.empty?) ? "?" : nm
     end
 
     def self.value_text(row)
@@ -275,8 +353,13 @@ module PokeAccess
         back_one
       when :action
         run_action(item[:action])
-      when :unhide
-        unhide(item)
+      when :entry
+        @stack.push([@mode, @index]); @entry = item; @mode = :entry_actions; @index = 0
+        say("#{entry_label(item)}. #{describe}")
+      when :entry_action
+        run_entry_action(item[:op])
+      when :note
+        say(describe)
       when :sound
         PokeAccess::SoundGlossary.play(item[:entry])
       when :setting
@@ -296,13 +379,87 @@ module PokeAccess
       end
     end
 
-    # restores a hidden object from the "hidden objects" list and refreshes the locator.
-    def self.unhide(item)
-      lbl = hidden_label(item)
-      (PokeAccess::Tags.set_hidden(item[:mid], item[:eid], false) rescue nil)
+    # Applies one action to the focused entry, tells the locator its overrides changed, and drops back to the
+    # list -- which is rebuilt, so a forgotten entry is gone from it. The result is spoken first and the
+    # list position queued behind it, so neither cuts the other off.
+    def self.run_entry_action(op)
+      item = @entry
+      name = entry_label(item)
+      case op
+      when :show
+        PokeAccess::Tags.set_hidden(item[:key][0], item[:key][1], false)
+        say(t(:unhidden, :name => name))
+      when :rename
+        rename_entry(item)
+      when :forget
+        forget_entry(item)
+        say(t(:entry_forgotten, :name => name))
+      end
       PokeAccess::Events.emit(:tags_changed)
-      @index = 0
-      say(t(:unhidden, :name => lbl))
+      @mode, @index = @stack.pop unless @stack.nil? || @stack.empty?
+      @index = 0 if @index >= items.length
+      PokeAccess.speak(describe, false)
+    rescue StandardError => e
+      PokeAccess.write_marker("config_menu entry #{op}: #{e.class}: #{e.message}\n")
+    end
+
+    # Renames the focused entry through the same prompt the map keys use, so the wording and the
+    # blank-clears rule are the ones the player already knows.
+    def self.rename_entry(item)
+      key = item[:key]
+      case item[:dict]
+      when :tags
+        cur = (PokeAccess::Tags.get(key[0], key[1]) rescue nil).to_s
+        PokeAccess::Locator.prompt_rename(entry_label(item), cur,
+          [:loc_label_for, :loc_label_prompt, :loc_label_removed, :loc_label_saved]) { |v| PokeAccess::Tags.set(key[0], key[1], v) }
+      when :marks
+        cur = item[:name].to_s
+        PokeAccess::Locator.prompt_rename(cur, cur,
+          [:mark_edit_for, :mark_prompt, :mark_removed, :mark_saved]) { |v| PokeAccess::Marks.set(key[0], key[1], key[2], v) }
+      when :maps
+        cur = item[:name].to_s
+        PokeAccess::Locator.prompt_rename(cur, cur,
+          [:map_label_for, :map_label_prompt, :map_label_removed, :map_label_saved]) { |v| PokeAccess::MapNames.set(key, v) }
+      end
+    end
+
+    # Forgets the focused entry in its dictionary.
+    def self.forget_entry(item)
+      key = item[:key]
+      case item[:dict]
+      when :tags  then PokeAccess::Tags.delete(key[0], key[1])
+      when :marks then PokeAccess::Marks.delete(key[0], key[1], key[2])
+      when :maps  then PokeAccess::MapNames.delete(key)
+      end
+    end
+
+    # Runs one dictionary's import or export -- or every dictionary's, for the "all" rows -- and speaks what
+    # happened to each, in order.
+    def self.run_transfer(op, which)
+      list = which == :all ? DICT_ORDER : [which]
+      say(list.map { |d| op == :import ? import_one(d) : export_one(d) }.join(". "))
+    end
+
+    # Exports one dictionary; the message names the count or that there was nothing.
+    def self.export_one(d)
+      n = (DICTS[d][:mod].export rescue nil)
+      n ? t(DICTS[d][:export_done], :n => n) : t(DICTS[d][:export_none])
+    end
+
+    # Imports one dictionary, refusing a file stamped with another game's name: the keys are map ids, so a
+    # foreign file would label the wrong things everywhere without a single error.
+    def self.import_one(d)
+      mod = DICTS[d][:mod]
+      file = File.basename(mod.const_get(:IMPORT))
+      status, game = (mod.import_status rescue [:none])
+      case status
+      when :none    then t(:act_import_none, :file => file)
+      when :foreign then t(:act_import_foreign, :file => file, :game => game, :mine => (PokeAccess::Game.profile_name rescue "?"))
+      else
+        n = (mod.import_now rescue 0)
+        PokeAccess::Events.emit(:tags_changed)
+        t(DICTS[d][:import_done], :n => n)
+      end
     end
 
     # The ONE path that writes a setting from the menu: assigns and drops the locator's event verdicts,
@@ -352,13 +509,8 @@ module PokeAccess
     end
 
     def self.run_action(a)
+      return run_transfer(a[0], a[1]) if a.is_a?(Array)
       case a
-      when :export
-        n = (PokeAccess::Tags.export rescue nil)
-        say(n ? t(:act_export_done, :n => n) : t(:act_export_none))
-      when :import
-        n = (PokeAccess::Tags.import_now rescue 0)
-        say(t(:act_import_done, :n => n))
       when :reset
         reset_defaults
       when :diag_audio  then PokeAccess::Keys.diag_section_to_clip(:audio)

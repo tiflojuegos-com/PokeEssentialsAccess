@@ -1,21 +1,16 @@
 module PokeAccess
   # Player overrides for map objects, keyed by map and event id, so players (and the community) can
   # name, recategorise or hide objects. Stored as shareable "mapid:eventid=name" lines in tags.txt, with
-  # optional tab-separated "cat=<symbol>" and "hide" tokens. Merges tags_import.txt on load.
+  # optional tab-separated "cat=<symbol>" and "hide" tokens. The file plumbing (load, import, export, the
+  # game stamp) is Dictionary's; this module owns the record shape.
   module Tags
+    extend PokeAccess::Dictionary
     FILE   = "#{PokeAccess::Paths::DATA}/tags.txt"
     IMPORT = "#{PokeAccess::Paths::DATA}/tags_import.txt"
     EXPORT = "#{PokeAccess::Paths::DATA}/tags_export.txt"
-    @tags = nil
 
-    # The {map_id => {event_id => record}} store, loaded (and import-merged) on first use. A record is
-    # {"name" => String, "cat" => String or nil, "hidden" => true or nil}.
-    def self.store
-      load_file if @tags.nil?
-      @tags
-    end
-
-    # The record hash for an object, or nil.
+    # The record hash for an object, or nil. A record is {"name" => String, "cat" => String or nil,
+    # "hidden" => true or nil} inside the {map_id => {event_id => record}} store.
     def self.rec(mid, eid)
       (store[mid] && store[mid][eid]) rescue nil
     end
@@ -63,121 +58,84 @@ module PokeAccess
       prune(mid, eid); save
     end
 
-    # Drops a record that no longer carries a name, a category or the hidden flag. The ONLY way a record
-    # disappears, deliberately: clearing the name is not the same as forgetting the object, since the player
-    # may also have given it a category or hidden it, and a "remove" reached for by its friendly name would
-    # throw both away without saying so.
-    def self.prune(mid, eid)
-      r = store[mid] && store[mid][eid]
-      return unless r
-      empty = (r["name"].nil? || r["name"].to_s.empty?) && (r["cat"].nil? || r["cat"].to_s.empty?) && !r["hidden"]
-      store[mid].delete(eid) if empty
-    end
-
-    # Yields [map_id, event_id, record] for every hidden object, so the config menu can un-hide them.
-    def self.each_hidden
-      store.each do |mid, evs|
-        evs.each { |eid, r| yield(mid, eid, r) if r["hidden"] }
-      end
-    end
-
-    # Loads tags.txt, then merges tags_import.txt keeping existing entries.
-    def self.load_file
-      @tags = {}
-      parse_into(@tags, FILE)
-      save if File.exist?(IMPORT) && merge_new(parse_import) > 0
-    rescue StandardError
-      @tags ||= {}
-    end
-
-    # Parses tags_import.txt into a fresh store hash.
-    def self.parse_import
-      imported = {}
-      parse_into(imported, IMPORT)
-      imported
-    end
-
-    # Merges an imported store into the live one, keeping existing entries. Returns how many were added.
-    def self.merge_new(imported)
-      added = 0
-      dest = store
-      imported.each do |mid, evs|
-        evs.each do |eid, r|
-          next if dest[mid] && dest[mid].has_key?(eid)
-          (dest[mid] ||= {})[eid] = r
-          added += 1
-        end
-      end
-      added
-    end
-
-    # Parses a tags file into a store hash: "mapid:eventid=name" lines with optional tab-separated
-    # "cat=<symbol>" and "hide" tokens. Old name-only lines load unchanged. :strip_value false because
-    # the value is tab-structured (each token strips itself).
-    def self.parse_into(dest, path)
-      PokeAccess::KVFile.each(path, :strip_value => false) do |key, val|
-        colon = key.index(":")
-        next if colon.nil?
-        mid = key[0, colon].to_i
-        eid = key[(colon + 1)..-1].to_i
-        parts = val.split("\t")
-        r = {}
-        nm = parts[0].to_s.strip
-        r["name"] = nm unless nm.empty?
-        (parts[1..-1] || []).each do |tok|
-          tok = tok.strip
-          if tok == "hide"
-            r["hidden"] = true
-          elsif tok =~ /\Acat=(.+)\z/
-            r["cat"] = $1
-          end
-        end
-        next if r.empty?
-        (dest[mid] ||= {})[eid] = r
-      end
-    rescue StandardError
-      nil
-    end
-
-    # Merges tags_import.txt into the live store now (config-menu action), adding only new entries.
-    # Returns how many were added.
-    def self.import_now
-      return 0 unless File.exist?(IMPORT)
-      added = merge_new(parse_import)
-      save if added > 0
-      added
-    end
-
-    # Copies tags.txt to tags_export.txt to hand to other players. Returns the entry count, or nil if none.
-    def self.export
-      total = (store.values.inject(0) { |n, evs| n + evs.size } rescue 0)
-      return nil if total == 0
+    # Forgets an object entirely -- name, category and hidden flag at once -- and persists. The management
+    # menu's "delete"; set with "" is not this, it clears the name and keeps the rest.
+    def self.delete(mid, eid)
+      evs = store[mid]
+      return unless evs && evs.has_key?(eid)
+      evs.delete(eid)
+      store.delete(mid) if evs.empty?
       save
-      File.open(EXPORT, "w") { |f| f.write(File.read(FILE)) }
-      total
-    rescue StandardError
-      nil
     end
 
-    # The one-line serialisation of a record: "name" plus optional "\tcat=..." and "\thide".
-    def self.line_for(mid, eid, r)
-      out = "#{mid}:#{eid}=#{r['name']}"
+    # Drops a record that has no name, no category and no hidden flag (so tags.txt never accumulates
+    # empty entries), and the map's hash when it empties.
+    def self.prune(mid, eid)
+      r = rec(mid, eid)
+      return unless r
+      r.delete("name") if r["name"].to_s.empty?
+      store[mid].delete(eid) if r.empty?
+      store.delete(mid) if store[mid] && store[mid].empty?
+    end
+
+    # Yields (map_id, event_id, record) for every hidden object.
+    def self.each_hidden
+      each_record { |mid, eid, r| yield(mid, eid, r) if r["hidden"] }
+    end
+
+    # Yields (map_id, event_id, record) for every record, in file order.
+    def self.each_record
+      each_stored(store) { |key, r| yield(key[0], key[1], r) }
+    end
+
+    # ---- the Dictionary hooks: the record shape and the line format ----
+
+    def self.header
+      ["PokeAccess: overrides de objetos. Formato: mapa:evento=nombre, con tabulador cat=categoria y hide",
+       "Comparte este archivo; para importar otro, renombralo a tags_import.txt"]
+    end
+
+    # One "mapid:eventid=name<TAB>cat=x<TAB>hide" line into the store. Old name-only lines load unchanged.
+    def self.parse_line(dest, key, val)
+      colon = key.index(":")
+      return if colon.nil?
+      mid = key[0, colon].to_i
+      eid = key[(colon + 1)..-1].to_i
+      parts = val.split("\t")
+      r = {}
+      nm = parts[0].to_s.strip
+      r["name"] = nm unless nm.empty?
+      (parts[1..-1] || []).each do |tok|
+        tok = tok.strip
+        if tok == "hide"
+          r["hidden"] = true
+        elsif tok =~ /\Acat=(.+)\z/
+          r["cat"] = $1
+        end
+      end
+      return if r.empty?
+      (dest[mid] ||= {})[eid] = r
+    end
+
+    def self.each_stored(store)
+      store.sort.each do |mid, evs|
+        evs.sort.each { |eid, r| yield([mid, eid], r) }
+      end
+    end
+
+    def self.has_entry?(store, key)
+      !!(store[key[0]] && store[key[0]].has_key?(key[1]))
+    end
+
+    def self.put_entry(store, key, r)
+      (store[key[0]] ||= {})[key[1]] = r
+    end
+
+    def self.line_for(key, r)
+      out = "#{key[0]}:#{key[1]}=#{r['name']}"
       out += "\tcat=#{r['cat']}" if r["cat"] && !r["cat"].to_s.empty?
       out += "\thide" if r["hidden"]
       out
-    end
-
-    # Writes the whole store back to tags.txt (sorted, shareable).
-    def self.save
-      File.open(FILE, "w") do |f|
-        f.write("# PokeAccess: overrides de objetos. Formato: mapa:evento=nombre, con tabulador cat=categoria y hide\n")
-        f.write("# Comparte este archivo; para importar otro, renombralo a tags_import.txt\n")
-        (@tags || {}).sort.each do |mid, evs|
-          evs.sort.each { |eid, r| f.write("#{line_for(mid, eid, r)}\n") }
-        end
-      end
-    rescue StandardError
-      nil
     end
   end
 end

@@ -546,12 +546,38 @@ Los numéricos se clampan con `Config::KIND_BOUNDS` al aplicarse, así que un in
 rango. De las teclas del mod solo se escriben las que el jugador movió de verdad, para que un cambio futuro
 de defecto llegue a quien no las tocó.
 
-## Etiquetas y nombres
+## Etiquetas, marcadores y nombres
 
-`core/foundation/tags.rb`, `core/foundation/map_names.rb` — módulos `Tags` y `MapNames`. Ficheros de texto
-compartibles.
+`core/foundation/dictionary.rb`, `tags.rb`, `marks.rb`, `map_names.rb` — el módulo `Dictionary` y los tres
+diccionarios que lo extienden: `Tags`, `Marks` y `MapNames`. Ficheros de texto compartibles en `data/`.
 
-| Firma | Devuelve | Cuándo usarlo |
+Los tres tienen una clave distinta pero la misma fontanería, que vive una sola vez en `Dictionary`: cargar el
+fichero, fusionar `*_import.txt` añadiendo **solo lo que el almacén no tiene**, copiar a `*_export.txt` y
+guardar con su cabecera. Cada diccionario declara `FILE` / `IMPORT` / `EXPORT` y seis ganchos que conocen su
+forma: `header`, `parse_line`, `each_stored`, `has_entry?`, `put_entry` y `line_for`.
+
+| Diccionario | Clave | Fichero | Línea |
+|---|---|---|---|
+| `Tags` | mapa + evento | `tags.txt` | `87:43=Losa del medio<TAB>cat=extras<TAB>hide` |
+| `Marks` | mapa + casilla | `marks.txt` | `87:15,17=Losa del medio` |
+| `MapNames` | mapa | `map_names.txt` | `87=Bastión, planta baja` |
+
+**Sello de juego.** Las claves son ids de mapa, y un id significa otra cosa en cada juego: un fichero de
+etiquetas de Pokémon Z metido en Añil importa sin un solo error y bautiza eventos al azar. Por eso `save`
+escribe `# game: <perfil>` en la cabecera (`Game.profile_name`: el primer `Game.define`, o el sello del
+instalador en `installed.json`) e `import_status` rechaza un fichero de otro juego, tanto desde el menú como
+en la fusión automática al cargar. Un fichero sin sello, anterior a esto, importa como siempre.
+
+| Firma (común a los tres) | Devuelve | Cuándo usarlo |
+|---|---|---|
+| `store` | El hash del almacén | Inspección; carga y fusiona el import en el primer uso |
+| `reload!` | Nada | Olvidar lo cargado para releer el fichero (los tests, tras borrarlo) |
+| `import_status` | `[:none]`, `[:foreign, juego]` o `[:ready, juego]` | Saber si se puede importar, y si no, por qué |
+| `import_now` | Número de entradas nuevas | Fusionar el `*_import.txt`; `0` si falta o es de otro juego |
+| `export` | Número de entradas volcadas, o `nil` si no hay ninguna | Volcar a `*_export.txt` para compartirlo |
+| `count` | Número de entradas | |
+
+| Firma propia | Devuelve | Cuándo usarlo |
 |---|---|---|
 | `Tags.get(mid, eid)` | La etiqueta personalizada, o `nil` | Nombre que el jugador dio a un objeto |
 | `Tags.set(mid, eid, label)` | Nada | Asignarla y persistir; `""` la borra sin tocar el resto |
@@ -559,16 +585,26 @@ compartibles.
 | `Tags.set_category(mid, eid, cat)` | Nada | `nil` vuelve a automático |
 | `Tags.hidden?(mid, eid)` | `true`/`false` | ¿El jugador lo ocultó? |
 | `Tags.set_hidden(mid, eid, val)` | Nada | Ocultar o mostrar |
-| `Tags.each_hidden(&blk)` | Nada | Recorrer lo oculto. Cede `(map_id, event_id, record)` |
-| `Tags.store` | Hash `{map_id => {event_id => registro}}` | Inspección; carga y fusiona el import en el primer uso |
-| `Tags.import_now` | Número de registros nuevos | Fusionar `tags_import.txt` |
-| `Tags.export` | Número de registros volcados, o `nil` si no hay ninguno | Volcar a `tags_export.txt` para compartirlo |
+| `Tags.delete(mid, eid)` | Nada | Olvidar el registro entero (el «Borrar» del menú) |
+| `Tags.each_record(&blk)` / `each_hidden` | Nada | Recorrer todo, o solo lo oculto. Ceden `(map_id, event_id, registro)` |
+| `Marks.get(mid, x, y)` | El nombre del marcador, o `nil` | |
+| `Marks.set(mid, x, y, name)` | Nada | Nombrar y persistir; en blanco lo elimina |
+| `Marks.delete(mid, x, y)` | Nada | |
+| `Marks.on_map(mid)` | `[[x, y, nombre], ...]` en orden de lectura | Los objetivos de la categoría `:marks` |
+| `Marks.any_on?(mid)` | `true`/`false` | Si el mapa ofrece la categoría |
+| `Marks.each_mark(&blk)` | Nada | Recorrer todos. Cede `(map_id, x, y, nombre)` |
 | `MapNames.get(mid)` | El nombre personalizado, o `nil` | También cambia cómo se anuncian las salidas a ese mapa |
 | `MapNames.set(mid, name)` | Nada | Asignarlo y persistir; vacío restaura el nombre del juego |
+| `MapNames.delete(mid)` / `each_name` | Nada | Olvidar uno; recorrer todos, cede `(map_id, nombre)` |
 
 Un registro de `Tags` desaparece solo cuando se queda sin nombre, sin categoría y sin la marca de oculto:
-`prune` lo hace por dentro tras cada escritura. No existe un borrado en bloque, a propósito: quitar la
-etiqueta no es lo mismo que olvidar el objeto.
+`prune` lo hace por dentro tras cada escritura. `Tags.delete` es la otra puerta, deliberada: la pide el
+jugador desde el menú, no una escritura vacía.
+
+En el juego: `Ctrl`+`G` crea, edita o borra el marcador de la casilla del jugador (un solo cuadro de texto;
+en blanco, lo borra); `Shift`+`K` y `Ctrl`+`K` actúan sobre un marcador seleccionado igual que sobre un objeto;
+y el menú del mod, en «Gestión de etiquetas y marcadores», importa y exporta cada diccionario (o los tres de
+golpe) y lista cada uno para renombrar, borrar o volver a mostrar.
 
 ## Eventos y cachés
 

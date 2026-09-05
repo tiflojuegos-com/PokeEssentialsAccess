@@ -21,6 +21,7 @@ module PokeAccess
       [:object,      "pa3d_object",      :snd_object,      :snd_object_help,      100, :audio3d_tone_object],
       [:door,        "pa3d_door",        :snd_door,        :snd_door_help,        100, :audio3d_tone_door],
       [:teleporter,  "pa3d_teleporter",  :snd_teleporter,  :snd_teleporter_help,  100, :audio3d_tone_teleporter],
+      [:mark,        "pa3d_mark",        :snd_mark,        :snd_mark_help,        100, :audio3d_tone_mark],
       [:control,     "pa3d_control",     :snd_control,     :snd_control_help,     100, :audio3d_tone_object],
       [:push,        "pa3d_boing",       :snd_push,        :snd_push_help,        100, :audio3d_tone_object],
       [:trap,        "pa3d_boop",        :snd_trap,        :snd_trap_help,        100, :audio3d_tone_object],

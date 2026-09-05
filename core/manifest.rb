@@ -27,8 +27,10 @@
   foundation/caches
   foundation/clipboard
   foundation/perf
+  foundation/dictionary
   foundation/tags
   foundation/map_names
+  foundation/marks
   data/data
   data/data_fallback
   data/gen6/data_g6

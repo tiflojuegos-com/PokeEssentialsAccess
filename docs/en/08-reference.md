@@ -544,12 +544,38 @@ Numeric values are clamped with `Config::KIND_BOUNDS` on apply, so a hand-edited
 range. Of the mod hotkeys only the ones the player actually moved are written, so a future change of default
 reaches everyone who left them alone.
 
-## Tags and names
+## Tags, markers and names
 
-`core/foundation/tags.rb`, `core/foundation/map_names.rb` — modules `Tags` and `MapNames`. Shareable text
-files.
+`core/foundation/dictionary.rb`, `tags.rb`, `marks.rb`, `map_names.rb` — the `Dictionary` module and the
+three dictionaries that extend it: `Tags`, `Marks` and `MapNames`. Shareable text files under `data/`.
 
-| Signature | Returns | When to use it |
+The three keep a different key but share one plumbing, which lives once in `Dictionary`: load the file,
+merge `*_import.txt` adding **only what the store lacks**, copy to `*_export.txt`, and save with a header.
+Each dictionary declares `FILE` / `IMPORT` / `EXPORT` and six hooks that know its shape: `header`,
+`parse_line`, `each_stored`, `has_entry?`, `put_entry` and `line_for`.
+
+| Dictionary | Key | File | Line |
+|---|---|---|---|
+| `Tags` | map + event | `tags.txt` | `87:43=Middle plate<TAB>cat=extras<TAB>hide` |
+| `Marks` | map + tile | `marks.txt` | `87:15,17=Middle plate` |
+| `MapNames` | map | `map_names.txt` | `87=Bastion, ground floor` |
+
+**Game stamp.** The keys are map ids, and an id means something else in every game: a Pokémon Z tag file
+dropped into Añil imports without a single error and names random events. So `save` writes
+`# game: <profile>` in the header (`Game.profile_name`: the first `Game.define`, else the installer's stamp
+in `installed.json`) and `import_status` refuses a file from another game, both from the menu and in the
+automatic merge on load. A file with no stamp, from before this existed, imports as it always did.
+
+| Signature (shared by the three) | Returns | When to use it |
+|---|---|---|
+| `store` | The store hash | Inspection; loads and merges the import on first use |
+| `reload!` | Nothing | Forget what is loaded and reread the file (tests, after deleting it) |
+| `import_status` | `[:none]`, `[:foreign, game]` or `[:ready, game]` | Whether an import can run, and if not, why |
+| `import_now` | Number of new entries | Merge `*_import.txt`; `0` when missing or from another game |
+| `export` | Number of entries written, or `nil` when there are none | Dump to `*_export.txt` to share |
+| `count` | Number of entries | |
+
+| Own signature | Returns | When to use it |
 |---|---|---|
 | `Tags.get(mid, eid)` | The custom label, or `nil` | The name the player gave an object |
 | `Tags.set(mid, eid, label)` | Nothing | Set and persist it; `""` clears the name only |
@@ -557,16 +583,26 @@ files.
 | `Tags.set_category(mid, eid, cat)` | Nothing | `nil` returns to automatic |
 | `Tags.hidden?(mid, eid)` | `true`/`false` | Did the player hide it? |
 | `Tags.set_hidden(mid, eid, val)` | Nothing | Hide or show |
-| `Tags.each_hidden(&blk)` | Nothing | Walk what is hidden. Yields `(map_id, event_id, record)` |
-| `Tags.store` | `{map_id => {event_id => record}}` hash | Inspection; loads and merges the import on first use |
-| `Tags.import_now` | Number of new records | Merge `tags_import.txt` |
-| `Tags.export` | Number of records written, or `nil` when there are none | Dump to `tags_export.txt` to share |
+| `Tags.delete(mid, eid)` | Nothing | Forget the whole record (the menu's "Delete") |
+| `Tags.each_record(&blk)` / `each_hidden` | Nothing | Walk everything, or only what is hidden. Yield `(map_id, event_id, record)` |
+| `Marks.get(mid, x, y)` | The marker's name, or `nil` | |
+| `Marks.set(mid, x, y, name)` | Nothing | Name and persist; blank removes it |
+| `Marks.delete(mid, x, y)` | Nothing | |
+| `Marks.on_map(mid)` | `[[x, y, name], ...]` in reading order | The targets of the `:marks` category |
+| `Marks.any_on?(mid)` | `true`/`false` | Whether the map offers the category |
+| `Marks.each_mark(&blk)` | Nothing | Walk them all. Yields `(map_id, x, y, name)` |
 | `MapNames.get(mid)` | The custom name, or `nil` | It also changes how exits to that map are announced |
 | `MapNames.set(mid, name)` | Nothing | Set and persist; empty restores the game's own name |
+| `MapNames.delete(mid)` / `each_name` | Nothing | Forget one; walk them all, yields `(map_id, name)` |
 
 A `Tags` record disappears only once it has no name, no category and no hidden flag: `prune` does that
-internally after every write. There is deliberately no bulk delete: clearing the label is not the same as
-forgetting the object.
+internally after every write. `Tags.delete` is the other door, a deliberate one: the player asks for it from
+the menu, an empty write never does it.
+
+In the game: `Ctrl`+`G` creates, edits or deletes the marker on the player's tile (one text box; blank
+deletes); `Shift`+`K` and `Ctrl`+`K` act on a selected marker as they do on an object; and the mod menu, under
+"Labels and markers", imports and exports each dictionary (or all three at once) and lists each of them to
+rename, delete or show again.
 
 ## Events and caches
 

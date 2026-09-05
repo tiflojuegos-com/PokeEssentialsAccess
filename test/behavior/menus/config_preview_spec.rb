@@ -60,7 +60,7 @@ module MenuAudition
   end
 end
 
-Suite.define("config menu: the audio category offers a tones submenu with the nine families") do
+Suite.define("config menu: the audio category offers a tones submenu with the ten families") do
   menu = PokeAccess::ConfigMenu
   saved = [menu.instance_variable_get(:@mode), menu.instance_variable_get(:@index)]
   begin
@@ -69,7 +69,7 @@ Suite.define("config menu: the audio category offers a tones submenu with the ni
     eq "tones sits after volumes and frequencies", groups, [:audio3d_vol, :audio3d_freq, :audio3d_tone, :audio3d_walls, :audio3d_adv]
     menu.instance_variable_set(:@mode, :audio3d_tone)
     rows = menu.items.select { |i| i[:kind] == :setting }.map { |i| i[:row][0] }
-    eq "the submenu lists the nine tones in schema order", rows, PokeAccess::Config.keys_of_kind(:tone)
+    eq "the submenu lists the ten tones in schema order", rows, PokeAccess::Config.keys_of_kind(:tone)
     eq "each spoken as its label and a bare number", menu.describe(menu.items[0]), "#{PokeAccess::I18n.t(:lbl_tone_people)}, 50"
     eq "and closed by the back row", menu.items.last[:kind], :back
   ensure

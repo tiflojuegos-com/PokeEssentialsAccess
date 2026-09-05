@@ -116,9 +116,10 @@ from the matching `tcat_*` key.
 | `:surfaces` | Synthetic targets: the nearest tile of each surface the player can walk to |
 | `:puzzles` | Cells a profile declared through the puzzle API |
 | `:lens` | Lens of Truth (`#EOT`) tiles, only where the map has any |
+| `:marks` | The player's own markers (`Ctrl`+`G`), only on maps where they set one |
 
-The first seven are `Config.categories` and persist in `settings.ini`. `:puzzles` and `:lens` do not: they
-are inserted only where the map has them, so no empty category is ever offered.
+The first seven are `Config.categories` and persist in `settings.ini`. `:puzzles`, `:lens` and `:marks` do
+not: they are inserted only where the map has them, so no empty category is ever offered.
 
 ## 3D audio
 
@@ -156,6 +157,7 @@ file plays for this": the glossary previews those same files and a spec cross-ch
 |---|---|---|
 | Emitters | `:npc` `pa3d_npc.wav`, `:object` `pa3d_object.wav`, `:door` `pa3d_door.wav`, `:teleporter` `pa3d_teleporter.wav` | no |
 | Puzzles | `:hazard` `pa3d_hazard.wav`, `:control` `pa3d_control.wav`, `:trap` `pa3d_boop.wav`, `:push` `pa3d_boing.wav` | no |
+| Markers | `:mark` `pa3d_mark.wav` — the player's markers; tiles, not events, so `rescan` adds them separately (`mark_emitters`) | no |
 | Bumps | `:wall` `pa3d_wall.wav` (terrain), `:interact` `pa3d_interact.wav` (something interactable) | no |
 | Ambience | `:water` `pa3d_water.wav`, `:wind_w/e/n/s` `pa3d_wind_<side>.wav` (one recording per side) | **yes** |
 | Footsteps | `:step` `pa_step.wav`, `:grass` `pa_grass.wav`, `:fstep_water` `pa_water.wav` | no |
@@ -231,10 +233,10 @@ tallies why each frame fell silent and `gate_report` summarises it for the diagn
 |---|---|---|---|
 | `sound_nav` | `:full` | `:off` / `:basic` / `:full` | Soundscape mode |
 | `audio3d_volume` | 80 | 0-100, step 10 | Engine master volume |
-| `audio3d_npc` / `_object` / `_door` / `_teleporter` | 85 / 85 / 85 / 90 | 0-100, step 10 | Volume per emitter type |
+| `audio3d_npc` / `_object` / `_door` / `_teleporter` / `_mark` | 85 / 85 / 85 / 90 / 85 | 0-100, step 10 | Volume per emitter type |
 | `audio3d_water` / `audio3d_wind` | 70 / 55 | 0-100, step 10 | Loop volumes |
 | `footstep_volume` / `wall_volume` / `event_volume` | 80 / 80 / 70 | 0-100, step 10 | Footsteps, bumps and guide chime |
-| `audio3d_freq_npc` / `_object` / `_door` / `guide_freq` | 70 / 70 / 70 / 75 | 0-100, step 10 | Ping and chime cadence |
+| `audio3d_freq_npc` / `_object` / `_door` / `_mark` / `guide_freq` | 90 / 10 / 70 / 80 / 75 | 0-100, step 10 | Ping and chime cadence |
 | `audio3d_occlusion` | `:hide` | `:hear` / `:occlude` / `:hide` | Emitter behind a wall (`line_clear?` raycast): as-is, muffled 80 of 100, or dropped |
 | `audio3d_air` | off | on/off | Air absorption |
 | `audio3d_wall_range` / `_wall_falloff` | 3 / 50 | 1-20 tiles; 0-100, step 10 | Wall probe and wind falloff, `v = vol / dist ** (falloff / 50.0)` |

@@ -125,7 +125,7 @@ module PokeAccess
       elsif key(:hp)
         PokeAccess::Battle.announce_hp(shift_down?)
       elsif key(:field)
-        PokeAccess::Battle.announce_field
+        ctrl_down? ? PokeAccess::Locator.mark_here : PokeAccess::Battle.announce_field
       elsif key(:coords)
         if ctrl_down?
           PokeAccess::Locator.toggle_hide_unreachable

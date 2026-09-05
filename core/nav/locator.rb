@@ -13,7 +13,8 @@ module PokeAccess
     # Category symbol => spoken-name localization key.
     TCAT_KEYS = { :all => :tcat_all, :people => :tcat_people, :objects => :tcat_objects,
                   :exits => :tcat_exits, :signs => :tcat_signs, :extras => :tcat_extras,
-                  :surfaces => :tcat_surfaces, :puzzles => :tcat_puzzles, :lens => :tcat_lens }
+                  :surfaces => :tcat_surfaces, :puzzles => :tcat_puzzles, :lens => :tcat_lens,
+                  :marks => :tcat_marks }
 
     # The spoken name of a target category.
     def self.cat_name(cat)
@@ -65,13 +66,21 @@ module PokeAccess
 
     # The categories to cycle now: the configured set, plus "puzzles" only while the current puzzle has
     # something worth locating (its cells, obstacle walls, or statues), plus "lens" only on maps that hold a
-    # navigable Eye/Lens-of-Truth tile (#EOT), so the category never shows up empty. Targets come from
-    # Puzzles/the event scan.
+    # navigable Eye/Lens-of-Truth tile (#EOT), plus "marks" only on maps where the player set one, so no
+    # category ever shows up empty. Targets come from Puzzles/Marks/the event scan.
     def self.active_categories
-      base = PokeAccess::Config.categories.reject { |c| c == :puzzles || c == :lens }
+      base = PokeAccess::Config.categories.reject { |c| c == :puzzles || c == :lens || c == :marks }
       base += [:puzzles] if (PokeAccess::Puzzles.has_locator_targets? rescue false)
       base += [:lens] if any_lens_tile?
+      base += [:marks] if marks_here?
       base
+    end
+
+    # True if the current map carries at least one of the player's marks, gating the :marks category.
+    def self.marks_here?
+      !!($game_map && PokeAccess::Marks.any_on?($game_map.map_id))
+    rescue StandardError
+      false
     end
 
     # True if the current map holds a lens (#EOT) tile worth cycling to, gating the :lens category. With
@@ -98,11 +107,13 @@ module PokeAccess
       cats = active_categories
       @cat = 0 if @cat >= cats.length
       cat = cats[@cat]
-      synthetic = (cat == :surfaces || cat == :puzzles)
+      synthetic = (cat == :surfaces || cat == :puzzles || cat == :marks)
       if cat == :surfaces
         @targets = (surface_targets.dup rescue [])
       elsif cat == :puzzles
         @targets = (PokeAccess::Puzzles.category_targets rescue [])
+      elsif cat == :marks
+        @targets = mark_targets
       else
         @targets = $game_map.events.values.select { |ev| in_category?(ev, cat) && !tag_hidden?(ev) }
         @targets = cluster_exits(@targets, px, py) if cat == :exits || cat == :all
@@ -121,6 +132,17 @@ module PokeAccess
         end
       end
       @ti = 0 if @ti >= @targets.length
+      refresh_selected_mark
+    end
+
+    # Points the selection at the fresh copy of the selected mark after a rebuild (same tile, new struct,
+    # possibly a new name); leaves it alone when the list no longer holds that tile.
+    def self.refresh_selected_mark
+      return unless mark_target?(@target)
+      fresh = @targets.find { |t| mark_target?(t) && t.x == @target.x && t.y == @target.y }
+      return unless fresh
+      @target = fresh
+      @ti = @targets.index(fresh)
     end
 
     # Collapses a wide doorway -- adjacent transfer tiles landing on the same spot -- into one exit, keeping
@@ -210,6 +232,7 @@ module PokeAccess
     # True when the current target still applies: a surface tile while on the same map, or an event that still exists.
     def self.target_valid?
       return false unless @target && $game_map
+      return !PokeAccess::Marks.get($game_map.map_id, @target.x, @target.y).nil? if mark_target?(@target)
       return true if @target.is_a?(SurfaceTarget)
       id = (@target.id rescue nil)
       !id.nil? && $game_map.events[id] == @target
@@ -260,11 +283,26 @@ module PokeAccess
       end
     end
 
+    # The player's marks on this map as synthetic targets, so the locator, the pathfinder and both guides
+    # treat a marked tile exactly like any other destination.
+    def self.mark_targets
+      mid = $game_map.map_id
+      PokeAccess::Marks.on_map(mid).map { |x, y, name| SurfaceTarget.new(x, y, name, :mark) }
+    rescue StandardError
+      []
+    end
+
+    # True if a target is one of the player's marks (a synthetic target carrying the :mark key).
+    def self.mark_target?(t)
+      t.is_a?(SurfaceTarget) && t.key == :mark
+    end
+
     # Gives the focused object a custom spoken label (Shift+K), stored in the shareable tag dictionary.
     # An empty entry removes it; surfaces (no event id) cannot be tagged.
     def self.rename_target
       ensure_target
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_nothing_selected), true) if @target.nil?
+      return edit_mark(@target.x, @target.y) if mark_target?(@target)
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_cant_label), true) unless $game_map && @target.respond_to?(:id)
       mid = $game_map.map_id; eid = @target.id
       cur = (PokeAccess::Tags.get(mid, eid) rescue nil).to_s
@@ -300,6 +338,7 @@ module PokeAccess
     def self.tag_menu
       ensure_target
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_nothing_selected), true) if @target.nil?
+      return mark_menu(@target) if mark_target?(@target)
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_cant_label), true) unless $game_map && @target.respond_to?(:id)
       mid = $game_map.map_id; eid = @target.id
       loop do
@@ -383,6 +422,60 @@ module PokeAccess
       ord = ordinal_of(@target)
       ordtxt = (ord && !@targets.empty?) ? (PokeAccess::I18n.t(:loc_count, :n => ord, :total => @targets.length) + ", ") : ""
       PokeAccess.speak("#{target_name(@target)}, #{ordtxt}#{phrase}#{step_phrase(@target)}", true)
+    end
+
+    # Ctrl+G: names the tile the player stands on as a mark of their own. One key does all three things:
+    # the prompt opens empty on a bare tile and with the current name on a marked one, and an answer wiped
+    # blank removes the mark -- which is how prompt_rename already reads an empty answer. Map only: the key
+    # is polled from Input.update, which runs inside menus and battles too, and a mark set from the bag
+    # would point at wherever the map happened to be left.
+    def self.mark_here
+      return PokeAccess.speak(PokeAccess::I18n.t(:mark_map_only), true) unless on_map?
+      edit_mark($game_player.x, $game_player.y)
+    rescue StandardError
+      nil
+    end
+
+    # Prompts for the name of the mark on a tile (new or existing) and persists the answer; a blank answer
+    # removes it. Shared by Ctrl+G, Shift+K on a mark and the Ctrl+K menu.
+    def self.edit_mark(x, y)
+      mid = $game_map.map_id
+      cur = (PokeAccess::Marks.get(mid, x, y) rescue nil).to_s
+      shown = cur.empty? ? coords_text(x, y) : cur
+      keys = [cur.empty? ? :mark_for : :mark_edit_for, :mark_prompt, :mark_removed, :mark_saved]
+      prompt_rename(shown, cur, keys) { |label| PokeAccess::Marks.set(mid, x, y, label) }
+      PokeAccess::Events.emit(:tags_changed)
+      ensure_target
+    end
+
+    # The Ctrl+K menu of a mark: rename or delete. A mark has no category to force and hiding it would be
+    # deleting it, so it is not the object menu with two options missing but its own two.
+    def self.mark_menu(t)
+      sel = (show_menu(PokeAccess::I18n.t(:mark_menu, :name => t.name),
+                       [PokeAccess::I18n.t(:tag_rename), PokeAccess::I18n.t(:mark_delete), PokeAccess::I18n.t(:back)], 3) rescue 2)
+      if sel == 0
+        edit_mark(t.x, t.y)
+      elsif sel == 1
+        PokeAccess::Marks.delete($game_map.map_id, t.x, t.y)
+        PokeAccess::Events.emit(:tags_changed)
+        @ti = 0; @target = @targets[0]
+        PokeAccess.speak(PokeAccess::I18n.t(:mark_deleted, :name => t.name), true)
+      end
+    rescue StandardError
+      nil
+    end
+
+    # True while the player is on the map under free control, which is the only place a tile-bound action
+    # (marking where you stand) means anything.
+    def self.on_map?
+      return false unless $game_map && $game_player
+      return false if (($game_temp && $game_temp.in_menu) rescue false)
+      ($scene.is_a?(Scene_Map) rescue true)
+    end
+
+    # A tile as it is spoken: "x 15, y 17".
+    def self.coords_text(x, y)
+      "x #{x}, y #{y}"
     end
 
     # Toggles the hide-unreachable filter on the fly (Ctrl+M), announces it, persists, and rebuilds.
@@ -494,7 +587,7 @@ module PokeAccess
     def self.announce_coords
       return unless $game_player && $game_map
       nm = (map_name($game_map.map_id) rescue nil)
-      PokeAccess.speak("#{nm ? nm + '. ' : ''}x #{$game_player.x}, y #{$game_player.y}", true)
+      PokeAccess.speak("#{nm ? nm + '. ' : ''}#{coords_text($game_player.x, $game_player.y)}", true)
     end
 
     # Rebuilds the list the instant a running event finishes (an item picked up, a switch flipped) so a

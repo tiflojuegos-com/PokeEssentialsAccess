@@ -32,6 +32,7 @@ No modifica los scripts del juego: se carga con el `preloadScript` de mkxp-z, as
 - **Búsqueda de rutas**: eliges un objetivo del mapa y el mod calcula la ruta y te guía hasta él con un sonido.
 - **Glosario de sonidos**: recorre desde el menú del mod cada señal que oirás, escúchala y lee qué significa.
 - **Grabador de sesiones**: guarda en un archivo lo que el mod vio y dijo, para adjuntarlo al reportar un fallo.
+- **Marcadores**: marca cualquier casilla con `Ctrl` + `G` y vuelve a ella con el localizador y las guías. Etiquetas, marcadores y nombres de mapa se importan y exportan por separado desde el menú del mod, y cada fichero lleva el juego al que pertenece para que no se mezclen.
 - **Remapeo de teclas** de los juegos, desde el menú del mod.
 - **Accesibilización de puzzles**. Esto hay que hacerlo juego a juego; de momento hay soporte en:
   - Pokémon Z
@@ -109,6 +110,7 @@ Combinados con las teclas de arriba amplían su función:
 | `Shift` + `H` | Leer los PS del equipo rival |
 | `Shift` + `M` | Renombrar el mapa actual |
 | `Ctrl` + `M` | Mostrar/ocultar los objetivos a los que no puedes llegar |
+| `Ctrl` + `G` | Poner un marcador en la casilla donde estás: te pide el nombre, y en blanco lo borra. Los marcadores tienen su propia categoría en el localizador |
 
 ### Atajos globales
 

@@ -7,6 +7,16 @@ module PokeAccess
     # The identifiers of the profiles defined so far (diagnostics only).
     def self.profiles; @profiles; end
 
+    # The identifier of the profile this game runs under: the first name a Game.define block declared, else
+    # the one the installer stamped in installed.json (the generic profile declares none), else nil. The
+    # shareable dictionaries stamp their files with it, so a file is never imported into the wrong game.
+    def self.profile_name
+      return @profiles.first if @profiles.first
+      txt = (File.read("#{PokeAccess::Paths::DATA}/installed.json") rescue nil)
+      m = txt ? txt.match(/"profile"\s*:\s*"([^"]+)"/) : nil
+      m ? m[1] : nil
+    end
+
     # Declares a game profile; the block registers its hooks/readers/puzzles/config. Additive and
     # repeatable (a game may use several define blocks).
     def self.define(name = nil, &blk)

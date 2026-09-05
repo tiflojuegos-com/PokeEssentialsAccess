@@ -116,9 +116,10 @@ hablado sale de la clave `tcat_*` correspondiente.
 | `:surfaces` | Objetivos sintéticos: la casilla más cercana de cada superficie a la que se puede llegar |
 | `:puzzles` | Celdas declaradas por un perfil a través de la API de puzles |
 | `:lens` | Baldosas de la Lente de la Verdad (`#EOT`), solo si el mapa tiene alguna |
+| `:marks` | Los marcadores del jugador (`Ctrl`+`G`), solo en los mapas donde puso alguno |
 
-Las siete primeras son `Config.categories` y persisten en `settings.ini`. `:puzzles` y `:lens` no: se
-insertan solo cuando el mapa las tiene, para no ofrecer una categoría vacía.
+Las siete primeras son `Config.categories` y persisten en `settings.ini`. `:puzzles`, `:lens` y `:marks` no:
+se insertan solo cuando el mapa las tiene, para no ofrecer una categoría vacía.
 
 ## Audio 3D
 
@@ -156,6 +157,7 @@ fichero suena para esto": el glosario previsualiza los mismos ficheros y un test
 |---|---|---|
 | Emisores | `:npc` `pa3d_npc.wav`, `:object` `pa3d_object.wav`, `:door` `pa3d_door.wav`, `:teleporter` `pa3d_teleporter.wav` | no |
 | Puzles | `:hazard` `pa3d_hazard.wav`, `:control` `pa3d_control.wav`, `:trap` `pa3d_boop.wav`, `:push` `pa3d_boing.wav` | no |
+| Marcadores | `:mark` `pa3d_mark.wav` — los marcadores del jugador; casillas, no eventos, así que `rescan` los añade aparte (`mark_emitters`) | no |
 | Choques | `:wall` `pa3d_wall.wav` (terreno), `:interact` `pa3d_interact.wav` (algo interactuable) | no |
 | Ambiente | `:water` `pa3d_water.wav`, `:wind_w/e/n/s` `pa3d_wind_<lado>.wav` (una grabación por lado) | **sí** |
 | Pasos | `:step` `pa_step.wav`, `:grass` `pa_grass.wav`, `:fstep_water` `pa_water.wav` | no |
@@ -231,10 +233,10 @@ cuenta por qué calló cada frame y `gate_report` lo resume para el diagnóstico
 |---|---|---|---|
 | `sound_nav` | `:full` | `:off` / `:basic` / `:full` | Modo del paisaje sonoro |
 | `audio3d_volume` | 80 | 0-100, paso 10 | Volumen maestro del motor |
-| `audio3d_npc` / `_object` / `_door` / `_teleporter` | 85 / 85 / 85 / 90 | 0-100, paso 10 | Volumen por tipo de emisor |
+| `audio3d_npc` / `_object` / `_door` / `_teleporter` / `_mark` | 85 / 85 / 85 / 90 / 85 | 0-100, paso 10 | Volumen por tipo de emisor |
 | `audio3d_water` / `audio3d_wind` | 70 / 55 | 0-100, paso 10 | Volumen de los bucles |
 | `footstep_volume` / `wall_volume` / `event_volume` | 80 / 80 / 70 | 0-100, paso 10 | Pasos, choques y chime de guía |
-| `audio3d_freq_npc` / `_object` / `_door` / `guide_freq` | 70 / 70 / 70 / 75 | 0-100, paso 10 | Cadencia de los pings y del chime |
+| `audio3d_freq_npc` / `_object` / `_door` / `_mark` / `guide_freq` | 90 / 10 / 70 / 80 / 75 | 0-100, paso 10 | Cadencia de los pings y del chime |
 | `audio3d_occlusion` | `:hide` | `:hear` / `:occlude` / `:hide` | Emisor tras pared (raycast `line_clear?`): igual, atenuado 80 de 100, u oculto |
 | `audio3d_air` | off | on/off | Absorción del aire |
 | `audio3d_wall_range` / `_wall_falloff` | 3 / 50 | 1-20 casillas; 0-100, paso 10 | Sondeo de paredes y caída del viento, `v = vol / dist ** (falloff / 50.0)` |

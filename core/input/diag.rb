@@ -228,7 +228,7 @@ module PokeAccess
       cats = dv { PokeAccess::Config.categories }
       ci = dv { l.instance_variable_get(:@cat) }
       o.push("categories(#{dv { cats.size }})=#{cats.inspect}")
-      o.push("locator: cat=#{ci} (#{dv { cats[ci] }}) ti=#{dv { l.instance_variable_get(:@ti) }} targets=#{dv { l.instance_variable_get(:@targets).size }} target=#{dv { (t = l.instance_variable_get(:@target)) ? t.name : 'none' }}")
+      o.push("locator: cat=#{ci} (#{dv { cats[ci] }}) ti=#{dv { l.instance_variable_get(:@ti) }} targets=#{dv { l.instance_variable_get(:@targets).size }} target=#{dv { (t = l.instance_variable_get(:@target)) ? t.name : 'none' }} marks_here=#{dv { $game_map ? PokeAccess::Marks.on_map($game_map.map_id).size : 0 }}")
       o.push("guides: cane=#{dv { l.instance_variable_get(:@guide) }} steps=#{dv { l.instance_variable_get(:@steps) }} leg=#{dv { l.instance_variable_get(:@steps_leg).inspect }} auto_cane=#{dv { PokeAccess::Config.auto_guide }} auto_steps=#{dv { PokeAccess::Config.auto_steps }}")
       o.push("targetlist=#{cut(dv { l.instance_variable_get(:@targets)[0, 10].map { |t| "#{t.name rescue '?'}@#{t.x},#{t.y}" } }.inspect, 300)}")
     end

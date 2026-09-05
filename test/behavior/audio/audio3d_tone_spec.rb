@@ -68,7 +68,7 @@ Suite.define("tone: the 0-100 setting is an octave each way around the recording
   eq "every step of 5 goes up, none repeats", steps, steps.sort.uniq
   eq "the tone kind steps by 5 over 0-100 with no spoken unit", PokeAccess::Config::KIND_BOUNDS[:tone], [0, 100, 5, nil]
   keys = PokeAccess::Config.keys_of_kind(:tone)
-  eq "nine families have a tone", keys.length, 9
+  eq "ten families have a tone", keys.length, 10
   eq "and every one ships at the recording", keys.map { |k| PokeAccess::Config.schema_row(k)[1] }.uniq, [50]
   eq "all in the tone submenu", keys.map { |k| PokeAccess::Config.schema_row(k)[3] }.uniq, [:audio3d_tone]
   truthy "tones persist like any other numeric setting", PokeAccess::Settings::NUMERIC.include?(:tone)

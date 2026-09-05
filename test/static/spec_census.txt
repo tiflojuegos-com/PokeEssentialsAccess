@@ -1,5 +1,6 @@
 # Spec files run_all must discover. Regenerate: ruby test/static/build_reader_census.rb
 behavior/audio/audio3d_classify_spec.rb
+behavior/audio/audio3d_marks_spec.rb
 behavior/audio/audio3d_nav_modes_spec.rb
 behavior/audio/audio3d_pacing_spec.rb
 behavior/audio/audio3d_scan_spec.rb
@@ -100,6 +101,7 @@ behavior/nav/internal_warp_spec.rb
 behavior/nav/ledge_pathfinding_spec.rb
 behavior/nav/ledge_stub_spec.rb
 behavior/nav/lens_category_spec.rb
+behavior/nav/marks_spec.rb
 behavior/nav/region_map_cursor_spec.rb
 behavior/nav/region_map_details_spec.rb
 behavior/nav/route_budget_spec.rb
@@ -156,6 +158,7 @@ unit/foundation/speech_init_spec.rb
 unit/foundation/text_clean_spec.rb
 unit/menus/bag_filter_spec.rb
 unit/menus/config_menu_spec.rb
+unit/menus/dict_menu_spec.rb
 unit/menus/readers_spec.rb
 unit/pathfinder/astar_spec.rb
 unit/pathfinder/ice_bridge_spec.rb

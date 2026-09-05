@@ -15,9 +15,11 @@ Suite.define("audio3d: every emitter type has a channel, a ping timer and a live
   a3d::CHANNEL_FILES.each { |sym, file, looping| chan[sym] = [file, looping] }
   eq "no channel symbol is declared twice", chan.length, a3d::CHANNEL_FILES.length
 
-  # The sound vocabulary: keep in sync with type_of, whose classification suite proves it returns each one.
-  eq "the ping table is exactly the classifier's vocabulary", a3d::PING_DEFS.keys.map { |k| k.to_s }.sort,
-     %w[control door hazard npc object push teleporter trap]
+  # The sound vocabulary: keep in sync with type_of, whose classification suite proves it returns each one,
+  # plus :mark -- the one type that is not an event the classifier reads but a tile the scan adds itself
+  # (mark_emitters), so it pings without ever passing through type_of.
+  eq "the ping table is the classifier's vocabulary plus the marker tiles", a3d::PING_DEFS.keys.map { |k| k.to_s }.sort,
+     %w[control door hazard mark npc object push teleporter trap]
   missing = a3d::PING_DEFS.keys.reject { |t| chan[t] }
   eq "no emitter type is left without a sound file", missing, []
   bad_freq = a3d::PING_DEFS.values.uniq.reject { |k| PokeAccess::Config.respond_to?(k) }
@@ -36,11 +38,12 @@ Suite.define("audio3d: every emitter type has a channel, a ping timer and a live
 end
 
 # Volumes: the four object-family types deliberately share ONE slider (the config menu offers a single
-# "objects" volume), while people/doors/teleporters/water have their own. Setting every slider to the same
-# value proves no type falls through to the hardcoded 80; then moving one slider proves which types follow it.
+# "objects" volume), while people/doors/teleporters/markers/water have their own. Setting every slider to
+# the same value proves no type falls through to the hardcoded 80; then moving one slider proves which types
+# follow it.
 Suite.define("audio3d: the volume sliders reach every emitter type, objects sharing one") do
   a3d = PokeAccess::Audio3D
-  keys = [:audio3d_npc, :audio3d_object, :audio3d_door, :audio3d_teleporter, :audio3d_water]
+  keys = [:audio3d_npc, :audio3d_object, :audio3d_door, :audio3d_teleporter, :audio3d_mark, :audio3d_water]
   prev = {}
   begin
     keys.each { |k| prev[k] = PokeAccess::Config.send(k) }
@@ -54,6 +57,7 @@ Suite.define("audio3d: the volume sliders reach every emitter type, objects shar
     eq "people keep their own slider", a3d.type_vol(:npc), 11
     eq "and so do doors", a3d.type_vol(:door), 11
     eq "and teleporters", a3d.type_vol(:teleporter), 11
+    eq "and markers", a3d.type_vol(:mark), 11
   ensure
     prev.each { |k, v| PokeAccess::Config.send("#{k}=", v) }
   end

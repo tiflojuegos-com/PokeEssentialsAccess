@@ -49,7 +49,11 @@ end
 # event, hear no change, and have no way to fix their map. Hiding must silence the emitter outright.
 Suite.define("audio3d: a player tag outranks every automatic reading of an event") do
   a3d = PokeAccess::Audio3D
-  prev_tags = PokeAccess::Tags.instance_variable_get(:@tags)
+  tags_wipe = lambda do
+    [PokeAccess::Tags::FILE, PokeAccess::Tags::IMPORT].each { |f| (File.delete(f) rescue nil) }
+    PokeAccess::Tags.reload!
+  end
+  tags_wipe.call
   begin
     World.clear_events
     person = World.event(:kind => :trainer, :id => 1, :x => 6, :y => 5)
@@ -58,21 +62,22 @@ Suite.define("audio3d: a player tag outranks every automatic reading of an event
     eq "untagged, the person reads as a person", a3d.type_of(person), :npc
     eq "untagged, the door reads as a door", a3d.type_of(door), :door
 
-    PokeAccess::Tags.instance_variable_set(:@tags, { mid => { 1 => { "cat" => "exits" },
-                                                              2 => { "cat" => "people" } } })
+    PokeAccess::Tags.set_category(mid, 1, :exits)
+    PokeAccess::Tags.set_category(mid, 2, :people)
     eq "tagged as an exit, the person sounds like a door", a3d.type_of(person), :door
     eq "tagged as a person, the door sounds like an npc", a3d.type_of(door), :npc
 
-    PokeAccess::Tags.instance_variable_set(:@tags, { mid => { 1 => { "cat" => "objects" },
-                                                              2 => { "cat" => "signs" } } })
+    PokeAccess::Tags.set_category(mid, 1, :objects)
+    PokeAccess::Tags.set_category(mid, 2, :signs)
     eq "tagged as an object, the person sounds like an object", a3d.type_of(person), :object
     eq "tagged into a category with no cue, an event goes quiet", a3d.type_of(door), nil
 
-    PokeAccess::Tags.instance_variable_set(:@tags, { mid => { 1 => { "hidden" => true } } })
+    tags_wipe.call
+    PokeAccess::Tags.set_hidden(mid, 1, true)
     eq "a hidden event is dropped from the soundscape", a3d.type_of(person), nil
     eq "while its untagged neighbour keeps sounding", a3d.type_of(door), :door
   ensure
-    PokeAccess::Tags.instance_variable_set(:@tags, prev_tags)
+    tags_wipe.call
     World.clear_events
   end
 end

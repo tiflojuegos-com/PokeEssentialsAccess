@@ -50,7 +50,7 @@ module PokeAccess
     # Discrete emitter => the config frequency key that paces its ping.
     PING_DEFS = { :npc => :audio3d_freq_npc, :object => :audio3d_freq_object, :door => :audio3d_freq_door,
                   :hazard => :audio3d_freq_object, :trap => :audio3d_freq_object, :control => :audio3d_freq_object,
-                  :push => :audio3d_freq_object, :teleporter => :audio3d_freq_door }
+                  :push => :audio3d_freq_object, :teleporter => :audio3d_freq_door, :mark => :audio3d_freq_mark }
 
     @ready = false
     @boot_tried = false
@@ -114,6 +114,7 @@ module PokeAccess
       [:teleporter, "pa3d_teleporter.wav", 0], [:hazard, "pa3d_hazard.wav", 0],
       [:wall, "pa3d_wall.wav", 0], [:interact, "pa3d_interact.wav", 0],
       [:control, "pa3d_control.wav", 0], [:trap, "pa3d_boop.wav", 0], [:push, "pa3d_boing.wav", 0],
+      [:mark, "pa3d_mark.wav", 0],
       [:water, "pa3d_water.wav", 1], [:wind_w, "pa3d_wind_w.wav", 1], [:wind_e, "pa3d_wind_e.wav", 1],
       [:wind_n, "pa3d_wind_n.wav", 1], [:wind_s, "pa3d_wind_s.wav", 1],
       [:step, "pa_step.wav", 0], [:grass, "pa_grass.wav", 0], [:fstep_water, "pa_water.wav", 0],
@@ -127,7 +128,7 @@ module PokeAccess
       :npc => :audio3d_tone_npc, :object => :audio3d_tone_object, :hazard => :audio3d_tone_object,
       :trap => :audio3d_tone_object, :control => :audio3d_tone_object, :push => :audio3d_tone_object,
       :door => :audio3d_tone_door, :teleporter => :audio3d_tone_teleporter, :water => :audio3d_tone_water,
-      :wind_w => :audio3d_tone_wind, :wind_e => :audio3d_tone_wind, :wind_n => :audio3d_tone_wind,
+      :mark => :audio3d_tone_mark, :wind_w => :audio3d_tone_wind, :wind_e => :audio3d_tone_wind, :wind_n => :audio3d_tone_wind,
       :wind_s => :audio3d_tone_wind, :wall => :wall_tone, :interact => :wall_tone,
       :step => :footstep_tone, :grass => :footstep_tone, :fstep_water => :footstep_tone, :guide => :guide_tone
     }
@@ -327,13 +328,19 @@ module PokeAccess
     # means: no pings, no ambience, but footsteps and wall bumps still play (and still panned). In :off
     # the engine never boots at all, so nothing reaches here.
     def self.silence_emitters
-      [:npc, :object, :door, :teleporter, :hazard, :trap, :control, :push,
-       :water, :wind_w, :wind_e, :wind_n, :wind_s].each do |k|
+      emitter_channels.each do |k|
         c = @ch[k]
         (SET.call(c, 0, 0, 0, 0) rescue nil) if c && c >= 0
       end
       @emitters = {}
       @scan_pos = nil
+    end
+
+    # Every channel that carries an emitter: the discrete ping types and the ambience loops. Read off the
+    # same tables the scan and the loops use, so a family added to PING_DEFS is silenced in basic mode
+    # without anyone remembering a second list.
+    def self.emitter_channels
+      PING_DEFS.keys + [:water] + WIND_SIDES.values.map { |side| side[0] }
     end
 
     # One frame: keeps the listener on the player, re-scans emitters, walls and the water and wind loops on
@@ -578,9 +585,32 @@ module PokeAccess
         next if hide && !line_clear?(px, py, ev.x, ev.y) && !desk_bypass?(ev, d)
         (lists[t] ||= []).push([ev.x, ev.y, d, (ev.character_name.to_s rescue "")])
       end
+      mark_emitters(px, py, r, hide).each { |e| (lists[:mark] ||= []).push(e) }
       @emitters = {}
       lists.each { |t, arr| @emitters[t] = cluster(arr).sort_by { |e| e[2] }[0, NEAR_MAX].map { |e| [e[0], e[1]] } }
       @near = { :water => nearest_water(px, py, r) }
+    end
+
+    # The player's marks within reach as emitter tiles. A mark is a tile the player named, not an event, so
+    # the event scan above never meets one; they get the same reach and the same line-of-sight rule. Each
+    # carries its own name so two marks side by side stay two pings and are not merged as one structure.
+    def self.mark_emitters(px, py, r, hide)
+      out = []
+      PokeAccess::Marks.on_map($game_map.map_id).each do |x, y, name|
+        d = (x - px).abs + (y - py).abs
+        next if d > r
+        next if hide && !line_clear?(px, py, x, y)
+        out.push([x, y, d, name])
+      end
+      out
+    rescue StandardError
+      []
+    end
+
+    # Drops the scan cursor so the next tick re-scans where the player stands: a mark just set, renamed or
+    # removed would otherwise wait for the player to step before it sounded (or stopped).
+    def self.forget_scan
+      @scan_pos = nil
     end
 
     # The nearest water tile within r, or nil. Its own scan and not the locator's surface targets: the two
@@ -757,3 +787,7 @@ end
 
 # Drop the previous map's emitter/wall scan state on map change or load (Caches.reset_all).
 PokeAccess::Caches.register(:audio3d) { PokeAccess::Audio3D.reset_map_state }
+
+# A player override changed (a mark set or removed, an object hidden or shown): re-scan on the next frame
+# instead of waiting for a step, so the soundscape answers the change at once.
+PokeAccess::Events.on(:tags_changed) { (PokeAccess::Audio3D.forget_scan rescue nil) }

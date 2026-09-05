@@ -39,6 +39,7 @@ and the game is left exactly as it was.
 - **Sound glossary**: step through every cue you will hear from the mod's own menu, listen to it, and read
   what it means.
 - **Session recorder**: writes what the mod saw and said to a file, to attach when reporting a problem.
+- **Markers**: mark any tile with `Ctrl` + `G` and find your way back to it with the locator and the guides. Labels, markers and map names are imported and exported separately from the mod's menu, and every file carries the game it belongs to so they never get mixed up.
 - **Key remapping** for the games, from the mod's menu.
 - **Puzzle accessibility**. This has to be done game by game; so far there is support in:
   - Pokémon Z
@@ -125,6 +126,7 @@ Combined with the keys above, they extend them:
 | `Shift` + `H` | Read the opposing team's HP |
 | `Shift` + `M` | Rename the current map |
 | `Ctrl` + `M` | Show or hide the targets you cannot reach |
+| `Ctrl` + `G` | Set a marker on the tile you stand on: it asks for a name, and a blank one deletes it. Markers get their own locator category |
 
 ### Global shortcuts
 
