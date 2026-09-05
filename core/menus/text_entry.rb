@@ -4,6 +4,24 @@ module PokeAccess
   module TextEntry
     # Reads the character at the cursor when it moves without the text changing (pure left/right
     # navigation), so deletions/insertions are not double-read.
+    # Runs a naming screen with the runtime's keyboard text input switched on, when the runtime has such a
+    # switch and nobody turned it on. A modern mkxp-z (the Ruby 3.x builds) starts with SDL text input OFF,
+    # and Input.gets yields nothing until Input.text_input = true; the naming screens of Essentials v19 and
+    # later set it themselves, but a gen-6 script base running on that runtime never learned to -- in
+    # Reminiscencia the box opened and every keystroke went nowhere, so the mod was reading a screen the
+    # player could not type into. Restored to what it was afterwards, so a game that manages the switch
+    # itself (or a runtime with no switch, like Z's Ruby 1.8.7 build) is left exactly as found.
+    def self.with_keyboard_input
+      return yield unless Input.respond_to?(:text_input=)
+      was = (Input.respond_to?(:text_input) ? Input.text_input : false) rescue false
+      Input.text_input = true unless was
+      begin
+        yield
+      ensure
+        Input.text_input = false unless was
+      end
+    end
+
     def self.cursor_read(win)
       helper = win.instance_variable_get(:@helper)
       return unless helper
@@ -117,6 +135,12 @@ end
 PokeAccess::Hooks.after_hook("PokemonEntryScene2", :pbUpdate) do |scene, _r, _a|
   (PokeAccess::Keys.typing! rescue nil)
   PokeAccess::CursorNaming.poll(scene)
+end
+
+# The whole naming screen -- build, type, tear down -- runs inside PokemonEntry#pbStartScreen, so that is
+# where the keyboard switch wraps it. Not guarded: the hooks it drives (caption, echo, cursor) must fire.
+PokeAccess::Hooks.around_hook("PokemonEntry", :pbStartScreen, :optional => true) do |_s, nxt, _a|
+  PokeAccess::TextEntry.with_keyboard_input { nxt.call }
 end
 
 # The naming screen's help caption ("What is this Pokemon's nickname?"), painted once by pbStartScene and

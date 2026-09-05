@@ -88,6 +88,7 @@ behavior/menus/scene_watcher_wire_spec.rb
 behavior/menus/screen_v22_messages_gd_spec.rb
 behavior/menus/secret_bases_spec.rb
 behavior/menus/sky_bag_spec.rb
+behavior/menus/text_entry_keyboard_spec.rb
 behavior/menus/text_log_spec.rb
 behavior/menus/trainer_card_data_spec.rb
 behavior/nav/better_region_map_spec.rb
