@@ -27,7 +27,15 @@ module PokeAccess
     end
 
     # Voices the Voltorb Flip cursor on change: position and cell always, the row/column hint on entering
-    # a new one, and the mark/normal mode when it toggles.
+    # a new one, the mark/normal mode when it toggles, the board's level on arrival, and the coins won so
+    # far whenever they move.
+    #
+    # The coins are the whole decision of the game. Flipping a 2 or a 3 multiplies the round's takings, and
+    # every flip sounds the same, so without them a player has nothing to weigh "one more card" against and
+    # cannot tell a good board from a lost one. They are said only when they CHANGE, which is the moment
+    # they matter; the level is said once, on arrival, since it fixes how dangerous the board is. A new
+    # board (pbNewGame regenerates @squares from inside the input loop, with the cursor back on the first
+    # cell) arrives like the first one: level and both lines again, whatever the cursor said before.
     def self.voltorb_flip(scene)
       idx = scene.instance_variable_get(:@index)
       return unless idx.is_a?(Array)
@@ -37,12 +45,17 @@ module PokeAccess
       marks = scene.instance_variable_get(:@marks)
       mode = (scene.instance_variable_get(:@cursor)[0][3] rescue 0).to_i
       cell = vf_cell(squares, marks, col, row)
-      sig = [col, row, cell, mode]
+      pts = (scene.instance_variable_get(:@points) rescue nil).to_i
+      board = (squares.object_id rescue nil)
+      sig = [col, row, cell, mode, pts, board]
       prev = scene.instance_variable_get(:@pa_vf)
       return if sig == prev
       scene.instance_variable_set(:@pa_vf, sig)
+      prev = nil if prev && prev[5] != board
       parts = []
+      parts << PokeAccess::I18n.t(:mg_level, :n => (scene.instance_variable_get(:@level) rescue 1).to_i) if prev.nil?
       parts << (mode == 0 ? PokeAccess::I18n.t(:mg_mode_normal) : PokeAccess::I18n.t(:mg_mode_mark)) if prev && prev[3] != mode
+      parts << PokeAccess::I18n.t(:mg_coins, :n => pts) if prev && prev[4] != pts
       parts << PokeAccess::I18n.t(:mg_rowcol, :row => row + 1, :col => col + 1)
       parts << cell unless cell.empty?
       parts << vf_line(squares, (0...VF_W).map { |c| row * VF_W + c }, PokeAccess::I18n.t(:mg_row)) if prev.nil? || prev[1] != row
@@ -87,6 +100,30 @@ module PokeAccess
       names = names.compact.reject { |n| n.to_s.empty? }
       return if names.empty?
       PokeAccess.speak(names.map { |n| PokeAccess::I18n.t(:mg_found, :name => n) }.join(". "), false)
+    rescue StandardError
+      nil
+    end
+
+    # How much wall is left before it caves in (49 hits in every game that ships the mine), which only a bar
+    # of cracks says. Counted in blows of the tool in hand: the hammer costs two hits a blow, so with it
+    # "seven hits left" would have been four blows.
+    # Said at the bar's own granularity, one block per six hits, queued behind what the blow unearthed, and
+    # not on the first block, when the bar is still empty.
+    COLLAPSE_HITS = 49
+    CRACK_BLOCK = 6
+    HAMMER_HITS = 2
+
+    def self.mining_wall(scene)
+      hits = (PokeAccess.sprite(scene, "crack").hits rescue nil)
+      return if hits.nil?
+      block = hits.to_i / CRACK_BLOCK
+      moved = PokeAccess::Cursor.changed?(scene, :mine_wall, block)
+      return unless moved && block > 0
+      left = COLLAPSE_HITS - hits.to_i
+      return if left <= 0
+      hammer = (PokeAccess.sprite(scene, "cursor").instance_variable_get(:@mode) rescue 0).to_i == 1
+      left = (left + HAMMER_HITS - 1) / HAMMER_HITS if hammer
+      PokeAccess.speak(PokeAccess::I18n.t(:mg_wall_left, :n => left), false)
     rescue StandardError
       nil
     end
@@ -141,18 +178,11 @@ module PokeAccess
       (scene.instance_variable_get(:@sprites)["credit"].score rescue nil)
     end
 
-    # Voices the result of a spin: the coins won, the free replay, or the loss. param before the credit
-    # counter as it stood before pbPayout ran.
-    #
-    # The prize is the CREDIT delta, not the payout counter. Reading @sprites["payout"].score after pbPayout
-    # returns always answered zero -- the method sets it to the prize and then its own counting loop drains it
-    # one coin at a time into the credit, so every win, in all thirteen games, was announced as a loss. Only
-    # pbPayout adds to the credit (the wager is deducted elsewhere), so the difference IS the prize, whether
-    # the player let the count run or skipped it.
-    # Prize and replay are NOT exclusive: one combination can pay coins and grant the spin at the same time,
-    # and counting them with an elsif lost the prize behind the replay notice. "You lost" only when neither
-    # happened.
-    # param wager the coins played, sampled BEFORE pbPayout (which zeroes @wager on its way out)
+    # Voices the result of a spin: the coins won, the free replay, or the loss. The prize is the CREDIT delta:
+    # pbPayout sets the payout counter and then drains it into the credit, so it always reads zero afterwards.
+    # Prize and replay are not exclusive; "you lost" only when neither happened.
+    # param before the credit counter before pbPayout ran
+    # param wager the coins played, sampled before pbPayout (which zeroes @wager on its way out)
     def self.slot_payout(scene, before, wager = nil)
       after = slot_credit(scene)
       won = (before && after) ? (after.to_i - before.to_i) : 0
@@ -280,7 +310,10 @@ end
 # with no way to know which option is marked.
 PokeAccess::Hooks.after_hook("VoltorbFlip", :getInput, :hook_container => true) { |scene, _result, _args| PokeAccess::Minigames.voltorb_flip(scene) }
 PokeAccess::Hooks.after_hook("MiningGameCursor", :update) { |cursor, _result, _args| PokeAccess::Minigames.mining_cursor(cursor) }
-PokeAccess::Hooks.after_hook("MiningGameScene", :pbHit) { |scene, _result, _args| PokeAccess::Minigames.mining_hit(scene) }
+PokeAccess::Hooks.after_hook("MiningGameScene", :pbHit) do |scene, _result, _args|
+  PokeAccess::Minigames.mining_hit(scene)
+  PokeAccess::Minigames.mining_wall(scene)
+end
 
 # Slot Machine (SlotMachineScene, its reels SlotMachineReel): wager as coins go in, each reel's symbol as it
 # stops, and the win/loss once paid out. No-op where the classes are absent.

@@ -122,6 +122,6 @@ PokeAccess::Summary.single_page = true
 PokeAccess::Game.define("reminiscencia") do
   after("PokemonSummaryScene", :drawPageOne) do |scene, _r, _a|
     t = PokeAccess::RemiSummary.text(scene)
-    PokeAccess.speak(t, true) if t && !t.to_s.empty?
+    PokeAccess.speak(t, true)
   end
 end

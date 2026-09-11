@@ -9,5 +9,5 @@
     location_banner
     trainer_card
   ],
-  :plugins => %w[incubator]
+  :plugins => %w[incubator luka_title]
 }

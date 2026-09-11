@@ -82,7 +82,7 @@ Suite.define("remap: the button table and the menu list built from it") do
   saved_extras = PokeAccess::Remap.extras.dup
   begin
     rows = PokeAccess::Remap::BUTTONS
-    eq "BUTTONS carries the twelve RPG Maker buttons", rows.length, 12
+    eq "BUTTONS carries the twelve RPG Maker buttons and the engine's Alt", rows.length, 13
     falsy "every row names an Input constant that resolves",
           rows.any? { |r| (Input.const_get(r[1]) rescue nil).nil? }
     falsy "every row carries a label key", rows.any? { |r| r[2].nil? }
@@ -208,6 +208,35 @@ Suite.define("remap: a rebound button answers from the mod alone, an unbound one
     truthy "repeat? fires again once delay + interval have elapsed", Input.repeat?(Input::C)
     rig.hold.frames
     falsy "releasing the key clears the held state", PokeAccess::Remap.pressed_sym?(:c)
+  end
+end
+
+# Alt is not one of RPG Maker's buttons, so the engine's F1 menu cannot move it, yet it is the key most
+# fangames' turbo scripts read (Input::ALT) and the only key some of them read at all. Offered in the same
+# table so the player can put the turbo on any key, and so physical Alt goes quiet once they do.
+Suite.define("remap: the engine's Alt follows a rebind like any button, so a turbo read from Input::ALT moves with it") do
+  PaRemapRig.with_scripted_input do |rig|
+    cfg = PokeAccess::Config
+    eq "Alt sits in the base table", PokeAccess::Remap.sym_for_button(Input::ALT), :alt
+    truthy "with a spoken label of its own", PokeAccess::I18n.t(:btn_alt) != "btn_alt"
+    eq "which the menu resolves", PokeAccess::Remap.label(:alt), PokeAccess::I18n.t(:btn_alt)
+
+    cfg.rebinds = {}
+    rig.hold.frames
+    rig.engine = true
+    truthy "unbound, physical Alt still reaches the game", Input.trigger?(Input::ALT)
+
+    cfg.rebinds = { :alt => PaRemapRig::Q }
+    rig.hold.frames
+    truthy "bound, Alt reports as remapped", PokeAccess::Remap.remapped_button?(Input::ALT)
+    rig.engine = true
+    falsy "and physical Alt goes quiet", Input.trigger?(Input::ALT)
+    rig.engine = false
+    rig.hold(PaRemapRig::Q).frames
+    truthy "the chosen key toggles what the game reads as Alt", Input.trigger?(Input::ALT)
+    truthy "and holds it", Input.press?(Input::ALT)
+    rig.hold.frames
+    falsy "released, nothing stays down", PokeAccess::Remap.pressed_sym?(:alt)
   end
 end
 

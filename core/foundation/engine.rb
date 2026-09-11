@@ -43,14 +43,9 @@ module PokeAccess
       scene_classes(*names)[0]
     end
 
-    # The scene name for a reader written against ONE data API, or "", which binds nothing exactly as an
-    # absent class does.
-    #
-    # The NAME decides where a game ships only one of the two aliases, because era and class name are
-    # independent in the wild: both Infinite Fusions have GameData under the gen-6 class names, so gating on
-    # the era alone would leave them with neither reader bound. The era only breaks the tie when BOTH
-    # aliases exist, which is what a compatibility layer produces: there the name has stopped
-    # discriminating, both readers match, and the wrong one would win by load order.
+    # The scene name for a reader written against ONE data API, or "", which binds nothing. The NAME decides
+    # where a game ships only one alias (both Infinite Fusions have GameData under the gen-6 names); the era
+    # breaks the tie only when both aliases exist, as a compatibility layer produces.
     # param era :gen6 or :gamedata
     # param own the alias this reader hooks; param other the alias the other era's reader hooks
     def self.era_scene(era, own, other)

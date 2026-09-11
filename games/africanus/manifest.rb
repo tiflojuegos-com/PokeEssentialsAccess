@@ -5,6 +5,7 @@
     pausemenu
     minigames
     tablas
+    extras
   ],
-  :plugins => %w[easy_questing logros]
+  :plugins => %w[easy_questing logros luka_title]
 }

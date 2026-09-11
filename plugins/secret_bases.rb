@@ -1,16 +1,9 @@
-# Secret base decorating (the "Secret Bases Remade" plugin and its Spanish fork "Granja decorable"). Three
-# steps, none of which the generic reader can see:
-#
-#   * Window_BasePocketsList     -> the decoration categories, named by SecretBag.pocket_names
-#   * Window_BaseDecorationsList -> what is in the focused category, named by GameData::SecretBaseDecoration
-#   * PlaceDecoration_Scene      -> a free cursor over the map, choosing where the piece goes
-#
-# Both list windows are the same code in both copies, so one extractor serves both.
-#
-# The placing step diverges: the fork rewrote can_place_here? against the tileset and added a fourth
-# argument, the tile's position within the piece. The call is therefore shaped by the method's own arity --
-# the wrong one raises every frame and the "it fits" answer, which a blind player cannot get any other way,
-# is never spoken. The walls-and-floors variant exists in one copy only and simply never binds in the other.
+# Secret base decorating (the "Secret Bases Remade" plugin and its Spanish fork "Granja decorable"):
+# Window_BasePocketsList (the categories, named by SecretBag.pocket_names), Window_BaseDecorationsList (the
+# focused category, named by GameData::SecretBaseDecoration) and PlaceDecoration_Scene (a free cursor over
+# the map). Both list windows are the same code in both copies. The placing step diverges: the fork's
+# can_place_here? takes a fourth argument, so the call is shaped by the method's own arity; the
+# walls-and-floors variant exists in one copy only and never binds in the other.
 module PokeAccess
   module SecretBases
     # A category row: its name and how full it is.

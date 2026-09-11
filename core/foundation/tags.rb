@@ -40,7 +40,7 @@ module PokeAccess
 
     # Sets and persists a custom label (empty string clears the name but keeps cat/hidden).
     def self.set(mid, eid, label)
-      rec!(mid, eid)["name"] = label.to_s
+      rec!(mid, eid)["name"] = one_line(label)
       prune(mid, eid); save
     end
 
@@ -76,11 +76,6 @@ module PokeAccess
       r.delete("name") if r["name"].to_s.empty?
       store[mid].delete(eid) if r.empty?
       store.delete(mid) if store[mid] && store[mid].empty?
-    end
-
-    # Yields (map_id, event_id, record) for every hidden object.
-    def self.each_hidden
-      each_record { |mid, eid, r| yield(mid, eid, r) if r["hidden"] }
     end
 
     # Yields (map_id, event_id, record) for every record, in file order.

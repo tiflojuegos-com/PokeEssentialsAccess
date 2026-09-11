@@ -39,8 +39,8 @@ module PokeAccess
 
     def self.desc_painted(text)
       return unless @desc
-      t = PokeAccess.clean(text.to_s).to_s.strip
-      PokeAccess.speak(t, true) unless t.empty?
+      t = PokeAccess.clean(text.to_s)
+      PokeAccess.speak(t, true)
     rescue StandardError
       nil
     end

@@ -159,6 +159,40 @@ Suite.define("audio3d: registered hazards and conveyor tiles keep their own cues
   end
 end
 
+# The warp vocabulary is what the surveyed games paint their pads with: their map data holds Hoopa rings,
+# vortexes and umbrals on transfer events that sounded like hinged doors. A name one game alone uses
+# (Realidea's temple lights) is registered from its profile, the way hazards are.
+Suite.define("audio3d: the warp vocabulary and a profile-registered pad both take the teleporter cue") do
+  a3d = PokeAccess::Audio3D
+  saved = PokeAccess::Locator::TELEPORTERS.dup
+  begin
+    World.clear_events
+    pads = { 1 => "Npc-Hoopa Rings", 2 => "vortex", 3 => "Umbral", 4 => "AnilloHoopaGrande" }
+    pads.each do |id, sprite|
+      ev = World.event(:kind => :door, :id => id, :x => 3 + id, :y => 5)
+      ev.character_name = sprite
+      eq "a transfer drawn as #{sprite} is a teleporter", a3d.type_of(ev), :teleporter
+    end
+
+    light = World.event(:kind => :door, :id => 9, :x => 9, :y => 5)
+    light.character_name = "lucecita"
+    eq "a game's own pad sprite is a door until its profile says otherwise", a3d.type_of(light), :door
+    PokeAccess::Locator.register_teleporter(/\Alucecita\z/i)
+    eq "registered from the profile, the same transfer is a teleporter", a3d.type_of(light), :teleporter
+
+    spring = World.event(:kind => :door, :id => 10, :x => 10, :y => 5)
+    spring.character_name = "springboard"
+    eq "a sprite with no warp word in it stays a door", a3d.type_of(spring), :door
+
+    hoopa = World.event(:kind => :door, :id => 11, :x => 11, :y => 5)
+    hoopa.character_name = "HOOPA"
+    eq "the character itself is not the ring: a transferring Hoopa is a door, not a pad", a3d.type_of(hoopa), :door
+  ensure
+    PokeAccess::Locator::TELEPORTERS.replace(saved)
+    World.clear_events
+  end
+end
+
 # desk_bypass is the exception that keeps a Pokemon Center usable with line-of-sight ON: the nurse stands
 # behind an impassable counter, so the raycast calls her occluded and hide mode would delete the single most
 # important emitter on the map. It is deliberately narrow -- only service desks, only within the configured

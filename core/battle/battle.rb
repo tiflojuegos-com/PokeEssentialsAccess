@@ -297,14 +297,19 @@ module PokeAccess
       key ? PokeAccess::I18n.t(key) : nil
     end
 
-    # The localized overworld weather name: modern a GameData::Weather symbol (resolved to its own
-    # localized name), gen-6 an integer in the PBFieldWeather layout. nil for none.
+    # The localized overworld weather name: modern a GameData::Weather symbol, gen-6 an integer in the
+    # PBFieldWeather layout; nil for none. The mod's tables come FIRST and the game's own name last, and only
+    # when it is a name: vanilla aliases name to the id string, so asking it first read "HeavyRain" aloud.
     def self.overworld_weather_name(wid)
       return nil if wid.nil? || wid == 0 || wid == :None
       if wid.is_a?(Symbol)
-        n = (GameData::Weather.get(wid).name rescue nil)
-        return n if n && !n.to_s.empty?
-        k = WEATHER_SYMS[wid]; return k ? PokeAccess::I18n.t(k) : wid.to_s
+        key = (PokeAccess::Config.field_weather_names[wid] rescue nil) || WEATHER_SYMS[wid]
+        return PokeAccess::I18n.t(key) if key
+        w = (GameData::Weather.get(wid) rescue nil)
+        n = (w.name rescue nil)
+        n = (w.real_name rescue nil) if n.nil? || n.to_s.empty?
+        return n if n && !n.to_s.empty? && n.to_s != wid.to_s
+        return wid.to_s
       end
       key = (PokeAccess::Config.field_weather_names[wid] rescue nil) || FIELD_WEATHER[wid]
       key ? PokeAccess::I18n.t(key) : nil
@@ -421,7 +426,7 @@ module PokeAccess
     def self.field_terrain(out)
       field = PokeAccess.ivar(@battle_ref, :@field)
       return unless field
-      { :TrickRoom => :bt_trickroom, :Gravity => :bt_gravity }.each do |k, key|
+      [[:TrickRoom, :bt_trickroom], [:Gravity, :bt_gravity]].each do |k, key|
         c = (field.effects[PBEffects.const_get(k)] rescue 0)
         out.push(PokeAccess::I18n.t(key)) if c && c > 0
       end
@@ -429,8 +434,8 @@ module PokeAccess
         tk = TERRAIN_SYMS[(field.terrain rescue nil)]
         out.push(PokeAccess::I18n.t(tk)) if tk
       else
-        { :GrassyTerrain => :bt_grassy, :MistyTerrain => :bt_misty,
-          :ElectricTerrain => :bt_electric, :PsychicTerrain => :bt_psychic }.each do |k, key|
+        [[:GrassyTerrain, :bt_grassy], [:MistyTerrain, :bt_misty],
+         [:ElectricTerrain, :bt_electric], [:PsychicTerrain, :bt_psychic]].each do |k, key|
           c = (field.effects[PBEffects.const_get(k)] rescue 0)
           out.push(PokeAccess::I18n.t(key)) if c && c > 0
         end
@@ -447,6 +452,12 @@ module PokeAccess
       v ? true : false
     end
 
+    # The per-side effects in spoken order, as [PBEffects constant, i18n key] pairs. An Array and not a Hash
+    # because gen-6 iterates a Hash in bucket order, which shuffled the report.
+    SIDE_EFFECTS = [[:Reflect, :bt_reflect], [:LightScreen, :bt_lightscreen], [:AuroraVeil, :bt_auroraveil],
+                    [:Spikes, :bt_spikes], [:StealthRock, :bt_stealthrock], [:ToxicSpikes, :bt_toxicspikes],
+                    [:Tailwind, :bt_tailwind], [:StickyWeb, :bt_stickyweb]]
+
     # Appends the per-side effects (screens, hazards, tailwind...) for both sides.
     def self.field_sides(out)
       sides = PokeAccess.ivar(@battle_ref, :@sides)
@@ -454,9 +465,7 @@ module PokeAccess
       side_names = [PokeAccess::I18n.t(:bt_side_yours), PokeAccess::I18n.t(:bt_side_foe)]
       [0, 1].each do |si|
         s = sides[si]; next unless s
-        { :Reflect => :bt_reflect, :LightScreen => :bt_lightscreen, :AuroraVeil => :bt_auroraveil,
-          :Spikes => :bt_spikes, :StealthRock => :bt_stealthrock, :ToxicSpikes => :bt_toxicspikes,
-          :Tailwind => :bt_tailwind, :StickyWeb => :bt_stickyweb }.each do |k, key|
+        SIDE_EFFECTS.each do |k, key|
           v = (s.effects[PBEffects.const_get(k)] rescue nil)
           next unless active_effect?(v)
           out.push(PokeAccess::I18n.t(:bt_side_effect, :effect => PokeAccess::I18n.t(key), :side => side_names[si]))

@@ -32,13 +32,13 @@ module PokeAccess
 
     # Starts mirroring the hand picker: cursor over @cardIndexes (UP/DOWN), focus is @playerCards by index.
     def self.start_hand(scene)
-      push
+      push(scene)
       @mode = :hand; @scene = scene; @choice = 0; @last = nil
     end
 
     # Starts mirroring the board placer: cursor over the @battle grid (arrows), reads free/occupied cells.
     def self.start_board(scene)
-      push
+      push(scene)
       @mode = :board; @scene = scene; @bx = 0; @by = 0; @last = nil
     end
 
@@ -46,7 +46,7 @@ module PokeAccess
     # match. It is a loop of its own with its own cursor, so without this the mirror kept reading the
     # PLAYER's cards while the screen showed the rival's, and every arrow moved a cursor nobody could see.
     def self.start_opponent(scene)
-      push
+      push(scene)
       @mode = :opponent; @scene = scene; @choice = 0; @last = nil
     end
 
@@ -57,22 +57,77 @@ module PokeAccess
       @choice = 0; @last = nil
     end
 
-    def self.push
-      (@stack ||= []).push([@mode, @scene, @choice, @bx, @by, @last])
+    # Saves the outer loop's state and starts the help window afresh for the loop opening on scene: a new
+    # turn's prompt is read even when it reads the same as the last turn's.
+    def self.push(scene)
+      (@stack ||= []).push([@mode, @scene, @choice, @bx, @by, @last, @storage])
+      PokeAccess::Cursor.reset(scene, :triad_help)
     end
 
     def self.stop
-      @mode, @scene, @choice, @bx, @by, @last = (@stack && @stack.pop) || [nil, nil, 0, 0, 0, nil]
+      @mode, @scene, @choice, @bx, @by, @last, @storage =
+        (@stack && @stack.pop) || [nil, nil, 0, 0, 0, nil, nil]
     end
 
-    # Mirrors the active loop's navigation once per frame and speaks the focus when it changes.
+    # Holds the scene while the DECK selector runs, which reads nothing of its own: its list is a real
+    # command window and the generic reader already names the focused card. What it is here for is the help
+    # window, which that loop writes four of its eight prompts into.
+    def self.start_deck(scene, storage)
+      push(scene)
+      @mode = :deck; @scene = scene; @last = nil; @storage = storage
+    end
+
+    # The focused row of the DECK list, with the four side numbers appended. The row itself already says the
+    # species and how many are left ("Bulbasaur x3"); the sides are the only thing that decides which card
+    # to take, and the screen shows them as a picture. They were said later, in hand, when the choice is
+    # already made.
+    #
+    # The list is a real command window, so this is an extractor rather than a mirrored cursor: the window
+    # is handed in and the index with it, and the storage the loop was called with says which species each
+    # row is. Outside this loop it answers exactly what the generic reader would.
+    def self.deck_row(win, i)
+      base = PokeAccess::Menus.generic_focus(win, i)
+      return base unless @mode == :deck && @storage.is_a?(Array)
+      e = (@storage[i] rescue nil)
+      sp = e.is_a?(Array) ? e[0] : e
+      return base unless sp
+      card = (TriadCard.new(sp) rescue nil)
+      return base unless card
+      "#{base}, #{PokeAccess::I18n.t(:triad_sides, :n => num(card.north), :e => num(card.east),
+                                     :s => num(card.south), :w => num(card.west))}"
+    rescue StandardError
+      (PokeAccess::Menus.generic_focus(win, i) rescue nil)
+    end
+
+    # Mirrors the active loop's navigation once per frame and speaks the focus when it changes, and reads the
+    # help window whatever the loop.
     def self.poll
       return unless @scene
+      poll_help
       case @mode
       when :hand     then poll_hand
       when :opponent then poll_opponent
       when :board    then poll_board
       end
+    rescue StandardError
+      nil
+    end
+
+    # The help window, which this screen writes in TWO ways: through pbDisplay/pbDisplayPaused, already
+    # hooked above, and by assigning straight to the sprite -- eight of those, in four methods, and among
+    # them the line that says the confirm key opens the rival's hand. A feature the mod can read and the
+    # player had no way of knowing existed.
+    #
+    # Gated on the text through Cursor first: this runs every frame and the window keeps its prompt for the
+    # whole loop, and say_dialogue's half-second window let the same line back in twice a second. Routed
+    # through say_dialogue after that, since it is the message path: its dedup absorbs the pbDisplay hook
+    # painting the same line, and the repeat key gets these prompts as well.
+    def self.poll_help
+      win = PokeAccess.sprite(@scene, "helpwindow")
+      t = (win.text rescue nil)
+      return if t.nil? || t.to_s.strip.empty?
+      return unless PokeAccess::Cursor.changed?(@scene, :triad_help, t.to_s)
+      PokeAccess.say_dialogue(t)
     rescue StandardError
       nil
     end
@@ -86,7 +141,7 @@ module PokeAccess
       if @choice != @last
         @last = @choice
         t = card_text(hand_species(idxs[@choice]))
-        PokeAccess.speak(t, true) if t && !t.to_s.empty?
+        PokeAccess.speak(t, true)
       end
     end
 
@@ -109,7 +164,7 @@ module PokeAccess
       @last = @choice
       slot = idxs.is_a?(Array) ? idxs[@choice] : nil
       t = slot.nil? ? PokeAccess::I18n.t(:triad_no_card) : card_text(card_species(:@opponentCards, slot))
-      PokeAccess.speak(t, true) if t && !t.to_s.empty?
+      PokeAccess.speak(t, true)
     end
 
     # UP/DOWN with the same wrap the game's own loops use.
@@ -179,9 +234,53 @@ module PokeAccess
       pos
     end
 
+    # The scoreboard, counted the way the screen counts it: cells owned per side plus, under "countunplayed",
+    # the cards still in hand (pbUpdateScore in 017_Minigames/002_Minigame_TripleTriad.rb). Said only
+    # when it moves, interrupting: it is the answer to what just happened.
+    def self.score(scene)
+      bt = PokeAccess.ivar(scene, :@battle)
+      return unless bt
+      cells = (bt.width * bt.height rescue 0)
+      you = 0
+      foe = 0
+      (0...cells).each do |i|
+        owner = (bt.board[i].owner rescue nil)
+        you += 1 if owner == 1
+        foe += 1 if owner == 2
+      end
+      if (bt.countUnplayedCards rescue false)
+        you += (PokeAccess.ivar(scene, :@cardIndexes).length rescue 0)
+        foe += (PokeAccess.ivar(scene, :@opponentCardIndexes).length rescue 0)
+      end
+      return unless PokeAccess::Cursor.changed?(scene, :triad_score, [you, foe])
+      PokeAccess.speak(PokeAccess::I18n.t(:triad_score, :you => you, :foe => foe), true)
+    rescue StandardError
+      nil
+    end
+
     # The cards show 1-10 (10 drawn as "A"); speak the real number.
     def self.num(v)
       v.to_i
+    end
+
+    # The card shop (pbBuyTriads / pbSellTriads): the rows are strings the generic reader names, but the
+    # card drawn beside them is a bitmap built from locals. The loop redraws it with TriadCard#createBitmap
+    # whenever the focus lands on a new species, so the card handed to that call is the focused one.
+    def self.shopping(on)
+      @shop = on ? true : false
+      PokeAccess::Cursor.reset(nil, :triad_shop)
+    end
+
+    # The card the shop just drew, queued behind the row the list reads for itself.
+    def self.shop_card(card)
+      return unless @shop
+      sp = (card.species rescue nil)
+      t = card_text(sp)
+      return if t.nil? || t.to_s.empty?
+      return unless PokeAccess::Cursor.changed?(nil, :triad_shop, t)
+      PokeAccess.speak(t, false)
+    rescue StandardError
+      nil
     end
   end
 end
@@ -191,6 +290,11 @@ end
     PokeAccess::TripleTriad.start_opponent(scene)
     begin; call_next.call; ensure; PokeAccess::TripleTriad.stop_opponent; end
   end
+  PokeAccess::Hooks.around_hook(cn, :pbChooseTriadCard, :optional => true) do |scene, call_next, args|
+    PokeAccess::TripleTriad.start_deck(scene, args[0])
+    begin; call_next.call; ensure; PokeAccess::TripleTriad.stop; end
+  end
+
   PokeAccess::Hooks.around_hook(cn, :pbPlayerChooseCard, :optional => true) do |scene, call_next, _a|
     PokeAccess::TripleTriad.start_hand(scene)
     begin; call_next.call; ensure; PokeAccess::TripleTriad.stop; end
@@ -199,5 +303,33 @@ end
     PokeAccess::TripleTriad.start_board(scene)
     begin; call_next.call; ensure; PokeAccess::TripleTriad.stop; end
   end
+  PokeAccess::Hooks.after_hook(cn, :pbUpdateScore, :optional => true) do |scene, _r, _a|
+    PokeAccess::TripleTriad.score(scene)
+  end
 end
 PokeAccess::Keys.on_frame { PokeAccess::TripleTriad.poll }
+
+# The deck list is a plain Window_CommandPokemonEx, the class half the game's menus use, so this extractor
+# has to be transparent everywhere else: outside the deck loop it returns exactly what the generic reader
+# would. It cannot return nil -- focused_text does NOT fall back to the generic on nil, only on an
+# exception, so a nil here would silence every command window in the game.
+PokeAccess::Menus.def_extractor("Window_CommandPokemonEx") do |win, i|
+  PokeAccess::TripleTriad.deck_row(win, i)
+end
+
+# The flag is raised around both halves of the shop: createBitmap also draws the board and both hands, and
+# a reader on it that did not ask where it was would narrate every card of every match.
+["pbBuyTriads", "pbSellTriads"].each do |fn|
+  PokeAccess::Hooks.wrap_kernel(fn, "triad_shop_#{fn}", :around) do |_args, call_next|
+    PokeAccess::TripleTriad.shopping(true)
+    begin
+      call_next.call
+    ensure
+      PokeAccess::TripleTriad.shopping(false)
+    end
+  end
+end
+
+PokeAccess::Hooks.before_hook("TriadCard", :createBitmap, :optional => true) do |card, _args|
+  PokeAccess::TripleTriad.shop_card(card)
+end

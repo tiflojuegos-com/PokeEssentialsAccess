@@ -1,49 +1,58 @@
-# Load / continue screen. The save panel (player, badges, play time, location) is drawn text, not read;
-# the option list is a command window already read. Announce the save summary when the screen opens.
-# Opening this screen also forgets the current map: loading a save may land on the same map_id the player
-# was already on, so without this the next announce_map_change (and the cache reset it triggers) would be
-# suppressed by the stale map_id.
-PokeAccess::Engine.scene_classes("PokemonLoadScene", "PokemonLoad_Scene").each do |cls|
-  PokeAccess::Hooks.before_hook(cls, :pbStartScene) { |_s, _a| PokeAccess::Locator.forget_map rescue nil }
-end
+# Load / continue screen. The save panel (player, badges, play time, pokedex, location) is drawn text, so
+# the summary is announced when the screen opens, which also forgets the current map so a save on the same
+# map_id still triggers announce_map_change. One reader for both eras: the arguments come in four shapes,
+# but the map id is always the LAST one and the play time is whichever middle one answers
+# playtime_seconds_of (a stats object or a raw frame count).
+module PokeAccess
+  module LoadPanel
+    # The map id of the save: always the final argument.
+    def self.map_id(args); args.last; end
 
-PokeAccess::Hooks.after_hook(PokeAccess::Engine.era_scene(:gen6, "PokemonLoadScene", "PokemonLoad_Scene"), :pbStartScene) do |_s, _r, args|
-  show_continue = args[1]
-  trainer = args[2]
-  framecount = args[3]
-  mapid = args[4]
-  if show_continue && trainer
-    parts = [PokeAccess::I18n.t(:load_save, :name => trainer.name)]
-    nb = (trainer.numbadges rescue nil)
-    parts.push(PokeAccess::I18n.t(:tr_badges, :n => nb)) if nb
-    if framecount
-      fps = (Graphics.frame_rate rescue 40)
-      hm = PokeAccess::Util.playtime_parts((framecount / fps rescue 0))
-      parts.push(PokeAccess::I18n.t(:load_play, :h => hm[0], :m => hm[1])) if hm
+    # The play time in seconds, from whichever middle argument carries it, or nil.
+    def self.seconds(args)
+      (args[3..-2] || []).each do |a|
+        s = PokeAccess::Util.playtime_seconds_of(a)
+        return s if s
+      end
+      nil
+    rescue StandardError
+      nil
     end
-    nm = (PokeAccess::Locator.map_name(mapid) rescue nil)
-    parts.push(PokeAccess::I18n.t(:load_at, :map => nm)) if nm && !nm.to_s.empty?
-    PokeAccess.speak(parts.join(", "), false)
+
+    # The badge count as the panel words it. A profile replaces it where the panel reuses that number for
+    # something else: Awakening paints it as the story chapter.
+    def self.badges_text(nb); PokeAccess::I18n.t(:tr_badges, :n => nb); end
+
+    # Parts a profile appends after the map: what its own panel paints that the stock one does not. Empty
+    # by default.
+    def self.extras(_trainer, _args); []; end
+
+    # The spoken summary of the save on offer, or nil when there is none to continue.
+    def self.summary(args)
+      return nil unless args[1] && args[2]
+      trainer = args[2]
+      parts = [PokeAccess::I18n.t(:load_save, :name => trainer.name)]
+      nb = PokeAccess.attr_of(trainer, :numbadges, :badge_count)
+      parts.push(badges_text(nb)) if nb
+      seen = (trainer.pokedex.seen_count rescue nil)
+      parts.push(PokeAccess::I18n.t(:load_dex, :n => seen)) if seen
+      hm = PokeAccess::Util.playtime_parts(seconds(args))
+      parts.push(PokeAccess::I18n.t(:load_play, :h => hm[0], :m => hm[1])) if hm
+      nm = (PokeAccess::Locator.map_name(map_id(args)) rescue nil)
+      parts.push(PokeAccess::I18n.t(:load_at, :map => nm)) if nm && !nm.to_s.empty?
+      parts.concat((extras(trainer, args) rescue []).compact)
+      parts.join(", ")
+    rescue StandardError
+      nil
+    end
   end
 end
 
-# GameData-era Essentials load panel (PokemonLoad_Scene): a different class/signature, and its panel also shows
-# the Pokedex seen count; play time is already in seconds (stats.play_time).
-PokeAccess::Hooks.after_hook(PokeAccess::Engine.era_scene(:gamedata, "PokemonLoad_Scene", "PokemonLoadScene"), :pbStartScene) do |_s, _r, args|
-  show_continue = args[1]
-  trainer = args[2]
-  stats = args[3]
-  mapid = args[4]
-  if show_continue && trainer
-    parts = [PokeAccess::I18n.t(:load_save, :name => trainer.name)]
-    nb = (trainer.badge_count rescue nil)
-    parts.push(PokeAccess::I18n.t(:tr_badges, :n => nb)) if nb
-    seen = (trainer.pokedex.seen_count rescue nil)
-    parts.push(PokeAccess::I18n.t(:load_dex, :n => seen)) if seen
-    hm = PokeAccess::Util.playtime_parts(PokeAccess::Util.playtime_seconds_of(stats))
-    parts.push(PokeAccess::I18n.t(:load_play, :h => hm[0], :m => hm[1])) if hm
-    nm = (PokeAccess::Locator.map_name(mapid) rescue nil)
-    parts.push(PokeAccess::I18n.t(:load_at, :map => nm)) if nm && !nm.to_s.empty?
-    PokeAccess.speak(parts.join(", "), false)
+PokeAccess::Engine.scene_classes("PokemonLoadScene", "PokemonLoad_Scene").each do |cls|
+  PokeAccess::Hooks.before_hook(cls, :pbStartScene) { |_s, _a| PokeAccess::Locator.forget_map rescue nil }
+
+  PokeAccess::Hooks.after_hook(cls, :pbStartScene) do |_s, _r, args|
+    t = PokeAccess::LoadPanel.summary(args)
+    PokeAccess.speak(t, false)
   end
 end

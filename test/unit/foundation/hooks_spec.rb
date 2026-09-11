@@ -296,3 +296,68 @@ Suite.define("hooks: the guard applies to the after caller but not the before ca
   holder.before_caller
   eq "nested announce fires when driven by a before-hooked caller", fired, [:ann]
 end
+
+# One game aliases the modern spellings to the gen-6 ones with EMPTY subclasses (africanvs ships a BES-T
+# compatibility file with nine of them: `class PokemonSummary_Scene < PokemonSummaryScene; end`). Both names
+# resolve, so a group over the two spellings bound both -- and an instance of the subclass then runs the
+# child's wrapper, whose alias calls the parent's wrapper too. A body that SPEAKS would say it twice.
+Suite.define("hooks: a spelling that is only an alias of another is not bound a second time") do
+  Object.const_set(:PaVarBase, Class.new { def paint; :painted; end }) unless defined?(PaVarBase)
+  Object.const_set(:PaVarAlias, Class.new(PaVarBase)) unless defined?(PaVarAlias)
+  said = []
+  hit = PokeAccess::Hooks.variants(["PaVarBase", "PaVarAlias"], :paint, "pa_var") do |cname|
+    PokeAccess::Hooks.after_hook(cname, :paint, :optional => true) { |_s, _r, _a| said.push(cname) }
+  end
+  eq "only the class that is not an alias of the other takes the hook", hit, ["PaVarBase"]
+
+  said.clear
+  PaVarAlias.new.paint
+  eq "so an instance of the alias speaks exactly once", said, ["PaVarBase"]
+
+  said.clear
+  PaVarBase.new.paint
+  eq "and so does an instance of the base", said, ["PaVarBase"]
+
+  falsy "the group is not reported as unbound either",
+        PokeAccess::Hooks.unbound.any? { |u| u =~ /pa_var/ }
+end
+
+# Visibility: the wrapper stands in for the game's own function, so it must be callable exactly where the
+# original was. A top-level def lands public or private depending on how the runtime evaluated the script
+# that defined it, and games differ: Soulstones 2 reaches its own reader as "Kernel.tts(msg)" on every
+# battle message, which only works while tts is public. A blanket private after wrapping would have turned
+# that call into a NoMethodError on the first line of the first battle.
+#
+# And wrap_kernel must ask whether KERNEL owns the function, not whether Kernel responds to it: everything
+# public on Object answers yes to the second question, and wrapping such a function on Kernel leaves every
+# bare call in the game -- which is how the engine calls its own painters -- going straight to the original.
+Suite.define("hooks: wrapping a global keeps its visibility and picks the right receiver") do
+  Object.send(:define_method, :pa_wg_public) { |x| x }
+  Object.send(:public, :pa_wg_public)
+  PokeAccess::Hooks.wrap_global("pa_wg_public", "hook_vis1", :before) { |_a, _r| }
+  truthy "a public function is still public after wrapping", Object.public_method_defined?(:pa_wg_public)
+  eq "so a game that calls it with a receiver still can", Kernel.pa_wg_public(3), 3
+
+  Object.send(:define_method, :pa_wg_private) { |x| x }
+  Object.send(:private, :pa_wg_private)
+  PokeAccess::Hooks.wrap_global("pa_wg_private", "hook_vis2", :before) { |_a, _r| }
+  truthy "a private one is still private", Object.private_method_defined?(:pa_wg_private)
+  truthy "and the alias is private in both cases",
+         Object.private_method_defined?(:pa_wg_public__pa) &&
+         Object.private_method_defined?(:pa_wg_private__pa)
+
+  # A public Object method that Kernel merely inherits must be wrapped on Object, where the bare calls are.
+  seen = []
+  Object.send(:define_method, :pa_wk_object) { |x| x }
+  Object.send(:public, :pa_wk_object)
+  PokeAccess::Hooks.wrap_kernel("pa_wk_object", "hook_vis3", :before) { |args, _r| seen.push(args[0]) }
+  pa_wk_object(11)
+  eq "a bare call to an Object-owned function reaches the wrapper", seen, [11]
+
+  # One Kernel really owns keeps the gen-6 path.
+  seen2 = []
+  (class << Kernel; self; end).send(:define_method, :pa_wk_kernel) { |x| x }
+  PokeAccess::Hooks.wrap_kernel("pa_wk_kernel", "hook_vis4", :before) { |args, _r| seen2.push(args[0]) }
+  Kernel.pa_wk_kernel(12)
+  eq "and a Kernel-owned one is wrapped where it lives", seen2, [12]
+end

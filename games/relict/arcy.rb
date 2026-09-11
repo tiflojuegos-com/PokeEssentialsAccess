@@ -28,7 +28,7 @@ module PokeAccess
       translated = PokeAccess.ivar(scene, :@translate)
       desc = translated ? (scene.pick_plate_descriptions(plate) rescue nil) : nil
       line = (desc.is_a?(Array) ? desc[0] : desc).to_s
-      line = PokeAccess.clean(line).to_s.strip
+      line = PokeAccess.clean(line)
       name = (PokeAccess::Data.item_name(plate) rescue nil)
       parts = []
       parts.push(name.to_s) if name && !name.to_s.empty?

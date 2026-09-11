@@ -17,6 +17,6 @@ PokeAccess::Game.define("relict") do
     tsym = (::PLATE_TYPES[item] rescue nil)
     tnm = tsym ? (GameData::Type.get(tsym).name rescue nil) : nil
     txt = tnm ? "#{nm}, #{tnm}" : nm.to_s
-    PokeAccess.speak_clean(txt, true) if txt && !txt.to_s.empty?
+    PokeAccess.speak_clean(txt, true)
   end
 end

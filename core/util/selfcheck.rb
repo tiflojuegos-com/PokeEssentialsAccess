@@ -65,7 +65,7 @@ module PokeAccess
         lines.push("#{ok ? '[ok]  ' : '[MAL] '}#{label}#{detail ? " -> #{detail}" : ''}")
       end
       facts.each { |f| lines.push("[dato] #{f}") }
-      miss = (PokeAccess::Hooks.missing rescue []) || []
+      miss = (PokeAccess::Hooks.missing + PokeAccess::Hooks.unbound rescue []) || []
       lines.push("hooks sin atar aqui: #{miss.length}")
       miss.each { |m| lines.push("  falta #{m}") }
       saved = ((File.open("#{PokeAccess::Paths::DATA}/selfcheck.txt", "a") { |f| f.write(lines.join("\n") + "\n\n") }; true) rescue false)

@@ -22,3 +22,10 @@ Suite.define("field (gamedata): the map is announced once per change, as in gen-
   5.times { PokeAccess::Locator.announce_map_change }
   spoke_once "new map announced once after the id changes", /Mapa 40/
 end
+
+# MapInfos names are the editor's and carry its control codes -- FireAsh names every house "\PN's house" --
+# so the name a player hears goes through the speech cleaner: the code becomes the player's name.
+Suite.define("field: a map name with a control code is spoken cleaned") do
+  who = (defined?($player) && $player) ? $player : $Trainer
+  eq "the player-name code becomes the player's name", PokeAccess::Locator.map_name(36), "Casa de #{who.name}"
+end

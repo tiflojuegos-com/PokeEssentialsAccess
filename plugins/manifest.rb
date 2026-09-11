@@ -1,18 +1,9 @@
-# Readers for THIRD-PARTY plugins: screens a fangame installs, not screens Essentials ships. They are not
-# core (the core is what any Essentials game has) and they are not one game's own (the same plugin, with the
-# same classes, turns up in several fangames), so they live here and each PROFILE declares which ones it
-# loads, in its own manifest.rb as {:modules => [...], :plugins => [...]}.
-#
-# Declaring rather than auto-loading is deliberate: two games can ship the same plugin CLASS with different
-# internals, so a reader must only run where somebody checked that it fits. Every reader here was written
-# against BOTH copies of its plugin, and each file's header records where they diverge -- that is the
-# working record of the check, and the reason a few of them ask the scene what it has instead of assuming.
-#
-# This file is BOTH the file list and a detection table: name => the class whose presence gives the plugin
-# away. It is tiny and always read, even when no reader is loaded, so the diagnostic can tell the player
-# "this game has a plugin we know about and this profile never declared it" -- which turns the one weak
-# spot of declaring by hand (forgetting) into something visible in any recording, including on games we
-# have no script dump for.
+# Readers for THIRD-PARTY plugins: screens a fangame installs, not screens Essentials ships. Each PROFILE
+# declares which ones it loads in its own manifest.rb ({:modules => [...], :plugins => [...]}), because two
+# games can ship the same plugin CLASS with different internals; every reader here was written against BOTH
+# copies of its plugin and its header records where they diverge. This file is also a detection table
+# (name => the class whose presence gives the plugin away), always read even when no reader is loaded, so
+# the diagnostic can report a known plugin the profile never declared.
 #
 # Adding a plugin: one file here, one line in this table, and the name in each profile that ships it.
 {
@@ -23,6 +14,7 @@
   :challenge_rules   => "Window_CommandPokemon_Challenge",
   :hall_of_fame_bw   => "HallOfFameViewerScene",
   :photo_album       => "AlbumFotos_Scene",
+  :party_picture     => "PartyPicture",
   :berrydex          => "Window_Berrydex",
   :secret_bases      => "Window_BasePocketsList",
   :regicode          => "RC",
@@ -37,13 +29,19 @@
   :hatcher           => "Hatcher",
   :better_region_map => "BetterRegionMap",
   :dp_pausemenu      => "DP_PauseMenu",
+  :voltseon_pausemenu => "VoltseonsPauseMenu",
   :simple_encounter_list => "EncounterListUI",
   :magic_gachapon    => "GachaScene",
   :slide_banners     => "Scene_Map#addSprite",
   # The DBK files hook vanilla battle classes with :optional gates, so each probes the METHOD the kit
   # adds there -- the class alone would match every modern game.
   :dbk_battle        => "Battle#pbToggleSpecialActions",
-  :dbk_enhanced_ui   => "Battle::Scene#pbUpdateBattlerInfo",
+  # The probe is pbGetFinalModifiers and NOT pbUpdateBattlerInfo, which both releases of Enhanced UI
+  # have. The reader is written against the current one; an older release (v1.1.2 for v20.1, which
+  # Soulstones 2 ships) keeps the same class and method names but renames the toggles and changes the
+  # arities, so the reader binds perfectly and never fires. Detecting by the shared name made the
+  # diagnostic report a screen as covered that says nothing.
+  :dbk_enhanced_ui   => "Battle::Scene#pbGetFinalModifiers",
   :quest_ui          => "Window_Quest",
   :logros            => "Logros_Scene",
   # A METHOD probe, and it has to be: one more game defines a class called Questlog for a quest system of
@@ -66,6 +64,10 @@
   # A METHOD probe, not a class: this plugin ships under two names and adds no class of its own -- it
   # reopens the engine's save scene. The method it adds there is what gives it away.
   :multi_save        => "PokemonSave_Scene#pbUpdateSlotInfo",
+  :party_showcase    => "PokemonPartyShowcase_Scene",
+  # A METHOD probe: the class is the vanilla summary, which every game of the era has. What only this
+  # plugin adds is the allocation mode.
+  :ev_allocator      => "PokemonSummary_Scene#pbEVAllocation",
   :bw_mystery_gift   => "WonderCardAlbumScene",
   :wardrobe          => "Window_Wardrobe",
   :better_summary    => "PokemonSummary_Scene#showAbilityDescription",
@@ -76,5 +78,8 @@
   # keys it on Window_Combination, and the runtime gate resolves it segment by segment, which the bare name
   # cannot do for a class that lives inside a module.
   :video_poker       => "VideoPoker::Window_Combination",
-  :ekans_snake       => "Ekans_Interface_Main"
+  :ekans_snake       => "Ekans_Interface_Main",
+  :bw_key_items      => "GetKeyItemScene",
+  :luka_title        => "GenOneStyle",
+  :modular_title     => "ModularTitleScreen"
 }

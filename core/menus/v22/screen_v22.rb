@@ -20,7 +20,7 @@ module PokeAccess
         key = [(vis.index rescue nil), t]
         unless key == PokeAccess.ivar(vis, :@access_v22_key)
           vis.instance_variable_set(:@access_v22_key, key)
-          PokeAccess.speak(t, true) if t && !t.to_s.empty?
+          PokeAccess.speak(t, true)
         end
       end
     end
@@ -33,7 +33,7 @@ end
 if PokeAccess::Engine.has?("UI::BaseScreen")
   [:show_message, :show_confirm_message, :show_confirm_serious_message, :show_choice_message].each do |meth|
     PokeAccess::Hooks.before_hook("UI::BaseScreen", meth) do |_screen, args|
-      PokeAccess.say_dialogue(args[0].to_s) if args[0] && !args[0].to_s.empty?
+      PokeAccess.say_screen_message(args)
     end
   end
 end

@@ -52,10 +52,14 @@ module PokeAccess
     end
 
     # Sprite-name patterns marking a teleporter / warp pad. Detection is by name (not just "has a sprite"),
-    # because doors carry sprites too and must not sound as teleporters. Games add their own.
-    TELEPORTERS = [/ascensor|portal|telepor|teleport|warp|ultraumbral/i]
+    # because doors carry sprites too and must not sound as teleporters. The vocabulary is what the surveyed
+    # games paint their warps with (Hoopa rings, vortexes, umbrals and lifts included); a name one game
+    # alone uses is registered from its profile. The ring is spelled out because "hoopa" alone is also the
+    # character, and "telepor" also names the NPC who teleports the player (a taxi, not a pad), which is why
+    # this list never decides person versus object on its own.
+    TELEPORTERS = [/ascensor|portal|telepor|warp|umbral|hoopa.?rings?|anillo.?hoopa|vortex/i]
 
-    # Registers an extra teleporter sprite pattern.
+    # Registers a teleporter sprite pattern (the profile DSL's teleporter).
     def self.register_teleporter(re); TELEPORTERS.push(re); end
 
     # True if an event is a teleporter / warp pad: its sprite reads as a warp and it transfers the player.
@@ -118,21 +122,37 @@ module PokeAccess
       event_command_lists(ev)
     end
 
-    # Yields every script-call string (the parameters[0] of a SCRIPT_CODES command) in an event's command
-    # lists. The shared spine of the script-scanning predicates below, which only differ in the regex they
-    # match. Returns the first non-nil/true value the block yields, or nil -- so callers read as a find.
+    # Yields every script call in an event's command lists as ONE string: the 355 line joined with the 655
+    # continuation lines under it. The editor splits a long call across them, and Realidea's doors are all
+    # written as `pbTransferWithTransition(` on one line and the map id on the next, so line by line neither
+    # half matched anything. The shared spine of the script-scanning predicates below, which only differ in
+    # the regex they match. Returns the first non-nil/true value the block yields, or nil.
     def self.script_call_find(ev, lists = nil)
       (lists || event_command_lists(ev)).each do |list|
-        list.each do |c|
-          code = (c.code rescue 0)
-          next unless SCRIPT_CODES.include?(code)
-          r = yield((c.parameters[0] rescue "").to_s)
+        script_calls(list).each do |s|
+          r = yield(s)
           return r if r
         end
       end
       nil
     rescue StandardError
       nil
+    end
+
+    # The script calls of one command list, each a 355 line with its 655 continuations joined by newlines.
+    def self.script_calls(list)
+      out = []
+      list.each do |c|
+        code = (c.code rescue 0)
+        next unless SCRIPT_CODES.include?(code)
+        text = (c.parameters[0] rescue "").to_s
+        if code == 655 && !out.empty?
+          out[-1] = out[-1] + "\n" + text
+        else
+          out.push(text)
+        end
+      end
+      out
     end
 
     # Script calls that mean "this event transfers the player", each capturing the destination map id. The
@@ -155,11 +175,19 @@ module PokeAccess
     end
 
     # The uncached script-transfer scan (see transfer_script_dest).
+    #
+    # A pattern is only believed when it captured DIGITS. A profile's regex with no capture group, or one
+    # whose group did not take, gave m[1] == nil and nil.to_i == 0 -- so the door announced itself as an
+    # exit to map 0, which is a map no game has: a name of nothing, and a pathfinder target pointing at it.
     def self.transfer_script_dest_uncached(ev)
       script_call_find(ev, transfer_command_lists(ev)) do |s|
-        m = nil
-        TRANSFER_SCRIPTS.each { |re| m ||= re.match(s) }
-        m ? m[1].to_i : nil
+        d = nil
+        TRANSFER_SCRIPTS.each do |re|
+          m = re.match(s)
+          d = m[1] if m && m[1]
+          break if d
+        end
+        (d && d.to_s =~ /\A\d+\z/) ? d.to_i : nil
       end
     rescue StandardError
       nil
@@ -236,22 +264,42 @@ module PokeAccess
     end
 
     # True when an event is a map transfer (door/exit): by name, command 201, or a script transfer.
-    # Signs and autorun/parallel events are excluded; an action-button NPC that warps is a person unless
-    # its name says exit; touch-triggered warp tiles (sprite or not) stay exits.
+    # Signs and autorun/parallel events are excluded. An action-button transfer with a sprite is a person
+    # who takes the player somewhere (the sailor, the Abra owner) unless the sprite itself is a doorway or
+    # a warp pad, which the games draw with a confirmation prompt as often as not; touch-triggered warp
+    # tiles (sprite or not) stay exits.
     def self.transfer_event?(ev)
       verdict(ev, :transfer) { transfer_event_uncached?(ev) }
     end
 
-    # The uncached transfer test (see transfer_event?).
+    # The uncached transfer test (see transfer_event?). The by-name rule needs a doorway to hang on: a
+    # soldier named "Exit" who only talks wears a person's sprite, and reading his name as an exit took him
+    # out of the people list and fused him with the next soldier over.
     def self.transfer_event_uncached?(ev)
       return false if sign_event?(ev)
       trig = PokeAccess.ivar_i(ev, :@trigger)
       return false if trig == 3 || trig == 4
       name = ev.name.to_s
       char = ev.character_name.to_s
-      return true if "#{name} #{char}" =~ EXIT_NAME_RE
+      return true if "#{name} #{char}" =~ EXIT_NAME_RE && (char.empty? || doorway_sprite?(char))
       return false unless !transfer_command_dest(ev).nil? || !transfer_script_dest(ev).nil?
-      char.empty? || trig == 1 || trig == 2
+      char.empty? || trig == 1 || trig == 2 || doorway_sprite?(char) || teleporter_sprite?(char)
+    rescue StandardError
+      false
+    end
+
+    # Whether a sprite file is drawn as a doorway: the door vocabulary as a substring, since the files are
+    # named doors3, puertas1, FlechaSalida.
+    def self.doorway_sprite?(char)
+      !char.empty? && char =~ EXIT_SPRITE_RE ? true : false
+    rescue StandardError
+      false
+    end
+
+    # Whether a sprite file is drawn as a warp pad (TELEPORTERS). Consulted only once the event is known
+    # to transfer: the vocabulary also names the NPC who teleports the player.
+    def self.teleporter_sprite?(char)
+      !char.empty? && TELEPORTERS.any? { |re| char =~ re }
     rescue StandardError
       false
     end
@@ -427,7 +475,8 @@ module PokeAccess
     # A map name from its id, caching MapInfos -- including caching the FAILURE. Without the empty-hash
     # fallback the guard below stays true and the whole Marshal is re-attempted on every call (each map
     # change, each exit name, each diag line, each recorder sample) while no map is ever named and nothing
-    # is written anywhere.
+    # is written anywhere. The name is the editor's and can carry its control codes (FireAsh names every
+    # house "\PN's house"), so it goes through the speech cleaner: the code becomes the player's name.
     def self.map_name(mapid)
       ov = (PokeAccess::MapNames.get(mapid) rescue nil)
       return ov if ov && !ov.to_s.empty?
@@ -439,7 +488,8 @@ module PokeAccess
         end
       end
       return nil unless @mapinfos && @mapinfos[mapid]
-      (@mapinfos[mapid].name rescue nil)
+      nm = (@mapinfos[mapid].name rescue nil)
+      nm.nil? ? nil : PokeAccess.clean(nm)
     end
 
     # MapInfos through whichever loader the engine ships. Gen-6 exposes the generic pbLoadRxData; v19+
@@ -477,7 +527,7 @@ module PokeAccess
         return passage_name(ev) if dmap && dmap == ($game_map.map_id rescue nil)
         d = transfer_dest_name(ev)
         return PokeAccess::I18n.t(:loc_exit_to, :map => d) if d
-        return n unless n.empty? || n =~ EXIT_NAME_RE
+        return n unless n.empty? || n =~ EXIT_NAME_RE || n =~ /^EV\d+$/i
         return PokeAccess::I18n.t(:loc_exit)
       end
       return PokeAccess::I18n.t(:loc_lever) + lever_state_suffix(ev) if lever?(ev)
@@ -509,10 +559,7 @@ module PokeAccess
     def self.item_name(ev)
       list = PokeAccess.ivar(ev, :@list)
       return nil unless list.is_a?(Array)
-      list.each do |c|
-        code = (c.code rescue 0)
-        next unless SCRIPT_CODES.include?(code)
-        s = (c.parameters[0] rescue "").to_s
+      script_calls(list).each do |s|
         next unless s =~ /pb(?:ItemBall|StoreItem)\(\s*(?:PBItems::)?:?([A-Z0-9_]+)/i
         sym = $1.upcase
         _id, nm = PokeAccess::Data.item_id(sym)
@@ -534,11 +581,13 @@ module PokeAccess
     end
 
     # Classifies a graphic event: a named person sprite is :people, any other graphic (tile or
-    # numbered/object sprite) is :objects; hazards and item balls are forced to :objects.
+    # numbered/object sprite) is :objects; hazards and item balls are forced to :objects, and so is a
+    # doorway sprite that transfers nowhere (a painted door, a floor arrow), which used to be listed as a
+    # person nobody could talk to.
     def self.event_category(ev)
       return :objects if hazard?(ev) || item_ball?(ev)
       g = (ev.character_name.to_s rescue "")
-      (g.empty? || g =~ /^\d+$/ || g =~ /objeto/i) ? :objects : :people
+      (g.empty? || g =~ /^\d+$/ || g =~ /objeto/i || doorway_sprite?(g)) ? :objects : :people
     end
 
     # True if the event shows a character sprite or a map tile (a placed object).
@@ -581,6 +630,11 @@ module PokeAccess
     # With word boundaries: as a substring, "door" matches inside "outdoor" and "puerta" inside
     # "puertaventana", and any piece of scenery is announced as an exit to somewhere it does not lead.
     EXIT_NAME_RE = /\b(door|puerta|salida|exit)\b/i
+    # The doorway vocabulary as SPRITE files spell it, without boundaries (doors3, puertas1, FlechaSalida,
+    # escalerasarriba): what says a transferring event is a passage and not the person standing in it, and
+    # what keeps a painted door out of the people list. Applied to the sprite only, never to the name; the
+    # plural is refused because "crisalidas" carries the word inside.
+    EXIT_SPRITE_RE = /door|puerta|salida(?!s)|exit|flecha|arrow|stair|escalera|ladder|entrada|entrance/i
 
     # Annotations the map editor leaves stuck to the event name that are no part of it: size(3,1) for a
     # multi-tile object, .sl and forced_z=N for the layer it is drawn on. Left in, they are pronounced as
@@ -588,8 +642,7 @@ module PokeAccess
     # when they were the whole name.
     EDITOR_NOTE_RE = /\s*(?:size\s*\(\s*\d+\s*,\s*\d+\s*\)|\.sl\b|\bforced_z\s*=\s*-?\d+)/i
     # Action-button command codes that mean an event does something: text/choices, script, or item/money.
-    # Built on a duped array with concat, never `+`: a fangame script patch redefines Array#+ as an in-place
-    # mutator (seen in the wild), so the literal `+` would corrupt TEXT_CODES and alias this constant to it.
+    # Built on a DUP so it does not alias TEXT_CODES, which is read on its own elsewhere.
     EXAMINE_CODES = TEXT_CODES.dup.concat(SCRIPT_CODES).concat(GOODS_CODES)
 
     # True if the event is examined with the action button (trigger 0) and then does something: a sign

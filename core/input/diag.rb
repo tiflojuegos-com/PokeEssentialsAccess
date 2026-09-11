@@ -56,7 +56,8 @@ module PokeAccess
     # there -- a real recording ended a hash at ":roc", which reads as a value rather than as a cut.
     def self.cut(text, limit)
       s = text.to_s
-      s.length > limit ? s[0, limit] + "...[cortado]" : s
+      chars = s.scan(/./m)
+      chars.length > limit ? chars[0, limit].join + "...[cortado]" : s
     end
 
     # The diagnostic section helpers, in order. The full dump runs them all; the debug menu copies named
@@ -187,17 +188,28 @@ module PokeAccess
       o.push("enabled=#{@enabled} focused?=#{dv { focused? }} game_hwnd=#{PokeAccess::Focus.hwnd.inspect} typing_ttl=#{@typing_ttl}")
       o.push("focus: GFW=#{dv { GFW.call }} GAW=#{dv { GAW.call }} pid=#{dv { GCPID.call }}")
       o.push("scene=#{dv { $scene.class }} in_menu=#{dv { $game_temp.in_menu }} msg=#{dv { $game_temp.message_window_showing }} interp=#{dv { $game_system.map_interpreter.running? }} surfing=#{dv { $PokemonGlobal.surfing }}")
-      o.push("hooks: missing=#{cut(dv { PokeAccess::Hooks.missing.inspect }, 200)} fn_absent=#{cut(dv { PokeAccess::Hooks.fn_absent.inspect }, 200)} overrides=#{cut(dv { PokeAccess::Hooks.overrides.inspect }, 200)}")
+      o.push("hooks: missing=#{cut(dv { PokeAccess::Hooks.missing.inspect }, 200)} fn_absent=#{cut(dv { PokeAccess::Hooks.fn_absent.inspect }, 200)} overrides=#{cut(dv { PokeAccess::Hooks.overrides.inspect }, 200)} unbound=#{cut(dv { PokeAccess::Hooks.unbound.inspect }, 200)}")
       o.push("guard_suppressed=#{cut(dv { PokeAccess::Hooks.suppressed.inspect }, 300)}")
+      o.push("info_windows: declaradas=#{dv { PokeAccess::InfoWindow.watches.length }} sin_ventana=#{cut(dv { PokeAccess::InfoWindow.silent.inspect }, 200)} sin_entrada=#{cut(dv { PokeAccess::InfoWindow.unentered.inspect }, 200)}")
+      o.push("dialogue: defines=#{dv { dialogue_forms.inspect }} wrapped=#{dv { PokeAccess.dialogue_wraps.inspect }} seen=#{dv { PokeAccess.dialogue_seen }} last=#{cut(dv { PokeAccess.last_dialogue.inspect }, 90)}")
       o.push("caches=#{cut(dv { PokeAccess::Caches.names.inspect }, 200)} data_err=#{cut(dv { PokeAccess::Data.errors.inspect }, 200)}")
       o.push("plugins: cargados=#{cut(dv { PokeAccess::Plugins.loaded.inspect }, 200)} sin_declarar=#{cut(dv { PokeAccess::Plugins.undeclared.inspect }, 200)}")
       gp = dv { PokeAccess::Plugins.game_plugins }
       o.push("plugins_juego: #{gp.is_a?(Array) ? (gp.empty? ? 'ninguno registrado' : cut(gp.join(', '), 400)) : 'sin PluginManager'}")
       c = PokeAccess::Config
-      o.push("config: sound_nav=#{dv { c.sound_nav }} auto_guide=#{dv { c.auto_guide }} radar=#{dv { c.proximity_radar }} surface_cues=#{dv { c.surface_cues }} vols=#{dv { c.footstep_volume }}/#{dv { c.wall_volume }}/#{dv { c.event_volume }}")
+      o.push("config: sound_nav=#{dv { c.sound_nav }} auto_guide=#{dv { c.auto_guide }} radar=#{dv { c.proximity_radar }} surface_cues=#{dv { c.surface_cues }} vols=#{dv { c.footstep_volume }}/#{dv { c.wall_volume }}/#{dv { c.event_volume }} lang=#{dv { c.language }}>#{dv { PokeAccess::I18n.lang }} game=#{dv { PokeAccess::GameLang.code.inspect }} system=#{dv { PokeAccess::SystemLang.code.inspect }}")
       o.push("filters: hide_unreachable=#{dv { c.hide_unreachable }} hide_noninteractive=#{dv { c.hide_noninteractive }}")
       o.push("trainer_line: #{dv { c.trainer_parts.inspect }}")
       o.push("rebinds=#{dv { c.rebinds.inspect }}")
+    end
+
+    # Which entry points for dialogue this game defines: the gen-6 Kernel singleton, the modern bare
+    # function, both or neither. Read live, so a game that defines them late still answers truthfully.
+    def self.dialogue_forms
+      forms = []
+      forms.push(:singleton) if (Kernel.respond_to?(:pbMessageDisplay) rescue false)
+      forms.push(:bare) if (Object.private_method_defined?(:pbMessageDisplay) rescue false)
+      forms
     end
 
     # The current map, player position and the four neighbouring terrain tags.
@@ -358,7 +370,7 @@ module PokeAccess
         v = dv { obj.instance_variable_get(iv) }
         s = case v
             when Numeric, Symbol, true, false, nil then v.inspect
-            when String then v.length > 40 ? "\"#{v[0, 40]}...\"" : v.inspect
+            when String then v.scan(/./m).length > 40 ? "\"#{cut(v, 40).sub(/\.\.\.\[cortado\]\z/, '')}...\"" : v.inspect
             when Array then "Array(#{v.length})" + (v[0] ? "[#{dv { v[0].class }}...]" : "")
             when Hash then "Hash(#{v.length})"
             else (v.class.to_s rescue "?")

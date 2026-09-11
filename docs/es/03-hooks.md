@@ -10,7 +10,7 @@ nunca desactiva en silencio un hook existente.
 `cname` es siempre un **string** (`"Battle::Scene"`), nunca la constante. `wrap` la resuelve con
 `PokeAccess.const_at`, que camina los segmentos de uno en uno porque el `const_defined?` de 1.8.7 rechaza un
 nombre con `::`. Nombrar la constante reventaría la carga en cualquier juego que no la defina, y ninguna clase
-existe en los 14 perfiles a la vez: `PokemonMenu_Scene` es de gen-6, `UI::BaseScreen` de v22.
+existe en los 16 perfiles a la vez: `PokemonMenu_Scene` es de gen-6, `UI::BaseScreen` de v22.
 
 | Situación | Resultado |
 |---|---|
@@ -34,6 +34,7 @@ porque un reemplazo declarado siempre nombra algo que debería existir.
 | `override` | `(target, meth, opts)` | `(receptor, original, args)` | Reemplazo declarado de un método |
 | `wrap_global` | `(name, tag, timing = :after)` | `(args, resultado)` o `(args, call_next)` | Función top-level de `Object` |
 | `wrap_kernel` | `(name, tag, timing = :before)` | igual que `wrap_global` | Función que puede ser singleton de `Kernel` o top-level |
+| `wrap_singleton` | `(owner, name, tag, timing = :before)` | igual que `wrap_global` | Método singleton propio de un módulo del juego (`def self.foo`, llamado como `Modulo.foo`) |
 | `wrap` | `(cname, meth, opts)` | `(instancia, call_next, args)` | El motor: middleware crudo. Los demás lo usan |
 
 `call_next` no recibe argumentos: repite la cadena con los del llamante; para cambiar lo que ve el original,
@@ -64,7 +65,10 @@ que queda por fuera, recibiendo al segundo.
 
 Los hooks de clase no alcanzan las funciones top-level de Essentials. `wrap_global` las busca en `Object`;
 `wrap_kernel` prueba primero el singleton de `Kernel` (`def Kernel.foo`, estilo gen-6) y si no cae a
-`wrap_global` (`def foo`, moderno). Una función que no está en ningún sitio se anota en `Hooks.fn_absent`.
+`wrap_global` (`def foo`, moderno). `wrap_singleton` hace lo mismo con el método singleton propio de un módulo
+del juego (`def self.foo` en un módulo auxiliar como el `MessageUI` de Añil), que un hook de clase no
+alcanza: ataría el lado de instancia, una copia que nadie llama. Una función que no está en ningún sitio se
+anota en `Hooks.fn_absent`.
 
 | `timing` | El bloque recibe | La excepción del cuerpo |
 |---|---|---|

@@ -54,7 +54,7 @@ end
 # Individual tip-card screen: read the card on open and each page change. No-op where the addon is absent.
 PokeAccess::Hooks.after_hook("TipCard_Scene", :pbDrawTip, :optional => true) do |scene, _r, _a|
   t = PokeAccess.tip_card_text(scene)
-  PokeAccess.speak(t, true) if t && !t.to_s.empty?
+  PokeAccess.speak(t, true)
 end
 
 # Grouped tip-card browser (TipCardGroups_Scene): a group change calls pbDrawGroup (which calls pbDrawTip),
@@ -86,14 +86,19 @@ PokeAccess::Hooks.around_hook("TipCardGroups_Scene", :pbScene, :optional => true
   end
 end
 
-PokeAccess::Hooks.wrap_kernel("pbShowCommands", "hook_tipcards_grouplist", :around) do |_args, nxt|
-  ret = nxt.call
-  scene = PokeAccess::TipCards.group_scene
-  if scene
-    t = PokeAccess.tip_card_text(scene)
-    PokeAccess.speak(t, true) if t && !t.to_s.empty?
+#
+# Wrapped only where the plugin's own switch turns the popup on (TIP_CARDS_GROUP_LIST): a game that ships
+# it off never opens the popup, and a wrap around every pbShowCommands in that game would serve nothing.
+unless PokeAccess.const_at("TIP_CARDS_GROUP_LIST") == false
+  PokeAccess::Hooks.wrap_kernel("pbShowCommands", "hook_tipcards_grouplist", :around) do |_args, nxt|
+    ret = nxt.call
+    scene = PokeAccess::TipCards.group_scene
+    if scene
+      t = PokeAccess.tip_card_text(scene)
+      PokeAccess.speak(t, true)
+    end
+    ret
   end
-  ret
 end
 
 # Tip-card group MENU (TipMenu_Scene): the screen you pick a group from. pbRedrawList redraws the focused
@@ -106,6 +111,6 @@ PokeAccess::Hooks.after_hook("TipMenu_Scene", :pbRedrawList, :optional => true) 
     el = (els.is_a?(Array) ? els[idx] : nil)
     g = (el ? (::Settings::TIP_CARDS_GROUPS[el] rescue nil) : nil)
     t = (g && g[:Title]) ? (_INTL(g[:Title]) rescue g[:Title]).to_s : nil
-    PokeAccess.speak_clean(t, true) if t && !t.to_s.empty?
+    PokeAccess.speak_clean(t, true)
   end
 end

@@ -22,8 +22,8 @@ module PokeAccess
       idx = PokeAccess.ivar(scene, :@index)
       c = (cards.is_a?(Array) && idx.is_a?(Integer)) ? cards[idx] : nil
       return unless c
-      title = PokeAccess.clean((c.title rescue "").to_s).to_s.strip
-      desc = PokeAccess.clean((c.description rescue "").to_s).to_s.strip
+      title = PokeAccess.clean((c.title rescue "").to_s)
+      desc = PokeAccess.clean((c.description rescue "").to_s)
       parts = [title]
       parts.push(PokeAccess::I18n.t((c.claimed? rescue false) ? :mgift_claimed : :mgift_unclaimed))
       d = (c.date_received.strftime("%d %b %Y") rescue nil)
@@ -49,7 +49,7 @@ module PokeAccess
       return unless cards.is_a?(Array) && idx.is_a?(Integer) && !cards.empty?
       idx = cards.length - 1 if idx >= cards.length
       return unless idx >= 0 && cards[idx]
-      title = PokeAccess.clean((cards[idx].title rescue "").to_s).to_s.strip
+      title = PokeAccess.clean((cards[idx].title rescue "").to_s)
       return if title.empty?
       claimed = (cards[idx].claimed? rescue nil)
       PokeAccess::Cursor.announce(scene, :mgift_card, [idx, title, claimed], true) do

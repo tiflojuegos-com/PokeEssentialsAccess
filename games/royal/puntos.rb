@@ -30,7 +30,7 @@ PokeAccess::Game.define("royal") do
   after("Window_PokemonOption_Sky", :update) do |win, _r, _a|
     next unless (win.value_changed rescue false)
     t = PokeAccess::RoyalPoints.line(win, (win.index rescue nil))
-    PokeAccess.speak(t, true) if t && !t.to_s.empty?
+    PokeAccess.speak(t, true)
   end
   # The help line under the options. core/menus/option_help binds the two scene names every game has; this
   # scene is this plugin's own, so its binding belongs here rather than in a core list. Both method names
@@ -42,3 +42,8 @@ PokeAccess::Game.define("royal") do
     PokeAccess::OptionHelp.read(s)
   end
 end
+
+# The running total the screen rewrites after every slider edit (actualizarPuntosTotales), which is what
+# the sliders are spent against. pbStartScene builds and returns, and pbEndScene closes, so the engine's
+# lifecycle serves.
+PokeAccess::InfoWindow.watch("PokemonOptionPuntos_Scene", "puntos_totales", :royal_points_total)

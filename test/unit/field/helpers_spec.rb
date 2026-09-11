@@ -76,7 +76,7 @@ Suite.define("field: dex one-decimal and ribbon guard") do
   ensure
     PokeAccess::Config.language = prev
   end
-  truthy "nil ribbon id is guarded", PokeAccess::RibbonsV21.ribbon_text(nil).nil?
+  truthy "nil ribbon id is guarded", PokeAccess::Summary.ribbon_text(nil).nil?
 end
 
 # Tip cards (tutorial-card addon): reads the focused card's title + body via the game's _INTL + Settings

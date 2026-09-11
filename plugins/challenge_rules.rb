@@ -1,13 +1,8 @@
 # Challenge / randomizer rule editors (the Challenge Modes and Randomizer EX plugins): a checkbox list of
-# rule names, each with an ON/OFF toggle drawn beside it, plus a trailing "Confirm". The toggle lives in
-# @text_key, so the generic command reader speaks the name and never the state -- which is the only thing
-# the player is there to change.
-#
-# Three copies compared line by line: Challenge Modes in two games and Randomizer EX in one. The window
-# class is IDENTICAL in all three (same initialize, same @text_key[i] = command[1], same drawItem, same
-# commands= setter). They differ only in the label the game PAINTS -- "ACTIVADO"/"DESACTIVADO" in the
-# translated copy, "ON"/"OFF" in the other -- which this reader never uses: the state is read from the
-# number and spoken through the mod's own i18n, so it comes out in the player's language either way.
+# rule names with an ON/OFF toggle drawn beside each, plus a trailing "Confirm". The toggle lives in
+# @text_key, so the generic command reader speaks the name and never the state. The window class is
+# identical in all three copies; they differ only in the label the game paints, which this reader never
+# uses: the state is read from the number and spoken through the mod's own i18n.
 module PokeAccess
   module ChallengeRules
     # The focused rule with its on/off state, or a plain trailing option (Confirm).

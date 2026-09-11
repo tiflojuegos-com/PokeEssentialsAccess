@@ -19,18 +19,10 @@ module PokeAccess
     def self.watch_cards(klass); @cards_class = klass; end
     def self.unwatch_cards; @cards_class = nil; end
 
-    # Voices the focused relationship card: the character and their rank.
-    #
-    # The panel is keyed by @posi directly, exactly as the screen keys it (`@paneles["#{@posi}"]`). The
-    # panels are built with a sequential counter while @master_index holds each card's own slot in
-    # $Trainer.lista_cartas, a different number because the build loop skips empty slots, so going through
-    # it drifts apart from the row as soon as one earlier card is locked.
-    #
-    # The dedup key carries the panel table's IDENTITY as well as the index, because this screen has no
-    # instance to hang the dedup on and lands in Cursor's module-wide table, which outlives it, while
-    # reopening always starts at @posi = 0. The game rebuilds @paneles on every open, which is what makes it
-    # a new key. The name and rank come through the panel's CHARACTER and not off the panel, which is a
-    # CartasPaneles sprite holder carrying neither, with the character hanging off its pj accessor.
+    # Voices the focused relationship card: the character and their rank. The panel is keyed by @posi
+    # directly, as the screen keys it, since @master_index drifts from the row once a card is locked. The
+    # dedup key carries the panel table's identity as well as the index: this screen has no instance to hang
+    # the dedup on, reopening starts at @posi = 0, and the game rebuilds @paneles on every open.
     def self.cards(_scene)
       return unless @cards_class
       idx = PokeAccess::AwakeningFatesExtra.mod_ivar(:@posi)
@@ -41,7 +33,7 @@ module PokeAccess
       rng = PokeAccess::AwakeningFatesExtra.mod_ivar(:@rng_pos)
       PokeAccess::Cursor.announce(nil, :awk_cards, [idx, rng, panels.__id__], true) do
         pj = (panel.pj rescue nil)
-        name = PokeAccess.clean((pj.nombre rescue "").to_s).to_s.strip
+        name = PokeAccess.clean((pj.nombre rescue "").to_s)
         rank = (pj.rango_letras rescue nil)
         t = rank ? "#{name}, #{rank}" : name
         max = (panel.rango rescue nil)
@@ -73,7 +65,7 @@ module PokeAccess
       n = pts.to_i
       return if n == 0
       card = ($Trainer.lista_cartas[pj.to_i] rescue nil)
-      who = PokeAccess.clean((card.nombre rescue "").to_s).to_s.strip
+      who = PokeAccess.clean((card.nombre rescue "").to_s)
       PokeAccess.speak(PokeAccess::I18n.t(:awk_tea, :who => who, :n => n), false)
     rescue StandardError
       nil

@@ -1,19 +1,10 @@
-# The fusion chooser (FusionPreviewScreen < DoublePreviewScreen, 048_Fusion/). The game's signature screen
-# -- the splicers show the two possible fusions (A head + B body, and the reverse) and you pick one -- and
-# the least accessible: it draws two sprites, paints the types as images and the level into a bitmap, and
-# NEVER writes the resulting fusion's name anywhere, encoding even "a custom sprite exists" as a colour
-# tint. Left/Right choose, Down moves to cancel (-1), Up returns.
-#
-# Only initialize/getBackgroundPicture are overridden by the subclass, so hooking the parent's
-# updateSelectionGraphics -- which the loop calls whenever the choice changes -- covers both. That call is
-# the ONLY one, and startSelection enters its loop on @selected = 0, so the opening hook alongside it
-# shares the dedup.
-#
-# @species_left/@species_right are filled with the two PARENT Pokemon, since FusionPreviewScreen#initialize
-# calls super(poke1, poke2) and DoublePreviewScreen stores them as-is. So an ivar is used only when it
-# really holds a species, and otherwise the fused id is rebuilt from the parents: GameData::Species.get is
-# patched by the game to resolve a fused id into a FusedSpecies, so the combined name and the head/body
-# split come out right, with .name still nil where the game has no split name, hence the fallback.
+# The fusion chooser (FusionPreviewScreen < DoublePreviewScreen, 048_Fusion/): the splicers show the two
+# possible fusions and you pick one, and the screen NEVER writes the resulting fusion's name anywhere.
+# Left/Right choose, Down moves to cancel (-1), Up returns. The subclass overrides only
+# initialize/getBackgroundPicture, so hooking the parent's updateSelectionGraphics covers both, sharing the
+# dedup with the opening hook. @species_left/@species_right hold the two PARENT Pokemon, so the fused id is
+# rebuilt from the parents, which the game's patched GameData::Species.get resolves into a FusedSpecies
+# (.name still nil where the game has no split name, hence the fallback).
 module PokeAccess
   module IFFusionPreview
     # The base the saga packs a fusion id with (head * nb + body). It has to come from the game and never

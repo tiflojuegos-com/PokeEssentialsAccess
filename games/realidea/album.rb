@@ -56,7 +56,7 @@ module PokeAccess
       st = state(scene)
       return unless PokeAccess::Cursor.changed?(scene, :album_state, st)
       t = line(scene)
-      PokeAccess.speak(t, true) if t && !t.to_s.empty?
+      PokeAccess.speak(t, true)
     rescue StandardError
       nil
     end

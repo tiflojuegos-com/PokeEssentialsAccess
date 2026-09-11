@@ -10,11 +10,11 @@ como estaba.
 
 | | |
 |---|---|
-| Módulos de core | 126, en `core/manifest.rb` |
-| Perfiles de juego | 14, en `games/` |
-| Lectores de plugin | 41, en `plugins/` |
+| Módulos de core | 133, en `core/manifest.rb` |
+| Perfiles de juego | 16, en `games/` |
+| Lectores de plugin | 49, en `plugins/` |
 | Idiomas | 6 (`es`, `en`, `fr`, `pt`, `de`, `pl`), en `lang/` |
-| Suite | 1790 (gen-6, estáticos incluidos) + 137 (gamedata) |
+| Suite | 2599 (gen-6, estáticos incluidos) + 409 (gamedata) |
 | Ruby | 1.8.7 en el juego; el del sistema en los tests |
 
 ## Capas
@@ -36,9 +36,25 @@ Módulos: `audio`, `battle`, `data`, `dialogue`, `field`, `foundation`, `input`,
 
 `preloadScript` corre **antes** que `Scripts.rxdata`, cuando ninguna clase del juego existe. Por eso
 `loader/preload_access.rb` difiere la carga: envuelve `Graphics.update` y evalúa `accessibility/boot.rb`
-cuando el bucle principal ya corre (`$scene` asignado, o 120 frames de reserva).
+cuando el bucle principal ya corre (`$scene` asignado, o —de reserva— 120 frames **y** la lista de scripts
+terminada, que se sabe porque `Main` ya definió `pbCallTitle`).
 
 Consecuencia: al cargar el mod, las clases del juego y `PluginManager` ya existen.
+
+### Lo que eso cuesta en la primerísima partida
+
+Cuatro juegos (Africanvs, Realidea, Reminiscencia y la build inglesa de Pokémon Z) llaman a
+`pbSetUpSystem` a nivel superior, a dos tercios de su lista de scripts, y sin partida guardada esa llamada
+**se para ahí a preguntar el idioma**. El mod todavía no está cargado, así que esa lista no se lee.
+
+Es a propósito. Cargar antes significa cargar con el resto de la lista sin leer: medido en Pokémon Z 2.13,
+el aviso sale en el script 152 de 235 y **once clases enganchadas aún no existen**, el menú de pausa entre
+ellas — mudo el resto de la sesión, que es como se reportó el fallo. Se cambió una pantalla de dos o tres
+opciones, una vez por instalación y reversible desde las opciones del mod, por un menú de pausa que sí
+habla siempre.
+
+Al jugador: en esa primera pantalla, pulsa Intro para aceptar la opción por defecto; el idioma del mod se
+cambia después desde su menú de configuración.
 
 ## Orden de carga
 
@@ -94,7 +110,9 @@ ruby test/run_all.rb behavior/battle    # filtra por fragmento de ruta
 ```
 
 Los checks estáticos cubren integridad del manifiesto, paridad de claves entre los seis ficheros de
-`lang/`, compatibilidad con Ruby 1.8.7, acoplamiento entre capas y consistencia de `plugins/`.
+`lang/`, compatibilidad con Ruby 1.8.7, acoplamiento entre capas, consistencia de `plugins/` y dos censos
+construidos desde los juegos decompilados: la aridad y los nombres de parámetro de cada método enganchado
+(bucles incluidos) y la cobertura por era de cada nombre de la API de Essentials que llama el core compartido.
 
 ## Instalar
 

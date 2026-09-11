@@ -186,8 +186,11 @@ PokeAccess::TownMap.register(
   lambda { |s| m = PokeAccess.ivar(s, :@map); (m && m[2] ? m[2] : []).map { |p| [p[0], p[1]] } }
 )
 
-# The v21+ UI rework: snake_case ivars and the point list behind @map.point. Here the scene exposes its own
-# point-to-screen helpers, so the sprite is placed by ASKING it instead of copying arithmetic.
+# The v21+ UI rework: snake_case ivars and its own point-to-screen helpers, so the sprite is placed by
+# ASKING the scene instead of copying arithmetic.
+#
+# The point list comes in both shapes, the rework's @map.point and the old Array with the points at index
+# 2: the snake_case ivars arrived a version before the data did (soulstones2 016_UI/009_UI_RegionMap.rb:82).
 PokeAccess::TownMap.register(
   :ui_rework,
   lambda { |s| !PokeAccess.ivar(s, :@map_x).nil? },
@@ -201,13 +204,17 @@ PokeAccess::TownMap.register(
       cur.y = s.point_y_to_screen_y(y)
     end
   end,
-  lambda { |s| m = PokeAccess.ivar(s, :@map); (m && m.point ? m.point : []).map { |p| [p[0], p[1]] } }
+  lambda do |s|
+    m = PokeAccess.ivar(s, :@map)
+    list = (m.respond_to?(:point) ? m.point : (m.is_a?(Array) ? m[2] : nil))
+    (list || []).map { |p| [p[0], p[1]] }
+  end
 )
 
 # J K L I while the map is up. They are the locator's keys, and the locator's own driver hangs off
 # Game_Player#update, which does NOT run inside the map's blocking loop -- so there is nothing to arbitrate:
 # the keys are simply free here. Outside the map open_scene is nil and this costs one nil check per frame.
-PokeAccess::TownMap::DIRS = { :prev => :left, :next => :right, :route => :up, :where => :down }
+PokeAccess::TownMap::DIRS = [[:prev, :left], [:next, :right], [:route, :up], [:where, :down]]
 
 # A provider whose close hook fails to bind (an :optional dispose a fork renamed) would leave @open
 # pointing at a dead screen and the locator keys hijacked forever. A map screen cannot outlive a map

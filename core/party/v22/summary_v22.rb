@@ -12,11 +12,14 @@ module PokeAccess
       nil
     end
 
-    # The spoken body for a page, reusing the v21 per-page builders.
+    # The spoken body for a page, reusing the v21 per-page builders. An egg's memo page paints where the egg
+    # came from and how close it is to hatching, not the nature, which the memo builder would have given
+    # away; it has a builder of its own.
     def self.body_for(pk, page)
       case page
       when :info             then PokeAccess::SummaryGameData.info_text(pk)
-      when :memo, :egg_memo  then PokeAccess::SummaryGameData.memo_text(pk)
+      when :memo             then PokeAccess::SummaryGameData.memo_text(pk)
+      when :egg_memo         then PokeAccess::SummaryGameData.egg_memo_text(pk)
       when :skills           then PokeAccess::SummaryGameData.stats_text(pk)
       when :moves, :detailed_moves then PokeAccess::SummaryGameData.moves_text(pk)
       when :ribbons          then PokeAccess::SummaryGameData.ribbons_text(pk)
@@ -40,7 +43,7 @@ module PokeAccess
       parts.push(page_name(page))
       parts.push(body_for(pk, page))
       t = PokeAccess::Util.join_parts(parts)
-      PokeAccess.speak(t, true) unless t.empty?
+      PokeAccess.speak(t, true)
     rescue StandardError
       nil
     end
@@ -52,7 +55,7 @@ module PokeAccess
       pk = PokeAccess.ivar(vis, :@pokemon)
       nm = PokeAccess.ivar(vis, :@new_move)
       if nm && mi == Pokemon::MAX_MOVES
-        PokeAccess::MoveReminderV22.move_line(nm.respond_to?(:id) ? nm.id : nm)
+        PokeAccess::MoveReminderV22.move_line(nm.is_a?(Symbol) ? nm : (nm.id rescue nm))
       else
         PokeAccess::SummaryGameData.move_detail(pk, (pk.moves[mi] rescue nil))
       end
@@ -84,7 +87,7 @@ if PokeAccess::Engine.has?("UI::PokemonSummaryVisuals")
     mi = PokeAccess.ivar(vis, :@move_index)
     if mi && PokeAccess::Cursor.changed?(vis, :move_idx, mi)
       t = PokeAccess::SummaryV22.move_at(vis, mi)
-      PokeAccess.speak(t, true) if t && !t.to_s.empty?
+      PokeAccess.speak(t, true)
     end
   end
   # Per-ribbon detail while navigating the ribbons page (deduped by @ribbon_index); the page body only

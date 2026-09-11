@@ -55,7 +55,7 @@ module PokeAccess
       key = [i, (o ? value_text(win, i, o) : nil)]
       return unless PokeAccess::Cursor.changed?(win, :opt_val, key)
       t = line(win)
-      PokeAccess.speak(t, true) if t && !t.to_s.empty?
+      PokeAccess.speak(t, true)
     rescue StandardError
       nil
     end

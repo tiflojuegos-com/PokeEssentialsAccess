@@ -58,7 +58,7 @@ module PokeAccess
       key, label = st
       return if key.nil? || key == top[:last]
       top[:last] = key
-      PokeAccess.speak(label, true) if label && !label.to_s.empty?
+      PokeAccess.speak(label, true)
     end
 
     # The [change-key, spoken label] of a menu entry: the key drives change detection, the label is spoken.
@@ -72,17 +72,10 @@ module PokeAccess
       end
     end
 
-    # World map: at island level read the island number. At MAP level this deliberately says nothing and
-    # leaves it to the drawInfo capture in extras, which reads what the screen actually paints.
-    #
-    # @id is NOT resolved through Locator.map_name: the screen only shows a place name for somewhere the
-    # player has been (`name = ($PokemonGlobal.visitedMaps[@id] || $DEBUG) ? placename : "???"`), so reading
-    # the id straight would hand over the real name of an island the game then refuses to travel to.
-    #
-    # Map level returns a key with no label rather than nothing at all. nil would leave the last key at the
-    # island the player came from, so backing out to the island level -- which redraws nothing the drawInfo
-    # capture would see -- would match that key and stay silent. A key that cannot collide with an island
-    # records that the level changed without speaking over the capture that owns this level.
+    # World map: at island level read the island number; at MAP level say nothing and leave it to the
+    # drawInfo capture in extras. @id is NOT resolved through Locator.map_name, since the screen shows "???"
+    # for an island the player has not visited. Map level returns a key with no label rather than nil, so
+    # backing out to the island level (which redraws nothing the capture sees) still counts as a change.
     def self.worldmap_state(s)
       return [[:mapa], nil] unless (s.instance_variable_get(:@menu) rescue 0) == 0
       isla = s.instance_variable_get(:@currentisla)

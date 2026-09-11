@@ -46,7 +46,7 @@ module PokeAccess
 
     # The translated row name, falling back to the game's own English caption for a row we do not know.
     def self.row_label(raw, kind)
-      return PokeAccess.clean(raw.to_s).to_s.strip if kind.nil?
+      return PokeAccess.clean(raw.to_s) if kind.nil?
       PokeAccess::I18n.t(:"chr_#{kind}")
     end
 
@@ -63,7 +63,7 @@ module PokeAccess
 
     # The name typed so far; the creator starts blank and only fills a default in on confirm.
     def self.name_value(pres)
-      n = PokeAccess.clean(PokeAccess.ivar(pres, :@name).to_s).to_s.strip
+      n = PokeAccess.clean(PokeAccess.ivar(pres, :@name).to_s)
       n.empty? ? PokeAccess::I18n.t(:chr_no_name) : n
     end
 

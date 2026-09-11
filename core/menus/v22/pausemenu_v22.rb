@@ -17,6 +17,6 @@ if PokeAccess::Engine.has?("UI::PauseMenuVisuals")
     next if idx == PokeAccess.ivar(vis, :@access_pause_idx)
     vis.instance_variable_set(:@access_pause_idx, idx)
     name = cmds[1][idx]
-    PokeAccess.speak(name.to_s, true) if name && !name.to_s.empty?
+    PokeAccess.speak(name.to_s, true)
   end
 end

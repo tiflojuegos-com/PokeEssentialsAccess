@@ -12,7 +12,7 @@ module MtsGuard
   # Path fragments whose files load ONLY under the modern engine (Ruby 3.x, no MTS): the mutator redefinition
   # never applies there, so they are out of scope. La misma lista vive en test/check187.py y hasta ahora
   # se mantenian en paso a mano; el spec de abajo las compara.
-  MODERN = ["games/anil/", "games/royal/", "games/relict/",
+  MODERN = ["games/anil/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
             "games/infinitefusion_hoenn/", "games/infinitefusion/",
             "games/emerald/"]
 

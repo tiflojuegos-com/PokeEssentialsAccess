@@ -47,6 +47,7 @@ module PokeAccess
       sex = PokeAccess::Party.gender_phrase(pk)
       t = PokeAccess::I18n.t(:pty_member, :name => pk.name, :sex => sex, :level => pk.level, :hp => pk.hp, :tot => pk.totalhp)
       t += PokeAccess::Party.fainted_suffix(pk)
+      t += PokeAccess::Party.icon_marks(pk)
       t += ", " + annotation.to_s if annotation && !annotation.to_s.empty?
       t
     rescue StandardError
@@ -64,7 +65,7 @@ module PokeAccess
     def self.move_from_entry(m)
       return nil unless m
       id = m.is_a?(Array) ? m[0] : (m.id rescue m)
-      lbl = m.is_a?(Array) ? PokeAccess.clean(m[1].to_s).to_s.strip : ""
+      lbl = m.is_a?(Array) ? PokeAccess.clean(m[1].to_s) : ""
       data = (GameData::Move.get(id) rescue nil)
       return move_by_id(id) unless data
       ty = (GameData::Type.get(data.type).name rescue nil)
@@ -176,8 +177,10 @@ PokeAccess::Hooks.after_hook("PokegearButton", :selected=) do |btn, _r, args|
 end
 
 # Clear the pokegear dedup when the pokegear opens, so reopening reads the focused option even when it is
-# the same one focused last time.
-PokeAccess::Hooks.before_hook("PokemonPokegear_Scene", :pbStartScene) do |_s, _a|
+# the same one focused last time. Optional because one game ships the class as an RMXP-style alias with no
+# pbStartScene at all, which the Scene_Pokegear#main hook below covers; a required hook there filed the
+# name among the typos.
+PokeAccess::Hooks.before_hook("PokemonPokegear_Scene", :pbStartScene, :optional => true) do |_s, _a|
   PokeAccess::UIV21.reset(:pokegear)
 end
 PokeAccess::Hooks.before_hook("Scene_Pokegear", :main, :optional => true) do |_s, _a|

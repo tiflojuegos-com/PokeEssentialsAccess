@@ -6,7 +6,8 @@
 
 def party_v22_party
   [Poke.build(:name => "Bulba", :level => 12, :hp => 22, :totalhp => 22, :gender => 0),
-   Poke.build(:name => "Fainty", :level => 9, :hp => 0, :totalhp => 30, :gender => 1)]
+   Poke.build(:name => "Fainty", :level => 9, :hp => 0, :totalhp => 30, :gender => 1),
+   Poke.build(:name => "Brilli", :level => 30, :hp => 50, :totalhp => 50, :gender => 0, :shiny => true)]
 end
 
 Suite.define("v22 party: the focused member is read with sex, level and HP, once per move") do
@@ -28,6 +29,16 @@ Suite.define("v22 party: the focused member is read with sex, level and HP, once
      [PokeAccess::I18n.t(:pty_member, :name => "Fainty",
                          :sex => " " + PokeAccess::I18n.t(:pk_female),
                          :level => 9, :hp => 0, :tot => 30) + ", " + PokeAccess::I18n.t(:pk_fainted)]
+
+  # The panel marks a shiny with a star and nothing in the mod used to mention it, so a blind player could
+  # raise one to level 100 without ever being told. Asserted HERE, on the line the screen really speaks,
+  # because the composer can be unit-tested green while the call site that uses it is deleted.
+  SpeakCapture.clear
+  vis.set_index(2)
+  eq "a shiny says so, on the line the screen speaks", SpeakCapture.lines,
+     [PokeAccess::I18n.t(:pty_member, :name => "Brilli",
+                         :sex => " " + PokeAccess::I18n.t(:pk_male),
+                         :level => 30, :hp => 50, :tot => 50) + ", " + PokeAccess::I18n.t(:pk_shiny)]
 end
 
 # The dedup is per screen instance, so a party screen opened again on the same slot must read it.

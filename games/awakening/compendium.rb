@@ -33,7 +33,7 @@ module PokeAccess
       rows = PokeAccess.ivar(scene, :@opciones)
       return unless idx.is_a?(Integer) && rows.is_a?(Array) && idx >= 0 && idx < rows.length
       name = (rows[idx].nombre rescue nil)
-      name = PokeAccess.clean(name.to_s).to_s.strip
+      name = PokeAccess.clean(name.to_s)
       name = PokeAccess::I18n.t(:awk_glos_locked) if placeholder?(name)
       return if name.empty?
       PokeAccess::Cursor.announce(scene, :awk_comp, idx, true) do
@@ -62,7 +62,7 @@ module PokeAccess
 
     def self.note(text)
       return if @pending.nil?
-      t = PokeAccess.clean(text.to_s).to_s.strip
+      t = PokeAccess.clean(text.to_s)
       @pending.push(t) unless t.empty?
     rescue StandardError
       nil

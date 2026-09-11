@@ -13,7 +13,7 @@ module PokeAccess
     def self.read_present(s)
       idx = PokeAccess.ivar(s, :@index)
       t = PokeAccess::Cursor.on_change(s, :encounter_list, idx) { text_for(s) }
-      PokeAccess.speak(t, true) if t && !t.to_s.empty?
+      PokeAccess.speak(t, true)
     rescue StandardError
       nil
     end

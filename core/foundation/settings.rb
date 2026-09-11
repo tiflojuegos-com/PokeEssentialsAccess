@@ -3,6 +3,14 @@ module PokeAccess
   # these after the per-game constants so the user's choices win; a missing file is created with defaults.
   module Settings
     FILE = "#{PokeAccess::Paths::DATA}/settings.ini"
+    # The ini layout version, stamped into every ini written. A file from before a version is brought up
+    # to date once, then the player's choices are kept as written. Version 2 (0.4.6) turns the language to
+    # :auto, for every ini written before it. The vast majority carry the old fixed default, Spanish,
+    # chosen by nobody, and :auto resolves to Spanish for a Spanish system anyway while it hands an
+    # English player the English they never got. The few who HAD picked a language by hand are moved
+    # too, which costs them one trip through the menu: an ini from before the stamp cannot say which
+    # of the two it is.
+    VERSION = 2
     # Setting kinds by how they persist: numeric (clamped via Config::KIND_BOUNDS), flag, and symbol.
     # NUMERIC derives from KIND_BOUNDS, so a new numeric kind needs only its bounds row.
     NUMERIC = PokeAccess::Config::KIND_BOUNDS.keys
@@ -34,20 +42,22 @@ module PokeAccess
         sym = $1.to_sym
         PokeAccess::Config.keys[sym] = v.to_i if PokeAccess::Config::KEY_DEFAULTS.has_key?(sym)
       end
-      write if schema_keys.any? { |k| !data.has_key?(k) }
+      ver = data["settings_version"].to_i
+      PokeAccess::Config.language = :auto if ver < 2
+      write if ver < VERSION || schema_keys.any? { |k| !data.has_key?(k) }
     rescue StandardError => e
       PokeAccess.write_marker("settings apply: #{e.message}\n")
     end
 
     # Every settings key this version persists (the write serialisation, minus the per-user bind_* lines),
-    # in write order. The kind list is built on a duped array with push/concat, never NUMERIC + [...]:
-    # a fangame script patch redefines Array#+ as an in-place mutator, so the literal `+` would
-    # corrupt the NUMERIC constant (dup/push/concat are untouched).
+    # in SCHEMA order, which is the menu's and the same under both Rubies: grouping by kind followed the
+    # order of a Hash's keys, which gen-6 shuffles. Built on a DUP of NUMERIC: one game's scripts turn
+    # Array#+ into a mutator, and the constant is read again on the next save.
     def self.schema_keys
       kinds = NUMERIC.dup
       kinds.push(:flag)
       kinds.concat(SYMS)
-      kinds.map { |kind| PokeAccess::Config.keys_of_kind(kind).map { |k| k.to_s } }.flatten
+      PokeAccess::Config::SCHEMA.select { |row| kinds.include?(row[2]) }.map { |row| row[0].to_s }
     end
 
     # Clamps and assigns a numeric setting from its string value, using its kind's [min, max] bounds.
@@ -72,7 +82,8 @@ module PokeAccess
       h = {}
       PokeAccess::KVFile.each(FILE) { |k, v| h[k] = v }
       h
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.log_once("settings_read", e)
       {}
     end
 
@@ -83,15 +94,19 @@ module PokeAccess
     def self.write
       File.open(FILE, "w") do |f|
         f.write("# Configuracion del mod de accesibilidad\n")
-        f.write("# volumenes 0-100; sound_nav off/basic/full\n")
+        f.write("# volumenes 0-100; sound_nav off/basic/full; language auto o es/en/fr/pt/de/pl\n")
+        f.write("settings_version=#{VERSION}\n")
         schema_keys.each { |k| f.write("#{k}=#{PokeAccess::Config.send(k)}\n") }
         f.write("# remap de controles (accion=codigo de tecla virtual de Windows)\n")
-        (PokeAccess::Config.rebinds || {}).each { |sym, code| f.write("bind_#{sym}=#{code}\n") }
-        (PokeAccess::Config.keys || {}).each do |sym, code|
-          f.write("key_#{sym}=#{code}\n") if PokeAccess::Config::KEY_DEFAULTS[sym] != code
+        rebinds = PokeAccess::Config.rebinds || {}
+        rebinds.keys.sort_by { |sym| sym.to_s }.each { |sym| f.write("bind_#{sym}=#{rebinds[sym]}\n") }
+        keys = PokeAccess::Config.keys || {}
+        keys.keys.sort_by { |sym| sym.to_s }.each do |sym|
+          f.write("key_#{sym}=#{keys[sym]}\n") if PokeAccess::Config::KEY_DEFAULTS[sym] != keys[sym]
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.log_once("settings_write", e)
     end
   end
 end

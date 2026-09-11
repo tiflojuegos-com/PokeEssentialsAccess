@@ -4,9 +4,13 @@
 # the battle reference, the locator's map memory, the cursor dedup table, the test map (id + events, which
 # key the per-map lever/push caches), and the speak log.
 module Reset
-  # Runs before each suite. Every reset is guarded so a not-yet-loaded module never aborts the run.
+  # Runs before each suite. Every reset is guarded so a not-yet-loaded module never aborts the run. The
+  # language is pinned to Spanish right after the schema defaults: the shipped default is :auto, which
+  # would make every suite speak whatever this machine speaks, and the literal assertions were written
+  # against Spanish (the automatic-language suite switches to :auto itself and restores it).
   def self.between_suites
     (reset_config rescue nil)
+    (PokeAccess::Config.language = :es rescue nil)
     (reset_globals rescue nil)
     (PokeAccess::Puzzles.instance_variable_set(:@defs, {}) rescue nil)
     (PokeAccess::Caches.reset_all rescue nil)

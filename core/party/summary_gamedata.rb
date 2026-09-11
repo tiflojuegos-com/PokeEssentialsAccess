@@ -11,13 +11,15 @@ module PokeAccess
     # The text for the page currently drawn, chosen by the SV-Summary plugin's @page_id symbol (the plugin
     # orders pages dynamically, so a fixed 1..5 numbering would read the wrong page). Falls back to the
     # classic numbering for a base summary with no @page_id. param page the numeric page argument (fallback).
+    # An EGG page returns nothing here on purpose, under either screen shape: the egg hook in summary.rb
+    # already spoke what that page painted, and this would say it a second time, shorter and worse.
     def self.page_text(scene, page)
       pk = PokeAccess.expect!("summary.pokemon", PokeAccess.ivar(scene, :@pokemon))
       return nil unless pk
       pid = PokeAccess.ivar(scene, :@page_id)
       return legacy_page_text(pk, page) if pid.nil?
       case pid
-      when :page_egg     then PokeAccess::I18n.t(:sm_egg)
+      when :page_egg     then nil
       when :page_info    then info_text(pk)
       when :page_memo    then memo_text(pk)
       when :page_skills  then stats_text(pk)
@@ -32,6 +34,7 @@ module PokeAccess
     # Classic five-page numbering, used only for a base summary with no @page_id (1 info, 2 memo, 3 stats,
     # 4 moves, 5 ribbons).
     def self.legacy_page_text(pk, page)
+      return nil if page == 1 && PokeAccess::Summary.egg?(pk)
       case page
       when 1 then info_text(pk)
       when 2 then memo_text(pk)
@@ -41,7 +44,9 @@ module PokeAccess
       end
     end
 
-    # Page one: species, types, ability and held item.
+    # Page one: species, types, ability and held item. An EGG gets none of it: the screen shows its own
+    # page instead, read by the egg hook in summary.rb, and saying the species here would give away the one
+    # thing the screen is keeping.
     def self.info_text(pk)
       t = PokeAccess::I18n.t(:sum_data_of, :name => pk.name, :level => pk.level) + " "
       w = PokeAccess::Party.gender_word(pk); t += w + ". " if w
@@ -60,6 +65,19 @@ module PokeAccess
       nat = (pk.nature ? pk.nature.name : nil rescue nil)
       memo = PokeAccess::I18n.t(:sm_memo)
       (nat && !nat.to_s.empty?) ? "#{memo}. #{PokeAccess::I18n.t(:sm_nature, :n => nat)}." : "#{memo}."
+    rescue StandardError
+      nil
+    end
+
+    # An egg's memo page: where the egg came from and how close it is to hatching, which is what the page
+    # paints (v22's draw_egg_memo) and all it gives away. The memo builder above would add the nature, the
+    # one thing the screen keeps until the egg hatches.
+    def self.egg_memo_text(pk)
+      place = (pk.obtain_text rescue nil).to_s
+      place = (pbGetMapNameFromId(pk.obtain_map) rescue nil).to_s if place.empty?
+      from = PokeAccess::I18n.t(:sm_met_egg)
+      from = "#{from}: #{place}" unless place.empty?
+      PokeAccess::Util.join_parts([from, PokeAccess::Incubator.hatch_state(pk)])
     rescue StandardError
       nil
     end

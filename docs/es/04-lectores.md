@@ -43,7 +43,8 @@ bt_state=%{name}, nivel %{level}, %{hp}
 t = PokeAccess::I18n.t(:bt_state, :name => b.name, :level => b.level, :hp => hp)
 ```
 
-`t` busca la clave en el idioma activo (`Config.language`), cae al de referencia (`:en`) y, si tampoco
+`t` busca la clave en el idioma activo (`Config.language`, o lo que resuelve `:auto`: el idioma del sistema,
+si no el del juego, si no inglés), cae al de referencia (`:en`) y, si tampoco
 está, devuelve **el nombre de la clave**: el hueco se oye pero nunca peta. Una variable ausente interpola
 cadena vacía.
 

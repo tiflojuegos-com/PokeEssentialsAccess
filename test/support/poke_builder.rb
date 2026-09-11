@@ -4,7 +4,7 @@
 class TestPoke
   attr_accessor :name, :level, :species, :hp, :totalhp, :attack, :defense, :spatk, :spdef, :speed,
                 :nature, :ability, :item, :moves, :iv, :ev, :status, :gender, :ribbons, :happiness,
-                :personalID, :form
+                :personalID, :form, :shiny
 
   # Builds a Pokemon stub from an options hash; unspecified fields take a playable default.
   def self.build(opts = {})
@@ -31,8 +31,12 @@ class TestPoke
     p.happiness = opts.fetch(:happiness, 70)
     p.personalID = opts.fetch(:personalID, 123456)
     p.form = opts.fetch(:form, 0)
+    p.shiny = opts.fetch(:shiny, false)
     p
   end
+
+  # The panel draws a star for a shiny, and the mod says so; a spec that wants one asks for it.
+  def shiny?; @shiny ? true : false; end
 end
 
 # Short alias for specs.

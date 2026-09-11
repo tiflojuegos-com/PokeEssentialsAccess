@@ -1,16 +1,11 @@
 module PokeAccess
-  # Reminiscencia's species picker (pbCommandsCustom, opened by the Prana bubbles and at the start of a run
-  # through pbRentalsingle): a command list of random species, which the generic list reader already
-  # speaks, and beside it a panel the game repaints on every cursor move -- sex, the four moves the Pokemon
-  # would come with, and its base stats with the run's bonus -- painted with pbDrawTextPositions onto two
-  # overlay bitmaps nothing else reads. The panel is spoken after the name, once per repaint. The type icons
-  # and the shiny mark are images and stay unspoken.
-  #
-  # Which bitmaps ARE the panel is learned, not assumed: the picker paints it once before its loop starts,
-  # so the bitmaps written to before the first frame are the panel, and only rows painted on those are
-  # taken afterwards. The bag the picker opens on T paints through the same function onto its own bitmaps
-  # and stays out. Rows are grouped by line and read left to right, the topmost line (the column headers)
-  # dropped, the sex symbol said as a word, a cell with no letter or digit (the HP bonus dash) skipped.
+  # Reminiscencia's species picker (pbCommandsCustom, opened by the Prana bubbles and by pbRentalsingle): a
+  # command list of random species, read by the generic list reader, and beside it a panel repainted on
+  # every cursor move (sex, four moves, base stats with the run's bonus) through pbDrawTextPositions onto
+  # two overlay bitmaps. Which bitmaps ARE the panel is learned: the picker paints it once before its loop
+  # starts, and only rows painted on those bitmaps are taken afterwards (the bag opened on T paints onto its
+  # own). Rows are grouped by line, the header line dropped, the sex symbol said as a word and empty cells
+  # skipped.
   module ReminPicker
     SEX = { "\xE2\x99\x82" => :pk_male, "\xE2\x99\x80" => :pk_female }
     @active = false
@@ -45,7 +40,7 @@ module PokeAccess
       @rows = []
       @panel ||= rows.map { |b, _t, _x, _y| b }.uniq
       t = text(rows)
-      PokeAccess.speak_clean(t, false) unless t.empty?
+      PokeAccess.speak_clean(t, false)
     rescue StandardError
       nil
     end

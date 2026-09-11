@@ -43,20 +43,21 @@ Suite.define("static: every class the mod hooks by name exists in some game") do
   eq "no hook names a class no game defines", ghosts.map { |c| "#{c} (#{seen[c].uniq.first})" }, []
 end
 
-# The committed censuses were built from all fourteen sources.
+# The committed censuses were built from all sixteen sources.
 #
 # Regenerate from a tree without the sibling pokemon-essentials clone and the generators do not complain:
 # they just survey thirteen and write a thinner file, and every check that reads it gets quieter without
 # saying so. It happened during an audit -- no-dump rows went from 4 to 15 and only a tight ceiling caught
 # it. Three of the files already stamp the source count in their header and nobody read it; loop_census now
 # stamps one too.
-Suite.define("static: every census was built from all fourteen sources") do
+Suite.define("static: every census was built from all sixteen sources") do
   dir = File.dirname(__FILE__)
   wrong = []
-  %w[ivar_census.txt fangame_classes.txt plugin_census.txt all_classes.txt loop_census.txt].each do |f|
+  %w[ivar_census.txt fangame_classes.txt plugin_census.txt all_classes.txt loop_census.txt
+     arity_census.txt].each do |f|
     head = File.read(File.join(dir, f)).split("\n").select { |l| l =~ /\A#/ }.join(" ")
     n = (head[/surveyed (?:profiles|games|sources) \((\d+)\)/, 1] || "none").to_s
-    wrong.push("#{f}: #{n}") unless n == "14"
+    wrong.push("#{f}: #{n}") unless n == "16"
   end
-  eq "each census header says 14", wrong, []
+  eq "each census header says 16", wrong, []
 end

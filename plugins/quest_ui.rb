@@ -34,7 +34,7 @@ module PokeAccess
       return if nm.nil? || nm.to_s.empty?
       parts = [PokeAccess.clean(nm.to_s)]
       (page == :other ? other_lines(quest, id) : description_lines(quest, id)).each do |line|
-        t = PokeAccess.clean(line.to_s).to_s.strip
+        t = PokeAccess.clean(line.to_s)
         parts.push(t) unless t.empty? || t == "nil"
       end
       PokeAccess.speak(parts.join(". "), true)
@@ -86,7 +86,7 @@ module PokeAccess
       names = PokeAccess.ivar(scene, :@quests_text)
       i = PokeAccess.ivar(scene, :@current_quest)
       return unless names.is_a?(Array) && i.is_a?(Integer) && names[i]
-      label = PokeAccess.clean(names[i].to_s).to_s.strip
+      label = PokeAccess.clean(names[i].to_s)
       return if label.empty?
       PokeAccess.speak(label, true)
     rescue StandardError

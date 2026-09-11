@@ -43,7 +43,8 @@ bt_state=%{name}, level %{level}, %{hp}
 t = PokeAccess::I18n.t(:bt_state, :name => b.name, :level => b.level, :hp => hp)
 ```
 
-`t` looks the key up in the active language (`Config.language`), falls back to the reference language
+`t` looks the key up in the active language (`Config.language`, or what `:auto` resolves to: the system's
+language, else the game's, else English), falls back to the reference language
 (`:en`) and then to **the key name itself**: a gap is audible but never crashes. A missing variable
 interpolates to an empty string.
 

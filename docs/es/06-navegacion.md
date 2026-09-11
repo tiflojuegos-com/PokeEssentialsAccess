@@ -220,6 +220,12 @@ cuenta por qué calló cada frame y `gate_report` lo resume para el diagnóstico
 | `puzzle_assist` | off | on/off | Pistas de puzle además de la posición y el estado de cada elemento |
 | `transfer_active_page_only` | on | on/off | Solo cuenta como salida la baldosa cuya página ACTIVA transfiere (menú de Depuración) |
 
+**General**
+
+| Clave | Defecto | Rango | Qué hace |
+|---|---|---|---|
+| `language` | `:auto` | `:auto`, o un código con fichero en `lang/` | Idioma de la voz del mod. `:auto` toma el del sistema (catalán, euskera y gallego cuentan como español); si el mod no lo tiene, el que declara el juego; si tampoco, inglés. Al actualizar desde una versión anterior el ini pasa a `auto` una sola vez (`settings_version`); después la elección del menú se conserva |
+
 **Lectura de menús**
 
 | Clave | Defecto | Rango | Qué hace |
@@ -243,6 +249,7 @@ cuenta por qué calló cada frame y `gate_report` lo resume para el diagnóstico
 | `audio3d_desk_range` | 2 | 0-3 casillas | Mostradores de servicio audibles en modo `:hide`; 0 lo apaga |
 | `audio3d_range` / `audio3d_alt_dist` | 12 / 5 | 1-30; 1-20 casillas | Alcance del sonar (tipo propio `:sonar`) y distancia a la que dos emisores alternan |
 | `sonar_only_locatable` | off | on/off | Limitar los pings a lo que alcanzan las teclas del localizador |
+| `game_bump` | off | on/off | Dejar sonar también el choque del propio juego; apagado, mientras el aviso de pared del mod esté activo solo suena el del mod |
 
 Las cadencias son valores 0-100 que `PokeAccess.freq_to_seconds` traduce a un intervalo real, de 1,5 s (0) a
 0,15 s (100). Los tipos de puzle toman volumen y frecuencia de `audio3d_object`.

@@ -61,16 +61,11 @@ PokeAccess::Game.define("pokemon_z") do
   )
 end
 
-# Regi legendary inscriptions (maps 289/245/303): a braille message shown as an image. Instead of speaking
-# dots, the mod announces a mystery braille message, sends the braille (as unicode, U+2800 + dot mask)
-# straight to any connected braille display, and copies it to the clipboard so a player without a display
-# can paste it into Notepad.
-#
-# Per build, like the pictures above: the en build reuses the Spanish plaques byte for byte (verified by
-# hash), the fr build paints its own inscriptions -- decoded dot by dot from its PNGs with the same
-# extractor that reproduces the verified Spanish tables exactly. The French plaques write with English
-# grade-2-style signs (dot 6 capitals, dots-12456 "er", two-cell accent prefixes); the dots ship as
-# painted, the reader's display renders them as the plaque intends.
+# Regi legendary inscriptions (maps 289/245/303): a braille message shown as an image. The mod announces a
+# mystery braille message, sends the braille (unicode, U+2800 + dot mask) to any connected braille display
+# and copies it to the clipboard. Per build, like the pictures above: the en build reuses the Spanish
+# plaques byte for byte (verified by hash), the fr build paints its own, decoded dot by dot from its PNGs
+# and shipped as painted (English grade-2-style signs).
 module PokeAccess
   module ZRegi
     # Keys are the games actual picture names: map 289's plaque is "reg1" (no "i"), maps 245/303 are

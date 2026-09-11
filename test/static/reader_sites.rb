@@ -42,9 +42,28 @@ module ReaderSites
       if line =~ /^(\s*)(?:class|module)\s+([A-Z][A-Za-z0-9_:]*)/
         ind = $1.length
         @stack.pop while !@stack.empty? && @stack.last[0] >= ind
-        @stack.push([ind, $2.split("::").last])
+        @stack.push([ind, $2.split("::").last, $2])
       end
       current
+    end
+
+    # The owner of a def at this indent as a FULL path, every open frame down to the owner joined with the
+    # names as the game wrote them: "Battle::Scene::MenuBase" whether the game nested three blocks or opened
+    # the class by its qualified name. The leaf alone would take a nested class for a top-level namesake.
+    def owner_path_at(def_indent)
+      frames = frames_to_owner(def_indent)
+      frames.empty? ? nil : frames.map { |f| f[2] }.join("::")
+    end
+
+    # How many frames enclose that owner, itself included; 1 is a top-level class.
+    def owner_depth_at(def_indent)
+      frames_to_owner(def_indent).length
+    end
+
+    def frames_to_owner(def_indent)
+      i = @stack.rindex { |ind, _n, _d| ind < def_indent }
+      i = @stack.length - 1 if i.nil?
+      i < 0 ? [] : @stack[0..i]
     end
 
     # The innermost open class/module name, or nil.
@@ -216,5 +235,227 @@ module ReaderSites
       out[path] = lines unless lines.empty?
     end
     out
+  end
+
+  # Every (class, method) pair a hook registration binds, LOOPS INCLUDED, each with the body that reads the
+  # arguments. The arity census used to see only the literal form -- after_hook("Class", :meth) -- and so
+  # missed every registration that runs over a list: the message net alone is twenty scenes by five
+  # methods, a hundred pairs that looked censused and were not, and it is where a body read a command list
+  # as if it were the message. A loop's values are read from the literal on its own line, from a string or
+  # symbol array constant anywhere in the tree, from Engine.scene_classes(...) or from Hooks.variants([...]).
+  #
+  # Each entry: { :path, :line, :site ("path:line"), :cname, :meth, :body }. Entries expanded from one
+  # registration line share the :site, which is what lets a check compare the classes one body serves.
+  # The class argument of a registration: a quoted name, a loop variable, or a constant such as
+  # PokeAccess::SummaryGen6::SCENE (assigned from Engine.era_scene, resolved through constant_rows).
+  CLS_ARG = '(?:"(?<cls_lit>[A-Z][A-Za-z0-9_:]*)"|(?<cls_var>[a-z_]\w*)|(?<cls_const>[A-Z][A-Za-z0-9_:]*))'
+  METH_ARG = '(?::(?<m_lit>[a-zA-Z_][A-Za-z0-9_?!]*=?)|"(?<m_str>[a-zA-Z_][A-Za-z0-9_?!]*=?)"|(?<m_var>[a-z_]\w*)(?:\.to_sym)?)'
+  REG_FORM = /\b(?:after|before|around)(?:_hook)?\(\s*#{CLS_ARG}\s*,\s*#{METH_ARG}/
+  ONE_ARG_FORMS = [
+    /\bread_on_open\(\s*#{CLS_ARG}\s*(?:,\s*#{METH_ARG})?/,
+    /\bframe_hook\(\s*#{CLS_ARG}\s*,\s*#{METH_ARG}/
+  ]
+  # A loop header on one line: what it runs over (a literal, a constant, scene_classes(...) or the list of
+  # Hooks.variants) and its block variables, one or several.
+  LOOP_HEAD = /\A\s*(?:PokeAccess::Hooks\.variants\(\s*\[([^\]]*)\]\s*,\s*:\w+[^)]*\)|(%w\[[^\]]*\]|\[.*\]|\{.*\}|[A-Z][A-Za-z0-9_:]*|PokeAccess::Engine\.scene_classes\(([^)]*)\))\.each)\s*(?:do|\{)\s*\|([^|]+)\|/
+  # The line that closes a literal opened some lines above and runs the loop over it.
+  LOOP_TAIL = /[\]\}]\.each\s*(?:do|\{)\s*\|([^|]+)\|/
+
+  # Literal names inside one literal: "strings", 'strings' and :symbols (ivar-named ones included, so a
+  # tuple's positions stay where the loop variables expect them).
+  def self.literal_names(text)
+    text.scan(/"([^"]+)"|'([^']+)'|:(@?[a-zA-Z_][A-Za-z0-9_?!]*=?)/).map { |a, b, c| a || b || c }
+  end
+
+  # The rows a literal yields to its loop: one name per row for a flat array or a %w list, one row per inner
+  # array for an array of tuples, one [key, value] row per pair for a hash.
+  def self.literal_rows(lit)
+    lit = lit.strip
+    return lit[3..-2].split.map { |w| [w] } if lit.start_with?("%w[")
+    if lit.start_with?("{")
+      return lit.scan(/("[^"]+"|:@?[a-zA-Z_][\w?!]*=?)\s*=>\s*("[^"]+"|:@?[a-zA-Z_][\w?!]*=?)/).map { |k, v| [literal_names(k)[0], literal_names(v)[0]] }
+    end
+    return lit.scan(/\[([^\[\]]*)\]/).flatten.map { |t| literal_names(t) }.reject { |r| r.empty? } if lit =~ /\A\[\s*\[/
+    literal_names(lit).map { |n| [n] }
+  end
+
+  # The bracketed literal starting at pos, brackets balanced across lines, or nil when it never closes.
+  def self.balanced(text, pos)
+    depth = 0
+    i = pos
+    while i < text.length
+      ch = text[i, 1]
+      depth += 1 if ch == "[" || ch == "{"
+      depth -= 1 if ch == "]" || ch == "}"
+      return text[pos..i] if depth == 0
+      i += 1
+    end
+    nil
+  end
+
+  # { constant => rows } for every array or hash literal assigned to a constant across the tree, and for
+  # every scene constant assigned from Engine.era_scene / scene_class (both spellings become one row each).
+  # Keyed by the path inside PokeAccess ("SummaryGen6::SCENE") and, when only one definition carries the
+  # name, by the bare name too -- SCENE is defined by several readers and only resolves through its path.
+  def self.constant_rows(sources)
+    out = {}
+    seen = {}
+    sources.each_value do |body|
+      code = body.gsub(/^\s*#.*$/, "")
+      stack = ClassStack.new
+      offset = 0
+      code.each_line do |line|
+        stack.feed(line)
+        if (m = line.match(/\A(\s*)([A-Z][A-Z0-9_]*)\s*=\s*(\S.*)\z/m))
+          rhs = m[3]
+          rows = nil
+          if rhs =~ /\A(%w\[|\[|\{)/
+            prefix = rhs.start_with?("%w[") ? "%w" : ""
+            lit = balanced(code, offset + m.begin(3) + prefix.length)
+            rows = literal_rows(prefix + lit) if lit
+          elsif (e = rhs.match(/\bEngine\.(?:era_scene|scene_class|scene_classes)\(([^)]*)\)/))
+            rows = literal_names(e[1]).select { |n| n =~ /\A[A-Z]/ }.map { |n| [n] }
+          end
+          if rows && !rows.empty?
+            path = stack.owner_path_at(m[1].length)
+            name = m[2]
+            full = (path ? "#{path}::#{name}" : name).sub(/\APokeAccess::/, "")
+            out[full] = rows
+            seen[name] = (seen[name] || 0) + 1
+            seen[name] == 1 ? (out[name] ||= rows) : out.delete(name)
+            out[full] = rows
+          end
+        end
+        offset += line.length
+      end
+    end
+    out
+  end
+
+  # The rows behind a constant path as a registration writes it, or nil.
+  def self.const_lookup(constants, path)
+    p = path.sub(/\APokeAccess::/, "")
+    constants[p] || constants[p.split("::").last]
+  end
+
+  # The rows a one-line loop header runs over, or nil when they cannot be read from the text.
+  def self.head_rows(m, constants)
+    return literal_names(m[1]).map { |n| [n] } if m[1]
+    return literal_names(m[3]).map { |n| [n] } if m[3]
+    expr = m[2].to_s
+    return literal_rows(expr) if expr =~ /\A(%w\[|\[|\{)/
+    const_lookup(constants, expr)
+  end
+
+  # The body of the block that follows a registration line, and ONLY that body: a brace block that closes on
+  # the line is that line; a do-block runs to the `end` at the line's own indent.
+  def self.block_body(lines, i)
+    line = lines[i]
+    if line =~ /\{/ && line.rindex("}").to_i > line.index("{").to_i
+      return line[line.index("{")..line.rindex("}")]
+    end
+    return "" unless line =~ /\bdo\s*(\|[^|]*\|)?\s*\z/
+    indent = line[/\A\s*/].length
+    out = []
+    j = i + 1
+    while j < lines.length
+      l = lines[j]
+      break if l.strip =~ /\Aend\b/ && l[/\A\s*/].length == indent
+      out.push(l)
+      j += 1
+    end
+    out.join("\n")
+  end
+
+  # A literal that opens on this line and reaches its `.each do |...|` a few lines down: the header text and
+  # the index of its last line, or nil.
+  def self.spanning_head(lines, i)
+    return nil unless lines[i] =~ /\A\s*[\[\{]/ && lines[i] !~ /\.each\b/
+    chunk = []
+    (i...[i + 16, lines.length].min).each do |j|
+      chunk.push(lines[j].sub(/\s#(?!\{).*\z/, ""))
+      return [chunk.join("\n"), j] if lines[j] =~ LOOP_TAIL
+    end
+    nil
+  end
+
+  def self.registrations(sources = nil)
+    sources ||= self.sources
+    constants = constant_rows(sources)
+    out = []
+    sources.each do |path, body|
+      next if path == "core/foundation/game.rb"
+      lines = body.split("\n")
+      loops = []
+      skip_to = -1
+      lines.each_with_index do |raw, i|
+        next if i <= skip_to || raw =~ /\A\s*#/
+        line = raw.sub(/\s#(?!\{).*\z/, "")
+        indent = line[/\A\s*/].length
+        loops.pop while !loops.empty? && line.strip =~ /\Aend\b/ && loops.last[0] == indent
+        temp = false
+        if (span = spanning_head(lines, i))
+          head, last = span
+          vars = head[LOOP_TAIL, 1].split(",").map { |v| v.strip }
+          lit = balanced(head, head.index(/[\[\{]/))
+          rows = lit ? literal_rows(lit) : nil
+          loops.push([indent, vars, rows]) if rows && !rows.empty?
+          skip_to = last
+          next
+        elsif (h = LOOP_HEAD.match(line))
+          rows = head_rows(h, constants)
+          if rows && !rows.empty?
+            loops.push([indent, h[4].split(",").map { |v| v.strip }, rows])
+            temp = line.count("{") > 0 && line.count("{") <= line.count("}")
+          end
+          next unless line =~ /\{/
+        end
+        find = lambda do |ident|
+          loops.reverse_each do |_ind, vars, rows|
+            k = vars.index(ident)
+            return [rows, k] if k
+          end
+          nil
+        end
+        (ONE_ARG_FORMS + [REG_FORM]).each do |re|
+          next unless (m = re.match(line))
+          cls_lit = m[:cls_lit]
+          crows = m[:cls_const] ? const_lookup(constants, m[:cls_const]) : nil
+          cb = m[:cls_var] ? find.call(m[:cls_var]) : nil
+          next if cls_lit.nil? && crows.nil? && cb.nil?
+          meth_lit = m[:m_lit] || m[:m_str]
+          meth_var = m[:m_var]
+          meth_lit = "pbStartScene" if !re.equal?(REG_FORM) && meth_lit.nil? && meth_var.nil?
+          mb = meth_var ? find.call(meth_var) : nil
+          next if meth_lit.nil? && mb.nil?
+          pairs = []
+          if cb && mb && cb[0].equal?(mb[0])
+            cb[0].each { |row| pairs.push([row[cb[1]], row[mb[1]]]) }
+          else
+            classes = cls_lit ? [cls_lit] : (crows ? crows.map { |row| row[0] } : cb[0].map { |row| row[cb[1]] })
+            meths = meth_lit ? [meth_lit] : mb[0].map { |row| row[mb[1]] }
+            classes.compact.uniq.each { |c| meths.compact.uniq.each { |mt| pairs.push([c, mt]) } }
+          end
+          text = block_body(lines, i)
+          pairs.each do |c, mt|
+            next unless c.to_s =~ /\A[A-Z]/ && mt
+            out.push(:path => path, :line => i + 1, :site => "#{path}:#{i + 1}", :cname => c, :meth => mt.to_s, :body => text)
+          end
+          break
+        end
+        loops.pop if temp
+      end
+    end
+    out
+  end
+
+  # { "Class#method" => [relative path, ...] } over every registration, loops expanded.
+  def self.hooked_pairs(sources = nil)
+    pairs = {}
+    registrations(sources).each do |r|
+      key = "#{r[:cname]}##{r[:meth]}"
+      (pairs[key] ||= []).push(r[:path]) unless (pairs[key] || []).include?(r[:path])
+    end
+    pairs
   end
 end

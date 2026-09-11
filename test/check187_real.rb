@@ -7,7 +7,7 @@
 # external input), and the BEGIN throw aborts before any of it runs; 1.8.7 has no ripper/RubyVM
 # alternative, so eval IS the syntax checker here.
 # The MODERN skip list mirrors check187.py's -- keep both in sync (spec: las tres derivan del catalogo).
-MODERN = ["games/anil/", "games/royal/", "games/relict/",
+MODERN = ["games/anil/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
           "games/infinitefusion_hoenn/", "games/infinitefusion/",
           "games/emerald/"]
 

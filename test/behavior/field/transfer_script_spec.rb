@@ -42,28 +42,27 @@ Suite.define("reminiscencia: a getToDungeon tile is an exit, is named, and pings
   end
 end
 
-# Hooks.missing is, by contract, the list of TYPOS. Reminiscencia replaced the summary with a single page, so
-# pages two to five legitimately do not exist there and four permanent entries sat in that list on every
-# session -- which is how a real typo stops being noticed. The gate asks the game, and only skips the whole
-# set: a game carrying SOME of the pages keeps them all registered, so a name we got wrong still reports.
-Suite.define("summary pages: the multi-page hooks are skipped only where the game has no multi-page summary") do
+# The four pages beyond the first, which every one of the fifteen surveyed games has -- the one that redrew
+# its summary as a single page reopened the class and left the old page methods standing, so they are there
+# too. The stub used to carry page one alone, which made these four readers untestable and parked their
+# names in Hooks.missing, the list that by contract holds only typos.
+#
+# Asserted against the builders rather than against words, so the spec holds in whatever language is loaded.
+Suite.define("summary pages: each page of the summary is read as the player turns to it") do
   s6 = PokeAccess::SummaryGen6
-  made = []
-  begin
-    single = Class.new { def drawPageOne(pk = nil); end }
-    Object.const_set(:PaTestSinglePage, single); made.push(:PaTestSinglePage)
-    falsy "a summary with only page one is not multi-page", s6.multipage?("PaTestSinglePage")
+  scene = PokemonSummaryScene.new
+  pk = Poke.build(:name => "Chispa", :level => 25)
+  scene.pbStartScene([pk], 0)
 
-    partial = Class.new { def drawPageOne(pk = nil); end; def drawPageThree(pk = nil); end }
-    Object.const_set(:PaTestPartialPages, partial); made.push(:PaTestPartialPages)
-    truthy "one sibling present means the game HAS the api, so the whole set stays registered", s6.multipage?("PaTestPartialPages")
-
-    falsy "a class that does not exist is not multi-page either", s6.multipage?("PaTestNoSuchScene")
-    falsy "and neither is the empty name an off-era scene resolves to", s6.multipage?("")
-
-    ghosts = PokeAccess::Hooks.missing.select { |m| m.to_s =~ /drawPage(Two|Three|Four|Five)\z/ }
-    eq "so none of the four sits in the typo list under this game's summary", ghosts, []
-  ensure
-    made.each { |c| Object.send(:remove_const, c) if Object.const_defined?(c) }
+  want = { 2 => s6.memo_text(pk), 3 => s6.stats_text(pk),
+           4 => PokeAccess::Summary.moves_text(pk), 5 => s6.ribbons_text(pk) }
+  want.keys.sort.each do |page|
+    truthy "page #{page} has something to say at all", !want[page].to_s.strip.empty?
+    SpeakCapture.clear
+    scene.drawPage(page)
+    eq "page #{page} speaks it when the player turns to it", SpeakCapture.lines, [want[page]]
   end
+
+  ghosts = PokeAccess::Hooks.missing.select { |m| m.to_s =~ /drawPage(Two|Three|Four|Five)\z/ }
+  eq "and none of the four sits in the typo list", ghosts, []
 end

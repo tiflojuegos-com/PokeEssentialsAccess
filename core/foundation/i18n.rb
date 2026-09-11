@@ -6,10 +6,50 @@ module PokeAccess
     REFERENCE = :en
     @cache = {}
     @langs = nil
+    @auto = nil
+    @auto_key = nil
 
-    # The active language symbol (from Config), or the reference language.
+    # The automatic choice: not a file but a rule, resolved by auto_lang.
+    AUTO = :auto
+
+    # The active language symbol: the player's explicit choice, or the automatic resolution when the
+    # setting is :auto (or unset).
     def self.lang
-      (PokeAccess::Config.language rescue REFERENCE) || REFERENCE
+      c = (PokeAccess::Config.language rescue nil)
+      (c.nil? || c == AUTO) ? auto_lang : c
+    end
+
+    # What :auto resolves to: the system's language, then the one the game declares it is running in, then
+    # English, then Spanish -- the first the mod has a file for. Memoised on the game's language index, the
+    # one input that moves during play (an in-game language switch), and only once both detectors have
+    # loaded: t() already runs while the core is loading, and a verdict taken before GameLang exists would
+    # pin English for the rest of the session.
+    def self.auto_lang
+      key = (defined?($PokemonSystem) && $PokemonSystem) ? ($PokemonSystem.language rescue nil) : nil
+      return @auto if @auto && @auto_key == key
+      pick = resolve_auto
+      if defined?(PokeAccess::GameLang) && defined?(PokeAccess::SystemLang)
+        @auto = pick
+        @auto_key = key
+      end
+      pick
+    end
+
+    # The player's own language first: the mod's voice is the mod's interface, not the game's text. A system
+    # language the mod lacks tries its shipped neighbour (Catalan to Spanish) before the game's declaration.
+    def self.resolve_auto
+      avail = available_languages
+      sys = (PokeAccess::SystemLang.code rescue nil)
+      near = (PokeAccess::SystemLang.neighbour(sys) rescue nil)
+      game = (PokeAccess::GameLang.code rescue nil)
+      [sys, near, game, REFERENCE, :es].each { |c| return c if c && avail.include?(c) }
+      REFERENCE
+    end
+
+    # Drops the memoised automatic verdict, so the next lookup resolves again (tests).
+    def self.forget_auto
+      @auto = nil
+      @auto_key = nil
     end
 
     # Translates a key for the active language, interpolating vars (a %{name} => value hash).
@@ -24,9 +64,11 @@ module PokeAccess
       s.gsub(/%\{(\w+)\}/) { (vars[$1.to_sym] rescue nil).to_s }
     end
 
-    # The string table for a language code, cached.
+    # The string table for a language code, cached. A blank code reads the reference table: "".to_sym raises
+    # under 1.8.7, and a raw language setting is the one place a blank can come from.
     def self.table(code)
-      @cache[code.to_s.to_sym] ||= load_table(code)
+      sym = code.to_s.empty? ? REFERENCE : code.to_s.to_sym
+      @cache[sym] ||= load_table(sym)
     end
 
     # The language codes with a lang/*.txt file.
@@ -43,17 +85,25 @@ module PokeAccess
       @langs = list
     end
 
-    # The human name of a language (its __language__ entry), for the language menu.
+    # The human name of a language (its __language__ entry) for the language menu; the automatic entry is
+    # named after what it resolved to. resolve_auto only ever answers with a code from lang/, so it cannot
+    # answer :auto -- but the recursion here would HANG the game rather than misread a word, so the one
+    # thing it must not do is trust that.
     def self.language_name(code)
+      if code.to_s == AUTO.to_s
+        pick = auto_lang
+        return code.to_s if pick.to_s == AUTO.to_s
+        return t(:lang_auto, :name => language_name(pick))
+      end
       table(code)["__language__"] || code.to_s
     end
 
-    # The next language in the cycle (for the language toggle).
+    # The next entry of the language cycle (for the toggle): automatic first, then every file in lang/.
     def self.next_language(code)
-      langs = available_languages
-      return REFERENCE if langs.empty?
-      i = (langs.index(code.to_s.to_sym) || 0)
-      langs[(i + 1) % langs.length]
+      cycle = [AUTO].concat(available_languages)
+      cur = code.to_s.empty? ? AUTO : code.to_s.to_sym
+      i = (cycle.index(cur) || 0)
+      cycle[(i + 1) % cycle.length]
     end
 
     # Language consistency issues, each as a human "code:key: reason" string -- the boot check and the test
@@ -61,8 +111,7 @@ module PokeAccess
     # cause of an English line in a Spanish game); a key DUPLICATED within one file (the later one silently
     # wins); or a key whose %{var} placeholders differ between languages (interpolation breaks in one).
     # __meta__ keys (starting "__") are ignored. Returns [] when everything is in sync. Works on a dup of
-    # the language cache and computes set differences with reject, never Array#-: a fangame script patch
-    # redefines Array#- as an in-place mutator, so the literal `-` would empty the @langs cache.
+    # the language cache, which is memoised and must survive the check.
     def self.parity_issues
       langs = available_languages.dup
       return [] if langs.length < 2
@@ -101,7 +150,8 @@ module PokeAccess
         seen[k] = true
       end
       dupes.keys
-    rescue StandardError
+    rescue StandardError => e
+      (PokeAccess.log_once("i18n_dupes_#{code}", e) rescue nil)
       []
     end
 
@@ -111,7 +161,8 @@ module PokeAccess
       h = {}
       PokeAccess::KVFile.each(table_path(code).to_s, :strip_value => false) { |k, v| h[k] = v }
       h
-    rescue StandardError
+    rescue StandardError => e
+      (PokeAccess.log_once("i18n_load_#{code}", e) rescue nil)
       h
     end
   end

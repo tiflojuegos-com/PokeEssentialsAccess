@@ -15,7 +15,7 @@ module PokeAccessBoot
     load_plugins(declared_plugins("#{ROOT}/game"))
     load_manifest("#{ROOT}/game")
     (PokeAccess::Settings.apply rescue nil) if defined?(PokeAccess) && PokeAccess.const_defined?(:Settings)
-    miss = (PokeAccess::Hooks.missing rescue [])
+    miss = ((PokeAccess::Hooks.missing + PokeAccess::Hooks.unbound) rescue [])
     log("[diag] enganches sin metodo (posible typo): #{miss.join(', ')}") if miss && !miss.empty?
     if defined?(PokeAccess::Data) && (PokeAccess::Data.active_priority rescue nil).to_i <= 0
       log("[diag] PokeAccess::Data en modo emergencia: ningun provider de motor registrado (datos = id crudo)")

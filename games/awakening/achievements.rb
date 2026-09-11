@@ -17,7 +17,7 @@ module PokeAccess
         names = PokeAccess.ivar(scene, :@nombrelogro)
         name = names.is_a?(Array) ? names[sel] : nil
         name = PokeAccess.ivar(l, :@nombre) if name.nil? || name.to_s.empty?
-        name = PokeAccess.clean(name.to_s).to_s.strip
+        name = PokeAccess.clean(name.to_s)
         head = PokeAccess::I18n.t(:list_entry, :name => name, :n => sel + 1, :tot => logros.length)
         state = PokeAccess::I18n.t(earned ? :awk_ach_earned : :awk_ach_unearned)
         "#{head}, #{state}"

@@ -275,11 +275,18 @@ module PokeAccess
       nil
     end
 
+    # Whether a bump would go through the positional engine (bump answering true), on its interact channel
+    # when interact and its wall one otherwise, so the engine's master volume decides whether anyone hears it.
+    def self.bump_ready?(interact = false)
+      ch = @ch[interact ? :interact : :wall]
+      !!(@ready && @active && ch && ch >= 0)
+    end
+
     # Plays a collision sound at the bumped tile so HRTF pans it to that side: the wall sound for
     # terrain, or a distinct interact sound when bumping an npc/object. Returns true if it handled the cue.
     def self.bump(dir, interact = false)
+      return false unless bump_ready?(interact) && $game_player
       ch = @ch[interact ? :interact : :wall]
-      return false unless @ready && @active && ch && ch >= 0 && $game_player
       dx, dy = DIR_DELTA[dir] || [0, 0]
       vol = (PokeAccess::Config.wall_volume rescue 80).to_i
       SET.call(ch, ($game_player.x + dx) * TILE_UNITS, ($game_player.y + dy) * TILE_UNITS, vol, 1)

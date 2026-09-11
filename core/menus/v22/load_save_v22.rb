@@ -46,7 +46,7 @@ if PokeAccess::Engine.has?("UI::LoadVisuals")
       parts.push(PokeAccess::LoadSaveV22.slot_summary(hash)) if hash
     end
     t = PokeAccess::Util.join_parts(parts)
-    PokeAccess.speak(t, true) unless t.empty?
+    PokeAccess.speak(t, true)
   end
 
   # On Continue with several saves, LEFT/RIGHT cycle the slot via set_slot_index (not set_index), so the

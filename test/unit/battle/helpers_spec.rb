@@ -48,3 +48,35 @@ Suite.define("battle: ability cue helper") do
   truthy "no ability is nil", PokeAccess::BattleScene.ability_text(abil.new("X", "")).nil?
   truthy "nil is nil", PokeAccess::BattleScene.ability_text(nil).nil?
 end
+
+# The MODERN branch of the same reader, which had no spec at all -- which is how it could be changed into
+# reading English identifiers out loud without anything turning red.
+#
+# In this class the game's "name" is usually not a name: vanilla sets @real_name = hash[:id].to_s and
+# aliases name to it, and no register() in any surveyed game passes a :name. So the mod's own table has to
+# be asked FIRST, and the game's name only when it is something other than the symbol itself.
+Suite.define("battle: a modern weather is named from the mod's table, not from its own identifier") do
+  bt = PokeAccess::Battle
+  eq "a weather the mod has a word for is said in the player's language",
+     bt.overworld_weather_name(:Sandstorm), PokeAccess::I18n.t(:w_sandstorm)
+  eq "and so is the one whose identifier reads like a name already",
+     bt.overworld_weather_name(:HeavyRain), PokeAccess::I18n.t(:w_heavy_rain)
+
+  # A weather the game invented: nothing in the mod's table, and its name IS its symbol, so there is
+  # nothing better to say than the symbol -- but it must not pretend to be a translation.
+  eq "an invented weather with no name of its own falls back to its identifier",
+     bt.overworld_weather_name(:FogLeafG), "FogLeafG"
+
+  # A profile can name that one, and then the profile wins over everything.
+  saved = PokeAccess::Config.field_weather_names.dup
+  begin
+    PokeAccess::Config.field_weather_names[:FogLeafG] = :w_sandstorm
+    eq "a profile's declaration is the first thing asked",
+       bt.overworld_weather_name(:FogLeafG), PokeAccess::I18n.t(:w_sandstorm)
+  ensure
+    PokeAccess::Config.field_weather_names.clear
+    PokeAccess::Config.field_weather_names.merge!(saved)
+  end
+
+  truthy "none is still nothing", bt.overworld_weather_name(:None).nil?
+end

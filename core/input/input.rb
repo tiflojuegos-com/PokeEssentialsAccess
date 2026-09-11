@@ -120,7 +120,7 @@ module PokeAccess
           PokeAccess::Puzzles.read
         else
           t = PokeAccess::Info.info_text
-          PokeAccess.speak(t, true) if t && !t.to_s.empty?
+          PokeAccess.speak(t, true)
         end
       elsif key(:hp)
         PokeAccess::Battle.announce_hp(shift_down?)
@@ -154,16 +154,9 @@ module PokeAccess
   end
 end
 
-# Input hook: runs the global poll and the per-frame pollers every frame, in every context.
-#
-# Measured as :input_frame, the only label that reports from EVERYWHERE: the other two measured hooks hang
-# off Game_Player#update and fall silent the moment the player opens a menu or enters a battle, while the
-# diagnostic would still print their averages. Everything the mod does per frame outside the map goes
-# through here -- the remap wrappers, the global key poll and every registered frame poller, the modal-loop
-# readers among them. One label rather than three keeps it to two clock reads a frame.
-#
-# Guarded as a whole: each step already swallows its own failure, but a fault in the measuring itself would
-# propagate out of Input.update and take the game down.
+# Input hook: the global poll and every per-frame poller, every frame, in every context. Measured as
+# :input_frame, the one label that reports from everywhere (the Game_Player#update ones fall silent in menus
+# and battles). Guarded as a whole: a fault in the measuring itself would take the game down.
 begin
   class << Input
     unless method_defined?(:update__access_orig)

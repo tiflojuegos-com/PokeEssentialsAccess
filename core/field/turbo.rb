@@ -1,14 +1,9 @@
 module PokeAccess
-  # The speed toggle. Every fangame ships one (the BES-T and Delta "Speed Up" scripts, Royal's own, the
-  # gen-6 forks' frame-rate switch) and all of them answer with an icon and no words. Rather than one hook
-  # per script, a poller watches the two things those scripts move: $GameSpeed, an index into
-  # SPEEDUP_STAGES, or Graphics.frame_rate itself. A change seen on the map is spoken as the multiplier (x2,
-  # x1.5) or, for a frame-rate switch, as fast or normal against the rate the map first showed, and only
-  # when that answer flips: a cutscene dropping to 24 and coming back is neither. Off the map, and in a
-  # battle (gen-6 fights run with $scene still the map, so in_battle is the signal there), nothing is said
-  # and coming back re-syncs silently: the Delta script moves the speed by itself at battle start and end,
-  # Armonia's battles run at 80, and that is the game's business, not a press to announce. What is watched
-  # is the rate the game ASKS for, never the frames it manages to draw, so lag cannot trigger it.
+  # The speed toggle, which every fangame ships (BES-T and Delta "Speed Up", Royal's own, the gen-6 frame-rate
+  # switch) and none of them voices. A poller watches what those scripts move -- $GameSpeed or
+  # Graphics.frame_rate, the rate the game ASKS for, never the frames it draws -- and speaks the multiplier,
+  # or fast/normal against the rate the map first showed, only when the answer flips and only on the map:
+  # battles move the speed by themselves, and coming back re-syncs silently.
   module Turbo
     @speed = nil
     @rate = nil

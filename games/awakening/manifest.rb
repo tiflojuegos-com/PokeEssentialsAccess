@@ -14,6 +14,7 @@
     cmoon
     fates_extra
     achievements
+    load_panel
   ],
-  :plugins => %w[easy_questing gender_selection item_crafting logros text_log book_scene hatcher simple_encounter_list magic_gachapon slide_banners]
+  :plugins => %w[easy_questing gender_selection item_crafting logros text_log book_scene hatcher simple_encounter_list magic_gachapon slide_banners luka_title]
 }

@@ -66,8 +66,11 @@ is a SINGLE observer: assigning a new one replaces the previous. A raising obser
 | `Hooks.frame_hook(cname, meth, &body)` | Nothing | Per-frame driver that can host a whole modal loop. Yields `(obj, args)` |
 | `Hooks.read_on_open(cname, meth = :pbStartScene, opts = {}, &blk)` | Nothing | Opening summary, queued and cleaned. Yields `(scene)`, returns the text |
 | `Hooks.override(target, meth, opts = {}, &body)` | Nothing | Declared REPLACEMENT. Yields `(receiver, original, args)` |
+| `Hooks.variants(names, meth, label = nil) { |cname| ... }` | The spellings that bound | Hook a screen under EVERY spelling it takes, and report a group that binds nowhere |
+| `Hooks.unbound` | Array of `"group#method"` | The groups that bound nowhere; the diagnostic prints them |
 | `Hooks.wrap_global(name, tag, timing = :after, &body)` | Nothing | Top-level `Object` method (`pbDisplayMail`...). Yields `(args, x)` |
 | `Hooks.wrap_kernel(name, tag, timing = :before, &body)` | Nothing | Same, trying the `Kernel` singleton first. Yields `(args, x)` |
+| `Hooks.wrap_singleton(owner, name, tag, timing = :before, &body)` | Nothing | A game module's own singleton method (`Owner.name`). Yields `(args, x)`; absent, it lands in `fn_absent` as `"Owner.name"` |
 | `Hooks.missing` | Array of `"Class#method"` | The class exists and the method does not: LIKELY TYPO |
 | `Hooks.fn_absent` | Array of function names | Found in neither `Kernel` nor `Object`. Informational |
 | `Hooks.overrides` | Array of `"Target.meth (tag)"` | Installed replacements; the diagnostic prints them |
@@ -168,10 +171,10 @@ per method with `:optional`. A one-off screen needs no registration: pass its cl
 | Signature | Returns | When to use it |
 |---|---|---|
 | `I18n.t(key, vars = nil)` | The translated string | All spoken text; `vars` is a `%{name} => value` hash |
-| `I18n.lang` | The active language symbol, or the reference one (`:en`) | Read the language without touching `Config` |
+| `I18n.lang` | The active language symbol: the explicit choice, or what `:auto` resolves to (system, game, English) | Read the language without touching `Config` |
 | `I18n.available_languages` | Array of symbols with a file in `lang/` | Language menu |
 | `I18n.language_name(code)` | The `__language__` entry, or the code | Human name in the menu |
-| `I18n.next_language(code)` | The next in the cycle | Language toggle |
+| `I18n.next_language(code)` | The next in the cycle, `:auto` first | Language toggle |
 | `I18n.interpolate(s, vars)` | The string with `%{name}` substituted | Interpolate outside `t`; a missing var yields `""` |
 | `I18n.parity_issues` | Array of `"code:key: reason"`; `[]` when in sync | The boot check and the suite |
 | `I18n.table(code)` | Key => value hash, cached | Inspect a whole table |
@@ -508,6 +511,8 @@ See [05-extending](05-extending.md).
 | `override(target, meth, &body)` | Nothing | `Hooks.override` with `:tag => "game_<profile>"` |
 | `kernel(fname, timing = :before, &body)` | Nothing | `Hooks.wrap_kernel` for a loose function |
 | `screen_reader(cname, &blk)` | Nothing | Reader for the focused option of a command window |
+| `info_window(cname, key, slot, opts = {})` | Whether the class took the binding | A standing window of one of this game's screens (see `InfoWindow`) |
+| `hall_of_fame(*cnames)` | Nothing | This game's clones of the Hall of Fame screen: each named class gets the family's readers (panel, banner and entry animation) |
 | `poll_each_frame(&blk)` | Nothing | `Keys.on_frame`, for menus with their own loop |
 | `trainer_part(key, &reader)` | The key | Defines or replaces one part of the trainer line (ribbons instead of badges, coins instead of money). Yields the player object; a new key joins the end |
 | `trainer_order(keys)` | The order set | Order of the trainer line's parts; a part left out is not spoken |
@@ -517,6 +522,7 @@ See [05-extending](05-extending.md).
 | `remap_extra(sym, default_vk, label)` | Nothing | A remappable extra action |
 | `puzzle(map_id, opts)` | Nothing | `Puzzles.register` |
 | `hazard(pattern, label)` | Nothing | `Locator.register_hazard` |
+| `teleporter(pattern)` | Nothing | `Locator.register_teleporter` |
 | `picture_texts(map)` | The resulting hash | Picture file name => spoken text |
 | `on_picture(&blk)` | Nothing | React to a picture being shown. Yields `(picture_name, args)` |
 
@@ -663,3 +669,16 @@ the game.
 
 `DATA` is picked once at load by trying to write: mkxp-z reads through its virtual filesystem but writes to
 the OS working directory, which on a tester's machine can be read-only.
+
+### Information windows
+
+`core/menus/info_window.rb` — module `InfoWindow`. The standing window a screen writes with `text=` and
+repaints as the cursor moves: where a contact lives, how many are registered, how many species the dex
+has seen, what the focused option does. The global listeners on `Window_AdvancedTextPokemon` are narrowed
+on purpose, so these windows are declared ONE BY ONE instead of widening the listener.
+
+| Call | Returns | What for |
+|---|---|---|
+| `InfoWindow.watch(cname, key, slot, opts = {})` | Whether the class took the binding | Declares the `key` window of scene `cname` with its dedup slot. `:interrupt` for a caption that answers a keypress, rather than queueing |
+| `InfoWindow.watches` | Array of `[class, key, slot, interrupt]` | The declared windows |
+| `InfoWindow.silent` | Array of `"Class.key"` | Declared windows the scene does not have: a reader that can never speak. The diagnostic prints them |

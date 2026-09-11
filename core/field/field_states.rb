@@ -5,18 +5,18 @@ module PokeAccess
   module FieldStates
     # Spin tiles (the Vendily/thepsynergist plugin, two games): stepping on one drags the player in its
     # direction until a wall or a stop tile, redirecting on every further spin tile. $PokemonGlobal.spinning
-    # is the flag and the terrain tag under the player is the direction, which is how the plugin itself
-    # decides where to push.
-    SPIN_TAGS = { 31 => :fs_spin_up, 32 => :fs_spin_down, 33 => :fs_spin_left, 34 => :fs_spin_right }
+    # is the flag and the player's FACING is the direction: the plugin turns the player toward each arrow
+    # before it moves them, and it moves them in the same call, so by the first frame any poll runs the
+    # player already stands one tile past the tile that decided the turn. The terrain tag under them would
+    # name the NEXT tile (and nothing at all on plain floor); the facing names this turn.
+    SPIN_DIRS = { 2 => :fs_spin_down, 4 => :fs_spin_left, 6 => :fs_spin_right, 8 => :fs_spin_up }
 
     @spin_last = nil
     @lens_on = false
 
-    # The direction key for the tile under the player, or nil when it is not a spin tile.
+    # The direction key for the spin in progress, from the player's facing.
     def self.spin_key
-      tag = ($game_player.pbTerrainTag rescue nil)
-      tag = (tag.respond_to?(:id) ? tag.id : tag)
-      SPIN_TAGS[tag.is_a?(Integer) ? tag : nil]
+      SPIN_DIRS[$game_player.direction]
     rescue StandardError
       nil
     end

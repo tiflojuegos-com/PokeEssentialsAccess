@@ -28,7 +28,7 @@ module PokeAccess
       return false if ret.nil? || ret.to_i <= 0
       if PokeAccess::Cursor.changed?(bag, :bb_key, "ret#{ret}")
         name = PBItems.getName(ret).to_s
-        PokeAccess.speak(name, true) unless name.empty?
+        PokeAccess.speak(name, true)
       end
       true
     end
@@ -48,7 +48,7 @@ module PokeAccess
             when 5 then PokeAccess::I18n.t(:bb_back)
             else nil
             end
-      PokeAccess.speak(txt, true) if txt && !txt.empty?
+      PokeAccess.speak(txt, true)
     end
 
     # Speaks the item-list screen entry (item with quantity or back). One shared slot across the three

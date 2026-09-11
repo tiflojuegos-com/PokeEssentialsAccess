@@ -103,3 +103,33 @@ Suite.define("triple triad: nesting the hand inside the board restores the outer
     PokeAccess::TripleTriad.stop
   end
 end
+
+# The card shop: the rows are strings the generic reader already names ("Bulbasaur - $50"), but the card
+# drawn beside them -- the four side numbers, which is the whole basis for the purchase -- is a bitmap. The
+# loop redraws it whenever the focus lands on a different species, so the card handed to createBitmap is the
+# focused one. Outside the shop that same call draws the board and both hands, and must stay silent.
+Suite.define("triple triad: the shop reads the card beside the row, and nothing outside the shop") do
+  SpeakCapture.clear
+  TriadCard.new(4).createBitmap(1)
+  silent "a card drawn outside the shop says nothing"
+
+  $triad_shop_script = [4, 4, 7]
+  SpeakCapture.clear
+  pbBuyTriads
+  lines = SpeakCapture.lines
+  eq "one line per card the focus lands on, and none for standing still", lines.length, 2
+  match "the first card is named with its four sides", lines[0],
+        /#{Regexp.escape(PokeAccess::I18n.t(:triad_sides, :n => 5, :e => 8, :s => 10, :w => 2))}/
+  match "and the next one with its own", lines[1],
+        /#{Regexp.escape(PokeAccess::I18n.t(:triad_sides, :n => 8, :e => 1, :s => 3, :w => 5))}/
+
+  SpeakCapture.clear
+  TriadCard.new(4).createBitmap(1)
+  silent "and once the shop is closed the reader is quiet again"
+
+  $triad_shop_script = [4]
+  SpeakCapture.clear
+  pbSellTriads
+  spoke "selling reads the same way", /#{Regexp.escape(PokeAccess::I18n.t(:triad_sides, :n => 5, :e => 8, :s => 10, :w => 2))}/
+  $triad_shop_script = nil
+end

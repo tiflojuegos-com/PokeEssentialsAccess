@@ -30,7 +30,7 @@ module PokeAccess
       changed = PokeAccess::Cursor.changed?(scene, :place_idx, idx)
       return unless changed || moved
       t = place_name(idx)
-      PokeAccess.speak_clean(t, !moved) if t && !t.to_s.empty?
+      PokeAccess.speak_clean(t, !moved)
     rescue StandardError
       nil
     end

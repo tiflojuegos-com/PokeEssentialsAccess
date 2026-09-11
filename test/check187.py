@@ -1,14 +1,15 @@
 import os, re, glob, subprocess, sys
 # 1.8.7 compatibility checks. core/ loads in BOTH engines (gen-6 Ruby 1.8.7 and modern 3.1) and the
 # gen-6 game profiles run on 1.8.7, so their code must be 1.8.7-safe. Only the profiles of games that RUN
-# on Ruby 3.x are exempt -- MODERN below: anil, royal, relict, emerald, infinitefusion and
-# infinitefusion_hoenn (GameData-era engines on an mkxp-z built against Ruby 3.1). GEN-6 (linted):
-# pokemon_z, opalo, armonia (Essentials 16.3), realidea, africanus, reminiscencia (PScreen_*/PB*
-# pre-GameData), and generic/unknown (conservative).
+# on Ruby 3.x are exempt -- MODERN below: anil, fireash, royal, relict, soulstones2, emerald, infinitefusion
+# and infinitefusion_hoenn (GameData-era engines on an mkxp-z built against Ruby 3.x). GEN-6 (linted):
+# pokemon_z, opalo, armonia (Essentials 16.3), awakening, realidea, africanus (their mkxp-z carries
+# $KCODE='U' and Ruby 1.8.7 linked in), reminiscencia (gen-6 scripts, though its mkxp-z runs Ruby 3.1.3;
+# linted anyway, conservatively), and generic/unknown (conservative).
 # The version folders of core/ are deliberately NOT exempt: core/manifest.rb is a flat list with no engine
 # condition, so every one of them is loaded in the 1.8.7 games too, and a file that does not parse there
 # lands in loader_error.txt on every boot. Exempting them assumed a gate that does not exist.
-MODERN = ("games/anil/", "games/royal/", "games/relict/",
+MODERN = ("games/anil/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
           "games/infinitefusion_hoenn/", "games/infinitefusion/",
           "games/emerald/")
 def is_modern(path):
@@ -77,7 +78,7 @@ RUNTIME = [
      "n = x.round(2)", "n = x.round"),
     (re.compile(r"[A-Za-z0-9_)\]]&\."),              "safe navigation &. (Ruby 2.3+)",
      "n = a&.b", "n = a && a.b"),
-    (re.compile(r"&:\w"),                            "Symbol#to_proc &:sym (Ruby 1.9+; use a block in gen-6)",
+    (re.compile(r"&:\w"),                            "Symbol#to_proc &:sym (1.8.7-p374 has it; kept out of shared code for consistency, use a block)",
      "a.map(&:to_s)", "a.map { |x| x.to_s }"),
     (re.compile(r"->\s*[({]"),                       "stabby lambda -> (Ruby 1.9+)",
      "f = ->(x) { x }", "f = lambda { |x| x }"),
@@ -103,8 +104,9 @@ RUNTIME = [
     # contra el arbol actual: 0 coincidencias, asi que ninguna nace gritando. Tres candidatas se quedaron
     # FUERA por ruidosas, y conviene saber cuales: .sample choca con Recorder.sample, .key( con metodos
     # propios llamados key, y .select no distingue un Hash de un Array por el receptor -- ese ultimo
-    # importa, porque Hash#select devuelve Array en 1.8.7 y Hash desde 1.9 (los 18 sitios del arbol son
-    # Array o Range, comprobados uno a uno).
+    # importa, porque Hash#select devuelve Array en 1.8.7 y Hash desde 1.9 (los sitios del arbol son Array
+    # o Range salvo uno, berrydex, que sigue con un map sobre los pares y lee igual en los dos). La regla de
+    # mas abajo caza solo la forma que si rompe: un metodo de Hash encadenado al resultado.
     (re.compile(r"\.flat_map\b"),                     "Enumerable#flat_map (Ruby 1.9+)",
      "a.flat_map { |x| x }", "a.map { |x| x }.flatten(1)"),
     (re.compile(r"\.rotate\b"),                       "Array#rotate (Ruby 1.9+)",
@@ -142,6 +144,50 @@ RUNTIME = [
     # Devuelve el BYTE en 1.8.7 y el caracter desde 1.9: no lanza, contesta false para siempre.
     (re.compile(r"\[\s*0\s*\]\s*==\s*[\"']"),         "s[0] == \"x\" (1.8.7 devuelve un Fixnum, no un caracter)",
      'if line[0] == "#"', 'if line[0, 1] == "#"'),
+    # Lo que el 1.8.7 real hace distinto y no se ve leyendo: un Hash literal itera en orden de bucket (los
+    # efectos de campo del combate salian barajados). Debajo, el resto de reglas comprobadas contra ese
+    # interprete, que si lanzan: "".to_sym da ArgumentError, Hash#select devuelve un Array de pares, y las
+    # constantes 1.9+ dan NameError.
+    (re.compile(r"=>[^{}]*\}\s*\.each(?:_pair)?\s*(?:do|\{)\s*\|\w+,\s*\w+\|"),
+     "Hash literal iterado en sitio: orden arbitrario en 1.8.7 (usa un Array de pares)",
+     "{ :a => 1 }.each do |k, v|", "rows.each do |k, v|"),
+    (re.compile(r"gsub\([^)]*\)\.to_sym\b"),
+     "to_sym tras gsub: la cadena vacia lanza ArgumentError en 1.8.7 (guarda el vacio antes)",
+     'raw.to_s.gsub(/\\s+/, "").to_sym', '"dir_#{key}".to_sym'),
+    (re.compile(r"\.select\s*\{[^}]*\}\s*\.(?:keys|values|key\?|has_key\?|merge|each_key|each_value|each_pair)\b"),
+     "Hash#select devuelve Array en 1.8.7: keys/values/merge sobre el resultado fallan",
+     "h.select { |k, v| v }.keys", "h.select { |k, v| v }.map { |k, v| k }"),
+    (re.compile(r"\.with_index\b"),
+     "Enumerator#with_index tras map/each sin bloque (en 1.8.7 map sin bloque devuelve Array)",
+     "a.map.with_index { |x, i| x }", "a.each_with_index { |x, i| x }"),
+    (re.compile(r"\.(?:chars|lines|bytes)(?:\.(?:size|length|last|reverse|join|uniq)|\[)"),
+     "String#chars/lines/bytes devuelven Enumerator en 1.8.7: sin size/last/[]/join (pasa por to_a)",
+     "s.chars.size", "s.chars.to_a.size"),
+    (re.compile(r"\.(?:sort_by!|select!)|\.cover\?"),
+     "Array#sort_by!/select! y Range#cover? (Ruby 1.9+)",
+     "a.sort_by! { |x| x }", "a = a.sort_by { |x| x }"),
+    (re.compile(r"\.(?:min|max|min_by|max_by)\(\s*\d"),
+     "min/max/min_by/max_by con cuenta (Ruby 2.2+; sort y first(n))",
+     "a.min(2)", "a.sort.first(2)"),
+    (re.compile(r"\bFile\.write\b|\bIO\.write\b|\bDir\.exists?\?"),
+     "File.write/IO.write/Dir.exist? (1.9+): usa File.open(p, 'w') / File.directory?",
+     "File.write(p, s)", 'File.open(p, "w")'),
+    (re.compile(r"\\u[0-9A-Fa-f]{4}|\\u\{"),
+     "escape \\u en cadena o regex: 1.8.7 lo deja como el texto 'u00e9'",
+     '"\\u00e9"', '"\\xC3\\xA9"'),
+    (re.compile(r"\(\?<[=!]|\(\?<\w+>|\\p\{"),
+     "lookbehind, grupo con nombre o \\p{} en regex: 1.8.7 no los compila",
+     "/(?<=a)b/", "/(?:a)b/"),
+    (re.compile(r"\bKeyError\b|\bEncoding\b|\bRandom\.|\bFiddle\b|\bEnumerator\b"),
+     "constante 1.9+ (NameError en 1.8.7; Hash#fetch lanza IndexError alli)",
+     "rescue KeyError", "rescue IndexError"),
+    # Object#id existe en 1.8.7 (alias viejo de object_id, con aviso): un Struct, un Fixnum, cualquier cosa
+    # contesta true, y el localizador etiquetaba superficies bajo un object_id. Se admite solo junto a una
+    # guarda por clase (is_a?/kind_of?/instance_of?) en la misma linea; una guarda ajena en esa linea tambien
+    # la acalla, limite asumido a cambio de no leer el arbol.
+    (re.compile(r"^(?!.*\b(?:is_a|kind_of|instance_of)\?).*respond_to\?\(?\s*:id\b"),
+     "respond_to?(:id) es true para TODO objeto en 1.8.7 (Object#id, alias de object_id): decide por clase",
+     "tag = (tag.respond_to? :id) ? tag.id : tag", "if !t.is_a?(Integer) && t.respond_to?(:id)"),
 ]
 
 # The two rules that are not a regex get their cases here, in the same shape.
@@ -265,9 +311,10 @@ for f in paths:
         for rx, label, _m, _n in SYNTAX19:
             if rx.search(ln):
                 flagged.append("%s:%d  %s -> %r" % (f, i + 1, label, s[:72]))
-        # (2) 1.9+ runtime APIs
+        # (2) 1.9+ runtime APIs, matched on the code with any trailing comment cut off
+        code = strip_comment(ln)
         for rx, label, _m, _n in RUNTIME:
-            if rx.search(ln):
+            if rx.search(code):
                 flagged.append("%s:%d  %s -> %r" % (f, i + 1, label, s[:72]))
 
 if flagged:

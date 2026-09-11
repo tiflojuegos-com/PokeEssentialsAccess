@@ -24,6 +24,17 @@ module TransferCases
     PokeAccess::Locator.clear_verdicts
     ev
   end
+
+  # The same tile with its call split the way the editor stores a long one: the first line a 355 command
+  # and every line after it a 655 continuation.
+  def self.split_tile(lines, id = 93)
+    cmds = [TestCmd.new(355, [lines[0]])] + lines[1..-1].map { |l| TestCmd.new(655, [l]) }
+    page = TestPage.new(:trigger => 1, :sprite => "", :list => cmds)
+    ev = TestGameEvent.new(:id => id, :x => 7, :y => 8, :name => "Entrada", :pages => [page], :active_page => page)
+    ($game_map.events[id] = ev) if $game_map.respond_to?(:events) && $game_map.events.is_a?(Hash)
+    PokeAccess::Locator.clear_verdicts
+    ev
+  end
 end
 
 def define_transfer_script_suites
@@ -59,8 +70,41 @@ def define_transfer_script_suites
       ev = TransferCases.script_tile("getToDungeon(dungeonmaps[selec])")
       falsy "a call whose destination is a variable captures nothing, so it is no transfer", loc.transfer_event?(ev)
 
+      # A pattern with NO capture group at all. nil.to_i is 0, so the tile used to announce itself as an
+      # exit to map 0 -- a map no game has, named after nothing, and a pathfinder target pointing at it.
+      loc.register_transfer_script(/\bteleportHome\b/)
+      PokeAccess::Locator.clear_verdicts
+      ev = TransferCases.script_tile("teleportHome")
+      falsy "a pattern that captures nothing declares no destination", loc.transfer_script_dest(ev)
+      falsy "and therefore no exit", loc.transfer_event?(ev)
+
       ev = TransferCases.script_tile("pbSetTeleports(7)")
       falsy "a call nobody registered stays out even next to registered ones", loc.transfer_event?(ev)
+    ensure
+      TransferCases.restore(saved)
+      World.clear_events
+    end
+  end
+
+  # Realidea writes 1388 script calls, every pbTransferWithTransition it has over 1297 pages, as the call on
+  # one line and the map id on the continuation line under it. Scanned line by line, neither half matched
+  # the shipped pbTransfer pattern, so those tiles were neither listed, nor routed to, nor heard; only the
+  # three hundred doors it opens with a Transfer command survived.
+  Suite.define("transfer by script: a call split across a 355 line and its 655 continuations is read whole") do
+    loc = PokeAccess::Locator
+    saved = TransferCases.snapshot
+    begin
+      ev = TransferCases.split_tile(["pbTransferWithTransition(", "32,10,1,:DIRECTED)"])
+      eq "the map id on the continuation line is the destination", loc.transfer_script_dest(ev), 32
+      truthy "so the tile is an exit", loc.transfer_event?(ev)
+      truthy "listed among the exits", loc.in_category?(ev, :exits)
+      eq "and heard as a door", PokeAccess::Audio3D.type_of(ev), :door
+
+      ev = TransferCases.split_tile(["pbTransferWithTransition(", "32,10,1,", ":DIRECTED, 8)"], 94)
+      eq "however many continuation lines the call takes", loc.transfer_script_dest(ev), 32
+
+      ev = TransferCases.split_tile(["pbMessage(\"...\")", "$game_temp.player_new_map_id = 17"], 95)
+      eq "a continuation is read as part of its call, not lost", loc.transfer_script_dest(ev), 17
     ensure
       TransferCases.restore(saved)
       World.clear_events

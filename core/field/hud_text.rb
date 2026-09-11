@@ -1,13 +1,7 @@
-# Kernel.pbDisplayText: a HUD text writer some fangames ship (a DisplayText.rb addon script). Screens built
-# on it paint their labels straight onto a bare BitmapSprite, with no Essentials window involved, so
-# everything drawn that way is silent -- in the games that ship it, a whole PokeNav (Contacts, PokeRadar,
-# Challenges, weather) plus the character creator. Wrapping this one function reaches all of them, and it
-# no-ops where the function is not defined.
-#
-# Deduped by SCREENFUL and not by last label: a HUD repaints every frame, and a screen with two labels
-# alternates them, so a one-slot dedup would see a change on every call and flood the queue.
-# Kernel.pbClearText is the repaint boundary, defined by the same addon, and what the previous pass wrote
-# is the yardstick for what the new one changed.
+# Kernel.pbDisplayText: a HUD text writer some fangames ship (DisplayText.rb), painting labels straight onto a
+# bare BitmapSprite -- a whole PokeNav and the character creator in the games that have it. Wrapping the one
+# function reaches all of them. Deduped by SCREENFUL, with Kernel.pbClearText as the repaint boundary: a HUD
+# repaints every frame and alternates its labels, so a one-slot dedup would flood the queue.
 module PokeAccess
   module HudText
     # Distinct labels kept per pass. A HUD screen paints a handful; the cap is what stops a screen that never

@@ -31,7 +31,7 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :awk_hist_chapter, i, true) do
         locked = row.is_a?(Array) && !row[1]
         name = locked ? PokeAccess::I18n.t(:awk_glos_locked) :
-                        PokeAccess.clean((row.is_a?(Array) ? row[0] : row).to_s).to_s.strip
+                        PokeAccess.clean((row.is_a?(Array) ? row[0] : row).to_s)
         name.empty? ? nil : PokeAccess::I18n.t(:list_entry, :name => name, :n => i + 1, :tot => cmds.length)
       end
     rescue StandardError
@@ -57,26 +57,21 @@ module PokeAccess
 
     # A section row as the screen draws it: the translated title once unlocked, the locked word otherwise.
     def self.section_label(scene, raw)
-      key = raw.to_s.downcase.gsub(/\s+/, "").to_sym
-      return PokeAccess::I18n.t(:awk_glos_locked) unless (scene.send(:glosario_historia)[key] rescue true)
+      key = raw.to_s.downcase.gsub(/\s+/, "")
+      unlocked = key.empty? || (scene.send(:glosario_historia)[key.to_sym] rescue true)
+      return PokeAccess::I18n.t(:awk_glos_locked) unless unlocked
       shown = (Glosario_Historia_Secciones::TRADUCCIONES_NOMBRES[raw.to_s] rescue nil) || raw.to_s
-      PokeAccess.clean(shown).to_s.strip
+      PokeAccess.clean(shown)
     rescue StandardError
-      PokeAccess.clean(raw.to_s).to_s.strip
+      PokeAccess.clean(raw.to_s)
     end
 
-    # A section's text, page by page. Both the page number and the section being shown are LOCALS of
-    # mostrar_texto's loop, so both are read off what the loop DRAWS every frame: the title first, then the
-    # body, then a "Pagina n/m" stamp. The screen's own answer, which cannot drift from what is displayed.
-    #
-    # Reading the section from the title rather than from the method's argument is not belt and braces. This
-    # copy does NOT recurse to move between sections the way the character glossary does: paging past either
-    # end REASSIGNS its own local (nombre = prev_section / next_section) and keeps looping, so the argument
-    # the hook was entered with goes stale the moment the player crosses a boundary -- and the reader would
-    # announce the previous section's title over the next section's text.
-    #
-    # The cursor is hidden for exactly as long as a section is open, which is what keeps the LIST's identical
-    # page stamp from being taken for a page turn.
+    # A section's text, page by page. Both the page number and the section shown are LOCALS of
+    # mostrar_texto's loop, so both are read off what it DRAWS every frame: the title, the body, then a
+    # "Pagina n/m" stamp. The section comes from the title and not the method's argument because paging past
+    # either end REASSIGNS the local and keeps looping, so the argument goes stale at the boundary. The
+    # cursor is hidden for exactly as long as a section is open, which keeps the LIST's identical stamp
+    # from being taken for a page turn.
     @open = nil
     @title = nil
     @page = nil
@@ -100,7 +95,7 @@ module PokeAccess
       return unless name
       @page = i
       t = body(@open, name, i)
-      PokeAccess.speak(t, true) if t && !t.to_s.empty?
+      PokeAccess.speak(t, true)
     rescue StandardError
       nil
     end
@@ -122,7 +117,7 @@ module PokeAccess
       return nil unless pages.is_a?(Array) && !pages.empty?
       i = page.to_i
       i = 0 if i < 0 || i >= pages.length
-      text = PokeAccess.clean(pages[i].to_s).to_s.strip
+      text = PokeAccess.clean(pages[i].to_s)
       return nil if text.empty?
       PokeAccess::I18n.t(:awk_glos_bio, :name => section_label(scene, name),
                          :page => i + 1, :pages => pages.length, :text => text)

@@ -11,7 +11,7 @@ module PokeAccess
     def self.text(win, i)
       outfits = win.instance_variable_get(:@outfits)
       return nil unless outfits.is_a?(Array) && i >= 0 && i < outfits.length
-      name = PokeAccess.clean(outfits[i].to_s).to_s.strip
+      name = PokeAccess.clean(outfits[i].to_s)
       return nil if name.empty?
       worn = (win.instance_variable_get(:@outfit_selected) rescue nil)
       (worn == i) ? "#{name}, #{PokeAccess::I18n.t(:wardrobe_worn)}" : name

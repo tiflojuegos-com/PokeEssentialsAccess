@@ -1,14 +1,9 @@
 module PokeAccess
-  # Locator part 4 of 4: the two guides toward the selected target, both fed by one route.
-  #
-  #   - the CANE (Shift+I): a panned/pitched chime on a timer, pointing at the next step.
-  #   - the STEP guide (Ctrl+I): the route spoken one leg at a time, "6 up", the next leg only once that
-  #     one has been walked.
-  #
-  # The route is computed once by A* and then CONSUMED as the player walks it (recomputing only on
-  # deviation, target change or a freshness check), which keeps it cheap on big maps and is what lets the
-  # step guide read the leg it is on without searching again. Both may run at once; they share the route,
-  # the "no route" latch and the end of the journey, so nothing is announced twice.
+  # Locator part 4 of 4: the two guides toward the selected target, fed by one route. The CANE (Shift+I) is
+  # a panned/pitched chime on a timer pointing at the next step; the STEP guide (Ctrl+I) speaks the route one
+  # leg at a time. The route is computed once by A* and CONSUMED as the player walks it (recomputed on
+  # deviation, target change or a freshness check). Both may run at once and share the route, the "no route"
+  # latch and the end of the journey.
   module Locator
     # rpg direction code => its localization key (for the "jump <dir>" cue).
     DIR_NAMES = { 8 => :dir_up, 2 => :dir_down, 4 => :dir_left, 6 => :dir_right }

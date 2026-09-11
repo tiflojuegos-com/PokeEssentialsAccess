@@ -16,7 +16,7 @@ module PokeAccess
       return unless PokeAccess::Cursor.changed?(scene, :radial, idx)
       key = RADIAL[idx]
       label = key ? PokeAccess::I18n.t(key) : nil
-      PokeAccess.speak(label, true) if label && !label.to_s.empty?
+      PokeAccess.speak(label, true)
     rescue StandardError
       nil
     end

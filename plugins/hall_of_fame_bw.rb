@@ -55,6 +55,39 @@ module PokeAccess
       ""
     end
 
+    # The gen-5 ceremony card of one team member, composed from what its two bars paint: the nickname when
+    # it differs from the species, the species with its sex word, and the level.
+    def self.card(pk)
+      return nil unless pk
+      sp = (pk.speciesName rescue nil)
+      sp = (GameData::Species.get(pk.species).name rescue nil) if sp.nil? || sp.to_s.empty?
+      nm = (pk.name rescue nil)
+      parts = []
+      parts.push(nm) if nm && !nm.to_s.empty? && nm != sp
+      parts.push(sp.to_s + sex_suffix(pk)) if sp && !sp.to_s.empty?
+      lv = (pk.level rescue nil)
+      parts.push(PokeAccess::I18n.t(:hofbw_level, :n => lv)) if lv
+      parts.empty? ? nil : parts.join(", ")
+    rescue StandardError
+      nil
+    end
+
+    # The gen-5 finale: the champion line with the region the plugin names, then the player and the play
+    # time its lower bar shows.
+    def self.finale(scene)
+      region = (PokeAccess.const_at("HallDeLaFama_REGION") rescue nil).to_s
+      first = region.empty? ? PokeAccess::I18n.t(:hofbw_champion_any) : PokeAccess::I18n.t(:hofbw_champion, :region => region)
+      name = (PokeAccess::Engine.player.name rescue nil).to_s
+      time = (scene.get_play_time_formatted rescue nil)
+      second = nil
+      unless name.empty?
+        second = time ? PokeAccess::I18n.t(:hofbw_finale, :name => name, :time => time) : name
+      end
+      PokeAccess::Util.join_parts([first, second], " ")
+    rescue StandardError
+      nil
+    end
+
     # The focused team member: which entry, where in the team, and the Pokemon. speciesName is the plugin's
     # own accessor, so a renamed or fused species comes out as the screen shows it.
     def self.read(scene)
@@ -86,12 +119,26 @@ PokeAccess::Hooks.after_hook("HallOfFameViewerScene", :update_display, :optional
 end
 
 # The entry CEREMONY (SalonDeFama.registrar -> HallDeLaFama): the plugin replaces the engine's
-# pbHallOfFameEntry wholesale, so the core HallOfFame reader never runs in these games. Every line the
-# ceremony shows -- titles, dex stats, per-Pokemon cards -- goes through its three window builders, the
-# one seam shared by all its gen-styled variants; read there and the whole ceremony speaks.
+# pbHallOfFameEntry wholesale, so the core HallOfFame reader never runs in these games. Its gen-4 styles put
+# every line -- titles, dex stats, per-Pokemon cards -- through three window builders; the gen-5 style both
+# games run (HallDeLaFama_GEN = 5) paints the per-Pokemon card in gen5_pokemon_info, nickname and level on
+# the lower bar and species and sex on the upper, and the finale in create_gen5_final_windows, straight
+# onto bitmaps in one game and through a text sprite in the other. Card and finale are composed from the
+# data those bars paint, since one copy has no text seam at all; the title still arrives through
+# create_text_window.
 ["create_text_window", "create_title_window", "create_info_window"].each do |m|
   PokeAccess::Hooks.after_hook("HallDeLaFama", m.to_sym, :optional => true) do |_s, _r, args|
     t = args[0]
     PokeAccess.say_dialogue(t.to_s) if t && !t.to_s.strip.empty?
   end
+end
+
+PokeAccess::Hooks.after_hook("HallDeLaFama", :gen5_pokemon_info, :optional => true) do |_s, _r, args|
+  t = PokeAccess::HallOfFameBW.card(args[0])
+  PokeAccess.say_dialogue(t) if t
+end
+
+PokeAccess::Hooks.after_hook("HallDeLaFama", :create_gen5_final_windows, :optional => true) do |scene, _r, _a|
+  t = PokeAccess::HallOfFameBW.finale(scene)
+  PokeAccess.say_dialogue(t) if t
 end

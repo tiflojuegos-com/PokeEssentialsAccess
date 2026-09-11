@@ -12,7 +12,10 @@ Suite.define("settings: apply reads a player ini over the defaults, clamped and 
     PokeAccess::Settings.send(:remove_const, :FILE)
     PokeAccess::Settings.const_set(:FILE, file)
 
+    # Stamped with the current layout version: an unstamped ini is one from before the automatic
+    # language and is migrated to :auto on the way in, which is its own suite's business.
     File.open(file, "w") do |f|
+      f.write("settings_version=#{PokeAccess::Settings::VERSION}\n")
       f.write("audio3d_volume=250\n")
       f.write("guide_distance=abc\n")
       f.write("auto_guide=true\n")
@@ -38,6 +41,7 @@ Suite.define("settings: apply reads a player ini over the defaults, clamped and 
     rewritten = File.read(file)
     missing = PokeAccess::Settings.schema_keys.reject { |k| rewritten =~ /^#{Regexp.escape(k)}=/ }
     eq "apply rewrote the ini with every schema key", missing, []
+    truthy "and stamped the layout version", rewritten =~ /^settings_version=#{PokeAccess::Settings::VERSION}$/
 
     # An absent file is created with the defaults -- the first-boot path.
     File.delete(file)

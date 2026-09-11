@@ -103,6 +103,7 @@ Suite.define("static/dedup: el estado de modulo tiene camino de reset") do
     rea_baya rea_mankey rea_morse rea_postre_col rea_ppt rea_timon rea_timon_dir ready_last rem_build
     rem_tree ribbon_idx rse_starter sb_place slot_wager starter_sel sum_key sumkey support tl tm_name
     vp_msg wardrobe_row opt_val tp_cell pnav_hearts bb_key mbs_sel ck_target mm_help mm_sel mg_score
+   triad_score hof_welcome dex_header voltseon_entry summary_egg mine_wall pc_mode ss2_boxpick ss2_boxset ss2_tutor showcase ev_alloc
    book_page rea_hof_slide]
   scene_missing = scene_slots.reject { |slot, _f| cursor_resets[slot] || self_scoped.include?(slot) }
   eq("slots de instancia sin reset y sin declaracion en SELF_SCOPED",

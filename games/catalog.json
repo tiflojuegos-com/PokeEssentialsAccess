@@ -1,67 +1,6 @@
 {
-  "_comment": "Catalogo de perfiles. Fuente unica para install.ps1 y el launcher. key = carpeta en games/. display = nombre hablado. Deteccion POR CAPAS (orden decidido 2026-08-01): 1) titles contra el title de mkxp.json o el Title= de Game.ini (gana el match mas largo; es lo que el jugador no renombra), 2) detect (regex ci sobre carpeta+exe; gana el MATCH mas largo, no el primero), 3) exes (nombre exacto de exe distintivo; Game.exe generico no identifica), 4) nada -> preguntar. El orden de la lista se conserva por compatibilidad con launchers antiguos (first-match); los campos nuevos son aditivos.",
+  "_comment": "Catalogo de perfiles. Fuente unica para install.ps1 y el launcher. key = carpeta en games/. display = nombre hablado. Deteccion POR CAPAS (orden decidido 2026-08-01): 1) titles contra el title de mkxp.json o el Title= de Game.ini (gana el match mas largo; es lo que el jugador no renombra), 2) detect (regex ci sobre carpeta+exe; gana el MATCH mas largo, no el primero), 3) exes (nombre exacto de exe distintivo; Game.exe generico no identifica), 4) nada -> preguntar. La lista va en orden alfabetico por key: ninguna capa depende ya del orden (titles y detect ganan por match mas largo, exes por nombre exacto), asi que la posicion de una entrada no decide nada y anadir una no obliga a colocarla.",
   "profiles": [
-    {
-      "key": "pokemon_z",
-      "display": "Pokemon Z",
-      "titles": [
-        "pokemon z",
-        "pokémon z"
-      ],
-      "detect": "pokemon ?z\\b",
-      "exes": [],
-      "engine": "gen6"
-    },
-    {
-      "key": "opalo",
-      "display": "Pokemon Ópalo",
-      "titles": [
-        "pokemon opalo",
-        "pokémon opalo",
-        "pokemon ópalo",
-        "pokémon ópalo"
-      ],
-      "detect": "opalo|ópalo",
-      "exes": [],
-      "engine": "gen6"
-    },
-    {
-      "key": "reminiscencia",
-      "display": "Pokemon Reminiscencia",
-      "titles": [
-        "reminiscencia"
-      ],
-      "detect": "reminisc",
-      "exes": [
-        "Reminiscencia.exe"
-      ],
-      "engine": "gen6"
-    },
-    {
-      "key": "armonia",
-      "display": "Pokemon Armonia",
-      "titles": [
-        "pokemon_armonia",
-        "pokemon armonia",
-        "pokémon armonia"
-      ],
-      "detect": "armon",
-      "exes": [
-        "Armonia_Juego.exe"
-      ],
-      "engine": "gen6"
-    },
-    {
-      "key": "realidea",
-      "display": "Pokemon Realidea",
-      "titles": [
-        "realidea system",
-        "realidea"
-      ],
-      "detect": "realidea",
-      "exes": [],
-      "engine": "gen6"
-    },
     {
       "key": "africanus",
       "display": "Pokemon Africanus",
@@ -72,17 +11,6 @@
         "pokémon africanus"
       ],
       "detect": "african",
-      "exes": [],
-      "engine": "gen6"
-    },
-    {
-      "key": "awakening",
-      "display": "Pokemon Awakening",
-      "titles": [
-        "pokemon awakening",
-        "pokémon awakening"
-      ],
-      "detect": "awakening",
       "exes": [],
       "engine": "gen6"
     },
@@ -100,23 +28,70 @@
       "engine": "gamedata"
     },
     {
-      "key": "royal",
-      "display": "Pokemon Royal",
+      "key": "armonia",
+      "display": "Pokemon Armonia",
       "titles": [
-        "pokemon royal",
-        "pokémon royal"
+        "pokemon_armonia",
+        "pokemon armonia",
+        "pokémon armonia"
       ],
-      "detect": "royal",
+      "detect": "armon",
+      "exes": [
+        "Armonia_Juego.exe"
+      ],
+      "engine": "gen6"
+    },
+    {
+      "key": "awakening",
+      "display": "Pokemon Awakening",
+      "titles": [
+        "pokemon awakening",
+        "pokémon awakening"
+      ],
+      "detect": "awakening",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "emerald",
+      "display": "Pokemon Eternal Emerald",
+      "titles": [
+        "eternal emerald",
+        "pokemon eternal emerald",
+        "pokémon eternal emerald"
+      ],
+      "detect": "eternal ?emerald",
       "exes": [],
       "engine": "gamedata"
     },
     {
-      "key": "relict",
-      "display": "Pokemon Relict",
+      "key": "fireash",
+      "display": "Pokemon Fire Ash",
       "titles": [
-        "relict"
+        "fire ash",
+        "pokemon fire ash",
+        "pokémon fire ash"
       ],
-      "detect": "relict",
+      "detect": "fire ?ash",
+      "exes": [],
+      "engine": "gamedata"
+    },
+    {
+      "key": "generic",
+      "display": "Perfil generico",
+      "titles": [],
+      "detect": null,
+      "exes": [],
+      "engine": "any"
+    },
+    {
+      "key": "infinitefusion",
+      "display": "Pokemon Infinite Fusion",
+      "titles": [
+        "infinitefusion",
+        "infinite fusion"
+      ],
+      "detect": "infinite ?fusion",
       "exes": [],
       "engine": "gamedata"
     },
@@ -134,35 +109,85 @@
       "engine": "gamedata"
     },
     {
-      "key": "infinitefusion",
-      "display": "Pokemon Infinite Fusion",
+      "key": "opalo",
+      "display": "Pokemon Ópalo",
       "titles": [
-        "infinitefusion",
-        "infinite fusion"
+        "pokemon opalo",
+        "pokémon opalo",
+        "pokemon ópalo",
+        "pokémon ópalo"
       ],
-      "detect": "infinite ?fusion",
+      "detect": "opalo|ópalo",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "pokemon_z",
+      "display": "Pokemon Z",
+      "titles": [
+        "pokemon z",
+        "pokémon z"
+      ],
+      "detect": "pokemon ?z\\b",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "realidea",
+      "display": "Pokemon Realidea",
+      "titles": [
+        "realidea system",
+        "realidea"
+      ],
+      "detect": "realidea",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "relict",
+      "display": "Pokemon Relict",
+      "titles": [
+        "relict"
+      ],
+      "detect": "relict",
       "exes": [],
       "engine": "gamedata"
     },
     {
-      "key": "emerald",
-      "display": "Pokemon Eternal Emerald",
+      "key": "reminiscencia",
+      "display": "Pokemon Reminiscencia",
       "titles": [
-        "eternal emerald",
-        "pokemon eternal emerald",
-        "pokémon eternal emerald"
+        "reminiscencia"
       ],
-      "detect": "eternal ?emerald",
+      "detect": "reminisc",
+      "exes": [
+        "Reminiscencia.exe"
+      ],
+      "engine": "gen6"
+    },
+    {
+      "key": "royal",
+      "display": "Pokemon Royal",
+      "titles": [
+        "pokemon royal",
+        "pokémon royal"
+      ],
+      "detect": "royal",
       "exes": [],
       "engine": "gamedata"
     },
     {
-      "key": "generic",
-      "display": "Perfil generico",
-      "titles": [],
-      "detect": null,
+      "key": "soulstones2",
+      "display": "Pokemon Soulstones 2",
+      "titles": [
+        "time wardens",
+        "soulstones 2",
+        "pokemon soulstones 2",
+        "pokémon soulstones 2"
+      ],
+      "detect": "soulstones[ -]?2|time[ -]?wardens",
       "exes": [],
-      "engine": "any"
+      "engine": "gamedata"
     }
   ]
 }

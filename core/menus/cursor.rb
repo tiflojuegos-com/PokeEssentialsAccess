@@ -89,16 +89,11 @@ module PokeAccess
       nil
     end
 
-    # The common shape: on a cursor change, speak the line the block builds. Cleaned and, by default,
-    # interrupting (focus moves should cut the previous read). A nil/blank line UN-BURNS the key for the next
-    # RETRY_FRAMES polls, so a row whose data lands a few frames after the cursor does is retried until it has
-    # words, and a deliberately silent row stops costing a block call per frame once that budget is spent
-    # (moving away and back re-arms it, as any new key does). A RAISING block burns at once: a permanently
-    # broken reader must log once and stop, not spin.
-    # param interrupt whether the spoken line interrupts the queue (true) or waits (false)
-    # param first_interrupt interrupt value for the FIRST read of a fresh/reset cursor (when the slot is
-    #   pending), for the "queue the opening read, interrupt later moves" pattern. nil (default) uses
-    #   interrupt for every read, preserving the plain behaviour.
+    # The common shape: on a cursor change, speak the line the block builds, cleaned and by default
+    # interrupting. A nil/blank line UN-BURNS the key for the next RETRY_FRAMES polls (row data that lands a
+    # few frames after the cursor); a raising block burns at once.
+    # param interrupt whether the line interrupts the queue (true) or waits (false)
+    # param first_interrupt interrupt value for the FIRST read of a fresh/reset cursor; nil uses interrupt
     # return true when a line was spoken, else nil
     def self.announce(holder, slot, key, interrupt = true, first_interrupt = nil)
       prev = current(holder, slot)

@@ -23,6 +23,12 @@ module Audio
   def self.bgm_play(*a); end
 end
 
+# The engine's sound-effect function, as every era defines it. Records what was asked to play, so a filter
+# in front of it (the game-bump mute) can be pinned by what does and does not arrive here.
+def pbSEPlay(param, volume = nil, pitch = nil)
+  ($se_played ||= []).push(param)
+end
+
 module Graphics
   def self.update; end
   def self.frame_rate; 40; end
@@ -35,7 +41,7 @@ end
 module Input
   DOWN = 2; LEFT = 4; RIGHT = 6; UP = 8
   A = 11; B = 12; C = 13; X = 14; Y = 15; Z = 16; L = 17; R = 18
-  CTRL = 21
+  CTRL = 21; ALT = 23
   class << self
     def update; end
     def dir4; 0; end
@@ -61,11 +67,13 @@ def pbGetMapNameFromId(id); "Mapa #{id}"; end
 # MapInfos table for Locator.map_name: a hash of id => object responding to .name, populated ONLY for the
 # ids the specs visit -- an unknown id has no entry (like a real MapInfos), so map_name's fallback stays
 # testable instead of a default_proc fabricating a name for anything.
-class TestMapInfo; attr_reader :name; def initialize(id); @name = "Mapa #{id}"; end; end
+class TestMapInfo; attr_reader :name; def initialize(id, name = nil); @name = name || "Mapa #{id}"; end; end
 MAPINFO_IDS = [1, 35, 40, 999]
 def pbLoadRxData(path)
   return nil unless path =~ /MapInfos/
-  MAPINFO_IDS.inject({}) { |h, id| h[id] = TestMapInfo.new(id); h }
+  table = MAPINFO_IDS.inject({}) { |h, id| h[id] = TestMapInfo.new(id); h }
+  table[36] = TestMapInfo.new(36, "Casa de \\PN")
+  table
 end
 def pbHiddenPower(iv); [0, 60]; end
 def getID(mod, sym); (mod.const_get(sym) rescue 0); end
@@ -79,7 +87,20 @@ module PBMoves;   def self.getName(id); "Mov#{id}"; end; end
 module PBTypes;   def self.getName(id); "Tipo#{id}"; end; end
 module PBNatures; def self.getName(id); "Naturaleza#{id}"; end; end
 module PBAbilities; def self.getName(id); "Habilidad#{id}"; end; end
-module PBRibbons; def self.getName(id); "Cinta#{id}"; end; end
+module PBRibbons
+  def self.getName(id); "Cinta#{id}"; end
+  def self.getDescription(id); "Descripcion#{id}"; end
+end
+
+# The opening's controls help as the seven gen-6 games build it (africanvs/0060_Scene_Controls.rb:9-18, the
+# same shape in the other six): one screen, its paragraphs added through addLabel(x, y, width, text) from
+# the constructor, and a C press that disposes the scene. No addLabelForScreen and no set_up_screen.
+class ButtonEventScene
+  def initialize(labels = [])
+    @labels = labels.map { |t| addLabel(104, 26, 400, t) }
+  end
+  def addLabel(_x, _y, _width, text); text; end
+end
 module PBStats; def self.getName(s); "Estadistica#{s}"; end; end
 class PBMoveData
   def initialize(id); @id = id; end
@@ -260,6 +281,161 @@ class Window_DrawableCommand < SpriteWindow_SelectableEx
   def refresh; end
 end
 
+# The two numeric option kinds as the gen-6 and v19 engines declare them: SIBLING classes (their own
+# drawItem tests one after the other), told apart only by class. A NumberOption paints "Type value/total";
+# a SliderOption paints ONLY its value, over a bar.
+class NumberOption
+  attr_reader :name, :optstart, :optend
+  def initialize(name, optstart, optend); @name = name; @optstart = optstart; @optend = optend; end
+end
+
+class SliderOption
+  attr_reader :name, :optstart, :optend
+  def initialize(name, optstart, optend); @name = name; @optstart = optstart; @optend = optend; end
+end
+
+class EnumOption
+  attr_reader :name, :values
+  def initialize(name, values); @name = name; @values = values; end
+end
+
+# The Pokedex list window. Its rows are ARRAYS here (the gen-6 and v19 shape), the last field being the
+# regional offset flag the screen subtracts before painting the number.
+class Window_Pokedex < Window_DrawableCommand; end
+
+# The engine's two text-painting functions. Every game has them and the mod wraps both to feed PaintCapture;
+# with neither in the harness the whole capture path -- arm, note, take -- ran in no test at all, which is
+# how a capture hook bound to a class name no modern game uses went eight games unnoticed.
+def drawTextEx(_bitmap, _x, _y, _width, _lines, text, _base = nil, _shadow = nil); text; end
+
+# The modal panel the engine blocks on until the confirm key, used for the level-up stat gains. Gen-6
+# takes the text alone; the modern era added an optional scene (see the gamedata stub).
+def pbTopRightWindow(text); text; end
+
+def pbDrawTextPositions(_bitmap, textpos)
+  textpos
+end
+
+def drawFormattedTextEx(_bitmap, _x, _y, _width, text, _base = nil, _shadow = nil, _lineheight = 32)
+  text
+end
+
+# The item storage screen under the name the gen-6 games give it (v18 and later add the underscore). Its
+# pbStartScene paints the title and then the focused item's description, so a reader taking only the FIRST
+# captured row is exercised as it is in a game.
+class ItemStorageScene
+  def initialize(title = "Guardar
+objeto"); @title = title; end
+
+  # The real order, checked in all eleven games that have this screen: the item LIST refreshes first,
+  # through pbDrawTextPositions, and only then does pbRefresh draw the title with drawTextEx. A stub that
+  # painted the title first made "take the first row" look correct when it was reading the first item.
+  def pbStartScene(*a)
+    pbDrawTextPositions(nil, [["Pocion", 98, 14], ["Repelente", 98, 46]])
+    drawTextEx(nil, 0, 4, 200, 2, @title)
+    drawTextEx(nil, 0, 40, 200, 2, "Una pocion corriente.")
+    self
+  end
+end
+class WithdrawItemScene < ItemStorageScene; end
+
+# A window that just holds text, as the standing information windows of the phone and the dex list do.
+# A Triple Triad card: the four side numbers the game derives from the species, which the screen shows only
+# as a picture. Derived here the same deterministic way so a spec can assert them without a data file.
+class TriadCard
+  attr_reader :species, :north, :east, :south, :west
+  def initialize(species, form = 0)
+    @species = species
+    @form = form
+    n = species.to_i
+    @north = (n % 10) + 1
+    @east  = ((n + 3) % 10) + 1
+    @south = ((n + 5) % 10) + 1
+    @west  = ((n + 7) % 10) + 1
+  end
+
+  def createBitmap(size = 0); [self, size]; end
+end
+
+# The card shop, both halves: a list of rows beside a preview the loop redraws with createBitmap whenever
+# the focused species changes -- the initial card first, then only the changes. The keyboard loop is the one
+# thing not reproduced: where the game reads arrows, this walks $triad_shop_script, the species the focus
+# lands on in order.
+def pbBuyTriads(sorting = false)
+  script = ($triad_shop_script || [])
+  olditem = nil
+  script.each_with_index do |sp, i|
+    next if i > 0 && sp == olditem
+    TriadCard.new(sp).createBitmap(1)
+    olditem = sp
+  end
+  nil
+end
+
+def pbSellTriads(sorting = false)
+  pbBuyTriads(sorting)
+end
+
+# The PC box screen, reproduced for the ONE thing that matters here: pbShowCommands writes its question
+# into a standing window of its own and then puts up the answers, and it does not return until the player
+# has answered (soulstones2 016_UI/017_UI_PokemonStorage.rb, and the same in all fifteen). The answers were
+# read by the generic command reader and the question by nobody.
+class PokemonStorageScene
+  def pbShowCommands(message, commands, index = 0); [message, commands, index]; end
+  def pbDisplay(message); message; end
+end
+
+class FakeTextWin
+  attr_accessor :text
+  def initialize(t = ""); @text = t; end
+end
+
+# The phone and the dex list under the GEN-6 spellings, which is what the seven gen-6 games use. Both keep
+# their header in real windows here (verified against the dumps: seen, owned and dexname are sprites).
+# The phone as ELEVEN of the fifteen build it: one monolithic `start` that creates the windows, runs the
+# screen and returns when it is over, with no pbStartScene and no pbEndScene anywhere (z218/138_PScreen_
+# Phone.rb:331 and the same in africanvs, armonia, awakening, Fire Ash, both Infinite Fusions, opalo,
+# realidea, reminiscencia and Soulstones 2; only anil, emerald, relict and royal split it in two).
+#
+# It is here in that shape because the split shape was the only one stubbed, so the `start` fallback -- the
+# thing that gives eleven games a phone reader at all -- could be deleted with the suite still green.
+# `nav` is the contact names the loop walks, so a spec can drive real cursor movement.
+class PokemonPhoneScene
+  attr_reader :sprites
+  attr_accessor :nav
+  def initialize; @sprites = {}; @nav = []; end
+  def start
+    @sprites = { "bottom" => FakeTextWin.new, "info" => FakeTextWin.new }
+    @sprites["info"].text = "Registrados <r>12"
+    @nav.each do |place|
+      @sprites["bottom"].text = "<ac>#{place}"
+      PokeAccess::Keys.run_frame_pollers
+    end
+    :phone_done
+  end
+end
+
+class PokemonPokedexScene
+  attr_reader :sprites
+  def initialize
+    @sprites = { "seen" => FakeTextWin.new, "owned" => FakeTextWin.new, "dexname" => FakeTextWin.new }
+  end
+  def pbStartScene(*a); self; end
+  def pbEndScene(*a); nil; end
+  def pbRefresh; :dex_drawn; end
+end
+
+class HallOfFameScene
+  def writePokemonData(pk, hall = -1)
+    drawTextEx(nil, 0, 0, 200, 1, "No. 025")
+    drawTextEx(nil, 0, 20, 200, 1, "#{pk ? pk.name : '?'} Nv. #{pk ? pk.level : 0}")
+    drawTextEx(nil, 0, 40, 200, 1, "IDNo.12345")
+    hall
+  end
+  def writeWelcome; drawTextEx(nil, 0, 60, 200, 1, "Bienvenido al Salon de la Fama"); end
+  def pbStartSceneEntry(*a); end
+end
+
 # The gen-6 summary scene the readers hook (PokemonSummaryScene#pbUpdate/drawPage*). Defined here so the
 # hooks wrap real methods at load; specs set @pokemon and call the method to drive the wiring. pbStartScene
 # mirrors the engine: it draws the first page synchronously during the open (drawPage -> drawPageOne), the
@@ -280,13 +456,51 @@ class PokemonSummaryScene
   attr_accessor :pokemon
   def initialize(pk = nil); @pokemon = pk; end
   def pbUpdate(*a); end
+
+  # Awakening's shape of these two, the only gen-6 one: its action menu takes the command list FIRST and no
+  # message (awakening/0152 PScreen_Summary.rb:249), and its ribbons page keeps a cursor redrawn through
+  # drawSelectedRibbon over PBRibbons (:932). The other six paint the page static and have neither.
+  def pbShowCommands(commands, index = 0); [commands, index]; end
+  def drawSelectedRibbon(ribbonid); ribbonid; end
   def pbStartScene(party = nil, partyindex = 0, *a)
     @pokemon = party ? party[partyindex] : @pokemon
     @page = 1
     drawPage(@page)
   end
-  def drawPage(page); drawPageOne(@pokemon) if page == 1; end
-  def drawPageOne(pk = nil); (@pokemon = pk) if pk; end
+  def drawPage(page)
+    case page
+    when 1 then drawPageOne(@pokemon)
+    when 2 then drawPageTwo(@pokemon)
+    when 3 then drawPageThree(@pokemon)
+    when 4 then drawPageFour(@pokemon)
+    when 5 then drawPageFive(@pokemon)
+    end
+  end
+  # The egg branch lives HERE, where the six gen-6 games put it (africanvs/0138_PScreen_Summary.rb:157).
+  # Reached from outside only through drawPageOne, which is what makes the reentrancy guard matter.
+  def drawPageOne(pk = nil)
+    (@pokemon = pk) if pk
+    return drawPageOneEgg(@pokemon) if @pokemon && (@pokemon.egg? rescue false)
+    nil
+  end
+
+  # The other four pages of Essentials' summary. Present because every one of the fifteen surveyed games
+  # has them -- including the one that redrew the screen as a single page, which reopened the class and left
+  # the old page methods standing. A stub with only page one made four readers untestable and parked four
+  # names in Hooks.missing, the list that is supposed to hold only typos.
+  def drawPageTwo(pk = nil); (@pokemon = pk) if pk; end
+  def drawPageThree(pk = nil); (@pokemon = pk) if pk; end
+  def drawPageFour(pk = nil); (@pokemon = pk) if pk; end
+  def drawPageFive(pk = nil); (@pokemon = pk) if pk; end
+
+  # The egg page, as every game paints it: labels and the item through the positions batch, and the memo
+  # -- where it came from and how close it is to hatching -- as one formatted paragraph.
+  def drawPageOneEgg(_pk = nil)
+    pbDrawTextPositions(nil, [["TRAINER MEMO", 26, 22], ["Item", 66, 324], ["Ninguno", 16, 358]])
+    drawFormattedTextEx(nil, 232, 86, 268,
+                        "Un Huevo misterioso recibido en Ciudad Verde. Parece que tardara mucho en eclosionar.")
+    :egg_page
+  end
 end
 
 # The field-move / registered-item menu the v21 reader hooks (SelectMoveMenu_Scene). pbShowCommands is the

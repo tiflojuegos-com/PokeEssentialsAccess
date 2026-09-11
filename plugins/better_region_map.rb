@@ -40,26 +40,30 @@ module PokeAccess
     # even when it has no name to put under it.
     def self.square_text(scene, x, y)
       loc = location(scene, x, y)
-      name = loc ? PokeAccess.clean(loc[2].to_s).to_s.strip : ""
+      name = loc ? PokeAccess.clean(loc[2].to_s) : ""
       parts = []
       parts.push(name.empty? ? PokeAccess::I18n.t(:brm_square, :x => x, :y => y) : name)
-      poi = loc ? PokeAccess.clean(loc[3].to_s).to_s.strip : ""
+      poi = loc ? PokeAccess.clean(loc[3].to_s) : ""
       parts.push(poi) unless poi.empty?
       parts.push(PokeAccess::I18n.t(:brm_fly)) if fly_here?(scene, x, y)
       parts.join(", ")
     end
 
     # Speaks the focused square when it changes. update_text is the screen's own paint of that line, so it
-    # fires once per square and once on opening.
+    # fires once per square and once on opening -- and once more from the CONSTRUCTOR, before the fly
+    # points exist and while the cursor global still holds its placeholder, which said "square 0, 0" with no
+    # fly mark and then cut the real opening read. Only the open screen is read, and main opens it.
     #
     # It also marks the bottom-bar slot with what it just said: these games keep a MapBottomSprite that
     # repeats the place name a frame later, and an identical line spoken twice cuts the first one off.
-    def self.read(scene)
+    # param interrupt false for the opening read, which follows the region's name in the same frame
+    def self.read(scene, interrupt = true)
+      return unless PokeAccess::TownMap.open_scene.equal?(scene)
       xy = cursor(scene)
       return unless xy
       t = PokeAccess::Cursor.on_change(scene, :better_map, xy) { square_text(scene, xy[0], xy[1]) }
       return if t.nil? || t.empty?
-      PokeAccess::RegionMap.speak_marked(t)
+      PokeAccess::RegionMap.speak_marked(t, interrupt)
     rescue StandardError
       nil
     end
@@ -70,7 +74,7 @@ module PokeAccess
       r = PokeAccess.ivar(scene, :@region)
       return nil if r.nil?
       n = (pbGetMessage(MessageTypes::RegionNames, r) rescue nil)
-      (n && !n.to_s.strip.empty?) ? PokeAccess.clean(n.to_s).to_s.strip : nil
+      (n && !n.to_s.strip.empty?) ? PokeAccess.clean(n.to_s) : nil
     rescue StandardError
       nil
     end
@@ -122,9 +126,10 @@ end
 # else pumps input while it runs.
 PokeAccess::Hooks.before_hook("BetterRegionMap", :main, :optional => true) do |scene, _a|
   PokeAccess::TownMap.opened(scene)
+  PokeAccess::Cursor.reset(scene, :better_map)
   n = PokeAccess::BetterMap.region_name(scene)
   PokeAccess.speak(n, false) if n
-  PokeAccess::BetterMap.read(scene)
+  PokeAccess::BetterMap.read(scene, false)
 end
 
 PokeAccess::Hooks.after_hook("BetterRegionMap", :dispose, :optional => true) do |scene, _r, _a|

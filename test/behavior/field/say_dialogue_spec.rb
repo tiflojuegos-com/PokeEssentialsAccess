@@ -118,3 +118,18 @@ Suite.define("dialogue: the gen-6 Kernel message path reads once and feeds the r
     eq "and it becomes the line the repeat key replays", PokeAccess.last_dialogue, "Aqui vive el Profesor"
   end
 end
+
+# The diagnostic counters behind the diag's "dialogue:" line: which entry point got wrapped and how many
+# lines came through. A game whose story text is silent is told apart by them -- zero seen and a wrap list
+# that names the wrong form, or a growing count with the line remembered and lost somewhere after.
+Suite.define("dialogue: the diag counters name the wrapped entry point and count the lines seen") do
+  with_clean_dialogue do
+    truthy "the gen-6 harness defines the Kernel singleton, and that is what got wrapped",
+           PokeAccess.dialogue_wraps.include?(:singleton)
+    before = PokeAccess.dialogue_seen
+    PokeAccess.say_dialogue("Una linea")
+    PokeAccess.say_dialogue("Una linea")
+    eq "every hand-over counts, the swallowed twin included", PokeAccess.dialogue_seen, before + 2
+    eq "the diag reports both forms the game defines and the wrap", PokeAccess::Keys.dialogue_forms.include?(:singleton), true
+  end
+end

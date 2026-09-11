@@ -220,6 +220,12 @@ tallies why each frame fell silent and `gate_report` summarises it for the diagn
 | `puzzle_assist` | off | on/off | Puzzle hints on top of the position and each element's state |
 | `transfer_active_page_only` | on | on/off | Only a tile whose ACTIVE page transfers counts as an exit (Debug menu) |
 
+**General**
+
+| Key | Default | Range | What it does |
+|---|---|---|---|
+| `language` | `:auto` | `:auto`, or a code with a file in `lang/` | The mod voice language. `:auto` takes the system's (Catalan, Basque and Galician count as Spanish); if the mod lacks that one, the language the game declares; failing that, English. Updating from an older version turns the ini to `auto` once (`settings_version`); after that the menu choice is kept |
+
 **Menu reading**
 
 | Key | Default | Range | What it does |
@@ -243,6 +249,7 @@ tallies why each frame fell silent and `gate_report` summarises it for the diagn
 | `audio3d_desk_range` | 2 | 0-3 tiles | Service counters kept audible in `:hide` mode; 0 disables it |
 | `audio3d_range` / `audio3d_alt_dist` | 12 / 5 | 1-30; 1-20 tiles | Sonar reach (its own `:sonar` kind) and how close two emitters must be to alternate |
 | `sonar_only_locatable` | off | on/off | Limit the pings to what the locator keys can reach |
+| `game_bump` | off | on/off | Also play the game's own bump; off, only the mod's wall cue is heard while that cue is on |
 
 Cadences are 0-100 values that `PokeAccess.freq_to_seconds` turns into a real interval, from 1.5 s (0) to
 0.15 s (100). The puzzle types take volume and frequency from `audio3d_object`.

@@ -48,16 +48,12 @@ module PokeAccess
       nil
     end
 
-    # The four figures the panel writes -- power, accuracy, priority and added-effect chance -- as spoken
-    # lines, from what it PAINTED and not from the move data.
-    #
-    # The panel runs the whole damage calculation (STAB, item, ability, terastal, the move's own function
-    # code) through pbGetFinalModifiers, and that final number is the entire reason the panel exists: with
-    # STAB a 90-power move is drawn as 135. Recomputing it would mean reimplementing the plugin.
-    #
-    # The panel's placeholders map onto words the reader already has: "---" on power is no damage, "???" is
-    # a variable-power move, "---" on accuracy is never misses, and "---" on priority or on the effect
-    # chance means there is none, which is the case both already omit.
+    # The four figures the panel writes (power, accuracy, priority, added-effect chance) as spoken lines,
+    # from what it PAINTED, falling back to the move data when nothing was painted except for the effect
+    # chance, which is only ever spoken from the panel: the panel runs the whole damage calculation through
+    # pbGetFinalModifiers, and recomputing it would mean reimplementing the plugin. Its placeholders map onto
+    # words the reader already has: "---" on power is no damage, "???" a variable-power move, "---" on
+    # accuracy never misses, and "---" on priority or effect chance means none.
     def self.figures(move)
       p = @painted
       out = []
@@ -115,7 +111,7 @@ module PokeAccess
       (battle.allBattlers rescue []).each do |b|
         next if b.nil? || (b.index rescue 0).even? || (b.fainted? rescue true)
         word = PokeAccess::I18n.t(EFFECT_KEYS[effect_index(b, type)])
-        out.push([PokeAccess.clean((b.name rescue "")).to_s.strip, word])
+        out.push([PokeAccess.clean((b.name rescue "")), word])
       end
       return nil if out.empty?
       return out[0][1] if out.length == 1
@@ -211,22 +207,23 @@ module PokeAccess
       nil
     end
 
-    # The summary line for a battler (name, level, HP, status, ability, item, last move used), or nil.
-    #
-    # What the panel WITHHOLDS is withheld here too: the ability, the held item and the numeric hp/totalhp
-    # are drawn inside an "if battler.pbOwnedByPlayer?" block, so a foe's panel shows a bar and nothing
-    # else, and in a battle those three fields decide the turn. The bar itself is real information, so a
-    # foe's HP comes out as the percentage the rest of the mod uses for a bar (Battle.hp_phrase). The level
-    # obeys the same rule and reads "???" for a raid boss; the "??" one fangame draws behind its own switch
-    # belongs in that profile, and is the one case still read as a number here.
-    #
-    # The stat block IS read: the panel draws one arrow per stage of raise or drop beside each stat, and it
-    # is the half of the screen that says whether the battle is going wrong. It comes from
-    # Battle.stat_changes, the same source as the HP key, so the two agree.
+    # The summary line for a battler (name, level, HP, status, ability, item, last move used), or nil. What
+    # the panel WITHHOLDS is withheld here too: ability, held item and numeric HP are drawn only for the
+    # player's own battlers, so a foe's HP comes out as the percentage the rest of the mod uses for a bar
+    # (Battle.hp_phrase), and the level reads "???" for a raid boss. The stat block IS read, from
+    # Battle.stat_changes, the same source as the HP key.
     def self.summary(battler)
-      parts = []
       owned = (battler.pbOwnedByPlayer? rescue true)
-      parts.push(PokeAccess.clean((battler.name rescue "")))
+      parts = identity_parts(battler) + condition_parts(battler, owned) + detail_parts(battler, owned)
+      r = parts.reject { |x| x.to_s.empty? }
+      r.empty? ? nil : r.join(", ")
+    rescue StandardError
+      nil
+    end
+
+    # Who the battler is: name, sex, shiny, its trainer and the turn count.
+    def self.identity_parts(battler)
+      parts = [PokeAccess.clean((battler.name rescue ""))]
       gw = (PokeAccess::Party.gender_word(battler) rescue nil)
       parts.push(gw) if gw
       parts.push(PokeAccess::I18n.t(:dbk_shiny)) if (battler.shiny? rescue false)
@@ -236,6 +233,12 @@ module PokeAccess
       end
       tn = (battler.battle.turnCount rescue nil)
       parts.push(PokeAccess::I18n.t(:dbk_turn, :n => tn.to_i + 1)) if tn
+      parts
+    end
+
+    # How the battler stands: level, HP as the panel shows it, types and status.
+    def self.condition_parts(battler, owned)
+      parts = []
       if (battler.isRaidBoss? rescue false)
         parts.push(PokeAccess::I18n.t(:dbk_level_unknown))
       else
@@ -254,6 +257,13 @@ module PokeAccess
         sn = (GameData::Status.get(st).name rescue nil)
         parts.push(sn) if sn
       end
+      parts
+    end
+
+    # What the panel adds for the player's own battlers (ability, item), then the last move used and the
+    # stat stages.
+    def self.detail_parts(battler, owned)
+      parts = []
       if owned
         ab = (battler.abilityName rescue nil)
         parts.push(PokeAccess::I18n.t(:dbk_ability, :a => ab)) if ab && !ab.to_s.empty?
@@ -267,10 +277,7 @@ module PokeAccess
       end
       st = (PokeAccess::Battle.stat_changes(battler) rescue "")
       parts.push(st.to_s.sub(/\A,\s*/, "")) unless st.to_s.empty?
-      r = parts.reject { |x| x.to_s.empty? }
-      r.empty? ? nil : r.join(", ")
-    rescue StandardError
-      nil
+      parts
     end
 
     # The focused effect line ([name, tick, desc]) or nil; the "--" placeholder tick is dropped.
@@ -307,8 +314,8 @@ PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBattlerInfo, :optional =>
       eff = PokeAccess::DBKBattlerInfo.effect_text(effects, idx_effect)
       if new_battler
         sm = PokeAccess::DBKBattlerInfo.summary(battler)
-        PokeAccess.speak(sm, true) if sm && !sm.to_s.empty?
-        PokeAccess.speak(eff, false) if eff && !eff.to_s.empty?
+        PokeAccess.speak(sm, true)
+        PokeAccess.speak(eff, false)
       elsif eff && !eff.to_s.empty?
         PokeAccess.speak(eff, true)
       end
@@ -379,16 +386,11 @@ PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBallSelection, :optional 
   end
 end
 
-# Battler selection grid: pbUpdateBattlerSelection(idxSide, idxPoke, select) redraws on each cursor move;
-# read the highlighted battler (deduped by the [side, poke] pair). Reset on (re)open like the ball selector.
-#
-# BEFORE and not after, because this method is not just a redraw: called with select true, which is how the
-# key opens the panel, it ends in "pbSelectBattlerInfo if select" and that IS the panel's whole modal loop.
-# Hooked after, the call that opens the grid would not speak until the player closed it.
-#
-# Running before also settles the reentrancy question rather than working around it: a before hook does not
-# put the original under the guard at all, so pbUpdateBattlerInfo, the reset below and
-# pbUpdateMoveInfoWindow are never suppressed. Nothing here reads the return value, so before costs nothing.
+# Battler selection grid: pbUpdateBattlerSelection(idxSide, idxPoke, select) redraws on each cursor move; read
+# the highlighted battler, deduped by the [side, poke] pair and reset on (re)open. BEFORE and not after,
+# because with select true the method ends in pbSelectBattlerInfo, which IS the panel's modal loop, so an
+# after-hook would not speak until the player closed it; before also leaves the original unguarded, so
+# pbUpdateBattlerInfo and pbUpdateMoveInfoWindow are never suppressed.
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbSelectBattlerInfo, :optional => true) do |scene, _a|
   PokeAccess::Cursor.reset(scene, :dbk_bsel)
 end

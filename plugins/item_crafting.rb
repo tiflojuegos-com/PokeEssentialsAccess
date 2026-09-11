@@ -138,15 +138,10 @@ module PokeAccess
     end
 
     # The focused recipe in detail: name, amount, yield and the ingredients where the plugin reports them.
-    #
-    # One copy switches the screen back to the list before redrawing on the way out, so a redraw with the
-    # list showing is the "we just left" signal: it clears both dedup slots instead of describing anything.
-    # The detail slot has to go too, because that copy also resets the volume to 1 on the way out, which is
-    # the value the next visit opens on.
-    #
-    # The ingredient line is IN the dedup key, not only in the spoken text. Crafting changes what you have
-    # without moving the cursor or the amount, so on [index, volume] alone the counters that just dropped
-    # are never read again and the player learns they are short only by failing.
+    # One copy switches back to the list before redrawing on the way out, so a redraw with the list showing
+    # clears both dedup slots (that copy also resets the volume to 1, the value the next visit opens on). The
+    # ingredient line is IN the dedup key: crafting changes what you have without moving the cursor or the
+    # amount.
     def self.announce_detail(scene, index, volume)
       r = recipe(scene, index)
       return unless r

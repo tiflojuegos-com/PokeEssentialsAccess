@@ -1,14 +1,7 @@
 module PokeAccess
-  # Fishing has a reflex test: when a Pokemon bites, the engine shows "Oh! A bite!" and waits a fraction
-  # of a second for the button -- invisible to a screen-reader player -- so the bite is announced the
-  # instant the reflex test starts, in time to react.
-  #
-  # The message the engine passes to that test ALREADY says a Pokemon bit, and the dialogue reader queues
-  # it. Two announcements inside a half-second window is one too many, and the queued copy was still
-  # playing when the throw had already resolved, so the game's own line is suppressed for this one call.
-  # With FISHINGAUTOHOOK the engine returns before showing the message or opening a reaction window
-  # (six gen-6 games have that early return), so there is no button to announce and no game line to
-  # suppress; the catch narrates itself through the normal messages.
+  # The bite: the engine shows "Oh! A bite!" and waits a fraction of a second for the button, so the bite is
+  # announced the instant the reflex test starts and the game's own (queued) line for it is suppressed. With
+  # FISHINGAUTOHOOK the engine returns before showing it, and the catch narrates itself.
   def self.say_fishing_bite(message)
     return if defined?(::FISHINGAUTOHOOK) && ::FISHINGAUTOHOOK
     say_dialogue_skip(message)

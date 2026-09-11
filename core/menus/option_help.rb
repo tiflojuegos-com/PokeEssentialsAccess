@@ -3,32 +3,16 @@ module PokeAccess
   # @sprites["textbox"] on selection change; the name/value are read by the command-window extractor, so
   # the description is offered on the info key (read on demand).
   module OptionHelp
-    # Stores the description drawn for the focused option -- but only once it has PROVED to be per-option.
-    #
-    # @sprites["textbox"] is not a help box in every game. Across the gen-6 catalogue it is the speech-frame
-    # sample window: opalo, africanvs, armonia and reminiscencia all write "Marco de dialogo N" into it,
-    # realidea a fixed "Edita las opciones de juego", and awakening has no such sprite at all. Scraping it
-    # made the info key answer with that one constant on every option of the screen -- a sentence that has
-    # nothing to do with the option under the cursor, which is worse than saying nothing.
-    #
-    # So the widget has to earn it, and there are two ways of earning it. Both compare consecutive samples
-    # of [option index, option value, text], all three of which the scene already exposes:
-    #
-    #   - two different texts at two different INDICES. A banner reads the same on every option.
-    #   - two different texts at the same index with the same VALUE. Nothing the player did can explain
-    #     that, so something is writing a description on its own. This is the one that matters on the fork
-    #     that DOES have help: its textbox is created holding the speech-frame sample too and is overwritten
-    #     with the real description a frame later, so on the index rule alone the option the screen opens on
-    #     would stay unread until the player moved. The value is in the pair because changing the
-    #     speech-frame option rewrites that sample legitimately, and that must not count as proof.
-    #
-    # Until proved, nothing is stored: on a screen with no help the info key stays quiet rather than
-    # reciting a sentence about an option the cursor is not on.
+    # Stores the description drawn for the focused option, once the textbox has PROVED to be per-option: in
+    # most gen-6 games @sprites["textbox"] is the speech-frame sample window, a constant on every option.
+    # Proof is two different texts at two different indices, or at the same index with the same option value
+    # (something other than the player rewrote it; a changed speech-frame option rewrites the sample
+    # legitimately and does not count). Until proved, nothing is stored.
     def self.read(scene)
       tb = PokeAccess.sprite(scene, "textbox")
       d = (tb.text rescue nil)
       return if d.nil? || d.to_s.strip.empty?
-      text = PokeAccess.clean(d).to_s.strip
+      text = PokeAccess.clean(d)
       opt = PokeAccess.sprite(scene, "option")
       idx = (opt.index rescue nil)
       val = (opt[idx] rescue nil)

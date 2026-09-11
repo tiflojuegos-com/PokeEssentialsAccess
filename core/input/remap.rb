@@ -7,7 +7,8 @@ module PokeAccess
     REPEAT_DELAY = 15
     REPEAT_INTERVAL = 6
 
-    # Base buttons: [action symbol, Input constant name, label key].
+    # Base buttons: [action symbol, Input constant name, label key]. Alt is the engine's modifier button
+    # the fangames' turbo scripts read (Input::ALT), which the engine's own F1 menu cannot rebind.
     BUTTONS = [
       [:down,  :DOWN,  :btn_down],
       [:left,  :LEFT,  :btn_left],
@@ -20,7 +21,8 @@ module PokeAccess
       [:y,     :Y,     :btn_y],
       [:z,     :Z,     :btn_z],
       [:l,     :L,     :btn_l],
-      [:r,     :R,     :btn_r]
+      [:r,     :R,     :btn_r],
+      [:alt,   :ALT,   :btn_alt]
     ]
     DIR_CODE = { :up => 8, :down => 2, :left => 4, :right => 6 }
 
@@ -65,20 +67,23 @@ module PokeAccess
       hit
     end
 
-    # The registry of game extras: action symbol => [default virtual-key, label].
-    def self.extras; @extras ||= {}; end
+    # The registry of game extras, in registration order: rows of [action symbol, default virtual-key,
+    # label]. An Array like BUTTONS and not a Hash: the rows become a navigable list in the remap menu, and a
+    # Hash iterates in bucket order under 1.8.7.
+    def self.extras; @extras ||= []; end
 
     # Registers a game-specific action read by raw virtual-key, so it can be rebound from the remap menu.
+    # Registering a symbol again replaces its row in place.
     def self.register_extra(sym, default_vk, label)
-      extras[sym] = [default_vk, label]
+      extras.reject! { |row| row[0] == sym }
+      extras.push([sym, default_vk, label])
     end
 
-    # The full remap-menu action list: base buttons, game extras, and a final reset-all entry.
-    # Built on a duped array with concat/push, never BUTTONS + [...]: a fangame script patch
-    # redefines Array#+ as an in-place mutator, so the literal `+` would corrupt the constant.
+    # The full remap-menu action list: base buttons, game extras, and a final reset-all entry. Built on a
+    # DUP of BUTTONS, which is a constant this rebuilds from on every open of the menu.
     def self.buttons
       list = BUTTONS.dup
-      list.concat(extras.map { |sym, info| [sym, nil, info[1]] })
+      list.concat(extras.map { |row| [row[0], nil, row[2]] })
       list.concat(MOD_KEYS.map { |sym, label| [sym, nil, label] })
       list.push([:__reset__, nil, :btn_reset_all])
       list
@@ -117,7 +122,7 @@ module PokeAccess
 
     # The extra action whose default key is this raw virtual-key, if any.
     def self.sym_for_extra(vk)
-      hit = extras.detect { |_sym, info| info[0] == vk }
+      hit = extras.detect { |row| row[1] == vk }
       hit ? hit[0] : nil
     end
 
@@ -181,10 +186,14 @@ module PokeAccess
       !(PokeAccess::Config.rebinds[s] rescue nil).nil?
     end
 
-    # The 4-direction code from bound movement keys, or 0 if none held.
+    # The 4-direction code from bound movement keys, or 0 if none held. Asked in a fixed order: a Hash's
+    # order is not one under 1.8.7, and two rebound directions held together must resolve the same way on
+    # every engine.
+    DIR_ORDER = [:down, :left, :right, :up]
+
     def self.dir
-      hit = DIR_CODE.detect { |sym, _code| pressed_sym?(sym) }
-      hit ? hit[1] : 0
+      sym = DIR_ORDER.detect { |s| pressed_sym?(s) }
+      sym ? DIR_CODE[sym] : 0
     end
 
     #extra queries (by raw virtual-key)

@@ -1,16 +1,9 @@
-# Three of Realidea's bespoke minigames. All three run their own blocking loop and are never assigned to
-# $scene, so each is captured with an around-hook on that loop and read by the per-frame poller -- the same
-# shape used for the Africanus minigames.
-#
-# PPT (0301) is a type-matchup rock-paper-scissors with HP bars. It is the friendliest of the three: @comb
-# already holds the three type names as plain text, so the reader just says the focused one plus the HP.
-#
-# Morse (0295) asks the player to key a 12-symbol sequence. @secuencia is what has been entered so far and
-# @secuenciacorrecta the target, so the reader confirms each symbol as it lands and how many are in.
-#
-# Timon (0296) is the ship's wheel: you steer through a fixed list of headings. @combinacion is the target
-# list and @combinaciontimon what has been entered, both as readable strings like "[NE]"; the game itself
-# clears the entry when it overruns, which the reader reports as a reset rather than leaving silence.
+# Six of Realidea's bespoke minigames. All run their own blocking loop and are never $scene, so each is
+# held with an around-hook on that loop and read by the per-frame poller. PPT (0301) is a type-matchup
+# rock-paper-scissors: @comb holds the three type names, spoken with the HP. Morse (0295) keys a 12-symbol
+# sequence: @secuencia is what has been entered, @secuenciacorrecta the target. Timon (0296) steers through a
+# fixed list of headings: @combinacion the target, @combinaciontimon the entry, cleared by the game when it
+# overruns, which is reported as a reset. The dance and the two parfait games are described on their readers.
 module PokeAccess
   module RealideaMinigames
     @active = nil
@@ -33,17 +26,11 @@ module PokeAccess
       nil
     end
 
-    # Dance: copy the move the partner shows. The direction to copy is kept as a plain string in
-    # @direccionmelo, so it is simply spoken when it changes, with the hit count alongside as the only
-    # feedback on whether the copy landed.
-    #
-    # The STEP COUNTER belongs in the signature. Danza picks the next direction at random without excluding
-    # the previous one, so roughly one step in four repeats, and on the direction alone a repeat is
-    # indistinguishable from the last announcement -- in a memory game whose sequence grows by one each
-    # round, that hands the player a shorter sequence than the real one. @direcciones is the sequence being
-    # shown and is cleared once copied, so its length is the position WITHIN the round.
-    #
-    # The opening value is skipped: the scene initialises the direction to a placeholder that is not a step.
+    # Dance: copy the move the partner shows. @direccionmelo holds the direction as a string and is spoken
+    # when it changes, with the hit count alongside. The STEP COUNTER (the length of @direcciones, the
+    # sequence being shown) is in the signature because Danza repeats a direction roughly one step in four,
+    # and on the direction alone a repeat is indistinguishable from the last announcement. The opening
+    # placeholder value is skipped.
     def self.baile(scene)
       dir = PokeAccess.ivar(scene, :@direccionmelo)
       hits = PokeAccess.ivar(scene, :@numaciertos)
@@ -51,7 +38,7 @@ module PokeAccess
       sig = [(steps.is_a?(Array) ? steps.length : nil), dir, hits]
       return if dir.nil? || dir.to_s == "Normal" || PokeAccess.ivar(scene, :@pa_baile) == sig
       scene.instance_variable_set(:@pa_baile, sig)
-      name = PokeAccess.clean(dir.to_s).to_s.strip
+      name = PokeAccess.clean(dir.to_s)
       return if name.empty?
       PokeAccess.speak(PokeAccess::I18n.t(:rea_baile, :dir => name, :n => hits.to_i), true)
     rescue StandardError
@@ -168,7 +155,7 @@ module PokeAccess
     def self.heading(scene)
       pos = PokeAccess.ivar(scene, :@posiciones)
       return unless pos.is_a?(Array) && pos[0]
-      dir = PokeAccess.clean(pos[0].to_s).to_s.strip
+      dir = PokeAccess.clean(pos[0].to_s)
       return if dir.empty?
       PokeAccess::Cursor.announce(scene, :rea_timon_dir, dir, true) { dir }
     rescue StandardError

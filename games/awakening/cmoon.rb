@@ -1,18 +1,8 @@
-# The CMoon hub (pbDMoon, script 0221) and the screens it opens: the entry point of the Fates system,
-# holding the diary, the legendaries, the compendium, the miscellaneous screen and the summon creator.
-#
-# Its cursor is a LOCAL variable (`select`), so no hook can read it. Same situation as the Triple Triad
-# pickers in core, and the same answer: an around-hook holds the screen while its loop runs and a per-frame
-# poll mirrors the very same navigation (DOWN while below the last row, UP while above the first, no wrap).
-# The labels are not hardcoded either -- each screen paints them once at setup with pbDrawOutlineText, so
-# those calls are captured while it opens and the captured strings are what gets spoken, which keeps the
-# conditional first entry right without this file having to know why it varies.
-#
-# A STACK of frames rather than one flag, because the hub opens its submenus from INSIDE its own loop: the
-# break only runs once the submenu returns, so the hub's ensure has not fired. With a single flag the hub's
-# mirror stays armed underneath, the submenu navigates with the very same UP/DOWN keys, and every press
-# moves the hub cursor too. All these screens have the same shape and differ only in how many rows they
-# hold, so a frame per open screen reads the one with focus and restores the one underneath on the way out.
+# The CMoon hub (pbDMoon, script 0221) and the screens it opens: diary, legendaries, compendium, miscellaneous
+# and summon creator. The cursor is a LOCAL variable, so an around-hook holds the screen while its loop runs
+# and a per-frame poll mirrors its navigation (no wrap); the labels are captured from the pbDrawOutlineText
+# calls each screen paints at setup. A STACK of frames rather than one flag, because the hub opens its
+# submenus from INSIDE its own loop and a single flag would leave the hub's mirror armed underneath them.
 module PokeAccess
   module AwakeningCMoon
     @entries = nil
@@ -42,7 +32,7 @@ module PokeAccess
     # Collects a label drawn while the current screen is opening, in draw order.
     def self.label(text)
       return unless @entries
-      t = PokeAccess.clean(text.to_s).to_s.strip
+      t = PokeAccess.clean(text.to_s)
       @labels.push(t) unless t.empty?
     rescue StandardError
       nil

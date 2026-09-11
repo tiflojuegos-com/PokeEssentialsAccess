@@ -15,6 +15,10 @@ PokeAccess::Game.define("pokemon_z") do
   # zap cue, would send the player away from the thing they came for.
   hazard(/rayos(?!Legend)/i, :loc_beam)
 
+  # The light in the Reflection Chambers is the portal back to the Luminalia palace; the map's other exits
+  # are sprite-less touch tiles, so this is the only one a sprite names, and it takes the teleporter cue.
+  teleporter(/\Aluz\z/i)
+
   # Z adds two statuses past the vanilla five, so a Pokemon carrying either had no condition spoken at all.
   # The ids are the game's own, from its PBStatuses; the capitalised wording is this file's, since the game
   # writes them lowercase.

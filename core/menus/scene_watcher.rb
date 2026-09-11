@@ -24,22 +24,13 @@ module PokeAccess
       end
     end
 
-    # The one-call form of wire for the COMMON reader shape: hold the scene, poll it each frame, dedup by
-    # key and speak on change. The block yields the held scene and returns [key, text]: a changed key speaks
-    # the text (cleaned, interrupting), nil or a non-pair skips the frame, a nil key never speaks (Cursor's
-    # contract), and a real key with empty text un-burns the key and retries -- text that lands a frame
-    # after the key still gets spoken, and a deliberately mute row stays silent by keeping its text blank.
-    # Speaking and dedup are Cursor.announce on a generated holder, reset on open AND close so reopening on
-    # the same entry re-reads. A raising block is swallowed per frame, since a reader bug must not kill the
-    # input loop, and blocks use next rather than
-    # return (define_method under 1.8.7). Returns the holder, for readers needing extra hooks over the same
-    # state; one with its own speak timing or an extra API keeps using wire directly.
-    #
-    # text may instead be anything answering call, and is then called only once the key has changed: a
-    # cursor sits still, so the key matches on the other 39 frames of every second and text built on them is
-    # thrown away unread -- free for "#{name}", not for a reader that asks the game a question to word
-    # itself. The FIRST read after opening is queued rather than interrupting, because a screen often prints
-    # its own instruction line from inside the very method this polls.
+    # The one-call form of wire for the common reader shape: hold the scene, poll it each frame, dedup by key
+    # and speak on change. The block yields the held scene and returns [key, text]: nil or a non-pair skips
+    # the frame, a nil key never speaks, and empty text un-burns the key and retries (Cursor.announce on a
+    # generated holder, reset on open and close). text may be anything answering call, called only once the
+    # key has changed. The FIRST read after opening is queued, since a screen often prints its own line from
+    # inside the very method this polls. A raising block is swallowed per frame.
+    # return the holder, for readers needing extra hooks over the same state
     def self.reader(cls, meth, slot, opts = {}, &blk)
       holder = Object.new
       meta = class << holder; self; end

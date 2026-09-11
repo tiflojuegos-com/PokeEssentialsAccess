@@ -38,7 +38,7 @@ module PokeAccess
       sp = PokeAccess.ivar(scene, :@species)
       nm = (PBSpecies.getName(sp) rescue nil) if sp
       t = PokeAccess::Util.join_parts([nm, PokeAccess::I18n.t(:dex_form, :form => hit[0])])
-      PokeAccess.speak(t, true) unless t.empty?
+      PokeAccess.speak(t, true)
     rescue StandardError
       nil
     end
@@ -57,7 +57,7 @@ module PokeAccess
         det = (mb.instance_variable_get(:@mapdetails) rescue nil)
         t = PokeAccess::Util.join_parts([loc, det])
       end
-      PokeAccess.speak_clean(t, true) unless t.strip.empty?
+      PokeAccess.speak_clean(t, true)
     rescue StandardError
       nil
     end

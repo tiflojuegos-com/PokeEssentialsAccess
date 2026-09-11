@@ -4,27 +4,20 @@ module PokeAccess
   module Hooks
     @chains = {}
     @missing = []
+    @unbound = []
     @body_logged = []
     @reg_seq = 0
     @active = []
     @suppressed = []
 
-    # Reentrancy guard: a stack of the method names whose ORIGINAL is running, which is enough because the
-    # game is single-threaded. An atomic after_hook pushes around its original and the dispatcher skips a
-    # nested hooked call with a DIFFERENT name, so an inner hook cannot speak and consume the outer's dedup
-    # before the outer -- the authoritative announcer -- runs. The SAME name passes, so a child reaching its
-    # hooked parent through super still fires both.
+    # Reentrancy guard: a stack of the method names whose ORIGINAL is running. An atomic after_hook pushes
+    # around its original, and the dispatcher skips a nested hooked call with a DIFFERENT name, so an inner
+    # hook cannot speak and consume the outer's dedup first; the same name passes (super).
     #
-    # Correct only for an atomic announcer, one whose own body is the voice. Two kinds must run their
-    # original UNGUARDED or they silence the readers that do the talking:
-    #   - a CONTAINER (hook_container: true): a modal loop or scene opener that DELEGATES the announcement to
-    #     hooked methods it drives, such as the battle command phase or any pbScene/pbStartScene/main.
-    #   - a per-frame DRIVER (frame_hook): a method the engine calls every frame that can host a whole nested
-    #     modal loop. Game_Player#update is one: gen-6 runs an entire wild battle inside it, so guarding it
-    #     would pin :update for the fight and skip every battle reader as nested.
-    #
-    # Default is atomic, so a hook that says nothing keeps the safe behaviour. A before_hook body runs ahead
-    # of the original, never competes for a dedup, and never guards it.
+    # Two kinds must run their original UNGUARDED or they silence the readers that do the talking: a
+    # CONTAINER (hook_container: true), a modal loop or opener that delegates the announcement to hooks it
+    # drives; and a per-frame DRIVER (frame_hook), which can host a whole nested modal loop (gen-6 runs a
+    # wild battle inside Game_Player#update). A before_hook body never guards.
     def self.nested_other?(meth)
       !@active.empty? && @active.last != meth
     end
@@ -64,25 +57,74 @@ module PokeAccess
     # absent class is normal cross-game variance and is NOT recorded). Boot writes this to a marker.
     def self.missing; @missing; end
 
+    # Hook groups that bound to NONE of their class-name spellings (see variants). An :optional hook that
+    # binds nowhere is invisible by design, and that is how a whole screen goes unread with no error, no
+    # failing test and nothing in any log: the item-storage title was written against ItemStorageScene and
+    # eight of the fourteen surveyed games spell it ItemStorage_Scene, so it had never been spoken in any of
+    # them. Absent from ONE spelling is normal; absent from all of them is a bug in the mod.
+    def self.unbound; @unbound; end
+
+    # Registers a hook across every spelling a class takes across games, and records the group when not one
+    # of them took. The block receives each name and returns whether it bound, which is what the hook
+    # registrars answer. Returns the names that bound.
+    # param label how to name the group in the report, defaulting to the first spelling
+    # One game aliases the modern spellings to the gen-6 ones with empty subclasses (africanvs ships a
+    # BES-T compatibility file: `class PokemonSummary_Scene < PokemonSummaryScene; end` and eight more), so
+    # both names resolve and both would bind -- and an instance of the subclass then runs the child wrapper,
+    # whose alias calls the parent's wrapper too. A body that SPEAKS would say it twice. So a spelling whose
+    # class is already covered by one that bound, in either direction, is skipped rather than bound again.
+    def self.variants(names, meth, label = nil)
+      bound_classes = []
+      hit = ancestors_first(names).select do |cname|
+        k = PokeAccess.const_at(cname)
+        next false if k && bound_classes.any? { |b| (k <= b || b <= k) rescue false }
+        took = yield(cname) ? true : false
+        bound_classes.push(k) if took && k
+        took
+      end
+      if hit.empty?
+        tag = "#{label || names.first}##{meth}"
+        @unbound.push(tag) unless @unbound.include?(tag) || @unbound.length >= 40
+      end
+      hit
+    end
+
+    # The spellings with every ancestor ahead of its descendants, so the class that OWNS the method is the
+    # one that binds and its empty alias the one skipped. Awakening aliases HallOfFameScene < HallOfFame_Scene
+    # and instantiates the parent: bound in the written order, the hook landed on the alias, whose wrapper
+    # no instance ever ran, and the hall was mute from end to end.
+    def self.ancestors_first(names)
+      classes = names.map { |n| PokeAccess.const_at(n) }
+      order = (0...names.length).sort_by do |i|
+        k = classes[i]
+        depth = k ? classes.select { |o| o && o != k && (k < o rescue false) }.length : 0
+        [depth, i]
+      end
+      order.map { |i| names[i] }
+    end
+
     # Registers a middleware around an instance method, chaining with any others already on it. Yields
     # (instance, call_next, args); call call_next to run the rest of the chain. The saved-original alias is
     # named per class and only methods defined ON the class count, so hooking a parent and then a child that
     # overrides the same method does not bypass the child.
     # param opts :optional declares the METHOD legitimately absent on some games, so the bind is skipped
     #   instead of landing in @missing, which keeps that list meaning "should exist here and does not"
+    # return true when a middleware was registered on the class, false when it was not (absent class, absent
+    # method), so a caller registering the same hook across the spellings a class takes across games can tell
+    # whether ANY of them took. See variants.
     def self.wrap(cname, meth, opts = {}, &mw)
       k = PokeAccess.const_at(cname)
-      return if k.nil?
+      return false if k.nil?
       was_private = k.private_method_defined?(meth)
       unless k.method_defined?(meth) || was_private
-        return if opts[:optional]
+        return false if opts[:optional]
         @missing << "#{cname}##{meth}" unless @missing.include?("#{cname}##{meth}")
-        return
+        return false
       end
       key = "#{cname}##{meth}"
       fresh = !@chains.has_key?(key)
       (@chains[key] ||= []).push(mw)
-      return unless fresh
+      return true unless fresh
       orig = "#{meth}__pa_orig_#{cname.gsub(/[^a-zA-Z0-9]/, '_')}".to_sym
       own = (k.instance_methods(false) + k.private_instance_methods(false)).map { |m| m.to_sym }
       k.send(:alias_method, orig, meth) unless own.include?(orig)
@@ -101,8 +143,10 @@ module PokeAccess
         call.call
       end
       k.send(:private, meth) if was_private
+      true
     rescue StandardError => e
       PokeAccess.write_marker("wrap #{cname}##{meth}: #{e.message}\n")
+      false
     end
 
     # Logs the FIRST swallowed body failure per key to the marker, so a method renamed inside a body becomes
@@ -213,38 +257,45 @@ module PokeAccess
     def self.override(target, meth, opts = {}, &body)
       mod = target.is_a?(Module) ? target : PokeAccess.const_at(target)
       label = target.is_a?(Module) ? target.name.to_s : target.to_s
-      if mod.nil?
-        return if opts[:optional]
-        @missing << "#{label}##{meth}" unless @missing.include?("#{label}##{meth}")
-        return
-      end
+      return note_missing_override(label, meth, opts) if mod.nil?
       meta = (class << mod; self; end)
       sing = meta.method_defined?(meth) || meta.private_method_defined?(meth)
       inst = mod.method_defined?(meth) || mod.private_method_defined?(meth)
       sing = false if sing && inst && ((meta.instance_method(meth).owner rescue nil) != meta)
       if sing
-        seq = (overrides.length + 1)
-        ali = "#{meth}__pa_override_#{seq}".to_sym
-        meta.send(:alias_method, ali, meth)
-        key = "override #{label}.#{meth}"
-        meta.send(:define_method, meth) do |*args, &blk|
-          begin
-            body.call(mod, lambda { send(ali, *args, &blk) }, args)
-          rescue StandardError => e
-            PokeAccess::Hooks.log_body_failure(key, e)
-            raise e
-          end
-        end
+        override_singleton(mod, meta, meth, label, body)
       elsif inst
         around_hook(label, meth, opts) { |receiver, nxt, args| body.call(receiver, nxt, args) }
       else
-        return if opts[:optional]
-        @missing << "#{label}##{meth}" unless @missing.include?("#{label}##{meth}")
-        return
+        return note_missing_override(label, meth, opts)
       end
       overrides << "#{label}.#{meth}#{opts[:tag] ? " (#{opts[:tag]})" : ""}"
     rescue StandardError => e
       PokeAccess.write_marker("override #{label}##{meth}: #{e.message}\n")
+    end
+
+    # Replaces a singleton method in place: the original stays under a numbered alias and the body receives
+    # a lambda that calls it, so a second override gets the first as its original. Re-raised after logging,
+    # the around contract.
+    def self.override_singleton(mod, meta, meth, label, body)
+      ali = "#{meth}__pa_override_#{overrides.length + 1}".to_sym
+      meta.send(:alias_method, ali, meth)
+      key = "override #{label}.#{meth}"
+      meta.send(:define_method, meth) do |*args, &blk|
+        begin
+          body.call(mod, lambda { send(ali, *args, &blk) }, args)
+        rescue StandardError => e
+          PokeAccess::Hooks.log_body_failure(key, e)
+          raise e
+        end
+      end
+    end
+
+    # Files an override whose target or method does not exist, unless it was declared :optional.
+    def self.note_missing_override(label, meth, opts)
+      return nil if opts[:optional]
+      @missing << "#{label}##{meth}" unless @missing.include?("#{label}##{meth}")
+      nil
     end
 
     # Global/kernel functions a wrap found NOWHERE, neither on Kernel's singleton nor on Object. Informative
@@ -276,17 +327,12 @@ module PokeAccess
       end
     end
 
-    # The one installer behind wrap_global and wrap_kernel: defines the wrapper for sym on receiver and
-    # delegates to the ali alias. :before and :after bodies chain, each swallowed and logged once, because a
-    # reader bug must not crash the game's function. :around gets (args, call_next), keeps control and is
-    # NOT swallowed, the same contract as around_hook; several :around bodies nest like the class hooks do,
-    # the first registered outermost (a shared return signal and a game's own frame on the same function
-    # both have to run -- when only the first ran, awakening's CMoon hub lost its frame for two screens).
-    #
-    # The :after bodies sit in an ensure because these functions are given BLOCKS, and a `return` inside the
-    # caller's block unwinds straight through this wrapper. Menus written as `pbFadeOutIn { ...; return }`
-    # are that shape. An exception is not the same case: $! is set only while one propagates, and there the
-    # bodies stay out of the way.
+    # The one installer behind wrap_global and wrap_kernel: defines the wrapper for sym on receiver,
+    # delegating to the ali alias. :before and :after bodies chain, each swallowed and logged once; :around
+    # gets (args, call_next), keeps control and is NOT swallowed, several nesting with the first registered
+    # outermost. The :after bodies sit in an ensure because a `return` inside the caller's block (menus
+    # written as `pbFadeOutIn { ...; return }`) unwinds through this wrapper; a propagating exception ($!
+    # set) skips them.
     def self.define_fn_wrapper(receiver, sym, ali, tag, name)
       receiver.send(:define_method, sym) do |*args, &blk|
         PokeAccess::Hooks.run_fn_bodies(name, :before, tag, args, nil)
@@ -318,20 +364,35 @@ module PokeAccess
     # Wraps a top-level (Object instance) method -- a global Essentials function such as pbDisplayMail --
     # that the class hooks cannot reach. timing :before/:after/:around, see define_fn_wrapper for each
     # mode's contract. A missing function is recorded in fn_absent and skipped; already wrapped is a no-op.
+    #
+    # The wrapper KEEPS the function's visibility: a top-level def may land public depending on how the
+    # runtime evaluated the script, and Soulstones 2 calls its own "Kernel.tts(msg)" on every battle message
+    # -- privatising it would crash the first battle. The alias is private either way; the wrapper reaches it
+    # through send.
     def self.wrap_global(name, tag, timing = :after, &body)
       sym = name.to_sym
-      ali = "#{name}__pa".to_sym
-      unless Object.private_method_defined?(sym) || Object.method_defined?(sym)
+      was_private = Object.private_method_defined?(sym)
+      unless was_private || Object.method_defined?(sym)
         note_fn_absent(name)
         return
       end
+      ali = "#{name}__pa".to_sym
       add_fn_body(name, timing, body)
       return if Object.private_method_defined?(ali) || Object.method_defined?(ali)
       Object.send(:alias_method, ali, sym)
       define_fn_wrapper(Object, sym, ali, "global_#{name}", name)
-      Object.send(:private, sym, ali)
+      Object.send(:private, ali)
+      Object.send(was_private ? :private : :public, sym)
     rescue StandardError => e
       PokeAccess.write_marker("#{tag}: #{e.message}\n")
+    end
+
+    # True when Kernel itself owns the function (def Kernel.pbMessage / module_function, the gen-6 style).
+    # Asked of Kernel's OWN singleton, not through respond_to?, which also says yes to anything public on
+    # Object -- and a wrapper put on Kernel by mistake is skipped by every bare "foo(...)" call.
+    def self.kernel_owns?(sym)
+      sc = (class << Kernel; self; end)
+      (sc.instance_methods(false) + sc.private_instance_methods(false)).map { |m| m.to_sym }.include?(sym)
     end
 
     # Wraps a function defined either as a Kernel singleton (the gen-6 style) or as a top-level Object method
@@ -339,7 +400,7 @@ module PokeAccess
     # wrap_global. Same timing modes as wrap_global.
     def self.wrap_kernel(name, tag, timing = :before, &body)
       sym = name.to_sym
-      if Kernel.respond_to?(sym)
+      if kernel_owns?(sym)
         ali = "#{name}__pa".to_sym
         sc = (class << Kernel; self; end)
         add_fn_body(name, timing, body)
@@ -349,6 +410,28 @@ module PokeAccess
       else
         wrap_global(name, tag, timing, &body)
       end
+    rescue StandardError => e
+      PokeAccess.write_marker("#{tag}: #{e.message}\n")
+    end
+
+    # Wraps a game module's own singleton method (def self.x, called as Module.x), the way wrap_kernel wraps
+    # Kernel's: a fangame's helper module is Kernel's shape with another name, and its callers go through
+    # the module, so a class hook on the instance side would bind a copy nobody calls. Same timing modes;
+    # absent module or method is recorded in fn_absent and skipped.
+    def self.wrap_singleton(owner, name, tag, timing = :before, &body)
+      mod = PokeAccess.const_at(owner)
+      sym = name.to_sym
+      sc = mod ? (class << mod; self; end) : nil
+      unless sc && (sc.method_defined?(sym) || sc.private_method_defined?(sym))
+        note_fn_absent("#{owner}.#{name}")
+        return
+      end
+      key = "#{owner}.#{name}"
+      ali = "#{name}__pa".to_sym
+      add_fn_body(key, timing, body)
+      return if sc.method_defined?(ali) || sc.private_method_defined?(ali)
+      sc.send(:alias_method, ali, sym)
+      define_fn_wrapper(sc, sym, ali, "singleton_#{key}", key)
     rescue StandardError => e
       PokeAccess.write_marker("#{tag}: #{e.message}\n")
     end

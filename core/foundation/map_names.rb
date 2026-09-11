@@ -21,7 +21,7 @@ module PokeAccess
       if blank?(name)
         store.delete(mid)
       else
-        store[mid] = name.to_s.strip
+        store[mid] = one_line(name)
       end
       save
     end

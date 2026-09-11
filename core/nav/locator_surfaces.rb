@@ -13,18 +13,10 @@ module PokeAccess
       PokeAccess::Terrain::LABEL
     end
 
-    # Nearest tile of each interesting surface the player can actually get to, as synthetic targets, cached
-    # per player tile.
-    #
-    # The pathfinder answers, not a box around the player: straight-line distance is not what a navigation
-    # menu is about, and a box is wrong in both directions at once -- too small for the grass at the far end
-    # of a route the guide would happily walk to, too big for a lake behind a locked door. This reuses the
-    # flood already computed for this tile and shared with the unreachable filter, inheriting its route_reach
-    # limit for free. The LIST only: the sonar keeps its own short range, since what you can hear and where
-    # you can walk are different questions.
-    #
-    # The border ring is what keeps water on the list. You cannot stand on water, so the flood never enters
-    # it, but you can stand beside it, which is what the guide is for, with surf_launch taking over there.
+    # Nearest reachable tile of each interesting surface, as synthetic targets, cached per player tile. The
+    # pathfinder's flood answers rather than a box around the player (reusing the one shared with the
+    # unreachable filter and its route_reach limit); the sonar keeps its own short range. The border ring
+    # keeps water on the list: the flood never enters it, but the player can stand beside it.
     def self.surface_targets
       pos = [$game_player.x, $game_player.y, ($game_map.map_id rescue 0)]
       return @surface_cache if @surface_cache && @surface_cache_pos == pos

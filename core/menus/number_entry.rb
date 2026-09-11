@@ -26,7 +26,7 @@ module PokeAccess
     # prompt on the same item speaks again, while the same window re-asserting its text stays deduped.
     # The window itself is held, not its id: 1.8.7 recycles object ids once the old window is collected.
     def self.on_text(win, raw)
-      t = PokeAccess.clean(raw.to_s.gsub(LAYOUT, " ")).to_s.strip
+      t = PokeAccess.clean(raw.to_s.gsub(LAYOUT, " "))
       return unless t =~ LINE
       amount = $1.to_i; price = $2; unit = $3
       price = price.gsub(/[.,]/, "") if price

@@ -23,6 +23,54 @@ module PokeAccess
       ((pk.hp rescue 1).to_i <= 0) ? ", " + PokeAccess::I18n.t(:pk_fainted) : ""
     end
 
+    # What a member carries that only an ICON says: shiny, and pokerus while it is still catching (stage 1,
+    # the only stage that spreads). Held item and status are already in the info key's glance, and a line
+    # heard six times down the party has to stay short. An EGG says neither: the panel refuses to draw both
+    # on one, and announcing them would tell the player what is inside an egg the screen is hiding.
+    def self.icon_mark_list(pk)
+      return [] if pk.nil? || PokeAccess::Summary.egg?(pk)
+      marks = []
+      marks.push(PokeAccess::I18n.t(:pk_shiny)) if shiny?(pk)
+      marks.push(PokeAccess::I18n.t(:pk_pokerus)) if pokerus?(pk)
+      marks
+    rescue StandardError
+      []
+    end
+
+    # The marks as a clause to append to a line that does not end in a stop. "" when there is nothing, so
+    # callers append it unconditionally.
+    def self.icon_marks(pk)
+      m = icon_mark_list(pk)
+      m.empty? ? "" : ", " + m.join(", ")
+    end
+
+    # Whether a pokemon is shiny, under BOTH spellings of the question: the seven gen-6 games ask isShiny?
+    # and the eight modern ones shiny?, so probing only one of them left the mark unspoken in half the
+    # games -- and silently, because the probe simply answered false.
+    def self.shiny?(pk)
+      v = (pk.shiny? rescue nil)
+      v = (pk.isShiny? rescue nil) if v.nil?
+      v ? true : false
+    rescue StandardError
+      false
+    end
+
+    # Whether a pokemon is carrying pokerus RIGHT NOW. Stage 1 only: 0 is never infected and 2 is cured, and
+    # the panel draws its icon for stage 1 alone (Essentials 016_UI/005_UI_Party.rb:244). A cured one is a
+    # permanent state that no screen marks and that changes nothing the player can act on.
+    #
+    # pokerusStage is the question all fifteen games answer; the raw counter is the fallback for a build
+    # that lacks it, and there byte/16 is the strain and byte%16 the days left, so a non-zero counter is an
+    # infection still running.
+    def self.pokerus?(pk)
+      v = (pk.pokerusStage rescue nil)
+      return v.to_i == 1 unless v.nil?
+      v = (pk.pokerus rescue nil)
+      v.nil? ? false : v.to_i > 0
+    rescue StandardError
+      false
+    end
+
     # The spoken line for a party slot (name, sex, level, hp, fainted), or the cancel label for an empty
     # slot/button; also stashes the pokemon for the info key. Shared by the gen-6 scene and the v22 screen.
     def self.party_line(party, idx)
@@ -30,7 +78,7 @@ module PokeAccess
       return PokeAccess::I18n.t(:pc_cancel) unless pk
       PokeAccess::Info.set_info(:pokemon, pk)
       t = PokeAccess::I18n.t(:pty_member, :name => pk.name, :sex => gender_phrase(pk), :level => pk.level, :hp => pk.hp, :tot => pk.totalhp)
-      t + fainted_suffix(pk)
+      t + fainted_suffix(pk) + icon_marks(pk)
     end
 
     # The label for a slot past the last party member. The screen puts a button row there, and WHICH button

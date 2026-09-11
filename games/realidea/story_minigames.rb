@@ -1,19 +1,10 @@
-# Realidea's two story-critical minigames. These are not optional content: Mankey is launched from the battle
-# code (0084_PokeBattle_Battle) and from the pirates event, and Pesca is the game's general fishing
-# (0098_PField_Field), so being unable to play them blocks progress outright.
-#
-# Both expose a method that runs once per frame from inside their own loop -- Pesca#input and Mankey#inputs,
-# which is where each reads its keys -- so hooking those directly is enough; no held-instance poller needed.
-#
-# Pesca is a TIMING game dressed as a Fire Emblem duel: a circle sprite cycles @frame through 1..18 and C
-# resolves the hit. The payoff table, rival damage against own damage: frame 11 is 40 for nothing, 10 and 12
-# are 30 for 10, 9 and 13 are 20 for 20, and anything else is 10 for 30. So 11 is the only frame that costs
-# the player nothing, which is where the tick's pitch peaks. Speech would arrive after the window closed,
-# which is why this one is a cue and not a sentence.
-#
-# Mankey is turn-based, so it reads normally: @seleccion walks $Trainer.contestaciones (the replies, already
-# plain text) and @vidasprota / @vidasenemigo are the hearts, which are drawn as sprites -- without this you
-# cannot tell how close the duel is to ending.
+# Realidea's two story-critical minigames: Mankey is launched from the battle code and the pirates event,
+# Pesca is the game's general fishing, so being unable to play them blocks progress. Both expose a method
+# that runs once per frame inside their own loop (Pesca#input, Mankey#inputs), so hooking those is enough.
+# Pesca is a TIMING game: @frame cycles 1..18 and frame 11 is the only one that costs the player nothing
+# (10 and 12 are 30 for 10, 9 and 13 are 20 for 20, the rest 10 for 30), so the tick's pitch peaks there.
+# Mankey is turn-based: @seleccion walks $Trainer.contestaciones and @vidasprota / @vidasenemigo are the
+# hearts, drawn as sprites.
 module PokeAccess
   module RealideaStory
     PERFECT_FRAME = 11

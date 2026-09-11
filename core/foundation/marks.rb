@@ -23,7 +23,7 @@ module PokeAccess
       if blank?(name)
         delete(mid, x, y)
       else
-        (store[mid] ||= {})[[x, y]] = name.to_s.strip
+        (store[mid] ||= {})[[x, y]] = one_line(name)
         save
       end
     end

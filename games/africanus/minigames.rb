@@ -1,14 +1,7 @@
-# Africanus's three bespoke minigames plus the truth-tables gallery.
-#
-# Two of them (the cage kick and the archery range) are TIMING games: a cursor slides up and down and you
-# press at the right moment. Speech is useless there -- by the time a sentence is read the cursor has moved --
-# so these use an audio cue instead: a tick whose PITCH rises as the cursor approaches the perfect point.
-# Speech is left for what does not change every frame (the running score after each arrow).
-#
-# None of these scenes is ever assigned to $scene: the game builds them inside a plain function
-# (`scene = EscapeGaulScene.new(...)`) and drives its own blocking loop. So the instance is captured with an
-# around-hook on that loop and held while it runs, and the per-frame poller reads the held one -- the same
-# shape the core uses for Triple Triad's blocking pickers.
+# Africanus's two bespoke minigames plus the truth-tables gallery. The cage kick and the archery range are
+# TIMING games, so they use an audio cue (a tick whose PITCH rises toward the perfect point) and speech only
+# for what does not change every frame. None of these scenes is ever $scene: the game drives its own
+# blocking loop, so the instance is held with an around-hook on that loop and read by the per-frame poller.
 module PokeAccess
   module AfricanusMinigames
     @active = nil

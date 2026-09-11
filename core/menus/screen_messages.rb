@@ -12,8 +12,12 @@ module PokeAccess
     "PokemonMartScene", "PokemonMart_Scene", "BattlePointShop_Scene", "BattleSwapScene",
     "PurifyChamberScene", "RelicStoneScene", "PokemonSummary_Scene", "PokemonSummaryScene"
   ]
-  # The message-drawing methods these scenes use (names vary by scene and engine).
-  SCREEN_MSG_METHODS = [:pbDisplay, :pbDisplayPaused, :pbConfirm, :pbDisplayConfirm]
+  # The message-drawing methods these scenes use (names vary by scene and engine). pbShowCommands is the
+  # QUESTION half of a yes/no: the answers are a command window the generic reader names, the question a
+  # text window nobody read. Before, since it does not return until the player has answered. Two of the
+  # scenes (the summary's action menu and the frontier swap screen) take the command list FIRST and no
+  # message at all, which is why the shared body (say_screen_message) reads a String and nothing else.
+  SCREEN_MSG_METHODS = [:pbDisplay, :pbDisplayPaused, :pbConfirm, :pbDisplayConfirm, :pbShowCommands]
 end
 
 # This is intentional over-binding (each scene uses only some of these methods, and the names vary by
@@ -22,22 +26,24 @@ end
 PokeAccess::SCREEN_MSG_SCENES.each do |cname|
   PokeAccess::SCREEN_MSG_METHODS.each do |meth|
     PokeAccess::Hooks.before_hook(cname, meth, :optional => true) do |_scene, args|
-      PokeAccess.say_dialogue(args[0].to_s) if args[0] && !args[0].to_s.empty?
+      PokeAccess.say_screen_message(args)
     end
   end
 end
 
-# The item-storage TITLE ("Withdraw item" / "Toss item"): painted once by the opening refresh and the one
-# thing that tells the two modes apart -- same class, same window, same list. Captured on open, so it says
-# whatever this build says. Only the FIRST row: the same refresh goes on to paint the focused item's
-# description, which the row reader says in its turn.
-PokeAccess::Hooks.around_hook("ItemStorageScene", :pbStartScene, :optional => true) do |_s, nxt, _a|
-  PokeAccess::PaintCapture.arm(:itemstorage_title)
-  begin
-    nxt.call
-  ensure
-    rows = PokeAccess::PaintCapture.take(:itemstorage_title)
-    t = PokeAccess.clean(rows.is_a?(Array) ? rows.first.to_s : "").to_s.strip
-    PokeAccess.speak(t, false) unless t.empty?
+# The item-storage TITLE ("Withdraw item" / "Toss item"), the one thing that tells the two modes apart.
+# Captured on open, and only the first row painted AS A CAPTION: the modern era refreshes the item list before
+# it draws the title. Both spellings of the class, as SCREEN_MSG_SCENES lists them; the Withdraw/Toss
+# subclasses override only initialize, so the parent covers them.
+PokeAccess::Hooks.variants(["ItemStorageScene", "ItemStorage_Scene"], :pbStartScene) do |cname|
+  PokeAccess::Hooks.around_hook(cname, :pbStartScene, :optional => true) do |_s, nxt, _a|
+    PokeAccess::PaintCapture.arm(:itemstorage_title)
+    begin
+      nxt.call
+    ensure
+      rows = PokeAccess::PaintCapture.take(:itemstorage_title, :dtex)
+      t = PokeAccess.clean(rows.is_a?(Array) ? rows.first.to_s : "")
+      PokeAccess.speak(t, false)
+    end
   end
 end

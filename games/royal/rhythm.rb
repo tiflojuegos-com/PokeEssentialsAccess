@@ -1,19 +1,9 @@
-# Royal's curry rhythm minigame (JuegoRitmo_Scene): notes travel right-to-left toward a fixed selector and
-# you press the matching arrow as each one arrives. Rather than guess the hit geometry, the reader announces
-# the DIRECTION of the note that is coming next, once per note. Combined with the game's own music the
-# player can anticipate the beat, and it never claims a precision the reader cannot verify.
-#
-# Two things about this scene decide the whole shape of the reader:
-#
-#   * pbUpdate IS the game -- a `loop do` that only returns when the song ends -- so an after-hook on it
-#     fires exactly once, on the way out. It calls Input.update every iteration, so SceneWatcher can hold
-#     the scene and poll @notes each frame instead.
-#   * SongNote#note is a STRING ("up"/"down"/"left"/"right", or "" for a rest beat), not an index. Treating
-#     it as one made note.to_i == 0 for every note, so the reader said "arriba" for all of them.
-#
-# The skipping-rope minigame (JumpMinigame::Play) is deliberately not read here: its @button array is filled
-# with random directions by setButton and never read anywhere in the game, which is only "press C to jump",
-# so announcing one per rope turn would name a direction the player must not press.
+# Royal's curry rhythm minigame (JuegoRitmo_Scene): notes travel toward a fixed selector and you press the
+# matching arrow as each arrives. The reader announces the DIRECTION of the note coming next, once per note,
+# never claiming a precision it cannot verify. pbUpdate IS the game (a loop that returns when the song ends)
+# and calls Input.update every iteration, so SceneWatcher holds the scene and polls @notes. SongNote#note is
+# a STRING ("up"/"down"/"left"/"right", "" for a rest). The skipping-rope minigame is deliberately not read:
+# its @button array is never used by the game, which is only "press C to jump".
 module PokeAccess
   module RoyalRhythm
     # The shared dir_* keys, not a royal-only copy: roy_up/down/left/right were byte-for-byte identical to

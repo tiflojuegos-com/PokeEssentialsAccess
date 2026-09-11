@@ -5,17 +5,10 @@ module PokeAccess
   # The cell cursor is a local inside the preview's loop, but updateSpeciesInfo(index, pageInfo) receives it
   # on every move, so the argument is read rather than the @extIndex mirror.
   module ArckyRegionMap
-    # The focused species. Three constraints shape it:
-    #
-    # The name is in the dedup key, not just the index: leaving the grid or switching encounter type rebuilds
-    # the list and returns to index 0, so an index-only key would never announce the new list's first entry.
-    #
-    # The panel's own detail (type, catch rate, chance per level band) goes to the info key: the grid is
-    # swept cell by cell and four facts per arrow would make that unusable.
-    #
-    # The same redraw feeds the bottom-bar reader, which interrupts. Its slot is marked with the text it is
-    # about to see so it stays quiet here without being disabled, since on the plain map screen it is the
-    # only reader that speaks.
+    # The focused species. The name is in the dedup key as well as the index, since leaving the grid or
+    # switching encounter type rebuilds the list at index 0. The panel's own detail (type, catch rate, chance
+    # per level band) goes to the info key. The same redraw feeds the bottom-bar reader, whose slot is marked
+    # with the text it is about to see so it stays quiet here without being disabled.
     def self.species(scene, index)
       list = PokeAccess.ivar(scene, :@list)
       i = index.to_i
@@ -84,7 +77,7 @@ module PokeAccess
     def self.species_name(sp)
       return nil if sp.nil?
       n = (PokeAccess::Data.species_name(sp) rescue nil)
-      (n && !n.to_s.empty?) ? PokeAccess.clean(n.to_s).to_s.strip : nil
+      (n && !n.to_s.empty?) ? PokeAccess.clean(n.to_s) : nil
     rescue StandardError
       nil
     end

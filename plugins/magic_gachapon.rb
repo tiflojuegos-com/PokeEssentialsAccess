@@ -25,7 +25,7 @@ module PokeAccess
       return unless PokeAccess::Cursor.changed?(scn, :gacha, [sel, bsel])
       parts = []
       if banner_changed && banners.is_a?(Array) && bsel.is_a?(Integer) && banners[bsel]
-        name = PokeAccess.clean((banners[bsel].name rescue "").to_s).to_s.strip
+        name = PokeAccess.clean((banners[bsel].name rescue "").to_s)
         parts.push(PokeAccess::I18n.t(:list_entry, :name => name, :n => bsel + 1, :tot => banners.length)) unless name.empty?
       end
       btn = buttons(scn)[sel.to_i]
@@ -41,7 +41,7 @@ module PokeAccess
       sel = PokeAccess.ivar(scn, :@banner_sel).to_i
       b = (PokeAccess.ivar(scn, :@banners) || [])[sel]
       d = (b.description rescue nil)
-      PokeAccess.speak_clean(d.to_s, true) if d && !d.to_s.empty?
+      PokeAccess.speak_clean(d.to_s, true)
     rescue StandardError
       nil
     end

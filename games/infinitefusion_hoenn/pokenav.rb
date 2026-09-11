@@ -16,7 +16,7 @@ module PokeAccess
       t = PokeAccess.ivar(btn, :@text)
       t = (btn.id rescue nil) if t.nil? || t.to_s.strip.empty?
       return nil unless t.is_a?(String)
-      PokeAccess.clean(t).to_s.strip
+      PokeAccess.clean(t)
     rescue StandardError
       nil
     end
@@ -41,7 +41,7 @@ module PokeAccess
       return PokeAccess::I18n.t(:if2_radar_unknown) unless seen.include?(sp)
       parts = [(PokeAccess::Data.species_name(sp) rescue nil) || sp.to_s]
       r = (scene.get_rarity_flavor_text(sp) rescue nil)
-      parts.push(PokeAccess.clean(r.to_s).to_s.strip) if r && !r.to_s.strip.empty?
+      parts.push(PokeAccess.clean(r.to_s)) if r && !r.to_s.strip.empty?
       e = (scene.get_energy_for_scan(sp) rescue nil)
       parts.push(PokeAccess::I18n.t(:if2_radar_battery, :n => e)) if e
       parts.join(", ")
@@ -81,7 +81,7 @@ module PokeAccess
       list = PokeAccess.ivar(scene, :@challenges)
       return unless idx.is_a?(Integer) && list.is_a?(Array) && idx >= 0 && idx < list.length
       c = list[idx]
-      desc = PokeAccess.clean((c.description rescue "").to_s).to_s.strip
+      desc = PokeAccess.clean((c.description rescue "").to_s)
       return if desc.empty?
       PokeAccess::Cursor.announce(scene, :if2_challenge, [idx, desc], true) do
         head = PokeAccess::I18n.t(:list_entry, :name => desc, :n => idx + 1, :tot => list.length)

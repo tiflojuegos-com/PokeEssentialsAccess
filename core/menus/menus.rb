@@ -51,6 +51,13 @@ module PokeAccess
       end
     end
 
+    # A row of nothing but dashes, dots or underscores is a placeholder -- an empty autosave slot, a blank
+    # line -- and a screen reader spelling ten hyphens says nothing a player can use.
+    def self.placeholder?(t)
+      s = t.to_s
+      !s.empty? && !(s =~ /\A[\s\-_.]+\z/).nil?
+    end
+
     # The ivars an Essentials selectable window commonly stores its option list in, tried in order
     # (introspection, never OCR), so list[index] yields the exact string the game holds.
     LIST_IVARS = [:@commands, :@items, :@list, :@data, :@choices, :@names, :@entries, :@stock]
@@ -94,6 +101,22 @@ module PokeAccess
 
     #base extractors (shared across Essentials fangames)
 
+    # The party menu, whose rows are the chosen member's own FIELD MOVES followed by Summary, Switch, Item
+    # and Cancel. The screen tells the two kinds apart by colour alone -- the window keeps a @colorKey per
+    # row and paints key 1 blue (fireash/283_UI_Party.rb:120-131, and the same class in nine of the fifteen)
+    # -- and the generic reader sees only @commands, already unpacked to plain strings. So "Fly" and
+    # "Switch" sounded identical, and which of them teleports you out of the cave was a guess.
+    #
+    # Key 1 means the same in the two games that build the list themselves (Fire Ash's field moves, the
+    # battle belt's field skills); that game's other keys are a plugin's own colours and get no word.
+    def_extractor("Window_CommandPokemonColor") do |win, i|
+      cmds = win.instance_variable_get(:@commands)
+      name = (cmds[i] rescue nil)
+      next nil if name.nil?
+      key = (win.instance_variable_get(:@colorKey)[i] rescue nil)
+      (key == 1) ? "#{name}, #{PokeAccess::I18n.t(:mn_field_move)}" : name.to_s
+    end
+
     def_extractor("Window_PokemonOption") do |win, i|
       opts = win.instance_variable_get(:@options)
       next PokeAccess::I18n.t(:sm_exit) if i >= opts.length
@@ -130,6 +153,7 @@ module PokeAccess
       row = qty ? "#{name}: #{qty}" : "#{name}"
       bag_marks(bag, itemid).each { |k| row += ", #{PokeAccess::I18n.t(k)}" }
       row += ", #{PokeAccess::I18n.t(:bag_registered)}" if bag_registered?(bag, itemid)
+      row += ", #{PokeAccess::I18n.t(:bag_registrable)}" if bag_registrable?(bag, itemid)
       moving = ((win.instance_variable_get(:@sortIndex) rescue -1) == i) ||
                ((win.instance_variable_get(:@sorting) rescue false) && (win.index rescue -1) == i)
       moving ? "#{row}, #{PokeAccess::I18n.t(:bag_moving)}" : row
@@ -148,7 +172,20 @@ module PokeAccess
       return nil unless entry.is_a?(Array)
       moving = ((win.instance_variable_get(:@sortIndex) rescue -1) == i) ||
                ((win.instance_variable_get(:@sorting) rescue false) && (win.index rescue -1) == i)
-      [entry[0], entry[1], bag_marks(bag, entry[0]), bag_registered?(bag, entry[0]), moving]
+      [entry[0], entry[1], bag_marks(bag, entry[0]), bag_registered?(bag, entry[0]),
+       bag_registrable?(bag, entry[0]), moving]
+    end
+
+    # A cheap witness that a command window's LIST changed under a still cursor: the row count and the focused
+    # row, as it is (under 1.8.7 Array#to_s joins with no separator, so [1, 23] and [12, 3] would read the
+    # same as strings). Runs every frame, so it reads ONE row and never the list; nil when the rows are out
+    # of reach, which leaves the index-only behaviour.
+    def self.list_witness(win, i)
+      cmds = win.instance_variable_get(:@commands)
+      return nil unless cmds.is_a?(Array)
+      [cmds.length, cmds[i]]
+    rescue StandardError
+      nil
     end
 
     # Row decorators registered by a plugin whose bag adds what the vanilla row does not have (a machine's
@@ -177,13 +214,38 @@ module PokeAccess
       (::GameData::Item.get(itemid).is_important? rescue false)
     end
 
+    # Whether the bag would let this item be registered but it is not registered YET, which is the SECOND
+    # frame of the same icon the bag draws for a registered one (fireash/285_UI_Bag.rb:86, and the same in
+    # the eight games that have the function). It is the only thing on the screen that says which items the
+    # quick menu accepts, and without it the player has to try them one by one.
+    #
+    # Asked of the game's own pbCanRegisterItem?, never guessed: the seven games without that function do
+    # not draw the frame either, so no mark is the right answer there.
+    def self.bag_registrable?(bag, itemid)
+      return false unless bag_hides_qty?(itemid)
+      return false if bag_registered?(bag, itemid)
+      (pbCanRegisterItem?(itemid) rescue false) ? true : false
+    rescue StandardError
+      false
+    end
+
     # Whether the bag has this item registered, across the three shapes in the wild: the modern
-    # predicate, the gen-6 single slot, and the multi-register arrays two games patch in.
+    # predicate, the modern v18 plural predicate, the gen-6 single slot, and the multi-register arrays.
+    #
+    # Five shapes because the fangames really do have five, and missing one is invisible: the reader
+    # simply never says "registered" and the row sounds like any other. Surveying the fifteen dumps,
+    # four games (Fire Ash and both Infinite Fusions, plus Awakening, which also keeps the old slot)
+    # expose registration ONLY as pbIsRegistered? over a registeredItems array, and not one of them had
+    # ever spoken it.
     def self.bag_registered?(bag, itemid)
       r = (bag.registered?(itemid) rescue nil)
       return (r ? true : false) unless r.nil?
+      r = (bag.pbIsRegistered?(itemid) rescue nil)
+      return (r ? true : false) unless r.nil?
       ri = (bag.registeredItem rescue nil)
+      ri = (bag.registeredItems rescue nil) if ri.nil?
       ri = (bag.instance_variable_get(:@registeredItem) rescue nil) if ri.nil?
+      ri = (bag.instance_variable_get(:@registeredItems) rescue nil) if ri.nil?
       ri.is_a?(Array) ? ri.include?(itemid) : (!ri.nil? && ri == itemid)
     rescue StandardError
       false
@@ -213,15 +275,24 @@ module PokeAccess
     end
 
     # The region list of the multi-dex Pokedex menu: each row paints VISTOS and PROPIOS counters beside
-    # the name, and choosing a region IS a comparison of those numbers.
+    # the name, and choosing a region IS a comparison of those numbers. The three-field shape carries the
+    # region's TOTAL as well and fills an icon for each counter that reached it: the total joins the line
+    # and a full dex is said as such, because that icon is the only place it shows.
     def_extractor("Window_DexesList") do |win, i|
       base = generic_focus(win, i).to_s
       seen = (win.instance_variable_get(:@seen) rescue nil)
       owned = (win.instance_variable_get(:@owned) rescue nil)
       pair = (seen.is_a?(Array) && i < seen.length) ? [seen[i], (owned.is_a?(Array) ? owned[i] : 0)] : nil
       c2 = (win.instance_variable_get(:@commands2) rescue nil)
-      pair = [c2[i][0], c2[i][1]] if pair.nil? && c2.is_a?(Array) && c2[i].is_a?(Array)
-      pair ? PokeAccess::I18n.t(:dex_region_counts, :name => base, :seen => pair[0], :owned => pair[1]) : base
+      row = (c2.is_a?(Array) && c2[i].is_a?(Array)) ? c2[i] : nil
+      pair = [row[0], row[1]] if pair.nil? && row
+      tot = (row && row[2].is_a?(Integer) && row[2] > 0) ? row[2] : nil
+      next base unless pair
+      next PokeAccess::I18n.t(:dex_region_counts, :name => base, :seen => pair[0], :owned => pair[1]) unless tot
+      t = PokeAccess::I18n.t(:dex_region_counts_tot, :name => base, :seen => pair[0], :owned => pair[1], :tot => tot)
+      t += ", " + PokeAccess::I18n.t(:dex_region_complete) if pair[1].to_i >= tot
+      t += ", " + PokeAccess::I18n.t(:dex_region_all_seen) if pair[1].to_i < tot && pair[0].to_i >= tot
+      t
     end
 
     def_extractor("Window_PokemonMart") do |win, i|
@@ -257,11 +328,10 @@ module PokeAccess
       end
     end
 
-    # Dual-shape: gen-6 entries are arrays ([species, name, .., displayname]) and the modern Window_Pokedex
-    # stores hashes ({:species, :name}), so one extractor covers both. The seen/owned state goes through
-    # Util.dex_seen?/dex_owned?, which probe the predicate API before the gen-6 arrays, since a v18-era game
-    # can keep the array row shape and expose only seen?/owned?. A row already carrying its name (c[1]) is
-    # spoken as-is, which also resolves a custom composite species name without rebuilding the species.
+    # Dual-shape: gen-6 entries are arrays ([species, name, height, weight, number, shift]) and the modern
+    # window stores hashes ({:species, :name, :number, :shift}). Seen/owned go through Util.dex_seen?/
+    # dex_owned?, which probe the predicate API before the gen-6 arrays. Both shapes carry the regional
+    # offset in their last field, which drawItem subtracts before painting.
     def_extractor("Window_Pokedex") do |win, i|
       c = win.instance_variable_get(:@commands)[i]
       cap = PokeAccess::I18n.t(:dex_caught)
@@ -279,10 +349,12 @@ module PokeAccess
           "#{num}, #{unk}"
         end
       elsif c
+        num = c[4].to_i
+        num -= 1 if c[5]
         if PokeAccess::Util.dex_seen?(c[0])
-          "#{c[4]}, #{c[1]}, #{PokeAccess::Util.dex_owned?(c[0]) ? cap : sn}"
+          "#{num}, #{c[1]}, #{PokeAccess::Util.dex_owned?(c[0]) ? cap : sn}"
         else
-          "#{c[4]}, #{unk}"
+          "#{num}, #{unk}"
         end
       else
         ""
@@ -291,22 +363,22 @@ module PokeAccess
   end
 end
 
-# Command-window navigation (the game changes @index directly). First read queued, later moves interrupt
-# (Cursor's first_interrupt); battle menus (@ignore_input) have dedicated readers. A bag window keys on
-# [index, pocket, witness]: Toss/Use rewrite the focused row without moving the index. @access_dedicated is
-# the mod's own claim flag; gen-6 gates navigation on @ignore_input, so setting that would freeze the
-# cursor.
+# Command-window navigation (the game changes @index directly). First read queued, later moves interrupt;
+# battle menus (@ignore_input) have dedicated readers, and @access_dedicated is the mod's own claim flag
+# (setting @ignore_input would freeze a gen-6 cursor). Every window keys on the list witness besides the
+# index, because a screen can replace its whole list and leave the cursor where it was; a bag window keys on
+# the pocket too.
 PokeAccess::Hooks.after_hook("Window_DrawableCommand", :update) do |win, _r, _a|
   next if (win.instance_variable_get(:@ignore_input) rescue false)
   next if PokeAccess.dedicated?(win)
   idx = win.instance_variable_get(:@index)
   next unless win.active && idx && idx >= 0
   pkt = (win.respond_to?(:pocket) ? (win.pocket rescue nil) : nil)
-  wit = pkt ? (PokeAccess::Menus.bag_witness(win, idx) rescue nil) : nil
+  wit = pkt ? (PokeAccess::Menus.bag_witness(win, idx) rescue nil) : PokeAccess::Menus.list_witness(win, idx)
   PokeAccess::Cursor.announce(win, :cmd_focus, [idx, pkt, wit], true, false) do
     t = PokeAccess::Menus.focused_text(win)
     PokeAccess::Menus.mark_bag_pocket(win) if pkt && t && !t.to_s.empty?
-    t
+    PokeAccess::Menus.placeholder?(t) ? PokeAccess::I18n.t(:row_empty) : t
   end
 end
 

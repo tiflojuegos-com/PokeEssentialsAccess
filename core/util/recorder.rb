@@ -1,19 +1,15 @@
 module PokeAccess
-  # Session recorder: turns a real play session into a TRANSCRIPT -- what the mod saw and what it said,
-  # in order. Two uses, one file: a tester who hears the mod go quiet hands over a recording instead of
-  # trying to describe the moment, and test/support/replay.rb audits the same file automatically for the
-  # three failure modes that matter (a cursor that moved without speaking, the same line twice in a row,
-  # a reader that spoke raw control codes).
-  #
+  # Session recorder: turns a play session into a TRANSCRIPT of what the mod saw and what it said, in order.
+  # A tester hands over a recording instead of describing the moment, and test/support/replay.rb audits the
+  # same file for a cursor that moved without speaking, the same line twice in a row, and raw control codes.
   # Nothing inside a reader is hooked: everything arrives through PokeAccess.on_speak and a per-frame read
-  # of state the mod already keeps, so the instrument cannot break what it measures. Off, it costs a nil
-  # observer and one boolean.
+  # of state the mod already keeps. Off, it costs a nil observer and one boolean.
   #
-  # Line format (tab-separated, text always last so a tab can never split it; the auditor parses it):
+  # Line format (tab-separated, text always last; the auditor parses it):
   #   # pea-recording 1 <engine kind>  <engine version>  <fork>
   #   <seconds>  map    <map_id>  <name>
   #   <seconds>  pos    <x>  <y>
-  #   <seconds>  scene  <class>
+  #   <seconds>  scene  <class>  <busy reason>
   #   <seconds>  sel    <index>  <target name>
   #   <seconds>  say    <0|1 interrupt>  <text>
   #   <seconds>  in     <what>
@@ -106,7 +102,8 @@ module PokeAccess
       pending = @lines
       @lines = []
       File.open(@path, "a") { |f| f.write(pending.join("\n") + "\n") }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.log_once("recorder_flush", e)
       nil
     end
 

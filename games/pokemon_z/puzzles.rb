@@ -56,21 +56,13 @@ PokeAccess::Game.define("pokemon_z") do
   [143, 144, 145].each { |m| puzzle(m, ship) }
 
   # 3rd gym "Bastion Pokemon" (maps 87 and 89, two floors of one puzzle): floor plates toggle the electric
-  # barriers ("rayos..." sprites) that wall the room off. The page a plate reacts on carries NO graphic, so
-  # nothing announced them and the pathfinder had nothing to route to; declaring the switches they write is
-  # what lets build_controls find them by what they DO, and each plate becomes a locatable control. Map 89
-  # puts two plates on one switch, which is why they are declared by switch and not by position.
-  #
-  # Colours are the sprites' own, sampled from the graphics rather than guessed from the file names:
-  # rayosR and rayosRojosV red, rayosBarrera and rayosAzulesV blue, rayosV green. WHICH colour a switch
-  # raises is inverted between the two floors, so the state is spoken as on/off and never as "the blue wall
-  # is up", which would be true on one floor and a lie on the other.
-  #
-  # The last watched switch is the Rotom lever (map 87 @4,17; map 89 @23,19): optional, powers the leader
-  # up for a bigger reward, and its state is otherwise only readable by walking over and reading the sign.
-  #
-  # Deliberately no :solved. The room never settles -- the leader can be beaten and the player walk back
-  # in -- so the state of the plates stays the answer to "how do I get through" for the rest of the game.
+  # barriers ("rayos..." sprites). The plate pages carry NO graphic, so the switches they write are declared
+  # and build_controls finds them by what they DO (map 89 puts two plates on one switch). Colours are
+  # sampled from the sprites' graphics: rayosR and rayosRojosV red, rayosBarrera and rayosAzulesV blue,
+  # rayosV green. A plate RAISES its own colour while on (map 87 sw141 -> rayosAzulesV, sw142 ->
+  # rayosRojosV; map 89 sw144 -> rayosRojosV, sw145 -> rayosBarrera), but the state is spoken as on/off
+  # because the GREEN plate (143, 146) gates no barrier: every rayosV event is a permanent wall. The last
+  # watched switch is the optional Rotom lever. No :solved: the room never settles.
   gym3 = lambda do |red, blue, green, power|
     { :kind => :state,
       :watch => [

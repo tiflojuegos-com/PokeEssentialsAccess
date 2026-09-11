@@ -7,4 +7,9 @@ PokeAccess::Game.define("realidea") do
   # so it reuses it and stays translated; the two the game invented carry its own Spanish names.
   names(:weather_names, 9 => "Aroma")
   names(:field_weather_names, 8 => :w_shadow_sky, 9 => "Aroma", 10 => "Ceniza")
+
+  # The lake temples, the ruins and the oasis are linked by warp pads drawn as a small light, and the metro
+  # and the director's office reuse the sprite: ten touch-triggered transfers on the map data, none of them
+  # a doorway, so they take the teleporter cue.
+  teleporter(/\Alucecita\z/i)
 end

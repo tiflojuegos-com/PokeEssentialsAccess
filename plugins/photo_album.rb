@@ -1,14 +1,8 @@
-# Photo album (the "Fotos del equipo" plugin, AlbumFotos_Scene): a 2x2 grid of saved screenshots over
-# pages, cursor in @photo (0-3) and @page, with @viendofoto set while one is enlarged. The photos are
-# screenshots -- no text to read -- so what a player can actually use is the slot's number and the date,
-# which the plugin stores in the FILENAME as capture###_dd_mm_yyyy.png.
-#
-# pbUpdateAlbum is a modal `loop do` in both copies (it calls Input.update every iteration), so the cursor
-# is polled each frame through SceneWatcher rather than hooked.
-#
-# The copies differ only in the LOOKUP: one keeps a cached listing behind obtener_archivo_captura, the
-# other globs a fixed ALBUM_DIR. The naming scheme is the same in both, and the fallback caches its own
-# listing because this runs per frame.
+# Photo album (the "Fotos del equipo" plugin, AlbumFotos_Scene): a 2x2 grid of saved screenshots over pages,
+# cursor in @photo (0-3) and @page, @viendofoto set while one is enlarged. What a player can use is the
+# slot's number and the date, stored in the FILENAME as capture###_dd_mm_yyyy.png. pbUpdateAlbum is a modal
+# loop, so the cursor is polled through SceneWatcher. The copies differ only in the LOOKUP (a cached listing
+# behind obtener_archivo_captura, or a glob of ALBUM_DIR), so the fallback caches its own listing.
 module PokeAccess
   module PhotoAlbum
     # The album's files, listed once per scene. The plugin does not add photos while the album is open.

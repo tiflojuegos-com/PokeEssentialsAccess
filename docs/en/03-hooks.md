@@ -10,7 +10,7 @@ never silently disable an existing hook.
 `cname` is always a **string** (`"Battle::Scene"`), never the constant. `wrap` resolves it through
 `PokeAccess.const_at`, which walks the segments one by one because 1.8.7's `const_defined?` rejects a name
 containing `::`. Naming the constant would blow up loading on any game that does not define it, and no class
-exists across all 14 profiles at once: `PokemonMenu_Scene` is gen-6, `UI::BaseScreen` is v22.
+exists across all 16 profiles at once: `PokemonMenu_Scene` is gen-6, `UI::BaseScreen` is v22.
 
 | Situation | Result |
 |---|---|
@@ -34,6 +34,7 @@ exists across all 14 profiles at once: `PokemonMenu_Scene` is gen-6, `UI::BaseSc
 | `override` | `(target, meth, opts)` | `(receiver, original, args)` | Declared replacement of a method |
 | `wrap_global` | `(name, tag, timing = :after)` | `(args, result)` or `(args, call_next)` | Top-level function on `Object` |
 | `wrap_kernel` | `(name, tag, timing = :before)` | same as `wrap_global` | Function that may be a `Kernel` singleton or top-level |
+| `wrap_singleton` | `(owner, name, tag, timing = :before)` | same as `wrap_global` | A game module's own singleton method (`def self.foo`, called as `Module.foo`) |
 | `wrap` | `(cname, meth, opts)` | `(instance, call_next, args)` | The engine: raw middleware. Everything else uses it |
 
 `call_next` takes no arguments: it replays the chain with the caller's own. To change what the original
@@ -64,7 +65,9 @@ one left outermost, receiving the second.
 
 Class hooks cannot reach Essentials' top-level functions. `wrap_global` looks for them on `Object`;
 `wrap_kernel` tries the `Kernel` singleton first (`def Kernel.foo`, the gen-6 style) and otherwise falls back
-to `wrap_global` (`def foo`, modern). A function found nowhere is recorded in `Hooks.fn_absent`.
+to `wrap_global` (`def foo`, modern). `wrap_singleton` does the same for a game module's own singleton method
+(`def self.foo` on a helper module such as Añil's `MessageUI`), which a class hook would miss: it binds the
+instance side, a copy nobody calls. A function found nowhere is recorded in `Hooks.fn_absent`.
 
 | `timing` | The block receives | Exception raised by the body |
 |---|---|---|

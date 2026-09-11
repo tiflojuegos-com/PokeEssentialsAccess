@@ -31,22 +31,26 @@ module PokeAccess
 
     # The player's category override for an event (:people/:objects/:exits/:signs), or nil for auto.
     def self.tag_override(ev)
-      return nil unless $game_map && ev.respond_to?(:id)
-      PokeAccess::Tags.category($game_map.map_id, ev.id)
+      eid = event_id_of(ev)
+      return nil unless $game_map && eid
+      PokeAccess::Tags.category($game_map.map_id, eid)
     rescue StandardError
       nil
     end
 
     # True if the player hid this event (Ctrl+K), so it is left out of the locator entirely.
     def self.tag_hidden?(ev)
-      return false unless $game_map && ev.respond_to?(:id)
-      PokeAccess::Tags.hidden?($game_map.map_id, ev.id)
+      eid = event_id_of(ev)
+      return false unless $game_map && eid
+      PokeAccess::Tags.hidden?($game_map.map_id, eid)
     rescue StandardError
       false
     end
 
     # True if an event belongs in the given target category. A player override (Ctrl+K) wins over the
-    # automatic detection, so a mislabelled object can be moved to the right category.
+    # automatic detection, so a mislabelled object can be moved to the right category. An exit lives in
+    # exits alone: with a sprite it also matched people or objects, and every arrow of a doorway came back
+    # there tile by tile under its sprite's name, beside the one clustered exit it already was.
     def self.in_category?(ev, cat)
       ov = tag_override(ev)
       if ov
@@ -57,10 +61,10 @@ module PokeAccess
       case cat
       when :exits  then transfer_event?(ev)
       when :signs  then sign_event?(ev)
-      when :extras then !named && examinable?(ev) && !sign_event?(ev)
+      when :extras then !named && examinable?(ev) && !sign_event?(ev) && !transfer_event?(ev)
       when :lens   then lens_tile?(ev)
       when :all    then named || transfer_event?(ev) || examinable?(ev) || lens_tile?(ev)
-      else              named && event_category(ev) == cat
+      else              named && !transfer_event?(ev) && event_category(ev) == cat
       end
     end
 
@@ -297,14 +301,24 @@ module PokeAccess
       t.is_a?(SurfaceTarget) && t.key == :mark
     end
 
+    # The map-event id of a target, or nil for a synthetic one (a surface, a mark, a map edge). Decided by
+    # class and never by respond_to?(:id): under 1.8.7 every object answers that (Object#id, the old
+    # object_id), so a surface passed as taggable, took a label filed under a number no event has, and its
+    # "fixed" number followed whatever id the GC handed out.
+    def self.event_id_of(t)
+      return nil if t.nil? || t.is_a?(SurfaceTarget)
+      (t.id rescue nil)
+    end
+
     # Gives the focused object a custom spoken label (Shift+K), stored in the shareable tag dictionary.
     # An empty entry removes it; surfaces (no event id) cannot be tagged.
     def self.rename_target
       ensure_target
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_nothing_selected), true) if @target.nil?
       return edit_mark(@target.x, @target.y) if mark_target?(@target)
-      return PokeAccess.speak(PokeAccess::I18n.t(:loc_cant_label), true) unless $game_map && @target.respond_to?(:id)
-      mid = $game_map.map_id; eid = @target.id
+      eid = event_id_of(@target)
+      return PokeAccess.speak(PokeAccess::I18n.t(:loc_cant_label), true) unless $game_map && eid
+      mid = $game_map.map_id
       cur = (PokeAccess::Tags.get(mid, eid) rescue nil).to_s
       prompt_rename(target_name(@target), cur, [:loc_label_for, :loc_label_prompt, :loc_label_removed, :loc_label_saved]) do |label|
         PokeAccess::Tags.set(mid, eid, label)
@@ -339,8 +353,9 @@ module PokeAccess
       ensure_target
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_nothing_selected), true) if @target.nil?
       return mark_menu(@target) if mark_target?(@target)
-      return PokeAccess.speak(PokeAccess::I18n.t(:loc_cant_label), true) unless $game_map && @target.respond_to?(:id)
-      mid = $game_map.map_id; eid = @target.id
+      eid = event_id_of(@target)
+      return PokeAccess.speak(PokeAccess::I18n.t(:loc_cant_label), true) unless $game_map && eid
+      mid = $game_map.map_id
       loop do
         sel = (show_menu(PokeAccess::I18n.t(:tag_menu, :name => target_name(@target)),
                          [PokeAccess::I18n.t(:tag_rename), PokeAccess::I18n.t(:tag_recat),
@@ -371,7 +386,8 @@ module PokeAccess
 
     # Position-independent sort key for stable numbering: events by id, surfaces by tile.
     def self.stable_key(t)
-      t.respond_to?(:id) ? [0, t.id.to_i] : [1, t.x.to_i, t.y.to_i]
+      eid = event_id_of(t)
+      eid ? [0, eid.to_i] : [1, t.x.to_i, t.y.to_i]
     end
 
     # A stable per-map number for a target (its rank by stable_key), so an object keeps its number while
@@ -523,7 +539,7 @@ module PokeAccess
       @targets = []; @target = nil; @ti = 0
       (rebuild_targets rescue nil)
       nm = (map_name(mid) rescue nil)
-      PokeAccess.speak(nm, false) if nm && !nm.to_s.strip.empty?
+      PokeAccess.speak(nm, false)
     end
 
     # True while the player is mid-jump, i.e. hopping a ledge (the engine sets @x/@y two tiles at once and
@@ -607,11 +623,17 @@ module PokeAccess
       @interp_running = false
     end
 
+    # Whether map_poll does its per-frame work now: a map and a player, the mod switched on and its own
+    # menu shut. The game-bump filter asks the same, because the wall cue it stands in for plays from here.
+    def self.polling?
+      return false unless $game_map && $game_player
+      return false unless (PokeAccess::Keys.enabled rescue true)
+      !PokeAccess::ConfigMenu.active?
+    end
+
     # Runs every map frame: map-change announce, battle/info reset, spatial audio, guides, keys.
     def self.map_poll
-      return unless $game_map && $game_player
-      return unless (PokeAccess::Keys.enabled rescue true)
-      return if PokeAccess::ConfigMenu.active?
+      return unless polling?
       announce_map_change
       announce_internal_teleport
       refresh_on_event_end

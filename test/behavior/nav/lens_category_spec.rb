@@ -64,3 +64,42 @@ Suite.define("locator: :lens respects hide-unreachable") do
   pf.instance_variable_set(:@rs_key, nil)
   $game_map.events.delete(7)
 end
+
+# The step-on cue for the same tiles, from Spatial.tick. Checked once per TILE: it was the one poller there
+# without a position guard, sweeping every event of the map on every frame, in the nine games without the
+# plugin too. The map's event table counts how often it is swept.
+Suite.define("spatial: the hidden-area cue is checked once per tile, not once per frame") do
+  sp = PokeAccess::Spatial
+  px = $game_player.x; py = $game_player.y
+  lens = World.event(:name => "Misterio#EOT_HIDE", :id => 5, :x => px, :y => py)
+  sweeps = Class.new(Hash) do
+    attr_reader :hits
+    def values; @hits = (@hits || 0) + 1; super; end
+  end.new
+  sweeps[5] = lens
+  plain = $game_map.events
+  $game_map.instance_variable_set(:@events, sweeps)
+  begin
+    sp.reset_map_state
+    SpeakCapture.clear
+    sp.announce_lens_tile
+    eq "stepping onto the tile says the cue", SpeakCapture.lines, [PokeAccess::I18n.t(:lens_tile_here)]
+
+    SpeakCapture.clear
+    3.times { sp.announce_lens_tile }
+    silent "and the frames that follow say nothing"
+    eq "because the map was swept once, on arrival", sweeps.hits, 1
+
+    $game_player.x = px + 1
+    sp.announce_lens_tile
+    $game_player.x = px
+    SpeakCapture.clear
+    sp.announce_lens_tile
+    eq "coming back onto the tile says it again", SpeakCapture.lines, [PokeAccess::I18n.t(:lens_tile_here)]
+    eq "one sweep per tile entered", sweeps.hits, 3
+  ensure
+    $game_map.instance_variable_set(:@events, plain)
+    $game_player.x = px
+    sp.reset_map_state
+  end
+end

@@ -18,7 +18,7 @@ module PokeAccess
       id = focused_id(scene)
       return if id.nil?
       s = PokeAccess::MoveInfo.by_id_via_data(id)
-      PokeAccess.speak(s, true) if s && !s.to_s.empty?
+      PokeAccess.speak(s, true)
     rescue StandardError
       nil
     end

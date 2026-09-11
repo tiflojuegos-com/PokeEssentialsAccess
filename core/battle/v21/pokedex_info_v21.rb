@@ -43,6 +43,25 @@ module PokeAccess
       nil
     end
 
+    # What the page just painted, taken by the hook on EVERY page rather than only on the area branch: the
+    # capture collector has a single global tag, so arming it and walking away leaves it recording whatever
+    # the game paints next, for whoever arms it after.
+    def self.painted=(t); @painted = t; end
+    def self.painted; @painted; end
+
+    # The area page AS PAINTED. It is a map of coloured squares with a few lines of text over it, and the
+    # reader used to announce "<species>'s area map" whatever was on the page -- including on the copy that
+    # paints, in those words, that the area is unknown, which is the one thing a blind player most needs from
+    # that page. Reading the rows says that, and says the region name too: the only thing that tells the same
+    # page apart between one regional dex and another. The composed line stays as the fallback for a build
+    # whose page paints no text at all.
+    def self.area_text(name, painted = nil)
+      return painted.to_s unless painted.to_s.strip.empty?
+      PokeAccess::I18n.t(:pdx_zone, :name => name)
+    rescue StandardError
+      PokeAccess::I18n.t(:pdx_zone, :name => name)
+    end
+
     # The spoken text for the focused pokedex page, or nil.
     # param page the argument drawPage was called with
     def self.page_text(scene, page)
@@ -51,7 +70,7 @@ module PokeAccess
       data, name = pair
       owned = owned?(PokeAccess.ivar(scene, :@species))
       case page_id(scene, page)
-      when :page_area  then PokeAccess::I18n.t(:pdx_zone, :name => name)
+      when :page_area  then area_text(name, @painted)
       when :page_forms
         fname = (data.form_name rescue nil)
         (fname && !fname.to_s.empty?) ? PokeAccess::I18n.t(:pdx_form, :name => name, :f => fname) : PokeAccess::I18n.t(:pdx_forms, :name => name)
@@ -192,9 +211,12 @@ module PokeAccess
   # The MUI Data Page sub-navigation: a section cursor (@cursor) and species sub-lists, neither a command
   # window. Sections are read from pbDrawDataNotes; the move sub-list uses a command window the core hook
   # already reads; the species sub-list is read from pbDrawSpeciesDataList.
-    SECTIONS = { :general => :pdx_sec_general, :stats => :pdx_sec_stats, :family => :pdx_sec_family,
-                 :habitat => :pdx_sec_habitat, :shape => :pdx_sec_shape, :egg => :pdx_sec_egg,
-                 :item => :pdx_sec_item, :ability => :pdx_sec_ability, :moves => :pdx_sec_moves }
+    # The ten sections the page draws, in its own order. :encounter was missing, so the first section of the
+    # page -- where the species is FOUND -- arrived with its paragraph and no name.
+    SECTIONS = { :encounter => :pdx_sec_encounter, :general => :pdx_sec_general, :stats => :pdx_sec_stats,
+                 :family => :pdx_sec_family, :habitat => :pdx_sec_habitat, :shape => :pdx_sec_shape,
+                 :egg => :pdx_sec_egg, :item => :pdx_sec_item, :ability => :pdx_sec_ability,
+                 :moves => :pdx_sec_moves }
 
     # Speaks data-sub-navigation text when it changes (a Cursor slot on the scene, separate from the page
     # reader's).
@@ -218,15 +240,19 @@ module PokeAccess
     # param text the fourth argument of drawFormattedTextEx, the paragraph already composed
     def self.note_text(text)
       return unless @notes_armed
-      t = PokeAccess.clean(text.to_s).to_s.strip
+      t = PokeAccess.clean(text.to_s)
       @notes = t unless t.empty?
     rescue StandardError
       nil
     end
 
-    # Reads the focused data-page section name (@cursor) as the cursor moves, and the paragraph under it.
-    def self.section_read(scene)
-      k = SECTIONS[PokeAccess.ivar(scene, :@cursor)]
+    # Reads the focused data-page section name and the paragraph under it.
+    #
+    # The section is the ARGUMENT when the page passes one, and @cursor only otherwise -- which is the rule
+    # the page itself follows ("cursor = @cursor if !cursor"). Reading the ivar regardless named whichever
+    # section the cursor happened to sit on while the page drew a different one.
+    def self.section_read(scene, arg = nil)
+      k = SECTIONS[arg || PokeAccess.ivar(scene, :@cursor)]
       label = k ? PokeAccess::I18n.t(k) : nil
       body = @notes
       full = [label, body].compact.reject { |s| s.to_s.empty? }.join(". ")
@@ -252,7 +278,11 @@ end
 
 # Read the focused entry page on each redraw (drawPage fires on open, species change and page change). The
 # argument is what tells the plain screen apart -- it is the only place the page number is available.
+PokeAccess::Hooks.before_hook("PokemonPokedexInfo_Scene", :drawPage) do |_s, _a|
+  PokeAccess::PaintCapture.arm(:pdx_page)
+end
 PokeAccess::Hooks.after_hook("PokemonPokedexInfo_Scene", :drawPage) do |scene, _r, args|
+  PokeAccess::PokedexInfoV21.painted = PokeAccess::PaintCapture.text(PokeAccess::PaintCapture.take(:pdx_page))
   PokeAccess::PokedexInfoV21.read(scene, args[0])
 end
 
@@ -267,8 +297,8 @@ PokeAccess::Hooks.wrap_kernel("drawFormattedTextEx", "pdx_data_notes", :before) 
   PokeAccess::PokedexInfoV21.note_text(args[4])
 end
 
-PokeAccess::Hooks.after_hook("PokemonPokedexInfo_Scene", :pbDrawDataNotes, :optional => true) do |scene, _r, _a|
-  PokeAccess::PokedexInfoV21.section_read(scene)
+PokeAccess::Hooks.after_hook("PokemonPokedexInfo_Scene", :pbDrawDataNotes, :optional => true) do |scene, _r, args|
+  PokeAccess::PokedexInfoV21.section_read(scene, args[0])
 end
 PokeAccess::Hooks.after_hook("PokemonPokedexInfo_Scene", :pbDrawSpeciesDataList, :optional => true) do |s, _r, args|
   PokeAccess::PokedexInfoV21.species_list_read(s, args[0], args[1], args[2])

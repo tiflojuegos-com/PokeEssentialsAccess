@@ -25,6 +25,18 @@ module PaTownRig
     def pbGetHealingSpot(x, y); @fly.include?([x, y]) ? [1, 2, 3] : nil; end
   end
 
+  # The shape in between, and the one that was unread: v20.1 took the snake_case ivars a version before it
+  # took the new data, so the scene answers the modern test and still keeps the OLD Array. Its own
+  # pbGetHealingSpot reads @map[2], which is what says this is not a guess.
+  class HalfModern
+    attr_accessor :map_x, :map_y, :map, :fly
+    def initialize(points, fly)
+      @map_x = 0; @map_y = 0; @fly = fly
+      @map = [nil, nil, points.map { |x, y| [x, y, "name", "desc", nil, nil, nil, nil] }]
+    end
+    def pbGetHealingSpot(x, y); return nil if !@map[2]; @fly.include?([x, y]) ? [1, 2, 3] : nil; end
+  end
+
   # A scene no built-in provider understands, for the artistic fangames that rewrite the whole screen.
   class Exotic
     attr_accessor :spot
@@ -54,6 +66,14 @@ Suite.define("town map: the cursor provider is chosen by SHAPE, not by class nam
 
   eq "points come from @map[2] in the classic shape", PokeAccess::TownMap.points(classic), [[1, 1], [5, 1]]
   eq "and from @map.point in the modern one", PokeAccess::TownMap.points(modern), [[2, 2], [9, 2]]
+
+  # A v20.1 screen: modern ivars, old data. Asking only for .point left the fly jump with no destinations
+  # at all over a map full of towns.
+  half = PaTownRig::HalfModern.new([[3, 3], [7, 3]], [[7, 3]])
+  eq "the half-modern shape is still the modern provider",
+     PokeAccess::TownMap.provider_for(half)[0], :ui_rework
+  eq "and its points are found in the Array it really keeps",
+     PokeAccess::TownMap.points(half), [[3, 3], [7, 3]]
 
   # Flyable is the GAME's answer, not ours: a point with no healing spot is not offered even though it is
   # a perfectly good point on the map.

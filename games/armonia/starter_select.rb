@@ -1,14 +1,7 @@
-# Armonia starter selection (shiney570's PokemonStarterSelection): a custom sprite picker that replaces the
-# standard starter menu. gettinginput runs every frame and moves @select (1..3) over three balls; the focused
-# starter's name and types are drawn to a bitmap, so nothing is spoken. Hook gettinginput, dedup by @select,
-# and read the focused starter's name and type(s). The confirm prompt (pbConfirmMessage) is already spoken by
-# the message reader.
-#
-# The starter is resolved from @data with the CURRENT @select rather than read off @pokemon, because the
-# scene's loop assigns `@pokemon = @data["pkmn_#{@select}"]` BEFORE calling gettinginput. In an after-hook
-# @select is therefore already the new ball while @pokemon is still the previous one: every press re-read the
-# starter you had just left, and the one you moved onto was never named at all -- the dedup had already been
-# spent on its index. It is the first screen of a new game.
+# Armonia starter selection (shiney570's PokemonStarterSelection): gettinginput runs every frame and moves
+# @select (1..3) over three balls, with the focused starter drawn to a bitmap. Hooked there, deduped by
+# @select, reading name and types. The starter is resolved from @data with the CURRENT @select rather than
+# @pokemon, which the loop assigns BEFORE gettinginput and so still holds the previous ball in an after-hook.
 PokeAccess::Game.define("armonia") do
   after("PokemonStarterSelection", :gettinginput) do |scene, _result, _args|
     sel = PokeAccess.ivar(scene, :@select)

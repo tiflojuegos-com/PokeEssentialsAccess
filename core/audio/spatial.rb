@@ -10,12 +10,13 @@ module PokeAccess
     @last_y = nil
     @was_blocked = false
     @bump_time = nil
+    @bump_heard = false
     @radar_key = nil
     @radar_pos = nil
     @surf_here = nil
     @surf_front = nil
     @surf_pos = nil
-    @lens_key = nil
+    @lens_pos = nil
 
     # Drops everything tied to the map the player just left: every ivar here is an "already said this" memo
     # keyed on coordinates or on a terrain label, neither of which survives a map change. Its twin Audio3D
@@ -24,7 +25,7 @@ module PokeAccess
     def self.reset_map_state
       @radar_key = nil; @radar_pos = nil
       @surf_here = nil; @surf_front = nil; @surf_pos = nil
-      @lens_key = nil
+      @lens_pos = nil
       @last_x = nil; @last_y = nil
       @was_blocked = false
     rescue StandardError
@@ -223,16 +224,16 @@ module PokeAccess
     # Announces a generic "hidden area" cue when the player steps onto a tile holding a Lens-of-Truth (#EOT)
     # event, so a place invisible without the lens is still noticeable on foot. Deduped per tile, and worded
     # generically because the revealing item is named differently per game. Driven from tick and not from
-    # the terrain cues, which are off by default and whose help line promises terrain.
+    # the terrain cues, which are off by default and whose help line promises terrain. Checked once per
+    # tile like its siblings: it was the one poller in tick without a position guard, sweeping every event
+    # of the map on every frame, in the nine games without the plugin too. A tile is looked at on arrival
+    # only: #EOT events are fixed markers named in the map data, so nothing appears under a standing player.
     def self.announce_lens_tile
-      px = $game_player.x; py = $game_player.y
-      ev = event_at(px, py)
-      on = ev && (PokeAccess::Locator.lens_tile?(ev) rescue false)
-      key = on ? [px, py] : nil
-      if key && key != @lens_key
-        PokeAccess.speak(PokeAccess::I18n.t(:lens_tile_here), false)
-      end
-      @lens_key = key
+      pos = [$game_player.x, $game_player.y]
+      return if pos == @lens_pos
+      @lens_pos = pos
+      ev = event_at(pos[0], pos[1])
+      PokeAccess.speak(PokeAccess::I18n.t(:lens_tile_here), false) if ev && (PokeAccess::Locator.lens_tile?(ev) rescue false)
     rescue StandardError
       nil
     end
@@ -266,26 +267,28 @@ module PokeAccess
       false
     end
 
-    # Plays a wall cue panned to the wall's side when the player pushes into an impassable tile. The
-    # costly passability test runs only while a direction is held and the player is not already moving,
-    # so idle/free-walking frames stay cheap.
+    # Plays a wall cue panned to the wall's side when the player pushes into an impassable tile: when the
+    # push starts, when it turns to another wall (@was_blocked keeps the wall's direction) and once per
+    # cooldown while it lasts. The costly passability test runs only while a direction is held and the
+    # player is not already walking (a bump's one-step animation does not count), so idle/free-walking frames
+    # stay cheap. Records the push, the cue's direction and whether it could be heard, which decide whether a
+    # game bump right after it is a second answer to the same push.
     def self.wall_cue
       return if (PokeAccess::Audio3D.nav_off? rescue false)
       v = PokeAccess::Config.wall_volume
       return if v.nil? || v <= 0
-      if (Input.dir4 rescue 0) == 0 || ($game_player.moving? rescue false)
+      if (Input.dir4 rescue 0) == 0 || walking?
         @was_blocked = false
         return
       end
       dir = $game_player.direction
       blocked = !($game_player.passable?($game_player.x, $game_player.y, dir) rescue true)
-      cd = (PokeAccess::Config.bump_cooldown rescue 16).to_f / PokeAccess::FPS
-      cooled = @bump_time.nil? || (PokeAccess.clock - @bump_time) >= cd
-      if blocked && (!@was_blocked || cooled)
-        fx, fy = front_tile
-        ev = event_at(fx, fy)
-        interact = !ev.nil? && (PokeAccess::Locator.interactable?(ev) rescue false)
-        unless (PokeAccess::Audio3D.bump(dir, interact) rescue false)
+      @push_seen = PokeAccess.clock if blocked
+      cooled = @bump_time.nil? || (PokeAccess.clock - @bump_time) >= cue_cooldown
+      if blocked && (@was_blocked != dir || cooled)
+        interact = interact_ahead?
+        handled = (PokeAccess::Audio3D.bump(dir, interact) rescue false)
+        unless handled
           f = tone_factor(:wall_tone, 80, 120)
           case dir
           when 4 then cue("pa3d_wall_l", v, (100 * f).round)
@@ -295,10 +298,111 @@ module PokeAccess
           end
         end
         @bump_time = PokeAccess.clock
+        @bump_dir = dir
+        @bump_heard = !handled || (PokeAccess::Config.audio3d_volume rescue 80).to_i > 0
       end
-      @was_blocked = blocked
+      @was_blocked = blocked ? dir : false
+    end
+
+    # The names the game's own bump plays under: "bump" in the gen-6 era (played inline by Game_Player when
+    # a step fails) and "Player bump" from v18 on (Game_Player#bump_into_object). Every era plays it through
+    # pbSEPlay(param, volume, pitch), the one seam the fifteen surveyed games share; param is the file name,
+    # or an RPG::AudioFile carrying it.
+    GAME_BUMP_NAMES = ["bump", "player bump"]
+
+    def self.game_bump?(param)
+      name = param.is_a?(String) ? param : (param.name rescue nil)
+      return false if name.nil?
+      GAME_BUMP_NAMES.include?(File.basename(name.to_s, ".*").downcase.strip)
+    rescue StandardError
+      false
+    end
+
+    # Whether the mod's own wall cue answers for this bump -- the same test wall_cue makes, asked when the
+    # game plays its own -- so only WALL bumps are muted: of the sixty-two places the games write this call
+    # (sixteen of them commented out), the ones that answer a blocked step are walls, the autosurf and
+    # diagonal-stairs Game_Player overrides included, while an options preview bumps at nothing, which is
+    # why the test is the wall and not the file name. Facing against the held direction, as wall_cue does;
+    # the cooldown is deliberately not copied, since holding into a wall is where the game's per-step bump
+    # becomes noise.
+    def self.wall_cue_takes_over?
+      return false if (Input.dir4 rescue 0) == 0
+      return false if walking?
+      return false if ($game_player.passable?($game_player.x, $game_player.y, $game_player.direction) rescue true)
+      cue_audible?(interact_ahead?)
+    rescue StandardError
+      false
+    end
+
+    # Whether the tile ahead holds something to interact with, which the cue sounds apart from a wall.
+    def self.interact_ahead?
+      fx, fy = front_tile
+      ev = event_at(fx, fy)
+      !ev.nil? && (PokeAccess::Locator.interactable?(ev) rescue false)
+    end
+
+    # Whether the player is really taking a step. A v21 bump plays a one-step animation of its own
+    # (bump_into_object starts the move timer and sets @bumping) that is no walk: holding the wall cue back
+    # until it ended left a short tap against a wall with no sound at all, the game's bump already muted.
+    def self.walking?
+      return false unless ($game_player.moving? rescue false)
+      !($game_player.instance_variable_get(:@bumping) rescue false)
+    end
+
+    # Whether the mod's wall cue can be heard: sound navigation on and a wall volume above zero, and when
+    # the positional engine plays the cue (on its interact channel when interact, else its wall one), its
+    # master volume above zero too.
+    def self.cue_audible?(interact = false)
+      return false if (PokeAccess::Audio3D.nav_off? rescue false)
+      return false if (PokeAccess::Config.wall_volume rescue 0).to_i <= 0
+      return true unless (PokeAccess::Audio3D.bump_ready?(interact) rescue false)
+      (PokeAccess::Config.audio3d_volume rescue 80).to_i > 0
+    end
+
+    # The wall cue's cooldown in seconds: a held push repeats the cue at this pace.
+    def self.cue_cooldown
+      (PokeAccess::Config.bump_cooldown rescue 16).to_f / PokeAccess::FPS
+    end
+
+    # Whether the game's bump stays silent now: the player has not asked for it back (game_bump off), the
+    # sound comes from the walk on the map, it really is the bump file, and the mod's own wall cue is about
+    # to answer for it. That cue plays from tick, which runs only while Locator.polling? (the mod on, its
+    # menu shut) and stands down while busy? holds the player; a bump played outside either -- the mod
+    # switched off, a team photo's camera or a minigame's countdown run by an event -- stays the game's,
+    # unless the cue has just answered the same push (just_cued?). One bump: never zero, never two.
+    def self.mute_game_bump?(param)
+      return false if (PokeAccess::Config.game_bump rescue true)
+      return false unless ($scene.is_a?(Scene_Map) rescue false)
+      return false unless game_bump?(param)
+      return true if just_cued?
+      return false unless (PokeAccess::Locator.polling? rescue false)
+      return false if busy?
+      wall_cue_takes_over?
+    end
+
+    # How long a game bump still answers the push the wall cue answered, in seconds, past the cue's cooldown
+    # and past the release of the arrow. A touch event on a solid tile starts on the push's frame and bumps
+    # on the next (Infinite Fusion's Mt. Moon summit), which may already be the frame the arrow was let go,
+    # under an interpreter the rest of the filter no longer judges; held, the push repeats the cue once per
+    # cooldown, and on that very frame the interpreter's bump comes first.
+    SAME_PUSH = 0.25
+
+    # Whether a game bump now is a second answer to a push the mod's wall cue already answered: a cue the
+    # player could hear, towards the wall the player still faces, within the cue's cooldown plus SAME_PUSH,
+    # with the arrow still held or let go less than SAME_PUSH ago.
+    def self.just_cued?
+      return false if @bump_time.nil? || !@bump_heard
+      return false if @bump_dir && @bump_dir != ($game_player.direction rescue nil)
+      held = (Input.dir4 rescue 0) != 0 || (!@push_seen.nil? && PokeAccess.clock - @push_seen < SAME_PUSH)
+      held && (PokeAccess.clock - @bump_time) < cue_cooldown + SAME_PUSH
     end
   end
+end
+
+# The game's own bump, filtered at the one function every era plays it through: an :around body that does
+# not call nxt swallows the sound, and anything that is not the walk's bump goes through untouched.
+PokeAccess::Hooks.wrap_kernel("pbSEPlay", "game_bump", :around) do |args, nxt|
+  PokeAccess::Spatial.mute_game_bump?(args[0]) ? nil : nxt.call
 end
 
 # Drop the previous map's "already said this" memos on map change or load (Caches.reset_all), the same way

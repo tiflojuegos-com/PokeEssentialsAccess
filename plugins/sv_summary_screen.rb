@@ -1,14 +1,8 @@
-# Egg Move Learner (the "Tutor de Movimientos Huevo" screen a plugin adds, EggMoveLearner_Scene): a move
-# list drawn by hand, so the focused move's detail is never spoken. WHAT to say lives in the shared
-# MoveList reader, which the v21 Move Relearner uses too; only WHEN to say it belongs here, because only
-# this screen is the plugin's.
-#
-# Mute the generic bare-name read of the move window first, then read the full detail on each redraw. The
-# flag is the mod's own @access_dedicated, not @ignore_input, which some Selectable windows already use to
-# gate their navigation.
-#
-# hook_container, because this body only STORES and pbStartScene calls pbDrawMoveList, whose hook is the
-# announcer; guarded, that opening read would be dropped as nested_other? and the screen would open silent.
+# Egg Move Learner (EggMoveLearner_Scene, added by a plugin): a move list drawn by hand, so the focused move's
+# detail is never spoken. WHAT to say lives in the shared MoveList reader; only WHEN belongs here. The
+# generic bare-name read is muted through the mod's own @access_dedicated, then the full detail is read on
+# each redraw. hook_container, because this body only STORES and pbStartScene calls pbDrawMoveList, whose
+# hook is the announcer.
 PokeAccess::Hooks.after_hook("EggMoveLearner_Scene", :pbStartScene, :optional => true, :hook_container => true) do |scene, _r, _a|
   PokeAccess.dedicate(PokeAccess.sprite(scene, "commands"))
 end

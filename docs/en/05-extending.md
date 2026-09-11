@@ -14,7 +14,7 @@ The question is who owns the class you are about to hook.
 | exists in one game only | the game's own | `games/<profile>/` |
 
 ```bash
-# F:\claude\pokemon esentials\pokemon-essentials -- the upstream checkout, carrying the v19...v21.1 tags
+# inside a checkout of pokemon-essentials (upstream), carrying the v19...v21.1 tags
 git grep -l "class PokemonBag_Scene" v19 v19.1 v20 v20.1 v21 v21.1   # output = vanilla
 git grep -l "class Window_Berrydex" v19 v19.1 v20 v20.1 v21 v21.1    # no output = not vanilla
 ```
@@ -224,5 +224,7 @@ own sentences.
 | `check187.py` | modern syntax in `core/`, `plugins/`, `loader/` or a gen-6 profile |
 | `mts_mutator_guard_spec.rb` | there is a `CONST + array` or `x - array` in code that loads under Pokémon Z, whose engine redefines `Array#+` and `Array#-` as in-place mutators |
 | `ivars_spec.rb` | a reader takes an ivar off a game object that the game does not have anywhere, or that the census does not know yet |
+| `arity_spec.rb` | a hook body reads `args[N]` past what some game passes that method, or one body bound to several classes reads a position the games name differently (a message in one class, the command list in another); registrations in loops count, through `ReaderSites.registrations` |
+| `era_calls_spec.rb` | the shared core calls an Essentials `pb*` name that not every surveyed source defines, and the call is neither a ladder to the other era's name nor a guard nor an explained row; or an explanation outlives its call |
 | `blocking_hooks_spec.rb` | an `after` hook hangs off a method that IS the screen's blocking loop, so it would speak on the way out |
 | `twins_spec.rb` | two twins declared in `test/static/twins.rb` have stopped being identical |

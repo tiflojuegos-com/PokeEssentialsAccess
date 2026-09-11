@@ -11,6 +11,9 @@ module PokeAccess
     # move, which would otherwise repeat "Cintas: N" continuously. A page change yields different text, so
     # navigating pages still reads each one; a fresh scene (reopen) reads even the same page.
     def self.speak_page(scene, page)
+      pk = PokeAccess.ivar(scene, :@pokemon)
+      PokeAccess::Summary.say_egg_page(scene, pk)
+      return if PokeAccess::Summary.egg?(pk)
       t = PokeAccess::SummaryGameData.page_text(scene, page)
       return if t.nil? || t.to_s.empty?
       return if t == PokeAccess.ivar(scene, :@access_page_text)

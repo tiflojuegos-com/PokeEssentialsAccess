@@ -47,17 +47,11 @@ module PokeAccess
       nil
     end
 
-    # Registers the selectButton reader for a game profile.
-    #
-    # The menu's blocking loop is HELD rather than hooked after, because holding is the only thing that
-    # tells the return above whether the menu is still on screen. Which method holds the loop differs by game
-    # -- Africanvs runs it inside pbStartScene, Armonia in a pbMenuLoop of its own -- so both are
-    # registered and each binds only where it exists.
-    #
-    # param bare a list of ["Class", :method] whose call is a subscreen that does NOT fade. Every option
-    #   that fades is covered by MenuReturn's own seams; one called bare returns with nothing to signal it,
-    #   and the menu comes back silent with the cursor on an option the player can no longer hear. Declared
-    #   to MenuReturn, they count as a nesting level like a fade does, so returning from one announces once.
+    # Registers the selectButton reader for a game profile. The menu's blocking loop is HELD rather than
+    # hooked after, because holding is what tells the return above whether the menu is still on screen; the
+    # method that holds it differs by game, so both candidates are registered.
+    # param bare a list of ["Class", :method] whose call is a subscreen that does NOT fade, declared to
+    #   MenuReturn so returning from one still announces once
     def self.define(game, bare = [])
       PokeAccess::Game.define(game) do
         after("PokemonMenu_Scene", :selectButton) do |scene, _r, args|

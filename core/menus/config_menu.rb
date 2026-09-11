@@ -68,6 +68,9 @@ module PokeAccess
     DICT_ORDER = [:tags, :marks, :maps]
     # Menu mode => the dictionary whose entries it lists.
     LIST_MODES = { :list_tags => :tags, :list_marks => :marks, :list_maps => :maps }
+    # The same table read the other way, precomputed: the row builder needed it once per dictionary per
+    # rebuild, and inverting a Hash inside a loop that runs every frame allocates a Hash every frame.
+    MODE_OF_DICT = { :tags => :list_tags, :marks => :list_marks, :maps => :list_maps }
 
     def self.t(key, vars = nil); PokeAccess::I18n.t(key, vars); end
 
@@ -139,67 +142,100 @@ module PokeAccess
       @preview = nil
     end
 
-    # The items of the current mode. Each is a hash with :kind and the data that kind needs.
+    # The items of the current mode, memoised per (mode, focused entry). step() asks for the list two or
+    # three times on EVERY frame of the modal loop, and since the dictionaries got their own screens that
+    # list builds one Hash per mark, per tag and per renamed map each time. Nothing here reads a file --
+    # the store is memoised one level down -- so this is pure allocation, but on a full dictionary it is
+    # thousands of hashes a second for a list that only changes when the player changes it.
+    #
+    # The key carries the dictionaries' write counters, so a list that changed under the player's feet is
+    # rebuilt without anyone having to remember to invalidate it, and whether a recording is running, which
+    # is the debug row's own label. The key is stored after the build, so a build that raised cannot leave
+    # the previous screen's list filed under the new key.
     def self.items
+      key = [@mode, @entry, dict_rev, (PokeAccess::Recorder.recording? rescue false)]
+      return @items if @items && @items_key == key
+      built = build_items
+      @items_key = key
+      @items = built
+    end
+
+    # The three dictionaries' write counters as one key. Exact rather than event-driven: every mutation of
+    # any of them goes through Dictionary#save, so a stale list is impossible by construction instead of by
+    # remembering to emit something.
+    def self.dict_rev
+      (PokeAccess::Tags.rev rescue 0) + (PokeAccess::Marks.rev rescue 0) + (PokeAccess::MapNames.rev rescue 0)
+    end
+
+    # The submenus that hang off the audio screen, as [group, label] pairs in menu order.
+    AUDIO_SUBMENUS = [[:audio3d_vol, :cat_pos_vol], [:audio3d_freq, :cat_pos_freq], [:audio3d_tone, :cat_pos_tone],
+                      [:audio3d_walls, :cat_pos_walls], [:audio3d_adv, :cat_positional_adv]]
+
+    # Each item is a hash with :kind and the data that kind needs.
+    def self.build_items
       case @mode
-      when :top
-        list = PokeAccess::Config::CATEGORIES.map { |g, label| { :kind => :enter, :group => g, :label => label } }
-        list.push({ :kind => :enter, :group => :sounds, :label => :cat_sounds })
-        list.push({ :kind => :enter, :group => :tags, :label => :cat_tags })
-        list.push({ :kind => :remap, :label => :cat_remap })
-        list.push({ :kind => :enter, :group => :debug, :label => :cat_debug })
-        list.push({ :kind => :action, :action => :reset, :label => :cat_reset })
-        list
-      when :sounds
-        rows = PokeAccess::SoundGlossary.entries.map do |e|
-          { :kind => :sound, :entry => e, :label => e[2] }
-        end
-        rows.push({ :kind => :back, :label => :back })
-        rows
-      when :tags
-        rows = [{ :kind => :enter, :group => :dict_import, :label => :cat_import },
-                { :kind => :enter, :group => :dict_export, :label => :cat_export }]
-        DICT_ORDER.each { |d| rows.push({ :kind => :enter, :group => LIST_MODES.invert[d], :label => DICTS[d][:list] }) }
-        rows.push({ :kind => :back, :label => :back })
-        rows
-      when :dict_import, :dict_export
-        transfer_rows(@mode == :dict_import ? :import : :export)
-      when :list_tags, :list_marks, :list_maps
-        entry_rows(LIST_MODES[@mode])
-      when :entry_actions
-        entry_action_rows(@entry)
-      when :debug
-        rows = [{ :kind => :action, :action => :diag_audio,  :label => :dbg_diag_audio },
-                { :kind => :action, :action => :diag_events, :label => :dbg_diag_events },
-                { :kind => :action, :action => :diag_perf,   :label => :dbg_diag_perf },
-                { :kind => :action, :action => :diag_map,    :label => :dbg_diag_map },
-                { :kind => :action, :action => :diag_scene,  :label => :dbg_diag_scene },
-                { :kind => :action, :action => :diag_full,   :label => :dbg_diag_full },
-                { :kind => :action, :action => :rec_toggle,
-                  :label => (PokeAccess::Recorder.recording? ? :dbg_rec_stop : :dbg_rec_start) },
-                { :kind => :action, :action => :selfcheck, :label => :dbg_selfcheck }]
-        PokeAccess::Config.schema_group(:debug).each { |r| rows.push({ :kind => :setting, :row => r }) }
-        rows.push({ :kind => :back, :label => :back })
-        rows
-      when :pathfinder
-        rows = PokeAccess::Config.schema_group(:pathfinder).map { |r| { :kind => :setting, :row => r } }
-        rows.push({ :kind => :enter, :group => :pathfinder_adv, :label => :cat_nav_adv })
-        rows.push({ :kind => :back, :label => :back })
-        rows
-      when :audio
-        rows = PokeAccess::Config.schema_group(:audio).map { |r| { :kind => :setting, :row => r } }
-        rows.push({ :kind => :enter, :group => :audio3d_vol,   :label => :cat_pos_vol })
-        rows.push({ :kind => :enter, :group => :audio3d_freq,  :label => :cat_pos_freq })
-        rows.push({ :kind => :enter, :group => :audio3d_tone,  :label => :cat_pos_tone })
-        rows.push({ :kind => :enter, :group => :audio3d_walls, :label => :cat_pos_walls })
-        rows.push({ :kind => :enter, :group => :audio3d_adv,   :label => :cat_positional_adv })
-        rows.push({ :kind => :back, :label => :back })
-        rows
-      else
-        rows = PokeAccess::Config.schema_group(@mode).map { |r| { :kind => :setting, :row => r } }
-        rows.push({ :kind => :back, :label => :back })
-        rows
+      when :top                                then top_rows
+      when :sounds                             then sounds_rows
+      when :tags                               then tags_rows
+      when :dict_import, :dict_export          then transfer_rows(@mode == :dict_import ? :import : :export)
+      when :list_tags, :list_marks, :list_maps then entry_rows(LIST_MODES[@mode])
+      when :entry_actions                      then entry_action_rows(@entry)
+      when :debug                              then debug_rows
+      when :pathfinder                         then group_rows(:pathfinder, [[:pathfinder_adv, :cat_nav_adv]])
+      when :audio                              then group_rows(:audio, AUDIO_SUBMENUS)
+      else group_rows(@mode)
       end
+    end
+
+    # The top level: the schema categories, then the menu's own screens and the reset.
+    def self.top_rows
+      rows = PokeAccess::Config::CATEGORIES.map { |g, label| { :kind => :enter, :group => g, :label => label } }
+      rows.push({ :kind => :enter, :group => :sounds, :label => :cat_sounds })
+      rows.push({ :kind => :enter, :group => :tags, :label => :cat_tags })
+      rows.push({ :kind => :remap, :label => :cat_remap })
+      rows.push({ :kind => :enter, :group => :debug, :label => :cat_debug })
+      rows.push({ :kind => :action, :action => :reset, :label => :cat_reset })
+      rows
+    end
+
+    # The sound glossary: one audition row per entry.
+    def self.sounds_rows
+      rows = PokeAccess::SoundGlossary.entries.map { |e| { :kind => :sound, :entry => e, :label => e[2] } }
+      rows.push({ :kind => :back, :label => :back })
+      rows
+    end
+
+    # The dictionaries screen: import, export, then one editable list per dictionary.
+    def self.tags_rows
+      rows = [{ :kind => :enter, :group => :dict_import, :label => :cat_import },
+              { :kind => :enter, :group => :dict_export, :label => :cat_export }]
+      DICT_ORDER.each { |d| rows.push({ :kind => :enter, :group => MODE_OF_DICT[d], :label => DICTS[d][:list] }) }
+      rows.push({ :kind => :back, :label => :back })
+      rows
+    end
+
+    # The debug screen: the diagnostic dumps, the recorder toggle and the self-check, then its settings.
+    def self.debug_rows
+      rows = [{ :kind => :action, :action => :diag_audio,  :label => :dbg_diag_audio },
+              { :kind => :action, :action => :diag_events, :label => :dbg_diag_events },
+              { :kind => :action, :action => :diag_perf,   :label => :dbg_diag_perf },
+              { :kind => :action, :action => :diag_map,    :label => :dbg_diag_map },
+              { :kind => :action, :action => :diag_scene,  :label => :dbg_diag_scene },
+              { :kind => :action, :action => :diag_full,   :label => :dbg_diag_full },
+              { :kind => :action, :action => :rec_toggle,
+                :label => (PokeAccess::Recorder.recording? ? :dbg_rec_stop : :dbg_rec_start) },
+              { :kind => :action, :action => :selfcheck, :label => :dbg_selfcheck }]
+      PokeAccess::Config.schema_group(:debug).each { |r| rows.push({ :kind => :setting, :row => r }) }
+      rows.push({ :kind => :back, :label => :back })
+      rows
+    end
+
+    # A schema group's settings, the submenus that hang off it ([group, label] pairs), then back.
+    def self.group_rows(group, submenus = [])
+      rows = PokeAccess::Config.schema_group(group).map { |r| { :kind => :setting, :row => r } }
+      submenus.each { |g, label| rows.push({ :kind => :enter, :group => g, :label => label }) }
+      rows.push({ :kind => :back, :label => :back })
+      rows
     end
 
     def self.label_of(item)

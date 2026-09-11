@@ -31,7 +31,7 @@ module PokeAccess
 
     def self.set_focus_info(win)
       it = (win.item rescue nil)
-      return PokeAccess::Info.set_info(:text, nil) unless it
+      return PokeAccess::Info.clear_text unless it
       d = (::GameData::Item.get(it).description.to_s rescue "")
       c = (::GameData::BerryData.get(it).block_color_name.to_s rescue "")
       t = [d, c].reject { |s| s.to_s.empty? }.join(" ")

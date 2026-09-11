@@ -14,7 +14,7 @@ La pregunta es de quién es la clase que vas a enganchar.
 | solo existe en un juego | del juego | `games/<perfil>/` |
 
 ```bash
-# F:\claude\pokemon esentials\pokemon-essentials -- el checkout de upstream, con los tags v19...v21.1
+# dentro de un checkout de pokemon-essentials (upstream), con los tags v19...v21.1
 git grep -l "class PokemonBag_Scene" v19 v19.1 v20 v20.1 v21 v21.1   # con salida = vanilla
 git grep -l "class Window_Berrydex" v19 v19.1 v20 v20.1 v21 v21.1    # sin salida = no lo es
 ```
@@ -223,5 +223,7 @@ replican al juego, no son frases del mod.
 | `check187.py` | sintaxis moderna en `core/`, `plugins/`, `loader/` o un perfil gen-6 |
 | `mts_mutator_guard_spec.rb` | hay `CONST + array` o `x - array` en código que carga bajo Pokémon Z, cuyo motor redefine `Array#+` y `Array#-` como mutadores in-place |
 | `ivars_spec.rb` | un lector toma de un objeto del juego un ivar que ese juego no tiene en ninguna parte, o que el censo aún no conoce |
+| `arity_spec.rb` | el cuerpo de un hook lee `args[N]` más allá de lo que algún juego pasa a ese método, o un mismo cuerpo atado a varias clases lee una posición que los juegos nombran distinto (mensaje en una clase, lista de comandos en otra); los registros en bucle cuentan, vía `ReaderSites.registrations` |
+| `era_calls_spec.rb` | el core compartido llama a un nombre `pb*` de Essentials que no definen todas las fuentes, y la llamada no es escalera hacia el nombre de la otra era, ni guarda, ni fila explicada; o una explicación sobrevive a su llamada |
 | `blocking_hooks_spec.rb` | un hook `after` cuelga de un método que ES el bucle bloqueante de la pantalla, así que hablaría al salir |
 | `twins_spec.rb` | dos gemelos declarados en `test/static/twins.rb` han dejado de ser idénticos |

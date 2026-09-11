@@ -1,14 +1,8 @@
-# royal's grid pause menu ([ROYAL] - MIS SCRIPTS/007_Menu Parrilla.rb -> class Menu2), which replaces the
-# standard pause menu entirely, so neither the generic command reader nor the standard pause reader sees it.
-# Its @items entries are [icon_name, label, method] and @selected_item is the cursor; pbActualizarIconosMenu
-# redraws on every cursor move (and on open), so the focused command's label (item[1], e.g. "Mochila",
-# "Equipo") is read there, deduped by the selected index.
-#
-# That label field is never drawn -- the grid shows icons only -- which is why one of them went unnoticed:
-# the achievements entry is declared ["logros", "Regalo", "openLogros"], carrying the Mystery Gift's label by
-# mistake, so with both unlocked the menu read "Regalo" twice in a row and called the achievements the gift.
-# The method in field 2 is what the button actually does, so it is what corrects the label; everything else
-# keeps using the game's own text, which is right.
+# royal's grid pause menu (007_Menu Parrilla.rb, class Menu2), which replaces the standard pause menu
+# entirely. @items entries are [icon_name, label, method], @selected_item is the cursor and
+# pbActualizarIconosMenu redraws on every move, so the label is read there. The label field is never drawn
+# (the grid shows icons only), which is how the achievements entry came to carry the Mystery Gift's label;
+# the method in field 2 is what the button does, so it corrects that one label.
 module PokeAccess
   module RoyalGridMenu
     @open = 0

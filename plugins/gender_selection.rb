@@ -1,13 +1,8 @@
-# Player look / gender picker at the start of a new game (class PokemonGenderSelection), a third-party
-# plugin several fangames ship under different script names ("Gender selection", "GenderSelect",
-# "Seleccion Personajes"). The choice is two pictures with no text at all, so without a reader there is
-# nothing to tell the two apart.
-#
-# The three copies are identical here: same four methods and the same @select convention -- 1 neutral, 2 the
-# boy, 4 the girl, and the odd values 3 and 5 the confirm step, which the core dialogue reader speaks.
-#
-# input runs every frame of the picker's loop, which is why a plain after-hook is enough even though the
-# scene blocks inside initialize and never becomes $scene.
+# Player look / gender picker at the start of a new game (PokemonGenderSelection), a third-party plugin
+# several fangames ship under different script names. The choice is two pictures with no text. The copies
+# are identical: same four methods and the same @select convention (1 neutral, 2 the boy, 4 the girl, the
+# odd values the confirm step, which the dialogue reader speaks). input runs every frame of the picker's
+# loop, so a plain after-hook is enough even though the scene blocks inside initialize.
 module PokeAccess
   module GenderSelection
     BOY = 2

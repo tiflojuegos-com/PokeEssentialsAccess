@@ -29,11 +29,11 @@ Suite.define("caches: Spatial and the module-wide cursor table really do forget"
   sp = PokeAccess::Spatial
   sp.instance_variable_set(:@surf_here, :terrain_water)
   sp.instance_variable_set(:@radar_key, [3, 4])
-  sp.instance_variable_set(:@lens_key, [5, 6])
+  sp.instance_variable_set(:@lens_pos, [5, 6])
   sp.reset_map_state
   eq "the terrain label the player was standing on", sp.instance_variable_get(:@surf_here), nil
   eq "the radar's remembered tile", sp.instance_variable_get(:@radar_key), nil
-  eq "and the lens tile", sp.instance_variable_get(:@lens_key), nil
+  eq "and the lens tile", sp.instance_variable_get(:@lens_pos), nil
 
   # Readers with no scene to hang on (the HUD line, Awakening's cards) dedup here, and this table used to
   # outlive everything: only the test harness ever emptied it.

@@ -7,6 +7,7 @@
     cableclub
     event_menus
     monotype
+    ability_changer
   ],
-  :plugins => %w[advanced_items bag_screen_party better_summary challenge_rules encounter_list_ui hall_of_fame_bw item_find misc_scripts_anil multi_save photo_album sv_summary_screen pokegear_themes hatcher dbk_battle dbk_enhanced_ui dp_pausemenu bag_search_entry sky_bag]
+  :plugins => %w[advanced_items bag_screen_party better_summary challenge_rules encounter_list_ui hall_of_fame_bw item_find misc_scripts_anil multi_save photo_album party_picture sv_summary_screen pokegear_themes hatcher dbk_battle dbk_enhanced_ui dp_pausemenu bag_search_entry sky_bag bw_key_items modular_title]
 }

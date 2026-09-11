@@ -31,7 +31,7 @@ module PokeAccess
     def self.announce(vis)
       name = name_at(vis)
       spoken = PokeAccess::Cursor.on_change(vis, :tm_name, name || BLANK) { name }
-      PokeAccess.speak(spoken, true) if spoken && !spoken.to_s.empty?
+      PokeAccess.speak(spoken, true)
     end
   end
 end

@@ -1,17 +1,9 @@
 # Two Reminiscencia screens the generic readers cannot see, both driven by their own blocking loops.
-#
-# ScrollTree is the permanent stat-upgrade tree of the endless mode: @selec picks one of the five stats and
-# the trainer keeps [cost, percent] pairs per stat in buffStatFriend / buffStatEnemy.
-#
-# The Hoopa gacha is deliberately NOT read here. The roulette hands its prize to pbAddPokemonRNG, and that
-# function prints "<player> ha obtenido un <species>!" itself, which the message reader already speaks --
-# so naming the prize here only said it twice. Worse, it is announced before the boxes are checked: with the
-# boxes full the function refuses and prints its own refusal, so the player heard a prize they never got.
-#
-# AyudasUI is the in-game help. Its menu entries are pictures with no text at all, but the CONTENT of each
-# section is real text: the game pushes _INTL strings into a textpos array and paints them with
-# pbDrawTextPositions. So the reader captures that call while (and only while) this screen is on screen --
-# outside it the capture is off, which keeps every other screen unaffected.
+# ScrollTree is the endless mode's stat-upgrade tree: @selec picks one of five stats and the trainer keeps
+# [cost, percent] pairs in buffStatFriend / buffStatEnemy. AyudasUI is the in-game help: its menu entries are
+# pictures, but each section's content is painted with pbDrawTextPositions, captured only while this screen
+# is up. The Hoopa gacha's prize is not read here: pbAddPokemonRNG prints it itself (and its refusal when
+# the boxes are full), which the message reader already speaks; its balance line lives in hoopa.rb.
 module PokeAccess
   module ReminExtras
     STATS = [:rem_st_atk, :rem_st_spatk, :rem_st_def, :rem_st_spdef, :rem_st_speed]
@@ -77,7 +69,7 @@ module PokeAccess
       return unless @help && bitmap
       panel = (PokeAccess.sprite(@help, "desc") rescue nil)
       return unless panel && (panel.bitmap.equal?(bitmap) rescue false)
-      t = PokeAccess.clean(text.to_s).to_s.strip
+      t = PokeAccess.clean(text.to_s)
       return if t.empty?
       PokeAccess.speak(t, false)
     rescue StandardError
@@ -127,7 +119,7 @@ module PokeAccess
       lines = []
       rows.each do |r|
         t = (r.is_a?(Array) ? r[0] : nil)
-        t = PokeAccess.clean(t.to_s).to_s.strip if t
+        t = PokeAccess.clean(t.to_s) if t
         lines.push(t) if t && !t.empty?
       end
       return if lines.empty?

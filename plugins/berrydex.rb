@@ -1,15 +1,9 @@
-# BerryDex (the "TDW Berry Core and Dex" plugin). Two screens:
-#
-#   * Window_Berrydex, a Window_DrawableCommand whose entries are [berry_id, name, indexNumber] triples,
-#     which is not a shape the generic reader knows.
-#   * BerrydexInfo_Scene, whose drawPage(page) paints one section for @berry as sprites and positioned
-#     text. The berry, the section and the first page's description are what can be spoken; growth times
-#     and mutation trees stay visual.
-#
-# The two copies of the window agree on everything the extractor touches, so one extractor serves both. The
-# DETAIL screen differs: one has four pages behind pbShowBattlePage?/pbShowMutationsPage?, the other only
-# Info and Plant and neither predicate. The section list is therefore built by respond_to?, not by rescuing
-# a missing method into "true".
+# BerryDex (the "TDW Berry Core and Dex" plugin): Window_Berrydex, a Window_DrawableCommand whose entries
+# are [berry_id, name, indexNumber] triples, and BerrydexInfo_Scene, whose drawPage(page) paints one section
+# for @berry (the berry, the section and the first page's description are spoken; growth times and mutation
+# trees stay visual). The two copies of the window agree, so one extractor serves both; the detail screen
+# differs in its page set, so the section list is built by respond_to? rather than by rescuing a missing
+# predicate into "true".
 module PokeAccess
   module BerryDex
     # The section names this copy of the plugin can show, in page order.

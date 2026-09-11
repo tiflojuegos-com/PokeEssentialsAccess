@@ -27,6 +27,12 @@ module Audio
   def self.bgm_play(*a); end
 end
 
+# The engine's sound-effect function, as every era defines it. Records what was asked to play, so a filter
+# in front of it (the game-bump mute) can be pinned by what does and does not arrive here.
+def pbSEPlay(param, volume = nil, pitch = nil)
+  ($se_played ||= []).push(param)
+end
+
 module Graphics
   def self.update; end
   def self.frame_rate; 60; end
@@ -39,7 +45,7 @@ end
 module Input
   DOWN = 2; LEFT = 4; RIGHT = 6; UP = 8
   A = 11; B = 12; C = 13; X = 14; Y = 15; Z = 16; L = 17; R = 18
-  CTRL = 21
+  CTRL = 21; ALT = 23
   class << self
     def update; end
     def dir4; 0; end
@@ -62,10 +68,12 @@ module MessageTypes; REGION_LOCATION_NAMES = 13; end
 # held to the same expectations. pbLoadRxData is deliberately ABSENT: v19+ replaced it with pbLoadMapInfos,
 # six of the thirteen games have only the latter, and a stub that offered both would keep hiding a reader
 # that asks for the gen-6 loader -- which is exactly how every modern game ended up with no map name at all.
-class TestMapInfo; attr_reader :name; def initialize(id); @name = "Mapa #{id}"; end; end
+class TestMapInfo; attr_reader :name; def initialize(id, name = nil); @name = name || "Mapa #{id}"; end; end
 MAPINFO_IDS = [1, 35, 40, 999]
 def pbLoadMapInfos
-  MAPINFO_IDS.inject({}) { |h, id| h[id] = TestMapInfo.new(id); h }
+  table = MAPINFO_IDS.inject({}) { |h, id| h[id] = TestMapInfo.new(id); h }
+  table[36] = TestMapInfo.new(36, "Casa de \\PN")
+  table
 end
 
 class Table; def self._load(s); allocate; end; def _dump(d); ""; end; end
@@ -495,11 +503,19 @@ module Battle
 
       def initialize; @index = 0; @mode = 0; end
 
-      def index=(value); @index = value; end
+      def index=(value); old = @index; @index = value; refresh if @index != old; end
 
-      def mode=(value); @mode = value; end
+      def mode=(value); old = @mode; @mode = value; refresh if @mode != old; end
 
-      def setIndexAndMode(index, mode); @index = index; @mode = mode; end
+      def setIndexAndMode(index, mode)
+        oldIndex = @index
+        oldMode = @mode
+        @index = index
+        @mode = mode
+        refresh if @index != oldIndex || @mode != oldMode
+      end
+
+      def refresh; end
     end
 
     class FightMenu < MenuBase
@@ -643,6 +659,317 @@ end
 # The concrete command window every modern screen instantiates (the v22 pause menu keeps one in
 # @sprites[:commands]); it adds nothing the readers need beyond its Window_DrawableCommand base.
 class Window_CommandPokemon < Window_DrawableCommand; end
+
+# The two numeric option kinds as modern Essentials declares them: SIBLING classes with lowest_value /
+# highest_value. A NumberOption paints "Type value/total"; a SliderOption paints ONLY its value, over a bar.
+class NumberOption
+  attr_reader :name, :lowest_value, :highest_value
+  def initialize(name, lo, hi); @name = name; @lowest_value = lo; @highest_value = hi; end
+end
+
+class SliderOption
+  attr_reader :name, :lowest_value, :highest_value
+  def initialize(name, lo, hi); @name = name; @lowest_value = lo; @highest_value = hi; end
+end
+
+class EnumOption
+  attr_reader :name, :values
+  def initialize(name, values); @name = name; @values = values; end
+end
+
+# The Pokedex list window. Its rows are HASHES here (the modern shape), carrying :shift for the regional
+# offset the screen subtracts before painting the number.
+class Window_Pokedex < Window_DrawableCommand; end
+
+# The engine's two text-painting functions. Every game has them and the mod wraps both to feed PaintCapture;
+# with neither in the harness the whole capture path -- arm, note, take -- ran in no test at all, which is
+# how a capture hook bound to a class name no modern game uses went eight games unnoticed.
+def drawTextEx(_bitmap, _x, _y, _width, _lines, text, _base = nil, _shadow = nil); text; end
+
+# The modal panel the engine blocks on until the confirm key, used for the level-up stat gains. The
+# modern signature takes an optional scene the gen-6 one does not have.
+def pbTopRightWindow(text, scene = nil); [text, scene]; end
+
+def pbDrawTextPositions(_bitmap, textpos)
+  textpos
+end
+
+def drawFormattedTextEx(_bitmap, _x, _y, _width, text, _base = nil, _shadow = nil, _lineheight = 32)
+  text
+end
+
+# The item storage screen under the name every v18-and-later game gives it. Same shape as the gen-6 stub's,
+# so both spellings of the capture hook are pinned, each in the engine pass that has that spelling.
+class ItemStorage_Scene
+  def initialize(title = "Withdraw
+Item"); @title = title; end
+
+  # The real order, checked in all eleven games that have this screen: the item LIST refreshes first,
+  # through pbDrawTextPositions, and only then does pbRefresh draw the title with drawTextEx. A stub that
+  # painted the title first made "take the first row" look correct when it was reading the first item.
+  def pbStartScene(*a)
+    pbDrawTextPositions(nil, [["Potion", 98, 14], ["Repel", 98, 46]])
+    drawTextEx(nil, 0, 4, 200, 2, @title)
+    drawTextEx(nil, 0, 40, 200, 2, "An ordinary potion.")
+    self
+  end
+end
+class WithdrawItemScene < ItemStorage_Scene; end
+
+# A window that just holds text, as the phone's standing information windows do.
+class FakeTextWin
+  attr_accessor :text, :visible
+  def initialize(t = ""); @text = t; @visible = true; end
+end
+
+
+# The two shop screens with standing information windows beside their list. The mart is every game's; the
+# Battle Point shop is five of them. Both are HERE and not in the spec because core declares its watches at
+# load: a class that appears afterwards is a reader bound to nothing.
+#
+# Their LIFECYCLES differ and that is the point of reproducing them: the Battle Point shop has the engine's
+# pbStartScene/pbEndScene, and the mart has neither -- it names both ends after the mode, pbStartBuyScene /
+# pbEndBuyScene and the sell pair, in all fifteen games. pbRefresh is what rewrites the windows, on every
+# change of the focused item and after every purchase.
+class BattlePointShop_Scene
+  attr_reader :sprites
+
+  def initialize
+    @sprites = { "itemtextwindow" => FakeTextWin.new, "qtywindow" => FakeTextWin.new,
+                 "battlepointwindow" => FakeTextWin.new }
+    @item = nil
+  end
+
+  def pbStartScene(*a); self; end
+  def pbEndScene(*a); nil; end
+
+  # description, bag count and points, exactly as the shop rebuilds them when the focus moves.
+  def focus(item, in_bag, points)
+    @item = item
+    @sprites["itemtextwindow"].text = item ? "Raises the Attack of one Pokemon." : "Quit shopping."
+    @sprites["qtywindow"].visible = !item.nil?
+    @sprites["qtywindow"].text = "In Bag:<r>#{in_bag}"
+    @sprites["battlepointwindow"].text = "Battle Points:<r>#{points}"
+  end
+end
+
+# The ordinary mart is the same screen with money in place of points, and gets the same two windows. Its
+# LIFECYCLE is the thing to reproduce faithfully: in all fifteen games it is pbStartBuyScene/pbEndBuyScene
+# (and the sell pair), and there is no pbStartScene and no pbEndScene anywhere on the class. A stand-in
+# given the engine's usual pair would let a watch bind that binds nothing in a real game -- which is exactly
+# how this reader shipped dead the first time.
+class PokemonMart_Scene
+  attr_reader :sprites
+
+  def initialize
+    @sprites = { "itemtextwindow" => FakeTextWin.new, "qtywindow" => FakeTextWin.new,
+                 "moneywindow" => FakeTextWin.new }
+  end
+
+  def pbStartBuyScene(*a); pbRefresh; self; end
+  def pbStartSellScene(*a); pbRefresh; self; end
+  def pbEndBuyScene(*a); nil; end
+  def pbEndSellScene(*a); nil; end
+
+  # What the mart rewrites whenever the focused item changes and after every purchase.
+  def pbRefresh
+    @sprites["itemtextwindow"].text = @item ? "Restores 20 HP." : "Quit shopping."
+    @sprites["qtywindow"].visible = !@item.nil?
+    @sprites["qtywindow"].text = "In Bag:<r>#{@in_bag}"
+    @sprites["moneywindow"].text = "Money:<r>$#{@money}"
+  end
+
+  def focus(item, in_bag, money)
+    @item = item
+    @in_bag = in_bag
+    @money = money
+    pbRefresh
+  end
+end
+
+# The phone under the modern spelling: it does keep its two windows here too.
+class PokemonPhone_Scene
+  attr_reader :sprites
+  def initialize; @sprites = { "bottom" => FakeTextWin.new, "info" => FakeTextWin.new }; end
+  def pbStartScene(*a); self; end
+  def pbEndScene(*a); nil; end
+end
+
+# The modern dex list, which has NO header windows at all: it paints seen, owned and the search notice
+# straight onto its overlay from pbRefresh. Shaped after the real one, so the capture reader is what gets
+# exercised here and the window watcher is what gets exercised in the gen-6 pass.
+# The dex ENTRY screen. drawPage paints the focused page and the mod arms a capture around it, so what is
+# exercised here is that the capture is taken on EVERY page and not left armed for whoever comes next.
+class PokemonPokedexInfo_Scene
+  attr_accessor :cursor
+  def initialize; @species = 25; @page = 2; @cursor = :general; end
+  def drawPage(page)
+    drawTextEx(nil, 0, 0, 200, 1, "Area unknown")
+    drawTextEx(nil, 0, 20, 200, 1, "Kanto")
+    page
+  end
+
+  # The MUI data page. Its own rule is "cursor = @cursor if !cursor", so an argument WINS over the ivar --
+  # which is what the reader has to follow, or it names whichever section the cursor happens to sit on.
+  def pbDrawDataNotes(cursor = nil)
+    cursor = @cursor if !cursor
+    drawFormattedTextEx(nil, 0, 0, 400, "Texto de #{cursor}.")
+    cursor
+  end
+end
+
+# The modern pokedex list, as the nine games of that era really build it: no seen/owned/dexname windows at
+# all, one pbDrawTextPositions batch carrying the dex name, the FOCUSED SPECIES and the totals, and an open
+# that reaches pbRefresh through pbRefreshDexList (emerald/295_UI_Pokedex_Main.rb:264, :295, :414). That
+# chain is the point: an ordinary after-hook on the opener runs its original under the reentrancy guard and
+# skipped the pbRefresh hook whole, so the header was mute on open in all nine.
+class PokemonPokedex_Scene
+  attr_reader :sprites
+  def initialize
+    @seen_total = 42
+    @sprites = { "overlay" => nil, "pokedex" => DexIconSprite.new(1) }
+  end
+  def pbStartScene(*a); pbRefreshDexList; self; end
+  def pbEndScene(*a); nil; end
+  def pbRefreshDexList; pbRefresh; end
+  def pbRefresh
+    pbDrawTextPositions(nil, [["Pokedex", 112, 10],
+                              [PokeAccess::Data.species_name(@sprites["pokedex"].species).to_s, 112, 58],
+                              ["Seen:", 42, 314], [@seen_total.to_s, 182, 314]])
+    :dex_drawn
+  end
+  def seen_total=(n); @seen_total = n; end
+  def focus_species=(id); @sprites["pokedex"].species = id; end
+end
+
+# The dex's own icon sprite, which is where the screen keeps the species the list is focused on.
+class DexIconSprite
+  attr_accessor :species
+  def initialize(id); @species = id; end
+end
+
+class HallOfFame_Scene
+  def writePokemonData(pk, hall = -1)
+    drawTextEx(nil, 0, 0, 200, 1, "No. 025")
+    drawTextEx(nil, 0, 20, 200, 1, "#{pk ? pk.name : '?'} Lv. #{pk ? pk.level : 0}")
+    hall
+  end
+  def writeWelcome; drawTextEx(nil, 0, 60, 200, 1, "Congrats! Records Logged!"); end
+  def pbStartSceneEntry(*a); end
+end
+
+# A silent clone: same methods, paints nothing. Bound by the spec through HallOfFame.bind, as a profile does.
+class Duet_Scene
+  def writePokemonData(pk, hall = -1); hall; end
+  def writeWelcome; end
+  def pbStartSceneEntry(*a); end
+end
+
+# The other shape a clone comes in: Fire Ash's team viewer, which has no entry animation at all and takes no
+# record number, so every draw of it is the player browsing.
+class Challenge_Scene
+  def writePokemonData(pk)
+    drawTextEx(nil, 0, 0, 200, 1, "#{pk ? pk.name : '?'} Lv. #{pk ? pk.level : 0}")
+  end
+end
+
+# The v21.1 summary scene, which is what NINE of the fifteen surveyed games ship (anil, awakening, emerald,
+# Fire Ash, both Infinite Fusions, Relict, Royal, Soulstones 2). Absent until now, so every hook in
+# core/party/v21/summary_v21.rb resolved to the empty class name and bound nothing: the whole reader was
+# untested, which is how the egg page could go mute in it without a single assertion turning red.
+#
+# drawPage dispatches, and takes the egg branch FIRST, exactly as emerald/298_UI_Summary.rb:303-307 does.
+class PokemonSummary_Scene
+  attr_accessor :pokemon, :party
+  def initialize(pk = nil); @pokemon = pk; end
+  def pbStartScene(party = nil, partyindex = 0, *a)
+    @party = party
+    @pokemon = party ? party[partyindex] : @pokemon
+    drawPage(1)
+  end
+  def drawPage(page)
+    return drawPageOneEgg if @pokemon && (@pokemon.egg? rescue false)
+    drawTextEx(nil, 0, 0, 200, 1, "Page #{page}")
+    page
+  end
+
+  # What the page really paints: the memo label and the item through the positions batch, the nickname and
+  # the hatch paragraph as free text -- the last being the only thing anyone opens the page for.
+  def drawPageOneEgg
+    pbDrawTextPositions(nil, [["TRAINER MEMO", 26, 22], ["Item", 66, 324], ["None", 16, 358]])
+    drawFormattedTextEx(nil, 232, 86, 268,
+                        "A mysterious Egg obtained in Viridian City. It looks like it will take a long time to hatch.")
+    :egg_page
+  end
+  def drawSelectedMove(_move_to_learn, _selected); end
+  def pbChooseMoveToForget(_move_to_learn); end
+
+  # The action menu takes the command list FIRST and no message (anil/303_UI_Summary.rb:268; every game with
+  # this class has it, the eight modern ones and Awakening), and the ribbons page redraws the focused ribbon
+  # through drawSelectedRibbon: the id itself in vanilla, (filter, index, page, maxpage) under the Improved
+  # Mementos plugin.
+  def pbShowCommands(commands, index = 0); [commands, index]; end
+  def drawSelectedRibbon(*args); args; end
+  # The per-frame call every one of this scene's loops makes, and the seam a reader uses to see a cursor
+  # the game keeps in a local (the EV allocator's).
+  def pbUpdate; :updated; end
+end
+
+# The opening's controls help, vanilla Essentials (016_UI/001_Non-interactive UI/002_UI_Controls.rb) and
+# present with these same two signatures in ten of the surveyed games. Its paragraphs never touch a window:
+# addLabelForScreen compiles each one straight into a bitmap, which is why the reader collects them here.
+class ButtonEventScene
+  def addLabelForScreen(number, x, y, width, text); [number, x, y, width, text]; end
+  def set_up_screen(number); number; end
+end
+
+# The "Hall de la Fama BW" ceremony in the gen-5 style both games that ship the plugin run
+# (HallDeLaFama_GEN = 5): the card and the finale are painted straight onto bitmaps from these two seams
+# (royal/_PluginScripts/Hall de la Fama BW/007_hall_of_fame_gen5.rb:650 and :826), with no window to read.
+HallDeLaFama_REGION = "KANTO"
+class HallDeLaFama
+  def gen5_pokemon_info(pokemon, party_index); [pokemon, party_index]; end
+  def create_gen5_final_windows; :final; end
+  def get_play_time_formatted; "3:07"; end
+end
+
+# The team photo camera of the "Fotos del equipo" plugin, cut down to its loop (royal/_PluginScripts/Fotos
+# del equipo/001_Party Picture Script.rb:71): each arrow pans one pbScrollMap(dir, 1) up to the two MAX
+# constants, and at the edge it bumps instead. The arrows come from $pa_photo_keys, one per pass.
+class PartyPicture
+  MAX_HORIZONTAL_MOVEMENT = 4
+  MAX_VERTICAL_MOVEMENT = 2
+  def main
+    cx = 0
+    cy = 0
+    ($pa_photo_keys || []).each do |k|
+      if k == 8
+        if cy == MAX_VERTICAL_MOVEMENT then pbSEPlay("Player bump") else pbScrollMap(8, 1); cy += 1 end
+      elsif k == 2
+        if cy == -MAX_VERTICAL_MOVEMENT then pbSEPlay("Player bump") else pbScrollMap(2, 1); cy -= 1 end
+      elsif k == 6
+        if cx == MAX_HORIZONTAL_MOVEMENT then pbSEPlay("Player bump") else pbScrollMap(6, 1); cx += 1 end
+      elsif k == 4
+        if cx == -MAX_HORIZONTAL_MOVEMENT then pbSEPlay("Player bump") else pbScrollMap(4, 1); cx -= 1 end
+      end
+    end
+  end
+end
+class Game_Map; attr_accessor :display_x, :display_y; end
+# Scrolls the display a tile per step like the real one, and clamps it to $pa_display_bounds
+# ([min_x, max_x, min_y, max_y]) the way a map that snaps to its edges does.
+def pbScrollMap(direction, distance, speed = 4)
+  d = distance * 128
+  x = ($game_map.display_x || 0) + (direction == 6 ? d : (direction == 4 ? -d : 0))
+  y = ($game_map.display_y || 0) + (direction == 2 ? d : (direction == 8 ? -d : 0))
+  b = $pa_display_bounds
+  if b
+    x = [[x, b[0]].max, b[1]].min
+    y = [[y, b[2]].max, b[3]].min
+  end
+  $game_map.display_x = x
+  $game_map.display_y = y
+end
 
 # $player carries the modern trainer fields the readers use.
 class TestPlayer

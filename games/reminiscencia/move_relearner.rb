@@ -1,22 +1,10 @@
-# Reminiscencia's custom move relearner (MoveRelearnerScene, defined by the game in
-# games_src/reminiscencia/Data/export/1740 MoveRelearner.rb) draws the focused move's extra data directly
-# onto @sprites["overlay"] inside pbDrawMoveList instead of into a standard text window.
-#
-# The visible list is a Window_CommandPokemon in @sprites["commands"], marked dedicated by the core
-# relearner so the generic command reader stays quiet; the declared override at the bottom of this file is
-# what speaks the focused move name. The scene also never publishes its own info context, so the info key
-# would keep reading the one the Pokemon picker left behind.
-#
-# Everything relevant is redrawn inside MoveRelearnerScene#pbDrawMoveList:
-#   - the focused move id lives in @moves[@sprites["commands"].index]
-#   - type, power and accuracy come from PBMoveData.new(move_id)
-#   - the description comes from pbGetMessage(MessageTypes::MoveDescriptions, move_id), reached here
-#     through the mod's engine-agnostic Data adapter
-#   - the Heart Scale cost is computed by the game's own top-level moveCost(category, basedamage, id)
-#
-# So the hook runs AFTER pbDrawMoveList and publishes a ready spoken line to PokeAccess::Info as :text,
-# which keeps the info key on the focused move while arrow navigation speaks only the name. The core gen-6
-# relearner reader is displaced by a declared Hooks.override, listed by the diag, not a silent reopen.
+# Reminiscencia's custom move relearner (MoveRelearnerScene, 1740 MoveRelearner.rb) draws the focused move's
+# extra data onto @sprites["overlay"] inside pbDrawMoveList. The list is a Window_CommandPokemon in
+# @sprites["commands"], marked dedicated by the core relearner; the declared override at the bottom speaks
+# the focused move name. The hook runs AFTER pbDrawMoveList and publishes a spoken line (type, power,
+# accuracy from PBMoveData, the description through the Data adapter, the Heart Scale cost from the game's
+# own moveCost) to PokeAccess::Info as :text, so the info key stays on the focused move. The core gen-6
+# relearner reader is displaced by a declared Hooks.override, listed by the diag.
 module PokeAccess
   module ReminMoveRelearner
     # The move id currently focused by the custom relearner list, or nil. Same shape as every other
@@ -60,7 +48,7 @@ PokeAccess::Game.define("reminiscencia") do
     id = (PokeAccess::MoveRelearnerGen6.focused_id(scene) rescue nil)
     if id
       name = (PokeAccess::Data.move_name(id) rescue nil)
-      PokeAccess.speak(name.to_s, true) if name && !name.to_s.empty?
+      PokeAccess.speak(name.to_s, true)
     end
   end
 

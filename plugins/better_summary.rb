@@ -12,9 +12,9 @@ module PokeAccess
     def self.ability(pkmn)
       a = (pkmn.ability rescue nil)
       return unless a
-      name = PokeAccess.clean((a.name rescue "").to_s).to_s.strip
+      name = PokeAccess.clean((a.name rescue "").to_s)
       return if name.empty?
-      desc = PokeAccess.clean((a.description rescue "").to_s).to_s.strip
+      desc = PokeAccess.clean((a.description rescue "").to_s)
       PokeAccess.speak(PokeAccess::Util.join_parts([name, desc] + extras(pkmn)), true)
     rescue StandardError
       nil

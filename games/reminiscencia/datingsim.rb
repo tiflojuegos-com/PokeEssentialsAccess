@@ -9,7 +9,34 @@ module PokeAccess
       cmds = scene.instance_variable_get(:@commands)
       idx  = scene.instance_variable_get(:@index)
       txt  = (cmds.is_a?(Array) && idx) ? cmds[idx] : nil
-      PokeAccess.speak_clean(txt, true) if txt && !txt.to_s.empty?
+      PokeAccess.speak_clean(txt, true)
+    rescue StandardError
+      nil
+    end
+
+    # The two HUD windows the hub paints once, in its constructor, and nobody read: the current objective
+    # with the days left, and the day count. Said queued after the focused label as the hub opens; the day
+    # is not audible anywhere else in the mode.
+    def self.hud(scene)
+      %w[nextitem daycount].each do |key|
+        w = PokeAccess.sprite(scene, key)
+        t = (w.text rescue nil).to_s
+        next if t.strip.empty?
+        lines = t.split("\n").map { |l| l.strip }.reject { |l| l.empty? }
+        line = (lines.length > 1 && lines[0] =~ /:\z/) ? lines[0] + " " + lines[1..-1].join(", ") : lines.join(", ")
+        PokeAccess.speak_clean(line, false)
+      end
+    rescue StandardError
+      nil
+    end
+
+    # The results screen's harvest as one line: the rows drawData painted (title and "ITEMxN" entries) and
+    # the cleanliness the screen shows only as a bar, said as a number.
+    def self.results_text(rows)
+      t = PokeAccess::PaintCapture.text(rows)
+      clean = ($Trainer.dateSimClean rescue nil)
+      t = PokeAccess::Util.join_parts([t, clean ? "Limpieza: #{clean.to_i} por ciento" : nil])
+      t.empty? ? nil : t
     rescue StandardError
       nil
     end
@@ -23,7 +50,29 @@ PokeAccess::Game.define("reminiscencia") do
   # Hooking initialize would not help -- it calls main_loop from inside itself, so an after-hook on it would
   # not fire until the whole screen closed. before main_loop is the moment the first label already exists
   # and the loop has not started.
-  before("DatingSimMainScreen", :main_loop) { |s, _a| PokeAccess::ReminDatingSim.focus(s) }
+  before("DatingSimMainScreen", :main_loop) do |s, _a|
+    PokeAccess::ReminDatingSim.focus(s)
+    PokeAccess::ReminDatingSim.hud(s)
+  end
+
+  # The day's results: drawData paints the title and up to 42 "ITEMxN" rows one by one, hands the items
+  # over as it goes, and draws the cleanliness as a bar whose length is its only trace. Captured around
+  # the whole of it and said once it returns, before the screen waits for a key.
+  around("DatingSimResultsScreen", :drawData, :optional => true) do |_s, nxt, _a|
+    PokeAccess::PaintCapture.arm(:rem_results)
+    begin
+      nxt.call
+    ensure
+      PokeAccess.speak(PokeAccess::ReminDatingSim.results_text(PokeAccess::PaintCapture.take(:rem_results, :positions)), false)
+    end
+  end
+
+  # Sleeping rolls the day counter to its new value, brown forwards and red backwards, and the number is
+  # said nowhere else. The whole animation runs inside the constructor, so the value is said as it returns.
+  after("SlideDay", :initialize, :optional => true) do |_s, _r, args|
+    day = ($Trainer.dateDays rescue nil)
+    PokeAccess.speak("Día #{day}#{args[1] == false ? ', retrocede' : ''}", true) if day
+  end
 
   # Task screen: the gender tabs (@indexGender 0 male / 1 female / 2 unknown) are a sprite cursor with no
   # window; setGenderPage runs when the tab changes, so announce the selected gender there. The command
@@ -61,7 +110,7 @@ PokeAccess::Game.define("reminiscencia") do
                                     :tot => (pts.to_i + ppts.to_i)))
     end
     txt = parts.join(". ")
-    PokeAccess.speak_clean(txt, true) if txt && !txt.to_s.empty?
+    PokeAccess.speak_clean(txt, true)
   end
 end
 

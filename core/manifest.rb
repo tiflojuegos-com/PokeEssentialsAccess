@@ -1,14 +1,9 @@
-# Core load order for PokeAccess (subsystem/module path, no .rb). This is the dependency order, not
-# filename order: add or move a module by editing this list -- no numeric prefixes, no glob. The
-# loader (boot.rb) evals each core/<entry>.rb in this exact order. Keep foundation first.
-#
-# Layout is module-first: each subsystem folder (battle/, menus/, party/, data/, field/...) holds its
-# engine-agnostic readers plus version subfolders for the parts that differ by engine, each gated by
-# class existence (Engine.has? / :optional hooks) so they no-op elsewhere:
+# Core load order (subsystem/module path, no .rb): the dependency order, evaluated by boot.rb exactly as
+# listed. Keep foundation first. Layout is module-first: core/<module>/ holds the engine-agnostic readers,
+# and its version subfolders the parts that differ by engine, each gated by class existence:
 #   <module>/gen6/     the gen-6 era (Ruby 1.8.7: PokeBattle_Scene, PScreen, PB* data)
-#   <module>/v21/      GameData-era Essentials v19-v21.1 (Battle::Scene, GameData, the pre-rework scenes/MUI)
+#   <module>/v21/      GameData-era Essentials v19-v21.1 (Battle::Scene, GameData, the pre-rework scenes)
 #   <module>/v22/      the v22 UI:: rework (UI::BaseScreen / UI::*Visuals)
-# Everything directly under core/<module>/ stays universal: framework, nav/audio, cross-engine adapters.
 %w[
   foundation/config
   foundation/const
@@ -22,6 +17,7 @@
   foundation/game
   foundation/engine
   foundation/game_lang
+  foundation/system_lang
   foundation/settings
   foundation/events
   foundation/caches
@@ -64,6 +60,9 @@
   menus/neo_pausemenu
   menus/ready_menu
   menus/screen_messages
+  menus/modal_panel
+  menus/info_window
+  menus/controls_help
   menus/command_help
   menus/character_creator
   menus/sprite_button_menu
@@ -87,7 +86,7 @@
   menus/pokedex_entry
   battle/v21/pokedex_info_v21
   menus/purify_chamber
-  menus/battle_point_shop
+  menus/shops
   menus/encounter_list
   menus/v21/ui_v21
   menus/pokedex_search

@@ -76,16 +76,10 @@ PokeAccess::Hooks.before_hook("Battle::Scene", :pbFightMenu, :optional => true) 
 end
 
 # Special-action button toggle: mode= is shared by MenuBase subclasses, so gate to the FightMenu and announce
-# only a real available(1)<->registered(2) toggle, not the initial open. :optional because v22 uses
-# mega_evolution_state= instead, so its absence is variance rather than a typo.
-#
-# Skipped entirely where the Deluxe Battle Kit is installed: there one keypress reaches BOTH readers, DBK's
-# pbToggleSpecialActions first and this one a loop iteration later via "cw.mode = newMode", and both
-# interrupt. DBK wins because it knows WHICH mechanic fired, where this one can only say "another mechanic".
-#
-# After announcing the mechanic the focused move is read again, queued behind it: turning on Dynamax, a
-# Z-Move or the Mega changes all FOUR names of the fight menu without moving the cursor, so without this
-# the player picks blind among four moves that are no longer the ones they heard.
+# only a real available(1)<->registered(2) toggle. :optional because v22 uses mega_evolution_state=. Skipped
+# where the Deluxe Battle Kit is installed, whose pbToggleSpecialActions knows WHICH mechanic fired. The
+# focused move is read again afterwards, queued: turning a mechanic on renames all four moves without moving
+# the cursor.
 unless PokeAccess::Engine.has?("Battle#pbToggleSpecialActions")
 PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :mode=, :optional => true) do |menu, _r, args|
   if defined?(::Battle::Scene::FightMenu) && menu.is_a?(::Battle::Scene::FightMenu)
@@ -113,8 +107,13 @@ end
 # Level-up stat gains (modern): the panel is graphic-only. Every game with this scene class uses the v18+
 # argument order, so the era question the gen-6 binding has to ask is already answered here.
 #
-# Before, because the original shows TWO pbTopRightWindow panels and each blocks on a keypress. The old
-# stats arrive as arguments and the Pokemon has already levelled, so before has everything it needs.
+# Spoken before the original, which blocks on two pbTopRightWindow panels; the old stats arrive as
+# arguments. The panels are muted for the call, since ModalPanel would read the same figures in the game's
+# language. Two hooks on purpose: an around body is re-raised, and a reader that threw would take the
+# level-up down with it, so the reading keeps the before-hook's swallow and the around only holds the mute.
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbLevelUp) do |_s, a|
   PokeAccess.speak(PokeAccess::Battle.levelup_from_args(a, true), false)
+end
+PokeAccess::Hooks.around_hook("Battle::Scene", :pbLevelUp) do |_s, nxt, _a|
+  PokeAccess::ModalPanel.muted { nxt.call }
 end

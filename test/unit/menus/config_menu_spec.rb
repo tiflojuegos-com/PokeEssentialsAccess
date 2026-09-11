@@ -50,18 +50,18 @@ Suite.define("config menu: cyclers and clamps") do
   PokeAccess::Config.guide_refresh = 4
 
   # The language toggle is data-driven off lang/*.txt, so this walks whatever ships instead of pinning
-  # two names: every language is visited exactly once and the cycle wraps. The floor pins the six that
-  # ship today (es, en, fr, pt, de, pl) so a lost file fails loudly.
+  # two names: the automatic entry opens the cycle, every language is visited exactly once and the cycle
+  # wraps. The floor pins the six that ship today (es, en, fr, pt, de, pl) so a lost file fails loudly.
   langs = PokeAccess::I18n.available_languages
   truthy "at least the six shipped languages are discovered", langs.length >= 6
   PokeAccess::Config.language = :es
   seen = []
-  langs.length.times do
+  (langs.length + 1).times do
     PokeAccess::ConfigMenu.adjust_setting(PokeAccess::Config.schema_row(:language), 1)
     seen.push(PokeAccess::Config.language)
   end
-  eq "the toggle visits every shipped language once and wraps to the start",
-     seen.map { |c| c.to_s }.sort, langs.map { |c| c.to_s }.sort
+  eq "the toggle visits the automatic entry and every shipped language once, then wraps",
+     seen.map { |c| c.to_s }.sort, (["auto"] + langs.map { |c| c.to_s }).sort
   eq "and a full lap lands back on the starting language", PokeAccess::Config.language, :es
   PokeAccess::Config.language = :es
 end
@@ -83,4 +83,47 @@ Suite.define("config menu: shared numeric bounds for Settings and adjust") do
   PokeAccess::ConfigMenu.adjust_setting(PokeAccess::Config.schema_row(:route_reach), -1)
   eq "menu reach steps 32 down to the grid (128 -> 96)", PokeAccess::Config.route_reach, 96
   PokeAccess::Config.route_reach = 128
+end
+
+# step() asks for the list two or three times on EVERY frame of the modal loop. Since the dictionaries got
+# their own screens that list builds one Hash per mark, per tag and per renamed map each time -- thousands
+# of allocations a second for a list that only changes when the player changes it. Memoised, but keyed on
+# the dictionaries' own write counters so a stale list is impossible by construction.
+Suite.define("config menu: the list is built once per state, and rebuilt the moment a dictionary moves") do
+  cm = PokeAccess::ConfigMenu
+  saved_mode = cm.instance_variable_get(:@mode)
+  begin
+    cm.instance_variable_set(:@mode, :top)
+    cm.instance_variable_set(:@items, nil)
+    first = cm.items
+    truthy "the same state hands back the very same list, not an equal copy", cm.items.equal?(first)
+
+    cm.instance_variable_set(:@mode, :tags)
+    truthy "a different screen builds its own", !cm.items.equal?(first)
+
+    cm.instance_variable_set(:@mode, :list_marks)
+    before = cm.items
+    PokeAccess::Marks.set(1, 4, 4, "Probe")
+    truthy "and a mark written while the menu is open rebuilds it", !cm.items.equal?(before)
+    truthy "with the new entry in it",
+           cm.items.any? { |r| r[:kind] == :entry && r[:key] == [1, 4, 4] }
+    PokeAccess::Marks.delete(1, 4, 4)
+    falsy "and deleting it takes it out again",
+          cm.items.any? { |r| r[:kind] == :entry && r[:key] == [1, 4, 4] }
+
+    # The debug row's label is the recorder's state, so the memo has to follow it too: starting a recording
+    # from that row left the menu saying "record" for as long as the recording ran.
+    rec = PokeAccess::Recorder
+    was_on = rec.instance_variable_get(:@on)
+    cm.instance_variable_set(:@mode, :debug)
+    rec.instance_variable_set(:@on, false)
+    label = lambda { cm.items.detect { |r| r[:action] == :rec_toggle }[:label] }
+    eq "with no recording running the row offers to start one", label.call, :dbg_rec_start
+    rec.instance_variable_set(:@on, true)
+    eq "and once one runs the same row offers to stop it", label.call, :dbg_rec_stop
+    rec.instance_variable_set(:@on, was_on)
+  ensure
+    cm.instance_variable_set(:@mode, saved_mode)
+    cm.instance_variable_set(:@items, nil)
+  end
 end

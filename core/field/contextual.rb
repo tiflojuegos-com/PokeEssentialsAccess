@@ -132,6 +132,8 @@ module PokeAccess
     def self.pokemon_info(pk)
       return nil unless pk
       t = PokeAccess::I18n.t(:pk_glance, :name => pk.name, :level => pk.level, :hp => pk.hp, :tot => pk.totalhp)
+      marks = PokeAccess::Party.icon_mark_list(pk)
+      t += " #{marks.join(', ')}." unless marks.empty?
       w = PokeAccess::Party.gender_word(pk); t += " #{w}." if w
       itm = (pk.item rescue nil)
       if itm && itm != 0

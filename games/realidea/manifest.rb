@@ -10,6 +10,9 @@
     mouse_minigames
     story_minigames
     hall_of_fame
+    jade_screens
+    pause_overlay
+    gacha
   ],
-  :plugins => %w[easy_questing gender_selection text_log book_scene hatcher simple_encounter_list]
+  :plugins => %w[easy_questing gender_selection text_log book_scene hatcher simple_encounter_list luka_title]
 }

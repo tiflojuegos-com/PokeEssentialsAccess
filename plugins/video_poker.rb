@@ -42,7 +42,7 @@ module PokeAccess
       w = (screen.wager rescue nil)
       return unless w
       c = (scene.player_coins rescue nil)
-      PokeAccess::Cursor.announce(scene, :vp_wager, [w, c], true) do
+      PokeAccess::Cursor.announce(scene, :vp_wager, [w, c], true, false) do
         PokeAccess::Info.set_info(:text, payout_table(scene, w))
         line = PokeAccess::I18n.t(:vp_wager, :n => w.to_i)
         c ? "#{line}. #{PokeAccess::I18n.t(:vp_coins, :n => c.to_i)}" : line
@@ -58,9 +58,9 @@ module PokeAccess
       w = (wager || 1).to_i
       w = 1 if w < 1
       rows = list.map do |c|
-        nm = PokeAccess.clean((c.name rescue "").to_s).to_s.strip
+        nm = PokeAccess.clean((c.name rescue "").to_s)
         next nil if nm.empty?
-        d = PokeAccess.clean((c.description rescue "").to_s).to_s.strip
+        d = PokeAccess.clean((c.description rescue "").to_s)
         row = PokeAccess::I18n.t(:vp_payout_row, :name => nm, :n => (c.bonus rescue 0).to_i * w)
         d.empty? ? row : "#{row}, #{d}"
       end
@@ -77,7 +77,7 @@ module PokeAccess
       i = cursor_index(scene)
       return unless hand.is_a?(Array) && i && hand[i]
       state = label(scene, i)
-      PokeAccess::Cursor.announce(scene, :vp_card, [i, state], true) { card_text(hand[i], state) }
+      PokeAccess::Cursor.announce(scene, :vp_card, [i, state], true, false) { card_text(hand[i], state) }
     end
 
     # Double or nothing: the position only. A face-down card is nil in @hand, which is the same flag the
@@ -87,18 +87,19 @@ module PokeAccess
       return unless i
       hand = PokeAccess.ivar(scene, :@hand)
       total = hand.is_a?(Array) ? hand.length - 1 : 0
-      PokeAccess::Cursor.announce(scene, :vp_pick, i, true) do
+      PokeAccess::Cursor.announce(scene, :vp_pick, i, true, false) do
         PokeAccess::I18n.t(:vp_pick, :n => i, :tot => total)
       end
     end
 
     # The reference card, said once as the double-or-nothing round opens; it does not change while the
-    # cursor moves.
+    # cursor moves. Queued, like the first line of each loop: the round's result was just spoken, and the
+    # message line of the new loop is queued in the same frame, so an interrupt here cut both.
     def self.reference(scene)
       hand = PokeAccess.ivar(scene, :@hand)
       c = hand.is_a?(Array) ? hand[REFERENCE_SLOT] : nil
       return unless c
-      PokeAccess.speak(PokeAccess::I18n.t(:vp_reference, :card => card_text(c, "")), true)
+      PokeAccess.speak(PokeAccess::I18n.t(:vp_reference, :card => card_text(c, "")), false)
     rescue StandardError
       nil
     end
@@ -107,7 +108,7 @@ module PokeAccess
     # message never names the combination and the table is where it appears.
     def self.message_text(scene)
       win = PokeAccess.sprite(scene, "message_window")
-      t = PokeAccess.clean((win.text rescue "").to_s).to_s.strip if win
+      t = PokeAccess.clean((win.text rescue "").to_s) if win
       return nil if t.nil? || t.empty?
       c = combination(scene)
       c ? "#{t}. #{c}" : t
@@ -138,7 +139,7 @@ module PokeAccess
       return nil unless PokeAccess.ivar(scene, :@highlight_combination)
       nm = (PokeAccess.ivar(scene, :@screen).combination_found.combination.name rescue nil)
       return nil if nm.nil? || nm.to_s.empty?
-      PokeAccess.clean(nm.to_s).to_s.strip
+      PokeAccess.clean(nm.to_s)
     rescue StandardError
       nil
     end
@@ -150,7 +151,7 @@ module PokeAccess
     end
 
     def self.label(scene, i)
-      PokeAccess.clean((scene.current_label_text(i) rescue "").to_s).to_s.strip
+      PokeAccess.clean((scene.current_label_text(i) rescue "").to_s)
     end
 
     def self.card_text(c, state)
@@ -201,9 +202,18 @@ PokeAccess::Hooks.after_hook("VideoPoker::Scene", :update_all, :optional => true
   PokeAccess::VideoPokerRead.poll(scene)
 end
 
-# The pay table lives on the info key while playing. main_loop is the whole session -- the VideoPoker::Screen
-# loop that is only left by leaving the machine -- so it is released on the way back from it: otherwise the
-# info key keeps reciting poker hands out on the map.
+# The pay table lives on the info key while playing. It is published where the wager is settled, whichever
+# way it was asked -- the slider loop, or the plain yes/no a machine with one fixed wager puts up instead,
+# which never opens the slider -- and main_loop is the whole session (the VideoPoker::Screen loop that is
+# only left by leaving the machine), so it is released on the way back from it: otherwise the info key
+# keeps reciting poker hands out on the map.
+PokeAccess::Hooks.after_hook("VideoPoker::Screen", :select_wager, :optional => true) do |screen, ret, _a|
+  scene = PokeAccess.ivar(screen, :@scene)
+  if ret && scene
+    PokeAccess::Info.set_info(:text, PokeAccess::VideoPokerRead.payout_table(scene, (screen.wager rescue nil)))
+  end
+end
+
 PokeAccess::Hooks.around_hook("VideoPoker::Screen", :main_loop, :optional => true) do |_s, nxt, _a|
   begin; nxt.call; ensure; PokeAccess::Info.clear_text; end
 end

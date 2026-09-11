@@ -83,7 +83,7 @@ PokeAccess::Game.define("armonia") do
   after("DexNav", :loadCurrentPage) do |scene, _result, _args|
     showing = PokeAccess.ivar(scene, :@showPageRewards)
     t = showing ? PokeAccess::ArmoniaDexNav.rewards(scene) : PokeAccess::ArmoniaDexNav.encounters(scene)
-    PokeAccess.speak_clean(t, true) if t && !t.to_s.empty?
+    PokeAccess.speak_clean(t, true)
   end
 end
 

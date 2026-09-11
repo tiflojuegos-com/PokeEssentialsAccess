@@ -1,14 +1,8 @@
 module PokeAccess
-  # The language the GAME is running in, which is not the language the MOD speaks. A fangame shipped as
-  # several per-language builds (Pokemon Z: es, en, fr) paints different words in each, and a transcription
-  # of an image must say what THAT build painted -- reading a Spanish transcription to someone running the
-  # English build would report a screen that is not there.
-  #
-  # Asked of the game rather than guessed: seven of the gen-6 dumps declare Essentials' own LANGUAGES table
-  # ([display name, message file] pairs) and $PokemonSystem.language indexes it, which is the very decision
-  # the game makes when it picks its own text. An empty or absent table means the build was never
-  # translated, so it runs in whatever language it was authored in -- nil here, and the profile says what
-  # that is.
+  # The language the GAME runs in, which is not the language the mod speaks: a game shipped as per-language
+  # builds (Pokemon Z: es, en, fr) paints different words in each, and a transcription must say what THIS
+  # build painted. Asked of the game: Essentials' LANGUAGES table indexed by $PokemonSystem.language. An empty
+  # table means an untranslated build -- nil here, and the profile says what it was authored in.
   module GameLang
     # Declared names to language codes. The author writes these by hand, so the English and the native
     # spelling both appear in the wild, and the ACCENT-STRIPPED spellings are here as their own keys:
@@ -42,7 +36,8 @@ module PokeAccess
       return false if f.nil? || f.to_s.empty?
       return true if File.exist?("Data/#{f}")
       f.to_s.index(".").nil? &&
-        (File.exist?("Data/messages_#{f}_core.dat") || File.exist?("Data/messages_#{f}.dat"))
+        (File.exist?("Data/messages_#{f}_core.dat") || File.exist?("Data/messages_#{f}_game.dat") ||
+         File.exist?("Data/messages_#{f}.dat"))
     rescue StandardError
       false
     end

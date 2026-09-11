@@ -9,7 +9,7 @@ PokeAccess::Hooks.after_hook("Logros_Scene", :showTexts, :optional => true) do |
   i = args[0]
   if logros && i && i >= 0 && i < logros.size
     t = PokeAccess.logro_indexed_text(logros[i])
-    PokeAccess.speak(t, true) if t && !t.to_s.empty?
+    PokeAccess.speak(t, true)
   end
 end
 

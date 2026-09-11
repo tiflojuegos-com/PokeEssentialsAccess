@@ -147,15 +147,29 @@ games.each do |g|
   profile = ReaderSites::PROFILE_OF[g] || g
   direct = {}
   calls = {}
+  # The superclass lines first, on their own pass, so the defs pass can keep evidence for the ANCESTORS of a
+  # hooked class as well: a hooked method the class inherits -- addLabel on ButtonEventScene comes from
+  # EventScene -- is defined where nothing is hooked, and a pass that only kept the hooked classes filed it
+  # as NO-DUMP.
   supers = {}
+  Dir.glob(File.join(sources_of[g], "**", "*.rb")).each do |f|
+    src = File.open(f, "rb") { |io| io.read }
+    src.scan(/^\s*class\s+([A-Z][A-Za-z0-9_:]*)\s*<\s*([A-Z][A-Za-z0-9_:]*)/) { |a, b| supers[a.split("::").last] = b.split("::").last }
+  end
+  wanted = {}
+  hooked_classes.each_key do |c|
+    cur = c
+    6.times do
+      wanted[cur] = true
+      cur = supers[cur]
+      break if cur.nil?
+    end
+  end
   Dir.glob(File.join(sources_of[g], "**", "*.rb")).each do |f|
     stack = ReaderSites::ClassStack.new
     lines = File.open(f, "rb") { |io| io.readlines }
     lines.each_with_index do |line, i|
       cur = stack.feed(line)
-      if line =~ /^\s*class\s+([A-Z][A-Za-z0-9_:]*)\s*<\s*([A-Z][A-Za-z0-9_:]*)/
-        supers[$1.split("::").last] = $2.split("::").last
-      end
       # attr_accessor and friends define real methods with no body: a hooked getter or setter that comes
       # from one would report NO-DUMP, which reads as "nothing to check" when the truth is "nothing that
       # could ever block". Game_Temp#in_battle= and #in_menu= are both of these.
@@ -177,7 +191,7 @@ games.each do |g|
       # interpreter does. Reported as NO-DUMP before -- unfalsifiable rather than clean.
       cur = stack.owner_at(indent) || cur
       cur = "Object" if cur.nil? && indent == 0
-      next unless cur && (hooked_classes[cur] || cur == "Object")
+      next unless cur && (wanted[cur] || cur == "Object")
       # The body ends at its own `end` OR at the next `def`, whichever comes first. The second terminator is
       # what makes this work on decompiled scripts: RPG Maker's editor lets a method sit at column 0 with its
       # closing `end` indented, and matching the `end` alone then ran straight past it -- one such method
@@ -276,3 +290,98 @@ File.open(SPEC_OUT, "wb") do |io|
   spec_rel.each { |r| io.print(r, "\n") }
 end
 puts "wrote #{SPEC_OUT}: #{spec_rel.length} spec files"
+
+# --- fourth census: the LIFECYCLE each watched information-window scene really has.
+#
+# InfoWindow.watch binds a scene's open and close by name, and a name no game answers to binds nothing:
+# the class is there, the windows are there, and the screen is simply never entered. Nothing said so. The
+# mart shipped exactly that way -- declared against the engine's pbStartScene/pbEndScene, which it has
+# neither of, because it names both ends after the mode (pbStartBuyScene/pbEndBuyScene and the sell pair)
+# in all fifteen games. The suite stayed green because the stub had been given the engine's pair.
+#
+# So the census answers two things per watched class: which lifecycle methods the GAMES define on it, and
+# which ones the MOD declares. The spec then asks the only question with one right answer -- do the two
+# sets meet?
+#
+# The class is rarely a literal: the phone and the dex list are registered through Hooks.variants over
+# their spellings, and the mart through Engine.scene_classes, so those lists count as class names too. And
+# an :open list may be a constant, which is resolved from wherever the mod defines it.
+LIFE_OUT = File.join(File.dirname(__FILE__), "lifecycle_census.txt")
+LIFE_RE = /\A(?:pbStart[A-Za-z]*|pbEnd[A-Za-z]*|start|main)\z/
+DEFAULT_OPENERS = %w[pbStartScene start]
+MOD_ROOT = File.expand_path("../..", File.dirname(__FILE__))
+
+mod_files = %w[core games plugins].map { |d| Dir.glob(File.join(MOD_ROOT, d, "**", "*.rb")) }.flatten.sort
+mod_src = {}
+mod_files.each { |f| mod_src[f] = File.read(f).gsub(/^\s*#.*/, "") }
+
+# The openers a constant carries, so a call that passes one can be followed: CONST = [:a, :b] gives the
+# list itself, CONST = { :open => [:a, :b], ... } gives its :open list.
+OPEN_LIST = /:open\s*=>\s*(?:\[([^\]]*)\]|:([a-z_][A-Za-z0-9_]*))/
+def symbols_in(text); text.to_s.scan(/(?<!:):([a-z_][A-Za-z0-9_]*)/).flatten; end
+const_opens = {}
+mod_src.each_value do |src|
+  src.scan(/\b([A-Z][A-Z0-9_]+)\s*=\s*\[([^\]]*)\]/) { |name, body| const_opens[name] = symbols_in(body) }
+  src.scan(/\b([A-Z][A-Z0-9_]+)\s*=\s*\{([^}]*)\}/) do |name, body|
+    m = body.match(OPEN_LIST)
+    const_opens[name] = m ? symbols_in(m[1] || ":#{m[2]}") : [] if m
+  end
+end
+
+# One InfoWindow.watch call at a time, arguments and all (one level of nested parentheses, for .merge(...)):
+# the class is its first argument when literal, else the spellings the file lists through variants or
+# scene_classes; the openers are the defaults plus whatever the arguments declare or carry in a constant.
+WATCH_CALL = /\bInfoWindow\.watch\(((?:[^()]|\([^()]*\))*)\)/m
+watched = {}
+mod_src.each do |f, src|
+  next unless src =~ /\bInfoWindow\.watch\(/
+  listed = []
+  [/\bvariants\(\s*\[([^\]]*)\]/, /\bscene_classes\(([^)]*)\)/].each do |re|
+    src.scan(re) { |m| listed += m[0].scan(/"([A-Z][A-Za-z0-9_:]*)"/).flatten }
+  end
+  src.scan(WATCH_CALL) do |m|
+    args = m[0]
+    names = (args =~ /\A\s*"([A-Z][A-Za-z0-9_:]*)"/) ? [$1] : listed
+    opens = DEFAULT_OPENERS.dup
+    args.scan(OPEN_LIST) { |lst, one| opens += symbols_in(lst || ":#{one}") }
+    args.scan(/\b([A-Z][A-Z0-9_]+)\b/) { |c| opens += (const_opens[c[0]] || []) }
+    names.uniq.each do |c|
+      watched[c] ||= { :declared => [], :games => {} }
+      watched[c][:declared] = (watched[c][:declared] + opens).uniq
+    end
+  end
+end
+
+games.each do |g|
+  Dir.glob(File.join(sources_of[g], "**", "*.rb")).each do |path|
+    src = File.open(path, "rb") { |io| io.read }
+    stack = ReaderSites::ClassStack.new
+    src.each_line do |line|
+      stack.feed(line)
+      next unless line =~ /^(\s*)def\s+([a-zA-Z_][A-Za-z0-9_]*)/
+      indent = $1.length
+      meth = $2
+      next unless meth =~ LIFE_RE
+      cur = stack.owner_at(indent)
+      (watched[cur][:games][meth] ||= {})[g] = true if cur && watched.has_key?(cur)
+    end
+  end
+end
+
+File.open(LIFE_OUT, "wb") do |io|
+  io.print("# GENERATED by test/static/build_reader_census.rb -- do not edit by hand.\n")
+  io.print("#\n")
+  io.print("# Per InfoWindow-watched scene: the lifecycle methods the MOD declares (its :open list plus the\n")
+  io.print("# engine defaults) and the ones the surveyed GAMES define on that class. A watch whose two sets\n")
+  io.print("# do not meet binds nothing: the screen is never entered and every window on it is dead, with\n")
+  io.print("# the class present, the windows present and nothing anywhere to show for it.\n")
+  io.print("# format: Class = declared:a|b ; games:a(n),b(n)   -- an empty games list means no source has it\n")
+  io.print("# surveyed sources (#{games.length}): #{games.sort.join(', ')}\n")
+  watched.keys.sort.each do |c|
+    rows = watched[c][:games].keys.sort.map { |m| "#{m}(#{watched[c][:games][m].length})" }
+    io.print("#{c} = declared:#{watched[c][:declared].sort.join('|')} ; games:#{rows.join(',')}\n")
+  end
+end
+dead = watched.keys.select { |c| !watched[c][:games].empty? && (watched[c][:declared] & watched[c][:games].keys).empty? }
+puts "wrote #{LIFE_OUT}: #{watched.length} watched scenes, #{dead.length} declared against a lifecycle no game has"
+puts "sin ciclo de vida: #{dead.join(', ')}" unless dead.empty?

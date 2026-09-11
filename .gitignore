@@ -64,3 +64,6 @@ test/tmp_data/
 # Scratch folders of the installer specs (removed in ensure; only an interrupted run leaves them)
 test/static/tmp_ps_fn/
 test/static/tmp_fake_game/
+
+# Scratch folder of the preload trigger spec (removed in ensure; only an interrupted run leaves it)
+test/static/tmp_preload/

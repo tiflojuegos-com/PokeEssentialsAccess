@@ -1,15 +1,8 @@
 module PokeAccess
-  # Watches for a screen that came up and said nothing, and writes what it saw into the diagnostic.
-  #
-  # This is the one failure the mod cannot find on its own. A reader that raises leaves a line in the log; a
-  # reader bound to the wrong ivar, the wrong page or the wrong moment leaves nothing at all -- the screen
-  # is simply quiet, and quiet is indistinguishable from "there was nothing to say". So the mod notices
-  # instead: a new screen, then WINDOW frames without a single line spoken, and the pair goes in a list the
-  # diagnostic prints, which turns an ordinary play session into a report.
-  #
-  # EVIDENCE, not a fault. Plenty of screens are legitimately silent for two seconds -- an animation, a
-  # cutscene, a map walked across without passing anything. What matters is a screen in this list that the
-  # player knows they were navigating.
+  # Watches for a screen that came up and said nothing, and writes what it saw into the diagnostic: a reader
+  # bound to the wrong ivar or the wrong moment leaves no trace, so a new screen followed by WINDOW frames
+  # without a line spoken goes in a list the diagnostic prints. EVIDENCE, not a fault: an animation or a
+  # cutscene is legitimately silent, and what matters is a screen the player knows they were navigating.
   module Silence
     # Two seconds at 60fps. Long enough that a screen with a reader has always spoken by then (readers fire
     # on the opening frame or the first cursor move), short enough that a screen the player opened and

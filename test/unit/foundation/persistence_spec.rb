@@ -158,6 +158,20 @@ end
 
 # The game stamp: keys are map ids, and a map id means something else in every other game, so a file must
 # know which game it belongs to and an import must refuse a stranger's.
+# A single byte that is not UTF-8 (an ini or a shared tags file saved by an ANSI editor) used to cut the
+# file at that line on the modern engines, and the truncated store was then written back over the original.
+Suite.define("persistence: a stray non-UTF-8 byte costs one character, never the rest of the file") do
+  probe = File.join(File.dirname(PokeAccess::Marks::FILE), "kv_probe.txt")
+  begin
+    File.open(probe, "wb") { |f| f.write("a=1\nb=caf\xE9\nc=3\n") }
+    keys = []
+    PokeAccess::KVFile.each(probe) { |k, _v| keys.push(k) }
+    eq "every line is still read", keys, %w[a b c]
+  ensure
+    (File.delete(probe) rescue nil)
+  end
+end
+
 Suite.define("persistence: every dictionary file is stamped with its game, and a foreign file is refused") do
   persistence_wipe
   begin

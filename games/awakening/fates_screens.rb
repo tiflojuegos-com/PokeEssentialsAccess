@@ -1,15 +1,8 @@
-# Three more Fates screens with no Essentials window behind them.
-#
-# EquipScreen (0309) equips cursed-energy talismans: @selected_index walks @talismans, each a hash with
-# :name, :description and :lore. The description is what the player needs to choose; the lore is flavour and
-# is left out so the line stays short while browsing.
-#
-# BallSelectorInterface (0305) is the in-battle quick ball picker (key R): a row of ball icons with a count
-# under each, kept in the parallel arrays @ball_list (item ids) and @ball_counts.
-#
-# Glosario_Personajes (0303) is the character glossary reached from the diary. Its entries are the keys of
-# @nombres_secciones, laid out two per row across pages, with @index the focus inside the current page and
-# @pagina_actual / @total_paginas the paging -- so the reader gives the entry plus which page it is on.
+# Three more Fates screens with no Essentials window behind them. EquipScreen (0309) equips talismans:
+# @selected_index walks @talismans, hashes with :name and :description (the :lore is left out to keep the
+# line short). BallSelectorInterface (0305) is the in-battle quick ball picker, parallel arrays @ball_list
+# and @ball_counts. Glosario_Personajes (0303) is the character glossary: the keys of @nombres_secciones two
+# per row across pages, @index the focus inside the page, @pagina_actual / @total_paginas the paging.
 module PokeAccess
   module AwakeningFates
     # Voices the focused talisman: its name and what it does, or -- while it is still locked -- what the
@@ -27,9 +20,9 @@ module PokeAccess
       return unless t.is_a?(Hash)
       open = (scene.unlocked?(t[:symbol]) rescue true)
       PokeAccess::Cursor.announce(scene, :awk_talisman, [idx, open ? true : false], true) do
-        name = PokeAccess.clean(t[:name].to_s).to_s.strip
+        name = PokeAccess.clean(t[:name].to_s)
         head = PokeAccess::I18n.t(:list_entry, :name => name, :n => idx + 1, :tot => list.length)
-        body = open ? PokeAccess.clean(t[:description].to_s).to_s.strip : locked_talisman(t)
+        body = open ? PokeAccess.clean(t[:description].to_s) : locked_talisman(t)
         body.empty? ? head : [head, body].join(". ")
       end
     rescue StandardError
@@ -41,7 +34,7 @@ module PokeAccess
       parts = [PokeAccess::I18n.t(:awk_talisman_locked)]
       req = (::TALISMAN_REQUIREMENTS[t[:symbol]] rescue nil)
       return parts[0] unless req.is_a?(Hash)
-      d = PokeAccess.clean(req[:description].to_s).to_s.strip
+      d = PokeAccess.clean(req[:description].to_s)
       parts.push(PokeAccess::I18n.t(:awk_talisman_req, :req => d)) unless d.empty?
       pct = (req[:progress].call rescue nil)
       parts.push(PokeAccess::I18n.t(:awk_talisman_progress, :n => pct.to_i)) unless pct.nil?
@@ -94,25 +87,19 @@ module PokeAccess
     # A glossary row as the screen draws it: the translated label when the story has unlocked the character,
     # and the locked word otherwise.
     def self.entry_label(scene, raw)
-      key = raw.to_s.downcase.gsub(/\s+/, "").to_sym
-      unlocked = (scene.send(:glosario_historia)[key] rescue true)
+      key = raw.to_s.downcase.gsub(/\s+/, "")
+      unlocked = key.empty? || (scene.send(:glosario_historia)[key.to_sym] rescue true)
       return PokeAccess::I18n.t(:awk_glos_locked) unless unlocked
       shown = (Glosario_Personajes::TRADUCCIONES_PERSONAJES[raw.to_s] rescue nil) || raw.to_s
-      PokeAccess.clean(shown).to_s.strip
+      PokeAccess.clean(shown)
     rescue StandardError
-      PokeAccess.clean(raw.to_s).to_s.strip
+      PokeAccess.clean(raw.to_s)
     end
 
-    # The biography the glossary opens on USE, page by page.
-    #
-    # The page number is a LOCAL of mostrar_texto's own loop, with no ivar behind it and no per-page method
-    # to bind to -- so the page is read off the ONE thing the loop puts on screen every frame that names it:
-    # the "Pagina n/m" stamp it draws through pbDrawOutlineText. That is the screen's own answer, so it
-    # cannot drift from what is displayed.
-    #
-    # The scene is held while the biography is up so the stamp of the LIST behind it, which is drawn to the
-    # same corner in the same words, cannot be mistaken for a page turn: the list's overlay is hidden for
-    # exactly as long as a biography is open, and that is what the gate below tests.
+    # The biography the glossary opens on USE, page by page. The page number is a LOCAL of mostrar_texto's
+    # loop, so it is read off the "Pagina n/m" stamp the loop draws every frame through pbDrawOutlineText.
+    # The scene is held while the biography is up, and the list's overlay is hidden for exactly that long,
+    # which is what keeps the list's identical stamp from being taken for a page turn.
     @open = nil
     @page = nil
 
@@ -130,7 +117,7 @@ module PokeAccess
       return unless (PokeAccess.ivar(scene, :@overlay).visible == false rescue false)
       @page = i
       t = biography(scene, name, i)
-      PokeAccess.speak(t, true) if t && !t.to_s.empty?
+      PokeAccess.speak(t, true)
     rescue StandardError
       nil
     end
@@ -142,7 +129,7 @@ module PokeAccess
       return nil unless pages.is_a?(Array) && !pages.empty?
       i = page.to_i
       i = 0 if i < 0 || i >= pages.length
-      text = PokeAccess.clean(pages[i].to_s).to_s.strip
+      text = PokeAccess.clean(pages[i].to_s)
       return nil if text.empty?
       PokeAccess::I18n.t(:awk_glos_bio, :name => entry_label(scene, name),
                          :page => i + 1, :pages => pages.length, :text => text)

@@ -12,6 +12,7 @@
     datingsim_place
     picker
     extras
+    hoopa
   ],
-  :plugins => %w[item_find logros text_log slide_banners]
+  :plugins => %w[item_find logros text_log slide_banners bw_key_items]
 }

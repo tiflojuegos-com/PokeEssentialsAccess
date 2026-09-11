@@ -12,7 +12,7 @@ module PokeAccess
       PokeAccess::Game.define(game) do
         after("LocationWindow", :initialize) do |_window, _result, args|
           name = ($game_temp.jess_letreros_activo rescue false) ? "" : args[0].to_s
-          PokeAccess.speak(name, false) unless name.strip.empty?
+          PokeAccess.speak(name, false)
         end
       end
     end

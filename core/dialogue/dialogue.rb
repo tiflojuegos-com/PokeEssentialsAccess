@@ -8,6 +8,23 @@ module PokeAccess
   # The most recent dialogue line, or nil.
   def self.last_dialogue; @last_dialogue; end
 
+  # The message-net reader every screen hook shares: the text is the first argument when it is a String,
+  # and nothing else. A command list handed first (the summary's action menu, the frontier swap screen) is
+  # the command window's to name, and joined into one word by 1.8.7's Array#to_s it also became the "last
+  # dialogue" for the repeat key. One body, so the guard cannot drift between the copies.
+  def self.say_screen_message(args)
+    text = args[0]
+    say_dialogue(text) if text.is_a?(String) && !text.empty?
+  end
+
+  # How many dialogue lines the message hooks have handed over this session, and which entry points got
+  # wrapped (:singleton for Kernel.pbMessageDisplay, :bare for the top-level function). Diagnostic only:
+  # a game whose dialogue is silent is either not wrapped (the count stays at zero and the list says which
+  # form it defines) or wrapped and cut off afterwards (the count grows and last_dialogue holds the line).
+  def self.dialogue_seen; @dialogue_seen || 0; end
+  def self.dialogue_wraps; @dialogue_wraps ||= []; end
+  def self.note_dialogue_wrap(form); dialogue_wraps.push(form) unless dialogue_wraps.include?(form); end
+
   # Cleans, remembers and speaks (queued) a dialogue line. Shared by every message hook so the repeat key
   # always has the latest line regardless of which engine path ran. An identical line within half a second
   # is remembered but not re-spoken, so a message reaching here through two layered hooks (e.g. a battle
@@ -15,6 +32,7 @@ module PokeAccess
   # relies on clean() stripping control bytes so the two forms compare equal. The window stays short so a
   # deliberate re-read (re-talking to an NPC) still speaks.
   def self.say_dialogue(message)
+    @dialogue_seen = dialogue_seen + 1
     t = clean(message)
     note_dialogue(t)
     now = (clock rescue 0)
@@ -55,6 +73,7 @@ begin
           PokeAccess.say_dialogue(message)
           pbMessageDisplay__access_orig(msgwindow, message, letterbyletter, commandProc, &block)
         end
+        PokeAccess.note_dialogue_wrap(:singleton)
       end
     end
   end
@@ -78,6 +97,7 @@ begin
           pbMessageDisplay__pa_inst(msgwindow, message, *args, &block)
         end
         private :pbMessageDisplay, :pbMessageDisplay__pa_inst
+        PokeAccess.note_dialogue_wrap(:bare)
       end
     end
   end

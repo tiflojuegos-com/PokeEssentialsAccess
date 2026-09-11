@@ -1,14 +1,20 @@
 # Two field mechanics that take control away from the player and say so only through animation. Neither is
 # a screen, so nothing could ever have been hooked to one.
 
+# The direction is the player's FACING, not the terrain under them. The plugin turns the player toward the
+# arrow and moves them in the same call, so by the first frame any poll runs the player already stands one
+# tile past the tile that decided the turn: its tag names the NEXT tile, and a lone spin tile onto plain
+# floor never named its own direction. The reader before that asked $game_player.pbTerrainTag, which exists
+# only in the modern engines, and neither game with the plugin is one -- the rescue answered nil, the key
+# never carried a direction, and a whole chain of turns was one silent "spinning".
 Suite.define("nav/field states: spinning names its direction and every redirect, then the stop") do
   fs = PokeAccess::FieldStates
+  prev_dir = $game_player.direction
   begin
     fs.reset
     def $PokemonGlobal.spinning; @pa_spin; end
     def $PokemonGlobal.spinning=(v); @pa_spin = v; end
-    tag = 31
-    $game_player.define_singleton_method(:pbTerrainTag) { tag }
+    $game_player.direction = 8
 
     $PokemonGlobal.spinning = false
     SpeakCapture.clear
@@ -25,7 +31,7 @@ Suite.define("nav/field states: spinning names its direction and every redirect,
 
     # The plugin redirects on each further spin tile WITHOUT clearing the flag, so a key that only knew
     # on/off would announce the first direction and stay quiet through a whole chain of turns.
-    tag = 34
+    $game_player.direction = 6
     fs.spin_poll
     spoke "a redirect mid-spin names the new direction", /#{PokeAccess::I18n.t(:fs_spin_right)}/
 
@@ -35,6 +41,7 @@ Suite.define("nav/field states: spinning names its direction and every redirect,
     spoke "and coming to a halt is said too", /#{PokeAccess::I18n.t(:fs_spin_stop)}/
   ensure
     fs.reset
+    $game_player.direction = prev_dir
     ($PokemonGlobal.spinning = false rescue nil)
   end
 end

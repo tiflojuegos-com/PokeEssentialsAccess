@@ -3,6 +3,7 @@ module PokeAccess
   # forwards to a registration point, so it is a thin layer over the raw calls (which still work).
   module Game
     @profiles = []
+    @profile_name = nil
 
     # The identifiers of the profiles defined so far (diagnostics only).
     def self.profiles; @profiles; end
@@ -10,17 +11,46 @@ module PokeAccess
     # The identifier of the profile this game runs under: the first name a Game.define block declared, else
     # the one the installer stamped in installed.json (the generic profile declares none), else nil. The
     # shareable dictionaries stamp their files with it, so a file is never imported into the wrong game.
+    #
+    # Memoised behind a false sentinel. The answer cannot change within a session, and the file it may have
+    # to read is the install manifest -- one SHA1 per deployed file -- which was being re-read whole every
+    # time the player set a mark or renamed a map.
     def self.profile_name
+      @profile_name = (resolve_profile_name || false) if @profile_name.nil?
+      @profile_name || nil
+    end
+
+    # The stamp itself, qualified by the game's own title when the installer's is the GENERIC one. Without
+    # that qualifier every game installed without a profile stamped the same word, and a marks file from one
+    # imported into another without a murmur -- map ids mean something else in every game, so it would name
+    # random events all over the region. A game with a profile keeps the profile name alone: that name is
+    # already unique, and changing it would orphan every file already shared.
+    def self.resolve_profile_name
       return @profiles.first if @profiles.first
       txt = (File.read("#{PokeAccess::Paths::DATA}/installed.json") rescue nil)
       m = txt ? txt.match(/"profile"\s*:\s*"([^"]+)"/) : nil
-      m ? m[1] : nil
+      return nil unless m
+      return m[1] unless m[1] == "generic"
+      t = game_title
+      t ? "#{m[1]}:#{t}" : m[1]
+    end
+
+    # The title the editor gave this game, which is what tells two generic installs apart. Loaded with the
+    # rest of the data before any dictionary can be written, and a player never edits it.
+    def self.game_title
+      t = ($data_system.game_title rescue nil)
+      (t.nil? || t.to_s.strip.empty?) ? nil : t.to_s.strip
+    rescue StandardError
+      nil
     end
 
     # Declares a game profile; the block registers its hooks/readers/puzzles/config. Additive and
     # repeatable (a game may use several define blocks).
     def self.define(name = nil, &blk)
-      @profiles << name if name && !@profiles.include?(name)
+      if name && !@profiles.include?(name)
+        @profiles << name
+        @profile_name = nil
+      end
       d = Definition.new(name)
       d.instance_eval(&blk) if blk
       d
@@ -45,6 +75,17 @@ module PokeAccess
 
       # Registers a focused-option reader for a command window. Yields (window, index) -> option text.
       def screen_reader(cname, &blk); PokeAccess::Menus.def_extractor(cname, &blk); end
+
+      # Declares one of this game's standing information windows: the sprite it writes with text= and
+      # repaints as the cursor moves, holding what the list rows never say.
+      def info_window(cname, key, slot, opts = {}); PokeAccess::InfoWindow.watch(cname, key, slot, opts); end
+
+      # Declares this game's clones of the hall-of-fame records screen, which fangames copy-paste one per
+      # records hall they add (Fire Ash ships six). Each named class gets the family's readers: the member
+      # panel, the banner and the entry animation. Core already binds the two vanilla spellings.
+      def hall_of_fame(*cnames)
+        cnames.flatten.each { |c| PokeAccess::HallOfFame.bind(c) }
+      end
 
       # Runs the block AFTER a method fires. Yields (instance, result, args). opts reaches the hook
       # untouched, so a profile has the same options the core does: :optional for a method legitimately
@@ -96,6 +137,10 @@ module PokeAccess
 
       # Registers an overworld hazard sprite pattern so matching events read with a label and a hazard cue.
       def hazard(pattern, label); PokeAccess::Locator.register_hazard(pattern, label); end
+
+      # Registers a warp-pad sprite pattern this game alone uses, so a transfer event wearing it counts as
+      # an exit however it is triggered and gets the teleporter cue rather than the door's.
+      def teleporter(pattern); PokeAccess::Locator.register_teleporter(pattern); end
 
       # Registers a script call that means an event transfers the player, for a game whose doors call a
       # function of its own instead of the editor's Transfer Player command. The pattern must capture the

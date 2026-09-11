@@ -10,11 +10,11 @@ the game as it was.
 
 | | |
 |---|---|
-| Core modules | 126, in `core/manifest.rb` |
-| Game profiles | 14, in `games/` |
-| Plugin readers | 41, in `plugins/` |
+| Core modules | 133, in `core/manifest.rb` |
+| Game profiles | 16, in `games/` |
+| Plugin readers | 49, in `plugins/` |
 | Languages | 6 (`es`, `en`, `fr`, `pt`, `de`, `pl`), in `lang/` |
-| Suite | 1790 (gen-6, static checks included) + 137 (gamedata) |
+| Suite | 2599 (gen-6, static checks included) + 409 (gamedata) |
 | Ruby | 1.8.7 in the game; the system one in tests |
 
 ## Layers
@@ -36,9 +36,25 @@ Modules: `audio`, `battle`, `data`, `dialogue`, `field`, `foundation`, `input`, 
 
 `preloadScript` runs **before** `Scripts.rxdata`, when no game class exists yet. So
 `loader/preload_access.rb` defers loading: it wraps `Graphics.update` and evaluates `accessibility/boot.rb`
-once the main loop is running (`$scene` assigned, or a 120-frame fallback).
+once the main loop is running (`$scene` assigned, or -- as a fallback -- 120 frames **and** the script list
+finished, which is known because `Main` has defined `pbCallTitle`).
 
 Consequence: by the time the mod loads, the game's classes and `PluginManager` already exist.
+
+### What that costs on the very first run
+
+Four games (Africanvs, Realidea, Reminiscencia and the English build of Pokemon Z) call `pbSetUpSystem` at
+top level, two thirds of the way down their script list, and with no save yet that call stops there to ask
+which language to play in. The mod is not loaded yet, so that list is not read.
+
+It is deliberate. Loading earlier means loading with the rest of the list unread: measured on Pokemon Z
+2.13, the prompt appears in script 152 of 235 and **eleven hooked classes do not exist yet**, the pause
+menu among them -- silent for the rest of the session, which is how the bug was reported. A screen of two
+or three options, once per install and undoable from the mod's own options, was traded for a pause menu
+that always speaks.
+
+For the player: on that first screen, press Enter to take the default; the mod's language is changed
+afterwards from its configuration menu.
 
 ## Load order
 
@@ -95,7 +111,9 @@ ruby test/run_all.rb behavior/battle    # filter by path fragment
 ```
 
 The static checks cover manifest integrity, key parity across the six `lang/` files, Ruby 1.8.7
-compatibility, cross-layer coupling and `plugins/` consistency.
+compatibility, cross-layer coupling, `plugins/` consistency, and two censuses built from the decompiled
+games: the arity and parameter names of every hooked method (loops included) and the era coverage of every
+Essentials API name the shared core calls.
 
 ## Installing
 

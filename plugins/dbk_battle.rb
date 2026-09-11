@@ -21,5 +21,5 @@ end
 
 PokeAccess::Hooks.after_hook("Battle", :pbToggleSpecialActions, :optional => true) do |battle, _ret, args|
   t = PokeAccess::DBKBattle.toggle_text(battle, args[0], args[1])
-  PokeAccess.speak(t, true) if t && !t.to_s.empty?
+  PokeAccess.speak(t, true)
 end

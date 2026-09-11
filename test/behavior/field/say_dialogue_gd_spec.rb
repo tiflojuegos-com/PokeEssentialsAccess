@@ -18,3 +18,13 @@ Suite.define("dialogue: the modern bare pbMessageDisplay is hooked and no Kernel
   pbMessageDisplay(nil, "Bienvenido a Pueblo Anil")
   silent "the engine re-showing the same line within the window is not read twice"
 end
+
+# The diag counters on the modern engine: the bare function is the wrapped form, and the Kernel singleton
+# is neither defined nor claimed.
+Suite.define("dialogue: on the modern engine the diag names the bare function as the wrapped entry") do
+  eq "the bare function is the wrap", PokeAccess.dialogue_wraps, [:bare]
+  eq "and the forms the game defines say bare only", PokeAccess::Keys.dialogue_forms, [:bare]
+  before = PokeAccess.dialogue_seen
+  PokeAccess.say_dialogue("A different line #{before}")
+  eq "a line through the bare function counts", PokeAccess.dialogue_seen, before + 1
+end

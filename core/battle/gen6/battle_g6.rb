@@ -119,10 +119,15 @@ end
 # Level-up stat gains, which the panel shows only as graphics. The argument order splits by era (v16-17 put
 # SPEED before spatk/spdef, the v18 hybrids put it last) and nothing in the call tells them apart, so the
 # era is asked once here. A local and not a constant: this file is top level, and a constant would land on
-# the fangame's own Object. Before, because each stat panel blocks on a keypress.
+# the fangame's own Object. Spoken before the original, which blocks on each panel, and the panels are muted
+# for the call since ModalPanel would read the same figures in the game's language. Two hooks on purpose:
+# an around body is re-raised, so the reading keeps the before-hook's swallow and the around only mutes.
 levelup_modern_order = PokeAccess::Engine.gamedata?
 PokeAccess::Hooks.before_hook("PokeBattle_Scene", :pbLevelUp) do |_s, a|
   PokeAccess.speak(PokeAccess::Battle.levelup_from_args(a, levelup_modern_order), false)
+end
+PokeAccess::Hooks.around_hook("PokeBattle_Scene", :pbLevelUp) do |_s, nxt, _a|
+  PokeAccess::ModalPanel.muted { nxt.call }
 end
 
 # The damage number, which is not a message. Before, because the original waits out the HP-bar animation and

@@ -76,7 +76,7 @@ module PokeAccess
         parts.push(PokeAccess.clean(v.to_s)) if v && !v.to_s.strip.empty?
       end
       t = PokeAccess::Util.join_parts(parts)
-      PokeAccess.speak(t, true) unless t.empty?
+      PokeAccess.speak(t, true)
     rescue StandardError
       nil
     end
@@ -115,7 +115,7 @@ PokeAccess::Game.define("infinitefusion_hoenn") do
   before("QuestMapPopup", :run) do |s, _a|
     loc = PokeAccess.ivar(s, :@location_name)
     t = ((_INTL("{1} Quests", loc) rescue nil) || loc).to_s
-    PokeAccess.speak_clean(t, false) unless t.empty?
+    PokeAccess.speak_clean(t, false)
   end
 end
 

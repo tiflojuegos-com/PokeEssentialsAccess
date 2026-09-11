@@ -248,7 +248,7 @@ module PokeAccess
     # The search algorithm from config (default :astar; an unknown value falls back to it).
     def self.path_algorithm
       a = (PokeAccess::Config.path_algorithm rescue nil)
-      a = a.to_sym if a.respond_to?(:to_sym)
+      a = a.to_sym if a.respond_to?(:to_sym) && !a.to_s.empty?
       ALGORITHMS.include?(a) ? a : :astar
     end
 
@@ -644,8 +644,7 @@ module PokeAccess
     # each real abstract hop back into tile steps with a live local A*. Because every hop is re-solved against
     # current passability, a stale cached graph can only cause :fallback, never a wrong route. Returns the
     # route, nil (out of reach), :fallback (use plain A*), or [] (already adjacent). Neighbour lists are merged
-    # with dup.concat, never Array#+: a fangame script patch redefines Array#+ as an in-place mutator (seen
-    # in the wild) that would leak the temporary edges into the cached graph.
+    # on a DUP, so the temporary edges of one search do not leak into the cached graph.
     def self.hpa_search(tx, ty)
       px = $game_player.x; py = $game_player.y
       return nil if (px - tx).abs + (py - ty).abs > reach
