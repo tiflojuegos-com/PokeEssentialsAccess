@@ -14,14 +14,7 @@ permissions:
   contents: write
 
 jobs:
-  launcher:
-    uses: ./.github/workflows/reusable-launcher.yml
-    with:
-      create_artifact: true
-      run_tests: false
-
   package_mod:
-    needs: launcher
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.meta.outputs.tag }}
@@ -30,8 +23,6 @@ jobs:
       launcher_version: ${{ steps.meta.outputs.launcher_version }}
     steps:
       - uses: actions/checkout@v5
-        with:
-          submodules: recursive
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
@@ -45,7 +36,8 @@ jobs:
         run: |
           set -euo pipefail
           TAG="${{ github.event.inputs.version || github.ref_name }}"
-          LAUNCHER_VERSION=$(ruby -ne 'print $1 if /^version = "([^"]+)"/ && $~.captures.first' launcher/Cargo.toml)
+          LAUNCHER_VERSION=$(ruby -rjson -e 'print JSON.parse(File.read("version.json"))["launcher"].to_s')
+          [ -n "$LAUNCHER_VERSION" ] || { echo "::error::version.json names no launcher"; exit 1; }
           ZIP="PokeEssentialsAccess_${TAG}.zip"
           SHAZIP="${ZIP}.sha256"
           echo "TAG=$TAG" >> "$GITHUB_ENV"
@@ -89,11 +81,15 @@ jobs:
           }
           JSON
 
+      # The launcher is built and released in its own repository; version.json names the version this mod ships.
       - name: download launcher
-        uses: actions/download-artifact@v4
-        with:
-          name: pokeessentialsaccess-launcher
-          path: launcher-bin
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release download "v${LAUNCHER_VERSION}" -R tiflojuegos-com/PokeEssentialsAccessInstaller \
+            -p pokeessentialsaccess-launcher.exe -p commands.txt -D launcher-bin
 
       - name: build zip
         shell: bash
@@ -101,7 +97,7 @@ jobs:
           set -euo pipefail
           mkdir -p stage
           cp -r assets core lang loader version.json stage/
-          cp launcher-bin/pokeessentialsaccess-launcher.exe launcher/commands.txt stage/
+          cp launcher-bin/pokeessentialsaccess-launcher.exe launcher-bin/commands.txt stage/
           cp -r games stage/games
           cp -r plugins stage/plugins
           for d in assets core games plugins lang loader; do
@@ -124,13 +120,12 @@ jobs:
             version.json
             PokeEssentialsAccess_${{ env.TAG }}.zip
             PokeEssentialsAccess_${{ env.TAG }}.zip.sha256
+            launcher-bin/pokeessentialsaccess-launcher.exe
           if-no-files-found: error
           retention-days: 1
 
   publish_release:
-    needs:
-      - package_mod
-      - launcher
+    needs: package_mod
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -151,12 +146,11 @@ jobs:
         run: |
           set -euo pipefail
           MOD_DIR="release-artifacts/pokeessentialsaccess-mod"
-          LAUNCHER_DIR="release-artifacts/pokeessentialsaccess-launcher"
 
           MOD_ZIP=$(find "$MOD_DIR" -name "PokeEssentialsAccess_${TAG}.zip" -type f | head -n 1)
           MOD_SHA=$(find "$MOD_DIR" -name "PokeEssentialsAccess_${TAG}.zip.sha256" -type f | head -n 1)
           MOD_VERSION=$(find "$MOD_DIR" -name "version.json" -type f | head -n 1)
-          LAUNCHER_BIN=$(find "$LAUNCHER_DIR" -name 'pokeessentialsaccess-launcher.exe' -type f | head -n 1)
+          LAUNCHER_BIN=$(find "$MOD_DIR" -name 'pokeessentialsaccess-launcher.exe' -type f | head -n 1)
 
           [ -n "$MOD_ZIP" ] || { echo "::error::mod zip not found"; exit 1; }
           [ -n "$MOD_SHA" ] || { echo "::error::mod sha file not found"; exit 1; }

@@ -55,8 +55,5 @@ MEMORY.md
 # Informes de auditoria: viven fuera del repo (../../auditoria/). Al repo solo va el mod.
 /auditoria/
 
-# Runtime markers the test harness writes (redirected via POKEACCESS_DATA_DIR)
-test/tmp_data/
-
 # Scratch folder of the preload trigger spec (removed in ensure; only an interrupted run leaves it)
 test/static/tmp_preload/

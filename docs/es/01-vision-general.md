@@ -122,11 +122,12 @@ construidos desde los juegos decompilados: la aridad y los nombres de parámetro
 Al final de la implementación, no a mitad:
 
 ```bash
-launcher/target/x86_64-pc-windows-msvc/release/pokeessentialsaccess-launcher.exe local install --yes
+../PokeEssentialsAccessInstaller/target/x86_64-pc-windows-msvc/release/pokeessentialsaccess-launcher.exe local install --yes
 ```
 
-Es el launcher que compila `cargo build --release` en `launcher/`; el de la release sirve igual lanzado desde el
-repositorio. `local` toma el mod del repositorio; sin juego abre el selector de carpetas, y con `all` reinstala en
-todos los juegos de la lista. Las órdenes están en `launcher/commands.txt`.
+Se lanza desde la raíz de este repositorio. Es el launcher que compila `cargo build --release` en su propio
+repositorio, [PokeEssentialsAccessInstaller](https://github.com/tiflojuegos-com/PokeEssentialsAccessInstaller), clonado junto a este; el de la release sirve igual.
+`local` toma el mod de la carpeta desde la que se lanza; sin juego abre el selector de carpetas, y con `all`
+reinstala en todos los juegos de la lista. Las órdenes están en su `commands.txt`.
 
 Reinstalar encima actualiza y conserva `settings.ini` y las etiquetas.

@@ -179,11 +179,14 @@ Estas son las carpetas principales del repositorio y qué contienen:
 | `loader/` | El preload que espera al juego y el boot que carga el mod en orden. |
 | `native/` | Código C del backend de audio 3D (`pa3d_steam.c` → `PA3D_steam.dll`). |
 | `bridge/` | Código C del puente con prism, el que habla con el lector de pantalla. |
-| `launcher/` | El launcher: la ventana y la consola que copian el mod dentro de un juego y lo quitan. |
 | `assets/` | Los sonidos del mod y las bibliotecas nativas por arquitectura (`x86`, `x64`). |
 | `test/` | La batería de tests del mod y sus utilidades. |
 | `tools/` | Utilidades sueltas, entre ellas el extractor de scripts. |
 | `docs/` | La documentación técnica completa (ver abajo). |
+
+El launcher, la ventana y la consola que copian el mod dentro de un juego y lo quitan, tiene su propio repositorio:
+[PokeEssentialsAccessInstaller](https://github.com/tiflojuegos-com/PokeEssentialsAccessInstaller). Cada release del mod
+lleva su exe.
 
 Dentro de `core/`, cada módulo agrupa una responsabilidad: `foundation/` (base y configuración), `input/` (teclas y enganches), `speech/` (voz, historial de mensajes y verbosidad), `data/` (datos del juego), `nav/` (navegación y rutas), `audio/` (sonido 3D), `menus/`, `battle/`, `party/`, `field/`, `dialogue/`, `puzzles/` y `util/`.
 

@@ -123,11 +123,12 @@ Essentials API name the shared core calls.
 At the end of a change, not halfway through:
 
 ```bash
-launcher/target/x86_64-pc-windows-msvc/release/pokeessentialsaccess-launcher.exe local install --yes
+../PokeEssentialsAccessInstaller/target/x86_64-pc-windows-msvc/release/pokeessentialsaccess-launcher.exe local install --yes
 ```
 
-That is the launcher `cargo build --release` builds in `launcher/`; the released one works the same when run from
-inside the repository. `local` takes the mod from the repository; with no game it opens the folder picker, and
-with `all` it reinstalls in every game of the list. The commands are in `launcher/commands.txt`.
+It is run from the root of this repository. That is the launcher `cargo build --release` builds in its own
+repository, [PokeEssentialsAccessInstaller](https://github.com/tiflojuegos-com/PokeEssentialsAccessInstaller), cloned next to this one; the released one works the same.
+`local` takes the mod from the folder it is run from; with no game it opens the folder picker, and with `all` it
+reinstalls in every game of the list. The commands are in its `commands.txt`.
 
 Reinstalling on top updates in place and keeps `settings.ini` and the tags.

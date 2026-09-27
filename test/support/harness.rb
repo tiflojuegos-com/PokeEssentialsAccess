@@ -2,8 +2,9 @@
 # :gamedata), in boot.rb's manifest order and through eval as boot.rb does, collecting each file's load error.
 ENGINE = (ENV["PA_ENGINE"] || "gen6").to_sym
 
-# Runtime files (markers, settings, recordings) go to a throwaway test/tmp_data, not a folder relative to the CWD.
-ENV["POKEACCESS_DATA_DIR"] ||= File.expand_path("../tmp_data", File.dirname(__FILE__))
+# Runtime files (markers, settings, recordings) go to a throwaway folder in the system temp dir, out of the repo.
+require "tmpdir"
+ENV["POKEACCESS_DATA_DIR"] ||= File.join(Dir.tmpdir, "pokeaccess-test-data")
 
 require File.expand_path(ENGINE == :gamedata ? "stubs/engine_gamedata" : "stubs/engine_gen6", File.dirname(__FILE__))
 

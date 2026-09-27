@@ -14,8 +14,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-        with:
-          submodules: recursive
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.3'
@@ -45,9 +43,11 @@ jobs:
             got=$((got+1))
           done
           [ "$got" -eq "$want" ] || { echo "::error::profiles smoke ran $got of $want"; exit 1; }
-
-  launcher:
-    uses: ./.github/workflows/reusable-launcher.yml
-    with:
-      create_artifact: false
-      run_tests: true
+      # The launcher version.json names must already be released in its repository, where the release takes it from.
+      - name: launcher release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          v=$(ruby -rjson -e 'print JSON.parse(File.read("version.json"))["launcher"].to_s')
+          gh release view "v$v" -R tiflojuegos-com/PokeEssentialsAccessInstaller --json assets --jq '.assets[].name' \
+            | grep -qx pokeessentialsaccess-launcher.exe || { echo "::error::launcher v$v has no release with its exe"; exit 1; }
