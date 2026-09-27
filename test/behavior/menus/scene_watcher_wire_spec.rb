@@ -1,24 +1,11 @@
-# SceneWatcher.wire is the plumbing under every reader for a screen that runs its OWN blocking input loop
-# (a fangame bag, a card screen): it holds the live scene for the duration of that loop method and runs the
-# reader's per-frame poll, because the normal cursor hooks never fire while the game is inside its own loop.
-# The existing reader spec drives the returned holder by hand against a class that does not exist, so the
-# around-hook -- the whole point of wire -- was never executed. This suite wires a REAL class with a real
-# loop method and checks the three things a player depends on:
-#   (a) while the loop runs, the reader holds THAT scene (otherwise poll has nothing to read and the screen
-#       is silent);
-#   (b) when the loop returns, the scene is released (a held dead scene makes the next screen read the old
-#       one, or read nothing because the poll keeps answering from the corpse);
-#   (c) CRITICAL: if the game's loop RAISES -- a fangame screen crashing on a missing sprite is routine --
-#       the release still happens, because wire's unwatch lives in an ensure. Without it the mod would poll
-#       a dead scene for the rest of the session, and every later screen would be read wrong or not at all.
-# The exception must also still reach the game (wire wraps, it does not swallow): a screen that silently
-# stops failing would hide the fangame's own bug.
+# SceneWatcher.wire on a real class: the reader holds the scene while the game's own loop runs and releases it when
+# the loop returns or raises (unwatch is in an ensure); the loop's value and its exception reach the game.
 Suite.define("scene_watcher: wire holds the scene for the loop, releases it, and releases it on a crash too") do
   reader = Object.new
   class << reader
     attr_reader :scene, :log, :polled
 
-    # Records what wire did to us, so the spec can assert the watch/unwatch pairing and not just the end state.
+    # Records what wire does, so the watch and unwatch pairing can be asserted.
     def reset!; @scene = nil; @log = []; @polled = []; end
 
     def watch(s); @scene = s; @log.push(:watch); end
@@ -38,7 +25,7 @@ Suite.define("scene_watcher: wire holds the scene for the loop, releases it, and
       :loop_done
     end
 
-    # The same loop, but the screen blows up mid-frame -- the case the ensure exists for.
+    # The same loop, raising mid-frame.
     define_method(:crash) do
       seen.push(reader.scene)
       raise "fangame screen blew up"

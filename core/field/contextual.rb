@@ -1,28 +1,44 @@
 module PokeAccess
-  # Contextual info for the info key (move / item / pokemon / trainer / battle foe).
+  # What the info key reads: the focused move, item, Pokemon, trainer or foe, or a ready line; and, with Ctrl, the
+  # focused row whole.
   module Info
-    # Stores what the info key should read next. param kind one of :move/:item/:pokemon/:trainer/
-    # :battle_foe/:text (a ready string)
-    def self.set_info(kind, data)
+    # Stores what the info key reads next and the focused row for Ctrl+T.
+    # param kind one of :move/:item/:pokemon/:trainer/:battle_foe/:text (a ready string)
+    # param row the focused row as the full level says it, or nil where the screen has none
+    def self.set_info(kind, data, row = nil)
       @kind = kind
       @data = data
+      @row = row
+      @row_windows = []
     end
 
-    # Clears combat-only info (move/foe/text) so the info key stops reading a stale battle line on the
-    # map; field info (:pokemon/:item/:trainer) is kept.
+    # Adds a standing window that belongs to the focused row (a shop's count in the bag) to what Ctrl+T says, until
+    # the next set_info; one text per slot.
+    def self.add_to_row(text, slot)
+      return if text.nil? || text.to_s.strip.empty?
+      @row_windows ||= []
+      return if @row_windows.include?([slot, text.to_s])
+      @row_windows = @row_windows.reject { |r| r[0] == slot }
+      @row_windows.push([slot, text.to_s])
+    end
+
+    # What Ctrl+T says: the focused row whole and its windows, or nil where the screen published no row.
+    def self.row_text
+      return nil if @row.nil? || @row.to_s.strip.empty?
+      PokeAccess.sentences([@row].concat((@row_windows || []).map { |r| r[1] }))
+    end
+
+    # Forgets the battle's info (move, foe, ready line) when the fight ends; field info stays.
     def self.clear_combat
-      @kind = nil if @kind == :move || @kind == :battle_foe || @kind == :text
+      set_info(nil, nil) if @kind == :move || @kind == :battle_foe || @kind == :text
     end
 
-    # Drops a ready STRING stashed for the info key, and only that. A screen that parks detail there owns it
-    # for as long as it is open: left behind, the key answers about a screen the player has already left --
-    # the lore of a card, a species off a map grid, a poker payout table read out in the overworld. The
-    # other kinds survive, because a Pokemon or an item stays meaningful after its screen closes.
+    # Forgets a ready line when the screen that published it closes; a Pokemon or an item stays.
     def self.clear_text
-      @kind = nil if @kind == :text
+      set_info(nil, nil) if @kind == :text
     end
 
-    # Builds the text for the currently stored info kind.
+    # The text of the stored info.
     def self.info_text
       case @kind
       when :move       then move_info(@data)
@@ -31,7 +47,6 @@ module PokeAccess
       when :trainer    then trainer_info
       when :battle_foe then PokeAccess::Battle.foe_info
       when :text       then @data
-      else nil
       end
     rescue StandardError
       nil
@@ -39,28 +54,12 @@ module PokeAccess
 
     #builders
 
-    # Physical / special / status, spoken. The number means the same in both engine eras (0/1/2); a move
-    # object that does not answer at all is left out rather than guessed.
-    MOVE_CATS = [:cat_physical, :cat_special, :cat_status]
-
-    def self.move_category(m)
-      c = (m.category rescue nil)
-      return nil unless c.is_a?(Integer) && MOVE_CATS[c]
-      PokeAccess::I18n.t(:mv_category, :c => PokeAccess::I18n.t(MOVE_CATS[c]))
-    rescue StandardError
-      nil
-    end
-
-    # Describes a move: type, category, power, accuracy, pp and description. This method only RESOLVES the fields
-    # (from the move object, falling back to PokeAccess::Data per field); the spoken assembly and the
-    # power/accuracy wording are MoveInfo.line's, the single assembler -- this was the divergent copy that
-    # treated accuracy 0 differently and skipped the no-power phrasing. Total pp answers to either
-    # engine's name (totalpp gen-6, total_pp modern). The category joins the description as the part that is
-    # HERE and not on the cursor line: a battle cursor already says name, type, power, accuracy and pp, so
-    # without those two the info key repeated itself word for word and cost a keypress for nothing.
-    def self.move_info(m)
+    # Describes a move: type, category, power, accuracy, pp and description, each field from the move object or
+    # else PokeAccess::Data; the wording is MoveInfo.leveled's.
+    # param reading the verbosity reading a screen says it as; nil (the info key) for the whole line
+    def self.move_info(m, reading = nil)
       return nil unless m
-      mid  = (m.id rescue nil)
+      mid  = PokeAccess::MoveInfo.id_of(m)
       bd   = (m.basedamage rescue nil); bd  = PokeAccess::Data.move_power(mid) if bd.nil?
       acc  = (m.accuracy rescue nil);   acc = PokeAccess::Data.move_accuracy(mid) if acc.nil?
       name = (m.name rescue nil); name = (PokeAccess::Data.move_name(mid) || PokeAccess::I18n.t(:info_move)) if name.nil? || name.to_s.empty?
@@ -70,17 +69,14 @@ module PokeAccess
       ty   = (m.type rescue nil)
       tipo = ty ? (PokeAccess::Data.type_name(ty) rescue nil) : nil
       tipo = PokeAccess::Data.move_type_name(mid) if tipo.nil? || tipo.to_s.empty?
-      cat = move_category(m)
-      d = cat ? [cat, desc].compact.reject { |s| s.to_s.empty? }.join(". ") : desc
-      PokeAccess::MoveInfo.line(name.to_s, tipo, bd, acc, :pp => pp, :total_pp => tot, :desc => d)
+      cat = PokeAccess::MoveInfo.category_word(PokeAccess::MoveInfo.category_of(m))
+      PokeAccess::MoveInfo.leveled(reading, name.to_s, tipo, bd, acc, :cat => cat, :pp => pp, :total_pp => tot, :desc => desc)
     rescue StandardError
-      (PokeAccess::Data.move_name((m.id rescue 0)) || PokeAccess::I18n.t(:info_move))
+      (PokeAccess::Data.move_name(PokeAccess::MoveInfo.id_of(m)) || PokeAccess::I18n.t(:info_move))
     end
 
-    # Describes an item: name and description. A screen (the bag) can supply the exact text via
-    # note_item_desc, else it is resolved through PokeAccess::Data (which some games leave empty -> only
-    # the name). A TM/HM also reads the move it teaches -- the datum a blind player most needs from a
-    # machine -- resolved per era: gen-6 through $ItemData, GameData through GameData::Item#move (v19+).
+    # Describes an item: name and description (the one a screen noted, else PokeAccess::Data's), plus the move a
+    # TM/HM teaches.
     def self.item_info(itemid)
       name = item_name_for(itemid)
       desc = noted_item_desc(itemid) || item_desc_for(itemid)
@@ -91,7 +87,7 @@ module PokeAccess
         mdesc = PokeAccess::Data.move_description(mv)
         parts.push(PokeAccess::I18n.t(:it_teaches, :move => mname) + ". #{mdesc}") if mname
       end
-      parts.join(". ")
+      PokeAccess.sentences(parts)
     end
 
     # The move a TM/HM/TR teaches, or nil for a normal item, on either era.
@@ -121,23 +117,25 @@ module PokeAccess
       (d && !d.to_s.empty?) ? d : nil
     end
 
-    # Remembers the description a screen's adapter supplies (the game's exact source), tied to the item
-    # id, so the info key reads what the screen shows even if the generic lookups miss it.
+    # Remembers the description a screen shows for an item id, read ahead of the generic lookup.
     def self.note_item_desc(id, desc); @idesc = (desc && !desc.to_s.empty?) ? [id, desc] : nil; end
 
     # The remembered description if it is for this item, else nil.
     def self.noted_item_desc(id); (@idesc && @idesc[0] == id) ? @idesc[1] : nil; end
 
-    # Describes a party pokemon at a glance: name, level, hp, gender, held item and status.
+    # Describes a party pokemon at a glance: name, level, hp, the marks its panel draws, gender, held item and
+    # status; an egg is only "egg", as its panel shows it. An item kept as a symbol is named through the data, since
+    # on Ruby 3 the symbol's own name is the id.
     def self.pokemon_info(pk)
       return nil unless pk
+      return PokeAccess::I18n.t(:pty_egg) if PokeAccess::Summary.egg?(pk)
       t = PokeAccess::I18n.t(:pk_glance, :name => pk.name, :level => pk.level, :hp => pk.hp, :tot => pk.totalhp)
-      marks = PokeAccess::Party.icon_mark_list(pk)
+      marks = PokeAccess::Party.icon_mark_list(pk) + PokeAccess::Party.panel_marks(pk)
       t += " #{marks.join(', ')}." unless marks.empty?
-      w = PokeAccess::Party.gender_word(pk); t += " #{w}." if w
+      g = PokeAccess::Party.gender_glyph(pk); t += " #{g}." if g
       itm = (pk.item rescue nil)
       if itm && itm != 0
-        it = itm.respond_to?(:name) ? (itm.name rescue nil) : PokeAccess::Data.item_name(itm)
+        it = (!itm.is_a?(Symbol) && itm.respond_to?(:name)) ? (itm.name rescue nil) : PokeAccess::Data.item_name(itm)
         t += " #{PokeAccess::I18n.t(:pk_holds, :item => it)}." if it && !it.to_s.empty?
       end
       st = (pk.status rescue nil)
@@ -148,56 +146,57 @@ module PokeAccess
       t
     end
 
-    # The full pokemon data sheet: species, types, nature, ability, item and six stats.
-    def self.summary_text(pk)
+    # The full pokemon data sheet: name and sex sign, header icons, dex number, species, types, nature, ability,
+    # item and six stats, then the first page's trainer lines (original trainer, ID, experience, next level).
+    def self.summary_text(pk, dex = nil)
       return nil unless pk
-      t = PokeAccess::I18n.t(:sum_data_of, :name => (pk.name rescue "?"), :level => (pk.level rescue "?")) + " "
+      nm = "#{(pk.name rescue "?")}#{PokeAccess::Party.sign_phrase(pk)}"
+      t = PokeAccess::I18n.t(:sum_data_of, :name => nm, :level => (pk.level rescue "?")) + " "
+      icons = PokeAccess::Summary.header_icons(pk)
+      t += "#{icons}. " unless icons.empty?
+      t += PokeAccess::I18n.t(:sum_dex, :n => dex) + " " if dex
       sp = PokeAccess::Data.species_name(pk.species); t += PokeAccess::I18n.t(:sum_species, :s => sp) + " " if sp
       ty = PokeAccess::Data.pokemon_types(pk)
       t += PokeAccess::I18n.t(:sum_type, :t => ty.join(' ')) + " " unless ty.empty?
       nat = PokeAccess::Data.nature_name(pk.nature); t += PokeAccess::I18n.t(:sum_nature, :n => nat) + " " if nat
       ab  = PokeAccess::Data.ability_name(pk.ability); t += PokeAccess::I18n.t(:sum_ability, :a => ab) + " " if ab && !ab.to_s.empty?
-      if (pk.item rescue 0) != 0
-        it = PokeAccess::Data.item_name(pk.item); t += PokeAccess::I18n.t(:sum_item, :i => it) + " " if it
-      end
+      t += PokeAccess::Summary.item_fact(pk) + " "
       stats = (PokeAccess::I18n.t(:sum_stats, :hp => pk.hp, :tot => pk.totalhp, :atk => pk.attack,
                                   :def => pk.defense, :spa => pk.spatk, :spd => pk.spdef, :spe => pk.speed) rescue nil)
       t += stats if stats
+      facts = PokeAccess::Summary.trainer_facts(pk)
+      t += " " + facts.join(" ") unless facts.empty?
       t
     rescue StandardError
       nil
     end
 
     # Resolves a move by id on a pokemon and describes it, also storing it for the info key.
-    def self.move_by_id_info(pk, moveid)
-      m = (pk.moves.detect { |mv| mv && mv.id == moveid } rescue nil)
+    # param reading the verbosity reading the screen says it as; nil for the whole line
+    def self.move_by_id_info(pk, moveid, reading = nil)
+      m = (pk.moves.detect { |mv| mv && PokeAccess::MoveInfo.id_of(mv) == moveid } rescue nil)
       if m
         set_info(:move, m)
-        move_info(m)
+        move_info(m, reading)
       else
-        move_info_by_id(moveid)
+        move_info_by_id(moveid, reading)
       end
     end
 
-    # Describes a move from its id alone (the move being learned on the forget screen, or any move known
-    # only by id): on gen-6 it builds a PBMove and reads it through move_info; elsewhere it speaks the name.
-    def self.move_info_by_id(moveid)
+    # Describes a move known only by id, storing it for the info key: through a PBMove (gen-6), else just its name.
+    def self.move_info_by_id(moveid, reading = nil)
       return nil unless moveid && moveid.to_i != 0
       m = (PBMove.new(moveid) rescue nil)
       if m
         set_info(:move, m)
-        move_info(m)
+        move_info(m, reading)
       else
         (PokeAccess::Data.move_name(moveid) || PokeAccess::I18n.t(:info_move))
       end
     end
 
-    # The trainer line the info key and the trainer card speak, built from NAMED parts: each is a reader
-    # that gets the player object and answers a spoken fragment or nil. The order is Config.trainer_parts
-    # and the readers live here, so a profile can swap one (ribbons where a game has no badges, coins where
-    # the money is dead weight), add one or drop one without rewriting the line, and a part that fails costs
-    # only its fragment. The player object is $player where the engine exposes it, else gen-6 $Trainer; the
-    # era differences (how the Pokedex tally is kept) stay inside the default readers.
+    # The named parts of the trainer line (info key and trainer card): each takes the player object and answers a
+    # fragment or nil. The order is Config.trainer_parts; a profile swaps or adds one with set_trainer_part.
     TRAINER_PARTS = {
       :name     => lambda { |tr| tr.name.to_s },
       :money    => lambda { |tr|
@@ -255,8 +254,7 @@ module PokeAccess
       nil
     end
 
-    # Defines or replaces a named part (a profile's ribbons, coins...). A NEW name joins the end of the
-    # order; a replaced one keeps its place. Yields the player object.
+    # Defines or replaces a named part (the block gets the player object); a new name joins the end of the order.
     def self.set_trainer_part(key, &reader)
       TRAINER_PARTS[key] = reader
       order = PokeAccess::Config.trainer_parts
@@ -266,7 +264,7 @@ module PokeAccess
   end
 end
 
-# When battle ends, drop combat-only info so the info key does not re-read a stale battle line on the map.
+# When the battle ends, drops the battle-only info.
 PokeAccess::Hooks.after_hook("Game_Temp", :in_battle=) do |_t, _r, args|
   PokeAccess::Info.clear_combat unless args[0]
 end

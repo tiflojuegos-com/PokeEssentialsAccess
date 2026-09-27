@@ -1,9 +1,5 @@
-# BerryDex (the "TDW Berry Core and Dex" plugin): Window_Berrydex, a Window_DrawableCommand whose entries
-# are [berry_id, name, indexNumber] triples, and BerrydexInfo_Scene, whose drawPage(page) paints one section
-# for @berry (the berry, the section and the first page's description are spoken; growth times and mutation
-# trees stay visual). The two copies of the window agree, so one extractor serves both; the detail screen
-# differs in its page set, so the section list is built by respond_to? rather than by rescuing a missing
-# predicate into "true".
+# BerryDex ("TDW Berry Core and Dex"): the list (Window_Berrydex, [berry_id, name, indexNumber] rows) and the
+# detail screen (BerrydexInfo_Scene), whose optional pages are asked by respond_to?.
 module PokeAccess
   module BerryDex
     # The section names this copy of the plugin can show, in page order.
@@ -14,8 +10,7 @@ module PokeAccess
       names
     end
 
-    # Whether an optional page exists in this copy. A property of the install, not of the berry: the game
-    # answers from PluginManager plus a Settings flag, so the page list is the same for every entry.
+    # Whether this copy shows an optional page (a property of the install, not of the berry).
     def self.shows?(scene, meth)
       return false unless scene.respond_to?(meth, true)
       (scene.send(meth) ? true : false) rescue false
@@ -33,11 +28,18 @@ module PokeAccess
       nil
     end
 
-    # The detail screen on a page change: the berry, which section, and every row the page painted --
-    # captured, so size, firmness, the flavor labels and the berrydex's OWN description (a different text
-    # from the bag item's) arrive in whatever language this build ships. Composing from GameData::Item is
-    # the fallback for a page that painted nothing.
-    def self.page(scene, page, rows)
+    # The page's painted rows as its lines, top to bottom, each label joined to the value painted on its row
+    # ("Size 2.0 cm"); rows painted without a position follow in paint order.
+    # param pairs the page's capture, as take_pairs gives it (text, source, x, y)
+    def self.page_lines(pairs)
+      loose = (pairs || []).reject { |r| r[2].is_a?(Numeric) && r[3].is_a?(Numeric) }.map { |r| r[0] }
+      PokeAccess::PaintCapture.lines(pairs) + loose
+    end
+
+    # The detail screen on a page change: the berry, the section and the lines the page painted; the first page
+    # adds the dominant flavour, and falls back to the data's description when nothing was painted.
+    # param pairs the page's capture, as take_pairs gives it
+    def self.page(scene, page, pairs)
       berry = PokeAccess.ivar(scene, :@berry)
       return if berry.nil?
       sub = PokeAccess.ivar(scene, :@subpage)
@@ -45,7 +47,8 @@ module PokeAccess
       name = ((GameData::Item.get(berry).name rescue nil) || berry.to_s)
       section = sections(scene)[page.to_i - 1] || page
       parts = [name, PokeAccess::I18n.t(:bdx_section, :name => section)]
-      body = rows.is_a?(Array) ? rows.uniq.reject { |r| r.to_s.strip == name.to_s } : []
+      rows = pairs.is_a?(Array) ? page_lines(pairs) : []
+      body = rows.uniq.reject { |r| r.to_s.strip == name.to_s }
       if body.empty? && page == 1
         d = (GameData::BerryData.try_get(berry).description rescue nil)
         d = (GameData::Item.get(berry).description rescue nil) if d.nil? || d.to_s.empty?
@@ -59,18 +62,44 @@ module PokeAccess
       nil
     end
 
-    # The dominant flavor(s), which the page shows only as a circled icon over a printed name. The berrydex
-    # data is the source (an icon has no text to capture); the flavor words come from the game's own data
-    # keys, spoken as-is.
+    # The five flavours by the names of the page's circled sprites, and the words the mod says for them.
+    FLAVORS = { :spicy => :bdx_fl_spicy, :dry => :bdx_fl_dry, :sweet => :bdx_fl_sweet, :bitter => :bdx_fl_bitter,
+                :sour => :bdx_fl_sour }
+
+    # The lang key of a flavour as the berry data keys it (:spicy, or "Spicy" in the plugin's own data), or nil.
+    def self.flavor_key(k)
+      FLAVORS[k.to_s.downcase.to_sym]
+    end
+
+    # A flavour's spoken name, or the data's own key for one the table lacks.
+    def self.flavor_name(k)
+      key = flavor_key(k)
+      key ? PokeAccess::I18n.t(key) : k.to_s
+    end
+
+    # The dominant flavour(s), the ones the page circles; it paints no value, so none is said.
     def self.flavor_line(berry)
       fl = (GameData::BerryData.try_get(berry).flavor rescue nil)
       return nil unless fl.is_a?(Hash) && !fl.empty?
       max = fl.values.map { |v| v.to_i }.max
       return nil if max.nil? || max <= 0
-      fk = { :spicy => :bdx_fl_spicy, :dry => :bdx_fl_dry, :sweet => :bdx_fl_sweet,
-             :bitter => :bdx_fl_bitter, :sour => :bdx_fl_sour }
-      tops = fl.select { |_k, v| v.to_i == max }.map { |k, _v| fk[k] ? PokeAccess::I18n.t(fk[k]) : k.to_s }
-      PokeAccess::I18n.t(:bdx_flavor, :f => tops.join(", "), :n => max)
+      tops = fl.select { |_k, v| v.to_i == max }.map { |k, _v| flavor_name(k) }
+      PokeAccess::I18n.t(:bdx_flavor, :f => tops.join(", "))
+    rescue StandardError
+      nil
+    end
+
+    # The list screen's title and counters (registered, planted), painted on every refresh: queued in reading
+    # order when they change, minus the focused berry's name, which the row says.
+    def self.list_header(scene, pairs)
+      rows = PokeAccess::PaintCapture.laid_out(pairs || [])
+      berry = (PokeAccess.sprite(scene, "berrydex").berry rescue nil)
+      focus = berry ? (GameData::Item.get(berry).name rescue nil) : nil
+      rows = rows.reject { |r| r.to_s.strip == focus.to_s } if focus
+      t = PokeAccess::PaintCapture.text(PokeAccess::PaintCapture.pair_labels(rows), false)
+      return if t.to_s.strip.empty?
+      return unless PokeAccess::Cursor.changed?(scene, :bdx_header, t)
+      PokeAccess.speak(t, false)
     rescue StandardError
       nil
     end
@@ -85,6 +114,15 @@ PokeAccess::Hooks.around_hook("BerrydexInfo_Scene", :drawPage, :optional => true
     nxt.call
   ensure
     PokeAccess::BerryDex.page(scene, (args[0] rescue PokeAccess.ivar(scene, :@page)),
-                              PokeAccess::PaintCapture.take(:bdx_page))
+                              PokeAccess::PaintCapture.take_pairs(:bdx_page))
+  end
+end
+
+PokeAccess::Hooks.around_hook("PokemonBerrydex_Scene", :pbRefresh, :optional => true) do |scene, nxt, _a|
+  PokeAccess::PaintCapture.arm(:bdx_header)
+  begin
+    nxt.call
+  ensure
+    PokeAccess::BerryDex.list_header(scene, PokeAccess::PaintCapture.take_pairs(:bdx_header))
   end
 end

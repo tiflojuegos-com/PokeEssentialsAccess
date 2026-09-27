@@ -1,18 +1,13 @@
-# Character creator reader (core/menus/character_creator). Both Infinite Fusion games open on this screen,
-# and it was half-readable: the row name was spoken on the vertical axis but nothing at all on the
-# horizontal one, which is where gender, age, skin and hair are actually chosen -- the row index does not
-# change there, so a reader keyed on it alone had nothing to say. The values never reached the HUD text
-# reader either, because the view paints them straight onto a bitmap.
-#
-# Driven through the module functions with a stub presenter, the way the hooks call them.
+# The character creator of both Infinite Fusion games (infinitefusion_common): each row with its current value, said again when the value
+# changes on the same row. Driven through the module functions with a stub presenter, as the hooks call them.
 
-# Stands in for the game's presenter: the constants the reader reads for skin labels, and the ivars it reads
-# for every current value. Real shape taken from 050_Outfits/UI/CharacterSelectMenuPresenter.rb.
+# The game's presenter: the label constants the reader reads (creator_at sets the current values).
 class CharacterSelectMenuPresenter
   SKIN_COLOR_IDS = ["Type A", "Type B", "Type C", "Type D", "Type E", "Type F"]
   GENDERS_IDS = ["Female", "Male"]
   HAIR_COLOR_NAMES = ["Blonde", "Light Brown", "Dark Brown", "Black"]
 end
+load File.expand_path("../../../games/infinitefusion_common/character_creator.rb", File.dirname(__FILE__))
 
 # Builds a presenter sitting on a given row with the creator's own defaults.
 def creator_at(index)
@@ -102,4 +97,45 @@ Suite.define("character creator: an unknown row falls back to the game's own cap
   p.instance_variable_set(:@current_index, 1)
   PokeAccess::CharacterCreator.focus(p)
   spoke "a row this reader does not know is still announced by its English label", /Freckles/
+end
+
+Suite.define("character creator: a row's place in the list is said while positions are") do
+  p = creator_at(1)
+  PokeAccess::Config.verbosity = :brief
+  begin
+    SpeakCapture.clear
+    PokeAccess::CharacterCreator.focus(p)
+    spoke "brief: the row reads its value", /#{PokeAccess::I18n.t(:chr_male)}/
+    falsy "without which row of how many it is", SpeakCapture.lines.join(" ") =~ /2.*6/
+  ensure
+    PokeAccess::Config.verbosity = :full
+  end
+end
+
+# Confirm with no name typed fills in the default ("Red"/"Green") and repaints the name row before asking whether all
+# is correct; the name is said then, queued before the question, and the row's own read does not repeat it.
+Suite.define("character creator: the name the screen fills in or repaints is said, once") do
+  cc = PokeAccess::CharacterCreator
+  t = PokeAccess::I18n
+  p = creator_at(5)
+  cc.open(p)
+  SpeakCapture.clear
+  cc.name_shown(p)
+  silent "a repaint of the name the opening read already said says nothing"
+  p.instance_variable_set(:@name, "Red")
+  cc.name_shown(p)
+  eq "the default name confirm fills in, queued ahead of its question", SpeakCapture.log,
+     [[t.t(:chr_value, :name => t.t(:chr_name), :value => "Red"), false]]
+  SpeakCapture.clear
+  cc.name_shown(p)
+  silent "and said once"
+
+  typed = creator_at(0)
+  cc.open(typed)
+  typed.instance_variable_set(:@name, "Ayoub")
+  SpeakCapture.clear
+  cc.name_shown(typed)
+  cc.focus(typed)
+  eq "a name just typed on its own row is said once, not again by the row's read",
+     SpeakCapture.lines, [t.t(:chr_value, :name => t.t(:chr_name), :value => "Ayoub")]
 end

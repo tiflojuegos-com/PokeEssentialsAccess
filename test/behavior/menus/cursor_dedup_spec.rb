@@ -1,7 +1,4 @@
-# Cursor dedup primitive: almost every reader voices a focused entry the game re-asserts every frame, so it
-# must speak only when the focus actually changes. announce speaks once per change; reset re-arms it so a
-# reopened screen reads the same entry again; the key may be a tuple; and a nil holder falls back to the
-# module-wide table. These are the subtle cases that were re-broken per file before Cursor centralised them.
+# The Cursor dedup: announce speaks once per key change; reset re-arms it, so a reopened screen reads again.
 Suite.define("cursor: announce speaks once per change, re-reads after reset") do
   holder = Object.new
   3.times { PokeAccess::Cursor.announce(holder, :slot, 5) { "entry five" } }
@@ -17,8 +14,7 @@ Suite.define("cursor: announce speaks once per change, re-reads after reset") do
   spoke "after reset the same key re-reads", /entry six/
 end
 
-# changed? gates arbitrary work: true only on a real change, false on the repeat and false on a nil key (a
-# missing value must never speak).
+# changed? is true only on a real change: never on a repeat or a nil key.
 Suite.define("cursor: changed? is true only on a real change") do
   holder = Object.new
   truthy "first key is a change", PokeAccess::Cursor.changed?(holder, :g, "a")
@@ -27,8 +23,7 @@ Suite.define("cursor: changed? is true only on a real change") do
   falsy "a nil key never counts as a change", PokeAccess::Cursor.changed?(holder, :g, nil)
 end
 
-# A tuple key (e.g. [page, party_index]) is compared by value, and two readers on the same holder use
-# distinct slots so they never shadow each other.
+# A tuple key is compared by value, and each slot on a holder is independent.
 Suite.define("cursor: tuple keys and independent slots") do
   holder = Object.new
   truthy "first tuple is a change", PokeAccess::Cursor.changed?(holder, :a, [1, 2])
@@ -37,8 +32,7 @@ Suite.define("cursor: tuple keys and independent slots") do
   truthy "a second slot on the same holder is independent", PokeAccess::Cursor.changed?(holder, :b, [1, 3])
 end
 
-# A nil holder hangs the dedup state on the module-wide table keyed by slot (for readers with no instance),
-# and reset on that table re-arms it.
+# A nil holder keeps its state on the module-wide table, keyed by slot, and reset re-arms it there.
 Suite.define("cursor: nil holder uses the module-wide table") do
   truthy "first key on the global table is a change", PokeAccess::Cursor.changed?(nil, :global_slot, 1)
   falsy "the same global key is not a change", PokeAccess::Cursor.changed?(nil, :global_slot, 1)
@@ -46,8 +40,7 @@ Suite.define("cursor: nil holder uses the module-wide table") do
   truthy "after reset the global key re-reads", PokeAccess::Cursor.changed?(nil, :global_slot, 1)
 end
 
-# pending? is true only until the first key is recorded, so a reader can tell the opening read of a fresh (or
-# reset) cursor from a later move. reset re-arms it. This is what lets the menu readers queue the opening line.
+# pending? is true until a fresh or reset cursor records its first key, telling the opening read from later moves.
 Suite.define("cursor: pending? marks the first read of a fresh or reset cursor") do
   holder = Object.new
   truthy "a fresh slot is pending", PokeAccess::Cursor.pending?(holder, :p)
@@ -57,10 +50,8 @@ Suite.define("cursor: pending? marks the first read of a fresh or reset cursor")
   truthy "after reset it is pending again", PokeAccess::Cursor.pending?(holder, :p)
 end
 
-# A blank line un-burns the key: the row whose text lands a frame after the cursor (sprite not painted,
-# ivar not assigned) must eventually speak, and before this contract the key was consumed on the empty
-# frame and the row stayed mute until the cursor moved. The mute-then-back shape stays intact: a row that
-# keeps yielding blank never records anything, so returning to the previous row re-reads it.
+# A blank line does not record the key: a row whose text arrives a frame late still speaks, and coming back from a
+# row that stays blank re-reads the previous one.
 Suite.define("cursor: a blank line does not consume the key") do
   holder = Object.new
   late = nil
@@ -77,10 +68,8 @@ Suite.define("cursor: a blank line does not consume the key") do
   spoke "and coming back from it re-reads the previous row", /back/
 end
 
-# announce's first_interrupt: the opening read of a fresh cursor is queued (interrupt false) so it does not
-# cut a title/question spoken just before, while every later move interrupts (true). This is the exact
-# Window_DrawableCommand pattern, now owned by Cursor instead of a per-reader "seen" ivar. The plain 4-arg
-# announce is unchanged: with first_interrupt nil, every read uses the same interrupt value.
+# announce's first_interrupt is the interrupt of a fresh cursor's opening read (false queues it); later moves, and
+# every read when it is nil, use the plain interrupt.
 Suite.define("cursor: first_interrupt queues the opening read, interrupts later moves") do
   holder = Object.new
   PokeAccess::Cursor.announce(holder, :cf, 0, true, false) { "first" }

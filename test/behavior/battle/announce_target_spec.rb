@@ -1,10 +1,5 @@
-# announce_target (gen-6 double battles): while choosing a move's target, the highlighted battler is read
-# as name + side (your pokemon / ally / foe). The side is relative to the battler that is CHOOSING, not to
-# slot 0: in gen-6 the player controls slots 0 and 2, and when slot 2 chooses a UserOrPartner move it can
-# auto-target itself (index 2) or its partner (index 0). Labelling by a hardcoded slot 0 would then call the
-# chooser "ally" and its partner "your pokemon". The chooser is recovered from the fight window whose battler
-# pbChooseTarget set (cw.battler). Stubs supply only what the reader touches: a battler (name/pokemon/index),
-# a fight window exposing that battler, and a scene holding @battle (doublebattle + battlers) and @sprites.
+# announce_target (gen-6 doubles): the highlighted battler by name and side, the side relative to the chooser that
+# pbChooseTarget put on the fight window (cw.battler), or to slot 0 when there is none.
 
 class TargetBattler
   attr_accessor :name, :pokemon, :index
@@ -23,8 +18,7 @@ class TargetFightWindow
 end
 
 class TargetScene
-  # A gen-6 PokeBattle_Scene stand-in: holds @battle (doublebattle + battlers) and @sprites (fightwindow).
-  # param chooser the battler placed on the fight window, or nil to leave the window without one
+  # A gen-6 PokeBattle_Scene stand-in; chooser is the battler on the fight window, or nil for no fight window.
   def initialize(battlers, chooser)
     @battle = TargetBattle.new(battlers)
     @sprites = {}
@@ -106,6 +100,16 @@ Suite.define("battle: with no fight window the reader falls back to the slot-0 a
   PokeAccess::Battle.announce_target(scene, 2)
   spoke "index 2 defaults to ally when the chooser cannot be read",
         /#{Regexp.escape(PokeAccess::I18n.t(:bt_target_ally))}/
+end
+
+Suite.define("battle: the chooser pbChooseTarget was called for wins over a fight window without a battler") do
+  field = target_field
+  scene = TargetScene.new(field, nil)
+  scene.instance_variable_set(:@access_target_chooser, 2)
+  PokeAccess::Battle.announce_target(scene, -1)
+  PokeAccess::Battle.announce_target(scene, 0)
+  spoke "slot 0 is the partner of the slot-2 chooser", /#{Regexp.escape(PokeAccess::I18n.t(:bt_target_ally))}/
+  not_spoke "not the chooser itself", /#{Regexp.escape(PokeAccess::I18n.t(:bt_target_self))}/
 end
 
 Suite.define("battle: an empty highlighted slot reads the empty-slot label") do

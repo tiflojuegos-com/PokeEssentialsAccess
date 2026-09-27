@@ -1,16 +1,5 @@
-# The game's own bump -- "bump" in the gen-6 era, "Player bump" from v18 on -- filtered at pbSEPlay, the one
-# function every engine plays it through, so a push against a wall gives ONE bump. Pinned here is the rule
-# that keeps it exactly one, never zero and never two: the game's bump is swallowed when the mod's wall cue
-# is about to answer for the push (on the map with the mod on, its menu shut, no event or message holding
-# the player, a direction held against an impassable tile and the setting not asking the game's back), or
-# has just answered it (a cue that was heard, within its cooldown plus SAME_PUSH, towards the same wall,
-# with the push still on or only just let go). Anything else plays.
-#
-# The name alone is not enough: sixty-two places across the fifteen games play this file and only
-# Game_Player's are the wall. Relict's autosurf bumps at the water's edge, on the map and outside any menu.
-# The team photo of Anil and Royal bumps at the edge of its camera and Royal's snake game on its countdown,
-# both run by an event with an arrow held, where the mod's cue never plays; with anything solid ahead of the
-# player (the photo turns the player to face down), the wall test alone swallowed those bumps.
+# The game's own bump ("bump" in gen-6, "Player bump" from v18), filtered at pbSEPlay: swallowed while the mod's wall
+# cue answers the push or just did (a heard cue, within its cooldown plus SAME_PUSH, same wall); any other bump plays.
 
 # Lets a spec dictate what direction is held. Transparent while nil, so nothing else in the run sees it.
 $pa_spec_dir4 = nil
@@ -21,9 +10,8 @@ class << Input
   end
 end
 
-# Runs the block in the state a wall bump happens in -- on the map, out of menus, a direction held, standing
-# still, the tile ahead impassable unless the caller asks otherwise -- with a fresh sound log, and restores
-# everything it touched.
+# Runs the block in a wall bump's state (on the map, out of menus, a direction held, the tile ahead impassable unless
+# blocked is false) with a fresh sound log, and restores everything it touched.
 def with_walk_state(blocked = true)
   cfg = PokeAccess::Config
   sp = PokeAccess::Spatial

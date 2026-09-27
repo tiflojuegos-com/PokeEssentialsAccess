@@ -1,17 +1,7 @@
-# Triple Triad hand and board reading (core/field/minigame_text). The minigame ships in all thirteen games
-# with the same scene ivars, so a mistake here is thirteen games wrong at once -- and it had no coverage.
-#
-# What this pins: @cardIndexes holds SPRITE SLOTS, not species. The game pushes one entry per card in
-# creation order and deletes the entry when a card is played, so a hand position stops matching its slot as
-# soon as one card leaves the hand. The species lives in @playerCards at that slot -- the game itself does
-# TriadCard.new(@playerCards[spriteIndex]) -- and feeding the slot straight to the card builder names
-# whatever species shares that number, confidently and with four made-up side values.
-#
-# Input.repeat? is false under the stubs, but start_hand leaves @last nil, so the first poll announces the
-# focused position with no keypress: that is the real path, driven end to end.
+# Triple Triad hand and board reading (core/field/minigame_text). @cardIndexes holds sprite slots in hand order, not
+# species: the card is @playerCards at that slot. The first poll after start_hand reads the focused card with no key.
 
-# A stand-in for the game's TriadScene. slots = @cardIndexes (sprite slots in hand order), cards =
-# @playerCards indexed BY SLOT, so the two deliberately disagree.
+# A TriadScene stand-in: slots = @cardIndexes (sprite slots in hand order), cards = @playerCards by slot.
 def triad_hand(slots, cards)
   s = Object.new
   s.instance_variable_set(:@cardIndexes, slots)
@@ -104,10 +94,8 @@ Suite.define("triple triad: nesting the hand inside the board restores the outer
   end
 end
 
-# The card shop: the rows are strings the generic reader already names ("Bulbasaur - $50"), but the card
-# drawn beside them -- the four side numbers, which is the whole basis for the purchase -- is a bitmap. The
-# loop redraws it whenever the focus lands on a different species, so the card handed to createBitmap is the
-# focused one. Outside the shop that same call draws the board and both hands, and must stay silent.
+# The card shop reads the card createBitmap draws beside the focused row, its four sides, once per species; outside
+# the shop the same call stays silent.
 Suite.define("triple triad: the shop reads the card beside the row, and nothing outside the shop") do
   SpeakCapture.clear
   TriadCard.new(4).createBitmap(1)
@@ -132,4 +120,123 @@ Suite.define("triple triad: the shop reads the card beside the row, and nothing 
   pbSellTriads
   spoke "selling reads the same way", /#{Regexp.escape(PokeAccess::I18n.t(:triad_sides, :n => 5, :e => 8, :s => 10, :w => 2))}/
   $triad_shop_script = nil
+end
+
+# A taken square names its owner and card; the opponent's move is said queued, the score it changed queued behind it,
+# and a change from the player's own move interrupts.
+Suite.define("triple triad: a taken square names its card, and the opponent's move is said") do
+  tt = PokeAccess::TripleTriad
+  t = PokeAccess::I18n
+  square = Struct.new(:owner, :card).new(2, TriadCard.new(4))
+  bt = Object.new
+  bt.instance_variable_set(:@sq, square)
+  def bt.isOccupied?(_x, _y); true; end
+  def bt.getOwner(_x, _y); 2; end
+  def bt.getPanel(_x, _y); @sq; end
+  line = tt.cell_text(bt, 1, 0)
+  eq "the square, its owner and the card on it",
+     line, "#{t.t(:triad_cell, :row => 1, :col => 2)}, #{t.t(:triad_theirs)}, #{tt.card_text(4)}"
+
+  SpeakCapture.clear
+  tt.opponent_played(TriadCard.new(4), [2, 1])
+  eq "the opponent's card and where it landed, queued",
+     SpeakCapture.log, [[t.t(:triad_foe_plays, :card => tt.card_text(4), :row => 2, :col => 3), false]]
+
+  owners = [2, 0, 0, 0]
+  duel = Object.new
+  duel.instance_variable_set(:@o, owners)
+  def duel.width; 2; end
+  def duel.height; 2; end
+  def duel.board; @o.map { |w| Struct.new(:owner).new(w) }; end
+  def duel.countUnplayedCards; false; end
+  scene = Object.new
+  scene.instance_variable_set(:@battle, duel)
+  SpeakCapture.clear
+  tt.opponent_played(TriadCard.new(4), [0, 0])
+  tt.score(scene)
+  eq "the score the opponent's move changed follows it, queued", SpeakCapture.log,
+     [[t.t(:triad_foe_plays, :card => tt.card_text(4), :row => 1, :col => 1), false],
+      [t.t(:triad_score, :you => 0, :foe => 1), false]]
+  SpeakCapture.clear
+  owners[1] = 1
+  tt.score(scene)
+  eq "and the next change, from the player's own move, interrupts", SpeakCapture.log,
+     [[t.t(:triad_score, :you => 1, :foe => 1), true]]
+end
+
+# The rival's move and the score it changed are queued and the game goes straight from them into the player's
+# next turn, so the first card that loop focuses queues behind them too; only a key the player presses interrupts.
+Suite.define("triple triad: the next turn's first card waits for the rival's move and the score") do
+  tt = PokeAccess::TripleTriad
+  scene = triad_hand([0, 1], [11, 22])
+  SpeakCapture.clear
+  tt.opponent_played(TriadCard.new(4), [0, 0])
+  tt.score(scene)
+  tt.start_hand(scene)
+  begin
+    tt.poll
+    eq "the rival's move, then the hand's first card, both queued", SpeakCapture.log.map { |l| l[1] }, [false, false]
+    SpeakCapture.clear
+    Input.singleton_class.send(:alias_method, :triad_repeat, :repeat?)
+    Input.define_singleton_method(:repeat?) { |k| k == Input::DOWN }
+    tt.poll
+    eq "a card reached with a key interrupts", SpeakCapture.log, [[tt.card_text(22), true]]
+  ensure
+    if Input.singleton_class.method_defined?(:triad_repeat)
+      Input.singleton_class.send(:alias_method, :repeat?, :triad_repeat)
+      Input.singleton_class.send(:remove_method, :triad_repeat)
+    end
+    tt.stop
+  end
+
+  tt.start_hand(scene)
+  tt.start_opponent(scene)
+  tt.stop_opponent
+  SpeakCapture.clear
+  tt.poll
+  eq "closing the rival's hand puts the cursor back on the first card, which answers that key",
+     SpeakCapture.log, [[tt.card_text(11), true]]
+  tt.stop
+end
+
+# A card says its type after the species; under the "elements" rule a free square says its element (-1 is none).
+Suite.define("triple triad: a card says its type, and a free square its element under the elements rule") do
+  tt = PokeAccess::TripleTriad
+  t = PokeAccess::I18n
+  truthy "the card line names the type right after the species",
+         tt.card_text(4).to_s.start_with?("#{PokeAccess::Data.species_name(4)}, #{t.t(:mv_type, :t => PBTypes.getName(1))}, ")
+  squares = [Struct.new(:type).new(2), Struct.new(:type).new(-1)]
+  bt = Object.new
+  bt.instance_variable_set(:@sq, squares)
+  def bt.width; 2; end
+  def bt.isOccupied?(_x, _y); false; end
+  def bt.board; @sq; end
+  eq "a free square dealt an element says it", tt.cell_text(bt, 0, 0),
+     "#{t.t(:triad_cell, :row => 1, :col => 1)}, #{t.t(:triad_free)}, #{t.t(:triad_element, :t => PBTypes.getName(2))}"
+  eq "one with none (gen-6 marks it -1) is only free", tt.cell_text(bt, 1, 0),
+     "#{t.t(:triad_cell, :row => 1, :col => 2)}, #{t.t(:triad_free)}"
+end
+
+# The squares a move captures are named before the score; the square just played is not.
+Suite.define("triple triad: the squares a move captures are said before the score") do
+  tt = PokeAccess::TripleTriad
+  t = PokeAccess::I18n
+  owners = [2, 0, 0, 0]
+  duel = Object.new
+  duel.instance_variable_set(:@o, owners)
+  def duel.width; 2; end
+  def duel.height; 2; end
+  def duel.board; @o.map { |w| Struct.new(:owner).new(w) }; end
+  def duel.countUnplayedCards; false; end
+  scene = Object.new
+  scene.instance_variable_set(:@battle, duel)
+  SpeakCapture.clear
+  tt.score(scene)
+  eq "the first count of a duel has nothing to compare with", SpeakCapture.lines, [t.t(:triad_score, :you => 0, :foe => 1)]
+  owners[0] = 1
+  owners[1] = 1
+  SpeakCapture.clear
+  tt.score(scene)
+  eq "the square that changed colour is named, the one just played is not", SpeakCapture.lines,
+     ["#{t.t(:triad_captures, :list => t.t(:triad_cell, :row => 1, :col => 1))}. #{t.t(:triad_score, :you => 2, :foe => 0)}"]
 end

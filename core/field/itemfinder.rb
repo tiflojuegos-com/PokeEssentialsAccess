@@ -1,6 +1,5 @@
 module PokeAccess
-  # The Itemfinder/Dowsing Machine only turns the player sprite toward the nearest hidden item, so a
-  # blind player gets no direction. pbClosestHiddenItem returns that event; these announce its direction.
+  # Itemfinder/Dowsing Machine: the direction and distance to the hidden item pbClosestHiddenItem returns.
 
   # The spoken direction and step count to a hidden-item event, or "underfoot", or nil.
   def self.hidden_item_text(event)
@@ -20,5 +19,5 @@ module PokeAccess
   end
 end
 
-# pbClosestHiddenItem is a top-level method in both engines; read its result (the closest item) after the call.
+# pbClosestHiddenItem (top-level in both engines): announces the closest hidden item it returns.
 PokeAccess::Hooks.wrap_global("pbClosestHiddenItem", "hook_itemfinder", :after) { |_args, r| PokeAccess.say_hidden_item(r) }

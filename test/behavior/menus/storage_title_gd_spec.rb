@@ -1,6 +1,5 @@
-# The modern half of storage_title_spec.rb: the class name every v18-and-later game gives the item store,
-# ItemStorage_Scene. This is the spelling the capture hook was missing -- anil, awakening, emerald, Fire Ash,
-# both Infinite Fusions, Relict and Royal all declare it -- so this file is the one that would have failed.
+# The modern half of storage_title_spec.rb: ItemStorage_Scene, the item store's class in the v18-and-later games,
+# speaks its title too.
 Suite.define("storage: the modern item store speaks its title too") do
   SpeakCapture.clear
   WithdrawItemScene.new("Withdraw\nItem").pbStartScene

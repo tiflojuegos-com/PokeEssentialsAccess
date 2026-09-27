@@ -1,15 +1,5 @@
-# Every class the mod hooks by name exists in at least one surveyed game.
-#
-# A hook is attached with a STRING, so a typo is not a NameError -- it binds nothing, logs nothing and the
-# screen is simply silent. Nothing saw that: coupling_spec crosses names against the EXCLUSIVE census, so a
-# name defined by zero games has no row and is skipped; the loop census only knows after-style sites, which
-# is 198 of 260 registrations. Probed with three real typos at once (a before_hook, a SceneWatcher.reader
-# and a def_extractor) and the suite stayed at 0 fail.
-#
-# Deliberately NOT a check that the METHOD exists too: cross-game method variance is the norm here and
-# :optional exists for it, so the method question belongs to the census that already asks it per game. This
-# one asks the cheaper question that has exactly one right answer -- does anything, anywhere, answer to this
-# name at all?
+# Every class the mod hooks by name (a string, so a typo binds nothing silently) exists in at least one surveyed
+# game, per all_classes.txt; whether the method exists is left to the per-game censuses.
 Suite.define("static: every class the mod hooks by name exists in some game") do
   root = File.expand_path("../..", File.dirname(__FILE__))
 
@@ -26,9 +16,11 @@ Suite.define("static: every class the mod hooks by name exists in some game") do
   MULTI = /\bscene_classes\(([^)]*)\)/
 
   seen = {}
+  own = {}
   %w[core games plugins].each do |dir|
     Dir.glob(File.join(root, dir, "**", "*.rb")).sort.each do |f|
       src = File.read(f).gsub(/^\s*#.*/, "")
+      src.scan(/^\s*module ([A-Z][A-Za-z0-9_]*)/) { |m| own[m[0]] = true }
       rel = f.sub(root + "/", "").sub(root + "\\", "")
       FORMS.each { |re| src.scan(re) { |m| (seen[m[0]] ||= []).push(rel) } }
       src.scan(MULTI) do |m|
@@ -38,26 +30,23 @@ Suite.define("static: every class the mod hooks by name exists in some game") do
   end
   truthy "hooked class names found (#{seen.length})", seen.length > 80
 
-  # The last segment is what a decompiled `class` line carries, so that is what the census is keyed by.
-  ghosts = seen.keys.sort.reject { |c| census[c.split("::").last] }
+  ghosts = seen.keys.sort.reject do |c|
+    c.index("PokeAccess::") == 0 ? (PokeAccess.const_at(c) || own[c.split("::").last]) : census[c.split("::").last]
+  end
   eq "no hook names a class no game defines", ghosts.map { |c| "#{c} (#{seen[c].uniq.first})" }, []
 end
 
-# The committed censuses were built from all sixteen sources.
-#
-# Regenerate from a tree without the sibling pokemon-essentials clone and the generators do not complain:
-# they just survey thirteen and write a thinner file, and every check that reads it gets quieter without
-# saying so. It happened during an audit -- no-dump rows went from 4 to 15 and only a tight ceiling caught
-# it. Three of the files already stamp the source count in their header and nobody read it; loop_census now
-# stamps one too.
-Suite.define("static: every census was built from all sixteen sources") do
+# Every committed census was built from all twenty-two sources (a run without the vanilla tree, or without the loose
+# scripts of Reborn, Rejuvenation and Desolation or the Insurgence, Uranium and Soulstones dumps copied into
+# decompiled Scripts, surveys fewer, silently).
+Suite.define("static: every census was built from all twenty-two sources") do
   dir = File.dirname(__FILE__)
   wrong = []
   %w[ivar_census.txt fangame_classes.txt plugin_census.txt all_classes.txt loop_census.txt
      arity_census.txt].each do |f|
     head = File.read(File.join(dir, f)).split("\n").select { |l| l =~ /\A#/ }.join(" ")
     n = (head[/surveyed (?:profiles|games|sources) \((\d+)\)/, 1] || "none").to_s
-    wrong.push("#{f}: #{n}") unless n == "16"
+    wrong.push("#{f}: #{n}") unless n == "22"
   end
-  eq "each census header says 16", wrong, []
+  eq "each census header says 22", wrong, []
 end

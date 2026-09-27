@@ -1,12 +1,8 @@
 module PokeAccess
-  # Shared numeric formatting for the pokedex readers. The dex page a battle opens on a new capture needs
-  # no hook here: pbShowPokedex lands in a scene a reader already covers on every game (drawPage on the
-  # modern family, pbChangeToDexEntry on gen-6), and a pre-read from the battle side spoke the same entry
-  # twice with the first copy cut off.
+  # Shared numeric formatting for the pokedex readers. A capture's dex page needs no battle-side hook: the dex
+  # scene's readers already say it.
   module Pokedex
-    # Formats a tenth-units integer (decimetres/hectograms) as one decimal, with the separator the active
-    # language declares (lang key decimal_sep: comma in Spanish, point in English) rather than one fixed per
-    # engine. Shared by every dex height/weight reader.
+    # Formats a tenth-units integer (decimetres, hectograms) as one decimal, with the language's decimal_sep.
     def self.fmt_dec(v)
       fmt_float(v / 10.0)
     rescue StandardError

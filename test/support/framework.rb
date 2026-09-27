@@ -1,6 +1,5 @@
-# Tiny test framework: a spec registers a named Suite (a block of assertions); the runner executes each
-# suite under a fresh reset and tallies pass/fail with the failing label, suite and got/want for tracing.
-# No external gem -- the project avoids dependencies, and this keeps full control of the CI output format.
+# Tiny test framework: a spec registers a named Suite (a block of assertions); the runner runs each under a fresh
+# reset and tallies pass/fail, keeping each failure's suite, label and got/want.
 module Suite
   @suites = []
 

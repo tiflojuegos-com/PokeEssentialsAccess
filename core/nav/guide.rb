@@ -1,23 +1,21 @@
 module PokeAccess
-  # Locator part 4 of 4: the two guides toward the selected target, fed by one route. The CANE (Shift+I) is
-  # a panned/pitched chime on a timer pointing at the next step; the STEP guide (Ctrl+I) speaks the route one
-  # leg at a time. The route is computed once by A* and CONSUMED as the player walks it (recomputed on
-  # deviation, target change or a freshness check). Both may run at once and share the route, the "no route"
-  # latch and the end of the journey.
+  # Locator part 4 of 4: the two guides toward the selected target, sharing one route. The cane (Shift+I) chimes
+  # toward the next step; the step guide (Ctrl+I) speaks the route leg by leg. The route is searched once and
+  # consumed as the player walks it.
   module Locator
-    # rpg direction code => its localization key (for the "jump <dir>" cue).
+    # RPG direction code => its localization key.
     DIR_NAMES = { 8 => :dir_up, 2 => :dir_down, 4 => :dir_left, 6 => :dir_right }
 
     # Manhattan distance (tiles) over which the guide chime fades to its quietest; nearer targets play louder.
     GUIDE_FALLOFF_TILES = 24.0
-    # Minimum seconds between forced "next step blocked" recomputes, so walking corners (where path[0] briefly
-    # faces a wall mid-step) does not trigger a per-tick double A*. The normal per-tick refresh is unaffected.
+    # Minimum seconds between forced recomputes of a route whose next step is blocked (it briefly is, at corners).
     RECHECK_BLOCKED_SEC = 0.5
+    # Flat chime per direction (one sound pre-panned) and its pitch before the guide tone: high ahead, low behind.
+    CUE_FILES = { 4 => "pa_guide_l", 6 => "pa_guide_r" }
+    CUE_PITCH = { 8 => 140, 2 => 70 }
 
-    # Seconds between guide chimes, from guide_freq (higher = more frequent), paced in real time. The chime
-    # spaces out with distance so a far target does not "gallop": at the target tile it is the configured
-    # interval, growing linearly up to 2x at GUIDE_FALLOFF_TILES (24) or beyond. Close stays responsive,
-    # far stays calm but still audible. param dist manhattan distance to the target (nil = no scaling)
+    # Seconds between guide chimes, from guide_freq; it grows linearly with the Manhattan distance dist, up to twice
+    # as long at GUIDE_FALLOFF_TILES or beyond (nil dist: no scaling).
     def self.guide_interval(dist = nil)
       base = PokeAccess.freq_to_seconds((PokeAccess::Config.guide_freq rescue 55))
       return base if dist.nil?
@@ -26,7 +24,7 @@ module PokeAccess
       base * (1.0 + f)
     end
 
-    # Seconds before a forced fresh A* (bounds staleness if the map changes mid-route), from guide_refresh.
+    # Seconds a cached route is trusted before it is replayed to check it still holds, from guide_refresh.
     def self.guide_refresh_seconds
       s = (PokeAccess::Config.guide_refresh rescue 4).to_i
       s <= 0 ? 4 : s
@@ -42,8 +40,7 @@ module PokeAccess
       @guide_noroute = false
     end
 
-    # Starts the step guide toward the current target when its auto setting is enabled. Silent: the target
-    # was just announced by whatever selected it, and the first leg follows on the next frame anyway.
+    # Silently starts the step guide toward the current target when auto_steps is on; the first leg follows.
     def self.auto_steps_on
       return unless (PokeAccess::Config.auto_steps rescue false)
       return unless @target
@@ -66,12 +63,12 @@ module PokeAccess
         @guide_noroute = nil
         PokeAccess.speak(PokeAccess::I18n.t(:loc_guide_to, :name => target_name(@target)), true)
       else
+        stop_held_key_tone
         PokeAccess.speak(PokeAccess::I18n.t(:loc_guide_off), true)
       end
     end
 
-    # Toggles the step-by-step guide (Ctrl+I): speaks the leg of the route being walked now and the next
-    # one as each is finished. The spoken counterpart of the cane, and independent of it.
+    # Toggles the step guide (Ctrl+I): speaks the leg being walked, and each next one as the last is finished.
     def self.toggle_steps
       @steps = !@steps
       if @steps
@@ -96,27 +93,39 @@ module PokeAccess
       @steps_leg = nil
     end
 
-    # Ends both guides at once and says why. Arrival and a lost target end the JOURNEY, not one mode of
-    # travelling it: with the cane and the step guide both running, each would otherwise reach the same
-    # conclusion on the same frame and the player would hear it twice.
+    # Ends both guides at once and says why (key): arrival and a lost target end the journey, said once.
     def self.stop_guides(key)
       @guide = false
       @steps = false
+      @hold_said = nil
+      @held_ahead = false
+      stop_held_key_tone
       forget_steps
       PokeAccess.speak(PokeAccess::I18n.t(key), true)
     end
 
-    # The straight-line direction toward the target, used only when A* cannot route. Prefers a WALKABLE
-    # next tile so the chime leads around a wall, not into it; keeps the dominant direction only if
-    # neither axis is walkable yet (e.g. deep water before surfing).
+    # True while an ice slide carries the player: the engine's flag (sliding up to v20, ice_sliding in v21), or the
+    # frame they step onto ice before it is set. Both guides hold meanwhile: the search packs the run as one step.
+    def self.sliding?
+      g = $PokemonGlobal
+      return true if g && (((g.sliding rescue false) || (g.ice_sliding rescue false)) ? true : false)
+      return false unless $game_player
+      return false unless ($game_player.moving? rescue false)
+      (PokeAccess::Terrain.ice_at?($game_player.x, $game_player.y) rescue false)
+    rescue StandardError
+      false
+    end
+
+    # The straight-line direction toward ev when no route is found: the dominant axis, else the other, whichever is
+    # walkable, then whichever is surfable water; 0 when neither.
     def self.straight_dir(ev)
       px = $game_player.x; py = $game_player.y
       dx = ev.x - px; dy = ev.y - py
       horiz = dx == 0 ? 0 : (dx < 0 ? 4 : 6)
       vert  = dy == 0 ? 0 : (dy < 0 ? 8 : 2)
       primary, secondary = (dx.abs >= dy.abs) ? [horiz, vert] : [vert, horiz]
-      return primary if primary != 0 && ($game_player.passable?(px, py, primary) rescue false)
-      return secondary if secondary != 0 && ($game_player.passable?(px, py, secondary) rescue false)
+      return primary if primary != 0 && PokeAccess::Pathfinder.player_passable?(px, py, primary)
+      return secondary if secondary != 0 && PokeAccess::Pathfinder.player_passable?(px, py, secondary)
       return primary if primary != 0 && surfable_ahead?(px, py, primary)
       return secondary if secondary != 0 && surfable_ahead?(px, py, secondary)
       0
@@ -124,46 +133,55 @@ module PokeAccess
 
     # True if the tile one step in a direction is surfable water, so straight_dir tells water from a wall.
     def self.surfable_ahead?(px, py, dir)
-      return false if dir == 0 || $game_map.nil?
-      nx, ny = step_tile(px, py, dir)
-      PokeAccess::Terrain.surfable_at?(nx, ny)
+      dd = PokeAccess::DIR_DELTA[dir]
+      return false if dd.nil? || $game_map.nil?
+      PokeAccess::Terrain.surfable_at?(px + dd[0], py + dd[1])
     rescue StandardError
       false
     end
 
-    # Plays the panned/pitched guide chime for a step, louder as the target nears. Left/right go through
-    # the 3D engine; up/down (front/back, which HRTF cannot place on plain stereo headphones) use a pitched
-    # flat cue (high = up, low = down). The guide tone moves all four by the pair's shared factor.
+    # Plays the guide chime for a step, louder as the target nears: left and right through the 3D engine when ready,
+    # otherwise a flat cue, pitched high ahead and low behind (HRTF cannot place front and back on stereo headphones).
     def self.guide_cue(dir, dist)
       return if dir == 0
+      vol = guide_volume(dist)
+      return if vol.nil?
+      return if (PokeAccess::Audio3D.guide(dir, vol) rescue false)
+      PokeAccess::Spatial.cue(CUE_FILES[dir] || "pa_guide_c", vol, cue_pitch(dir))
+    end
+
+    # The guide's volume for a target dist tiles away, louder as it nears, or nil with its sound off.
+    def self.guide_volume(dist)
       v = PokeAccess::Config.event_volume
-      return if v.nil? || v <= 0
+      return nil if v.nil? || v <= 0
       factor = 1.0 - (dist.to_f / GUIDE_FALLOFF_TILES)
       factor = 0.35 if factor < 0.35
       factor = 1.0 if factor > 1.0
-      vol = (v * factor).to_i
-      return if (PokeAccess::Audio3D.guide(dir, vol) rescue false)
-      f = PokeAccess::Spatial.guide_tone_factor
-      case dir
-      when 4 then PokeAccess::Spatial.cue("pa_guide_l", vol, (100 * f).round)
-      when 6 then PokeAccess::Spatial.cue("pa_guide_r", vol, (100 * f).round)
-      when 8 then PokeAccess::Spatial.cue("pa_guide_c", vol, (140 * f).round)
-      else        PokeAccess::Spatial.cue("pa_guide_c", vol, (70 * f).round)
-      end
+      (v * factor).to_i
     end
 
-    # Runs each frame while guiding: chimes toward the target on a timer (the path refresh only runs on tick).
+    # The guide's pitch toward dir through the guide tone.
+    def self.cue_pitch(dir)
+      ((CUE_PITCH[dir] || 100) * PokeAccess::Spatial.guide_tone_factor).round
+    end
+
+    # Runs each frame while the cane is on. Acts on its chime timer and, without chiming, on each new tile while
+    # held-key ground lies ahead, so the held-key tone and hint come a step early.
     def self.guide_tick
       return unless @guide
       return if PokeAccess::Spatial.busy?
+      return if sliding?
       now = PokeAccess.clock
       dist = ((@target.x - $game_player.x).abs + (@target.y - $game_player.y).abs rescue nil)
-      return if @guide_time && (now - @guide_time) < guide_interval(dist)
-      @guide_time = now
+      here = [$game_player.x, $game_player.y]
+      timed = @guide_time.nil? || (now - @guide_time) >= guide_interval(dist)
+      return unless timed || (@held_ahead && @guide_tile != here)
+      @guide_time = now if timed
+      @guide_tile = here
       return stop_guides(:loc_target_lost) unless target_valid?
       refresh_guide_path
       path = @guide_path
-      if path && !path.empty? && !ledge_step?(path[0]) && !($game_player.passable?($game_player.x, $game_player.y, path[0]) rescue true)
+      if path && !path.empty? && !PokeAccess::Pathfinder.step_ok?($game_player.x, $game_player.y, path[0])
         if @blocked_recheck_at.nil? || (now - @blocked_recheck_at) >= RECHECK_BLOCKED_SEC
           @blocked_recheck_at = now
           @guide_fresh = nil
@@ -173,38 +191,43 @@ module PokeAccess
       else
         @blocked_recheck_at = nil
       end
-      return stop_guides(@guide_surf ? :loc_surf_here : :loc_arrived) if path && path.empty?
+      return arrive if path && path.empty?
       if path.nil?
+        stop_held_key_tone
+        @held_ahead = false
         unless @guide_noroute
           @guide_noroute = true
-          PokeAccess.speak(PokeAccess::I18n.t(:loc_no_route), false)
+          PokeAccess.speak(PokeAccess::Pathfinder.no_route_text(@guide_cut), false)
         end
         return noroute_cue(dist)
       end
       @guide_noroute = false
       @noroute_cue_at = nil
       announce_jump_step(path[0])
-      guide_cue(path[0], dist)
+      held = held_leg?(path[0, 1])
+      @held_ahead = held || held_leg?(path)
+      announce_held_key(held)
+      return if held_key_tone(held ? path[0] : nil, dist)
+      guide_cue(path[0], dist) if timed
     end
 
-    # Runs each map frame while the step guide is on. Driven by the player's TILE and the target's, not by
-    # a clock: the instruction only changes when one of them moves, so standing still costs one comparison
-    # a frame and walking gets the next leg on the frame the player lands on it. Shares the cane's "no
-    # route" latch so the pair never says it twice.
+    # Runs each map frame while the step guide is on; acts only when the player's or the target's tile changes.
     def self.steps_tick
       return unless @steps
+      return if PokeAccess::Spatial.busy?
+      return if sliding?
       return stop_guides(:loc_target_lost) unless target_valid?
       here = [$game_player.x, $game_player.y, @target.x, @target.y]
       return if @steps_at == here
       @steps_at = here
       refresh_guide_path
       path = @guide_path
-      return stop_guides(@guide_surf ? :loc_surf_here : :loc_arrived) if path && path.empty?
+      return arrive if path && path.empty?
       if path.nil?
         @steps_leg = nil
         unless @guide_noroute
           @guide_noroute = true
-          PokeAccess.speak(PokeAccess::I18n.t(:loc_no_route), false)
+          PokeAccess.speak(PokeAccess::Pathfinder.no_route_text(@guide_cut), false)
         end
         return
       end
@@ -212,24 +235,69 @@ module PokeAccess
       announce_leg(path)
     end
 
-    # Speaks the leg at the head of the route, but only when it is NEW information. Walking a leg merely
-    # shortens it, which the player already knows, so a falling count in the same direction passes in
-    # silence; a different direction means the leg is done, and a LONGER one in the same direction means
-    # the route was recomputed after a wrong turn -- both are worth saying.
+    # Speaks the leg at the head of the route when it is new: a new direction, or a longer count the same way (a
+    # recomputed route); a count falling as the player walks stays silent. A new leg cuts the previous one while
+    # nothing else has been said since, so wandering off the route leaves no backlog of old directions.
     def self.announce_leg(path)
       leg = PokeAccess::Pathfinder.legs(path)[0]
       return if leg.nil?
       last = @steps_leg
       @steps_leg = leg
       return if last && last[0] == leg[0] && leg[1] <= last[1]
-      announce_jump_step(path[0])
-      PokeAccess.speak(PokeAccess::Pathfinder.leg_text(leg), false)
+      announce_jump_step(path[0], leg_on_top?)
+      text = PokeAccess::Pathfinder.leg_text(leg)
+      text = "#{text}, #{PokeAccess::I18n.t(:loc_hold_key)}" if held_leg?(path)
+      PokeAccess.speak(text, leg_on_top?)
+      @leg_seq = PokeAccess.spoken_seq
     end
 
-    # The cue for an unreachable target: still points straight at it (so the guide keeps nudging the player
-    # closer even when A* finds no route), but does NOT re-chime while standing on the same tile facing the
-    # same way -- otherwise it gallops identically in place. A move (new tile or new straight direction)
-    # speaks again. param dist manhattan distance to the target
+    # True if the last line said is the step guide's previous leg, which a newer leg may cut instead of queueing.
+    def self.leg_on_top?
+      !@leg_seq.nil? && @leg_seq == PokeAccess.spoken_seq
+    end
+
+    # True if the route's first leg, replayed as the search made it, passes ground where the key must be held down.
+    def self.held_leg?(path)
+      pf = PokeAccess::Pathfinder
+      leg = pf.legs(path)[0]
+      return false if leg.nil?
+      pts = pf.trace($game_player.x, $game_player.y, pf.bridge_level, path[0, leg[1]])
+      pts.any? { |p| pf.held_key_at?(p.x, p.y) }
+    rescue StandardError
+      false
+    end
+
+    # The cane's "keep the key held down", said once as its next step ends on such ground (held) and again only
+    # after the route has left it; with the step guide on, its leg says it instead.
+    def self.announce_held_key(held)
+      unless held
+        @held_key_said = false
+        return
+      end
+      return if @held_key_said || @steps
+      @held_key_said = true
+      PokeAccess.speak(PokeAccess::I18n.t(:loc_hold_key), false)
+    end
+
+    # The cane's held-key tone: a sustained chime toward dir while the next step is held-key ground; true if it
+    # plays, false (and stopped) with no dir or no positional engine, leaving the chime to play.
+    def self.held_key_tone(dir, dist)
+      return stop_held_key_tone if dir.nil?
+      vol = guide_volume(dist)
+      played = !vol.nil? && (PokeAccess::Audio3D.guide_hold(dir, vol, cue_pitch(dir)) rescue false)
+      return stop_held_key_tone unless played
+      @held_tone = true
+      true
+    end
+
+    # Silences the held-key tone if it sounds. Answers false: no tone plays.
+    def self.stop_held_key_tone
+      (PokeAccess::Audio3D.guide_hold(nil) rescue nil) if @held_tone
+      @held_tone = false
+      false
+    end
+
+    # The chime for an unreachable target: straight toward it, once per tile and direction.
     def self.noroute_cue(dist)
       dir = straight_dir(@target)
       here = [$game_player.x, $game_player.y, dir] rescue nil
@@ -238,132 +306,158 @@ module PokeAccess
       guide_cue(dir, dist)
     end
 
-    # True if the next guide step is a ledge hop (the faced tile is a ledge), not a normal walk.
-    def self.ledge_step?(d)
+    # True if the next guide step is a jump the player walks into: a ledge, or an event that hops them over
+    # what it stands on (a hedge, a gap).
+    def self.jump_step?(d)
       return false if d.nil? || d == 0 || $game_map.nil? || $game_player.nil?
-      fx, fy = step_tile($game_player.x, $game_player.y, d)
-      PokeAccess::Terrain.ledge_at?(fx, fy)
-    rescue StandardError
-      false
+      PokeAccess::Pathfinder.jump_step?($game_player.x, $game_player.y, d)
     end
 
-    # Drops the remembered jump tile (map change or guide shutdown), so a fresh map cannot inherit it.
+    # Drops the remembered jump tile and held-key hint and stops the held-key tone; runs on a map change.
     def self.forget_jump
       @jump_at = nil
+      @held_key_said = false
+      @held_ahead = false
+      stop_held_key_tone
     end
 
-    # Speaks "jump <dir>" once when the next step is a ledge hop, so the player jumps it instead of
-    # walking into it. Tracks the tile so it is not repeated on every chime.
-    def self.announce_jump_step(d)
-      unless ledge_step?(d)
+    # Speaks "jump <dir>" when the next step is a jump, once per tile; cut interrupts what is being said.
+    def self.announce_jump_step(d, cut = false)
+      unless jump_step?(d)
         @jump_at = nil
         return
       end
       here = [$game_player.x, $game_player.y]
       return if @jump_at == here
       @jump_at = here
-      PokeAccess.speak(PokeAccess::I18n.t(:loc_jump, :dir => PokeAccess::I18n.t(DIR_NAMES[d])), false)
+      PokeAccess.speak(PokeAccess::I18n.t(:loc_jump, :dir => PokeAccess::I18n.t(DIR_NAMES[d])), cut)
     rescue StandardError
       nil
     end
 
-    # The tile reached by stepping one tile in an rpg maker direction from (x, y).
-    def self.step_tile(x, y, dir)
-      case dir
-      when 8 then [x, y - 1]
-      when 2 then [x, y + 1]
-      when 4 then [x - 1, y]
-      when 6 then [x + 1, y]
-      else [x, y]
-      end
+    # The end of the route: at a dive spot both guides end with what the action button does there; where the route
+    # stops short (a shore, an obstacle) they stay on and say what to do, once per tile; else they end on arrival.
+    def self.arrive
+      stop_held_key_tone
+      line = hold_line
+      return stop_guides(dive_key(@target) || :loc_arrived) if line.nil?
+      here = [$game_player.x, $game_player.y, line]
+      return if @hold_said == here
+      @hold_said = here
+      PokeAccess.speak(line, false)
     end
 
-    # The tile a route step actually LANDS on: one tile normally, but TWO when the step crosses a ledge --
-    # the pathfinder packs a ledge hop as a single direction whose landing is beyond the ledge tile
-    # (ledge_jump's two-tile model), so a consumer advancing one tile per step desynchronises after every
-    # hop and re-runs the full A* (the cached guide route was useless on ledge routes).
-    def self.step_span(x, y, dir)
-      fx, fy = step_tile(x, y, dir)
-      if (PokeAccess::Terrain.ledge_at?(fx, fy) rescue false)
-        [x + 2 * (fx - x), y + 2 * (fy - y)]
-      else
-        [fx, fy]
-      end
+    # What to say while holding where the route stops short of the target, or nil when it simply arrived.
+    def self.hold_line
+      return gate_line(@guide_gate) if @guide_gate
+      return nil unless @guide_surf
+      d = PokeAccess::Pathfinder.launch_dir(@target.x, @target.y)
+      return PokeAccess::I18n.t(:loc_surf_here) if d.nil?
+      PokeAccess::I18n.t(:loc_surf_toward, :dir => PokeAccess::I18n.t(DIR_NAMES[d]))
     end
 
-    # Advances the cached path to the player's tile by dropping walked steps. True if still on the path.
+    # What to do where an assisted route stops: act facing a way, dismount, push the obstacle, or use its field move
+    # (or that it is needed, when the party surely cannot use it).
+    def self.gate_line(g)
+      t = PokeAccess::I18n
+      case g[:kind]
+      when :act then return t.t(:loc_act_here, :dir => t.t(DIR_NAMES[g[:face]]))
+      when :dismount then return t.t(:loc_dismount_here, :dir => t.t(DIR_NAMES[g[:face]]))
+      end
+      dx = g[:x] - $game_player.x; dy = g[:y] - $game_player.y
+      d = dx < 0 ? 4 : (dx > 0 ? 6 : (dy < 0 ? 8 : 2))
+      return t.t(:loc_gate_push, :what => t.t(g[:label]), :dir => t.t(DIR_NAMES[d])) if g[:move].nil?
+      key = PokeAccess::FieldMoves.can?(g[:move]) == false ? :loc_gate_need : :loc_gate_use
+      t.t(key, :what => t.t(g[:label]), :dir => t.t(DIR_NAMES[d]), :move => PokeAccess::FieldMoves.name(g[:move]))
+    end
+
+    # The arrival line of a spot the player acts on (dive, surface), or nil for any other target.
+    def self.dive_key(t)
+      return nil unless t.is_a?(SurfaceTarget)
+      { :surf_dive => :loc_dive_here, :surf_surface => :loc_surface_here }[t.key]
+    end
+
+    # Drops the walked steps of the cached route, replayed as the search made it; true if the player is still on it.
+    # Partway along a run (a side staircase) nothing is dropped, as the rest replays only from where it started.
     def self.advance_guide_path(px, py)
       return false unless @guide_path && @guide_from
-      x, y = @guide_from
-      consumed = 0
-      @guide_path.each do |d|
-        break if [x, y] == [px, py]
-        x, y = step_span(x, y, d)
-        consumed += 1
-      end
-      return false unless [x, y] == [px, py]
-      @guide_path = @guide_path[consumed..-1] || []
+      return true if [px, py] == @guide_from
+      pts = PokeAccess::Pathfinder.trace(@guide_from[0], @guide_from[1], @guide_level.to_i, @guide_path)
+      i = pts.index { |p| p.x == px && p.y == py }
+      return false if i.nil?
+      return true if pts[i].mid
+      @guide_path = @guide_path[(i + 1)..-1] || []
       @guide_from = [px, py]
+      @guide_level = pts[i].level
       true
     end
 
-    # Keeps the guide path current without re-running A* every tick: computed once and consumed as the
-    # player follows it, recomputing only on deviation, target move, or freshness lapse. An UNREACHABLE
-    # result (find_path nil) is remembered by [player_xy, target_xy] so the costly A* is not re-run every
-    # tick while the player stands at the same spot for the same out-of-reach target -- the straight-line
-    # no-route cue still sounds. The memo clears the moment the player moves, the target changes, or
-    # something invalidates the pathfinder caches (a switch that opens a path ends an event -> forget_noroute).
+    # Keeps the guide route current: reused while the player follows it, else searched again, then tried to a
+    # field-move obstacle and to a shore to surf from; no route is remembered per player and target tile.
     def self.refresh_guide_path
       px = $game_player.x; py = $game_player.y
       tx = @target.x; ty = @target.y
       now = PokeAccess.clock
       return if @guide_path && @guide_target == [tx, ty] && follow_cached_path(px, py, now)
       return if @guide_path.nil? && @noroute_key == [px, py, tx, ty]
+      pf = PokeAccess::Pathfinder
+      return if @guide_path && pf.on_stair?
       @guide_from = [px, py]
+      @guide_level = pf.bridge_level
       @guide_target = [tx, ty]
       @guide_fresh = now
-      @guide_path = PokeAccess::Pathfinder.find_path(tx, ty)
+      @guide_gate = nil
+      @guide_surf = false
+      cuts = pf.cuts
+      @guide_path = dive_key(@target) ? pf.find_path_onto(tx, ty) : pf.find_path(tx, ty)
       if @guide_path.nil?
-        sp = (PokeAccess::Pathfinder.surf_launch(tx, ty) rescue nil)
-        @guide_surf = !sp.nil?
-        @guide_path = sp
-        @noroute_key = @guide_path.nil? ? [px, py, tx, ty] : nil
-      else
-        @guide_surf = false
-        @noroute_key = nil
+        g = pf.gated_path(tx, ty)
+        if g
+          @guide_path, @guide_gate = g
+        else
+          @guide_path = pf.surf_launch(tx, ty)
+          @guide_surf = !@guide_path.nil?
+        end
       end
+      @noroute_key = @guide_path.nil? ? [px, py, tx, ty] : nil
+      @guide_cut = @guide_path.nil? && pf.cuts != cuts
+      @guide_end = route_end(px, py, @guide_path)
+      @guide_epoch = pf.event_epoch
     end
 
-    # Drops the remembered "no route" result so the next refresh re-runs A* (e.g. after a switch opens a
-    # path). Called from the same event-end hook that invalidates the pathfinder caches.
-    def self.forget_noroute; @noroute_key = nil; end
+    # The tile a route from (px,py) leaves the player on, replayed as the search made it, or nil for none.
+    def self.route_end(px, py, path)
+      return nil if path.nil?
+      pf = PokeAccess::Pathfinder
+      pts = pf.trace(px, py, pf.bridge_level, path)
+      pts.empty? ? [px, py] : pts.last.tile
+    end
 
-    # Tries to reuse the cached route. True while the player is still on it and it is valid; inside the
-    # freshness window that is trusted, past it the route is re-checked with a cheap linear walkability
-    # scan (not a full A*), so guiding to a far target never pays for a periodic full search.
+    # Drops the remembered "no route" and any route held at an obstacle so the next refresh searches again; runs
+    # when an event ends, which clearing an obstacle does.
+    def self.forget_noroute
+      @noroute_key = nil
+      @guide_path = nil if @guide_gate
+    end
+
+    # True while the player is on the cached route and it holds: trusted within guide_refresh_seconds unless the
+    # event epoch changed (a cracked floor gave way), otherwise replayed to check it.
     def self.follow_cached_path(px, py, now)
       return false unless [px, py] == @guide_from || advance_guide_path(px, py)
-      return true if @guide_fresh && (now - @guide_fresh) < guide_refresh_seconds
+      epoch = PokeAccess::Pathfinder.event_epoch
+      return true if @guide_fresh && (now - @guide_fresh) < guide_refresh_seconds && @guide_epoch == epoch
       @guide_fresh = now
-      path_walkable?(px, py, @guide_path)
+      @guide_epoch = epoch
+      path_walkable?(px, py, @guide_path, @guide_end)
     end
 
-    # True if every step of a cached route is still walkable from a start tile (a ledge hop counts as
-    # walkable and advances to its LANDING, so the steps after a hop validate from the right tile),
-    # scanned linearly with no node expansion -- far cheaper than rerunning A*.
-    def self.path_walkable?(px, py, path)
+    # True if every step of a cached route can still be taken from (px, py), replayed as the search made it, and it
+    # still ends on goal when one is given.
+    def self.path_walkable?(px, py, path, goal = nil)
       return true if path.nil? || path.empty?
-      x = px; y = py
-      path.each do |d|
-        fx, fy = step_tile(x, y, d)
-        if (PokeAccess::Terrain.ledge_at?(fx, fy) rescue false)
-          x = x + 2 * (fx - x); y = y + 2 * (fy - y)
-          next
-        end
-        return false unless ($game_player.passable?(x, y, d) rescue true)
-        x = fx; y = fy
-      end
-      true
+      pf = PokeAccess::Pathfinder
+      pts = pf.trace(px, py, pf.bridge_level, path)
+      pts.length == path.length && (goal.nil? || pts.last.tile == goal)
     end
   end
 end

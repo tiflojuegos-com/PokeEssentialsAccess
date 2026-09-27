@@ -1,42 +1,28 @@
 module PokeAccess
-  # The one dedup primitive for cursor/selection reads. Almost every reader voices a focused entry the game
-  # re-asserts every frame, so it must speak only when the focus actually changes; the subtle cases -- a
-  # fresh scene must re-read the same index, a key is a tuple like [page, party_index], the text changed
-  # without the index changing -- live here once instead of once per reader.
-  #
-  # The dedup state lives ON the holder (a scene/visuals instance, or any object), under a per-reader slot
-  # symbol, so two readers on the same scene never shadow each other and the state dies with the instance.
-  # A holder of nil falls back to a module-wide table keyed by slot (for readers with no instance to hang on).
+  # The dedup primitive for cursor reads: speak a focused entry only when its key changes. The state lives on the
+  # holder (a scene or any object) under a per-reader slot, so it dies with the instance; a nil holder uses a
+  # module-wide table keyed by slot.
   module Cursor
     @global = {}
 
-    # Drops the module-wide table. Dedup normally dies with the scene it hangs on, but readers with no
-    # instance to hang on (the HUD text line, Awakening's affinity cards) land here instead, and this table
-    # outlives everything. Nothing cleared it in the running game -- only the test harness did, between
-    # suites, which is the tell that it was known to leak. Registered on :map_changed below.
+    # Drops the module-wide table, which outlives every scene; run on map change (registered below).
     def self.reset_global; @global = {}; end
 
-    # The slot with any legacy leading @ stripped (:@access_x and :access_x are the same slot), so the
-    # composed dedup ivar is always a legal instance-variable name and never raises inside the rescue.
+    # The slot with any leading @ stripped (:@access_x and :access_x are one slot), so the dedup ivar name is legal.
     def self.bare_slot(slot)
       slot.to_s.sub(/\A@+/, "").to_sym
     end
 
-    # The [bare slot, dedup ivar] pair for a slot name, built once. announce asks for it TWICE per call
-    # (pending? and then changed?) and each build costs a regexp plus a symbol interpolation, on a path that
-    # runs every frame for every active window. The table cannot grow with play: slot names are symbols
-    # written by hand in the readers, a closed set, never derived from game data.
+    # The [bare slot, dedup ivar] pair for a slot name, memoised: a per-frame path, and slot names are a closed set
+    # of hand-written symbols, so the table cannot grow with play.
     def self.slot_pair(slot)
       @pairs ||= {}
       @pairs[slot] ||= (b = bare_slot(slot); [b, :"@access_cur_#{b}"])
     end
 
-    # True (and records the new key) when key differs from what slot last held on holder; false when equal.
-    # A nil key always counts as "unchanged" so a missing value never speaks. Use this when you want to gate
-    # arbitrary work; for the speak-the-focused-entry case prefer on_change / announce.
-    # param holder the object to hang the dedup state on, or nil for the module-wide table
+    # True, recording key, when key differs from what slot last held on holder; false when equal or nil.
+    # param holder the object holding the dedup state, or nil for the module-wide table
     # param slot a symbol naming this reader's dedup state (distinct per reader on a shared holder)
-    # param key the current selection key (an index, a string, or an array tuple); nil never changes
     def self.changed?(holder, slot, key)
       return false if key.nil?
       return false if key == current(holder, slot)
@@ -46,8 +32,7 @@ module PokeAccess
       false
     end
 
-    # The key a slot holds on holder (nil when fresh or reset), and its setter: the one place that knows
-    # whether the state lives in an ivar on holder or in the module-wide table.
+    # The key a slot holds, or nil when fresh or reset: an ivar on holder, else the module-wide table; store sets it.
     def self.current(holder, slot)
       slot, ivar = slot_pair(slot)
       holder ? (holder.instance_variable_get(ivar) rescue nil) : @global[slot]
@@ -58,8 +43,7 @@ module PokeAccess
       holder ? holder.instance_variable_set(ivar, val) : (@global[slot] = val)
     end
 
-    # Clears slot on holder so the next changed?/on_change speaks even if the key is unchanged. Call when a
-    # screen (re)opens with the cursor possibly on the same entry as last time, so reopening still reads it.
+    # Clears slot on holder so the next read speaks even on the same key (a screen reopening on the same entry).
     def self.reset(holder, slot)
       slot, ivar = slot_pair(slot)
       holder ? holder.instance_variable_set(ivar, nil) : @global.delete(slot)
@@ -67,11 +51,8 @@ module PokeAccess
       nil
     end
 
-    # True when slot holds no key yet on holder -- the FIRST read of a freshly opened (or reset) cursor, as
-    # opposed to a later move between entries. Lets a reader queue the opening read (so it does not cut the
-    # lines already playing when a screen opens) while still interrupting on every move after. A reader that
-    # open-coded this kept a separate "seen" ivar beside the dedup one; this reads it off the dedup state
-    # itself, so there is nothing extra to reset. Checked BEFORE the change? call that records the key.
+    # True when slot holds no key yet (or only a retry marker): the first read of a fresh or reset cursor. Ask it
+    # before changed?, which records the key.
     def self.pending?(holder, slot)
       prev = current(holder, slot)
       prev.nil? || retry_marker?(prev)
@@ -79,9 +60,7 @@ module PokeAccess
       false
     end
 
-    # Runs the block only when key changed (see changed?), returning the block's value then, else nil. The
-    # block computes the line lazily, so an unchanged cursor does no work.
-    # return the block result on change, else nil
+    # Runs the block only when key changed (see changed?): the block's value then, else nil.
     def self.on_change(holder, slot, key)
       return nil unless changed?(holder, slot, key)
       yield
@@ -89,12 +68,9 @@ module PokeAccess
       nil
     end
 
-    # The common shape: on a cursor change, speak the line the block builds, cleaned and by default
-    # interrupting. A nil/blank line UN-BURNS the key for the next RETRY_FRAMES polls (row data that lands a
-    # few frames after the cursor); a raising block burns at once.
-    # param interrupt whether the line interrupts the queue (true) or waits (false)
-    # param first_interrupt interrupt value for the FIRST read of a fresh/reset cursor; nil uses interrupt
-    # return true when a line was spoken, else nil
+    # On a cursor change, speaks the block's line cleaned (true when spoken); a blank line retries the key for up to
+    # RETRY_FRAMES polls, since row data can land a few frames late; a raising block does not retry.
+    # param first_interrupt the interrupt for the first read of a fresh or reset cursor; nil uses interrupt
     def self.announce(holder, slot, key, interrupt = true, first_interrupt = nil)
       prev = current(holder, slot)
       first = !first_interrupt.nil? && (prev.nil? || retry_marker?(prev))
@@ -104,7 +80,7 @@ module PokeAccess
         retry_blank(holder, slot, key, prev)
         return
       end
-      PokeAccess.speak(PokeAccess.clean(t.to_s), first ? first_interrupt : interrupt)
+      PokeAccess.speak(PokeAccess.clean(t.to_s), first ? first_interrupt : interrupt, :menu)
       true
     rescue StandardError => e
       PokeAccess.log_once("cursor_#{slot}", e)
@@ -113,8 +89,7 @@ module PokeAccess
 
     RETRY_FRAMES = 20
 
-    # Leaves the slot holding a retry marker for key instead of key itself, counting the blank polls, so
-    # changed? keeps answering true for it until RETRY_FRAMES blanks in a row; then the key stays burned.
+    # Stores a retry marker for key, counting blank polls, so changed? stays true for it until RETRY_FRAMES in a row.
     def self.retry_blank(holder, slot, key, prev)
       n = (retry_marker?(prev) && prev[1] == key) ? prev[2] + 1 : 1
       store(holder, slot, [:pa_retry, key, n]) if n < RETRY_FRAMES
@@ -126,5 +101,5 @@ module PokeAccess
   end
 end
 
-# The instance-held dedup dies with its scene; the module-wide fallback needs saying so explicitly.
+# Drops the module-wide table on map change; instance-held state dies with its scene.
 PokeAccess::Caches.register(:cursor_global) { PokeAccess::Cursor.reset_global }

@@ -1,8 +1,5 @@
-# The locator's verdict cache (F-L04-001). The invalidation lives inside the key (event id + identity
-# of the live @list + kind), so these pin the load-bearing behaviours: a hit skips recomputation; a page
-# flip (new @list identity) recomputes; flipping BACK revives the old, still-correct verdict; explicit
-# clears (event end / map change) force recomputation; and the transfer_active_page_only setting is part
-# of the key, so toggling it mid-game never serves a verdict computed under the other semantics.
+# The locator's verdict cache, keyed on event id, the live @list's identity and kind: a page flip recomputes, flipping
+# back revives the old verdict, and each transfer_active_page_only mode keeps its own key.
 Suite.define("locator: verdict cache keys by page identity and honours every invalidation") do
   World.clear_events
   loc = PokeAccess::Locator

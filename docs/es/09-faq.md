@@ -221,7 +221,11 @@ spec, revisa primero el fixture contra el volcado antes de dar por bueno el spec
 Al final de la implementación, nunca a mitad:
 
 ```bash
-powershell -File installer/install.ps1 -Force
+launcher/target/x86_64-pc-windows-msvc/release/pokeessentialsaccess-launcher.exe local install --yes
 ```
+
+Es el launcher que compila `cargo build --release` en `launcher/`; el de la release sirve igual lanzado desde el
+repositorio. `local` toma el mod del repositorio; sin juego abre el selector de carpetas, y con `all` reinstala en
+todos los juegos de la lista. Las órdenes están en `launcher/commands.txt`.
 
 Reinstalar encima es actualizar: conserva `settings.ini` y las etiquetas.

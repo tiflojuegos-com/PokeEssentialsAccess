@@ -1,6 +1,5 @@
-# The ribbon cursor of the modern summary: drawSelectedRibbon runs once per cursor move over the focused
-# ribbon, with the id itself in vanilla and (filter, index, page, maxpage) under the Improved Mementos plugin,
-# whose whole filter Array handed to GameData::Ribbon.get raised into a rescue and left the page silent.
+# The modern summary's ribbon cursor: drawSelectedRibbon gets the ribbon id in vanilla, and (filter, index, page,
+# maxpage) under the Improved Mementos plugin.
 Suite.define("summary: the focused ribbon is read, in either shape of the redraw") do
   scene = PokemonSummary_Scene.new
 
@@ -14,5 +13,5 @@ Suite.define("summary: the focused ribbon is read, in either shape of the redraw
 
   SpeakCapture.clear
   scene.drawSelectedRibbon(nil)
-  silent "an empty slot says nothing"
+  eq "an empty cell says it is empty", SpeakCapture.lines, [PokeAccess::I18n.t(:rb_empty)]
 end

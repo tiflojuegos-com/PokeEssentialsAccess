@@ -1,15 +1,6 @@
-# What the soundscape actually leaves PLAYING, per sound_nav mode and while another screen owns the game.
-# Getting a mode wrong is silent in the worst sense: a player who picked "basic" to quiet the pings would
-# lose their footsteps too, and a soundscape that survives a battle or a menu talks over the reader.
-#
-# Why this suite forces engine state: the harness ships no PA3D dll. Win32API is a stub class whose #call
-# returns 0, so Audio3D.available? is TRUE (the entry points "resolve") but boot() fails on `INIT.call == 1`
-# and leaves @ready false with no channels, which every play path refuses with `return false unless @ready`.
-# The suite therefore sets @ready and the @ch handle table boot builds, and restores both. Nothing
-# native is reached either way: each entry point is one of those Win32API stubs, and the ones observed here
-# get their #call replaced by a recorder, so the asserts read exactly the arguments the real dll would take.
-# $Trainer is given a stand-in for the same reason: with it nil the harness's Spatial.busy_reason reports
-# :appearance (the character-selection screen), and tick would bail before ever reaching the nav gate.
+# What the soundscape leaves playing per sound_nav mode and while another screen owns the game. The harness has no
+# dll, so suites set @ready and the @ch table boot would build, record the native calls, and give $Trainer a
+# stand-in (with it nil, Spatial.busy_reason reports :appearance and tick bails).
 module A3DModes
   IVARS = [:@ready, :@ch, :@active, :@emitters, :@near, :@wall, :@scan_pos, :@ptime, :@ping_idx,
            :@last_ping_any, :@last_ping_pos, :@mover_time, :@gates, :@bgm_restored, :@master_sent, :@air_sent]
@@ -57,8 +48,7 @@ module A3DModes
   end
 end
 
-# The three-way setting every other module gates on. nav_full? and nav_off? are asked with a `rescue`
-# default at a dozen call sites, so their meaning for the middle value matters: "basic" is NOT off.
+# sound_nav's three values: basic is neither full nor off.
 Suite.define("audio3d: the sound_nav setting reads as three distinct modes") do
   a3d = PokeAccess::Audio3D
   PokeAccess::Config.sound_nav = :full
@@ -73,9 +63,8 @@ Suite.define("audio3d: the sound_nav setting reads as three distinct modes") do
   PokeAccess::Config.sound_nav = :full
 end
 
-# One tick per mode over the same map, reading what each left playing. This is the headline contract of the
-# whole feature: off = nothing, basic = the engine alive for steps and bumps but no emitters, full = the
-# soundscape. The three run back to back so no assert can pass by a state left over from the mode before.
+# One tick per mode over the same map: full plays the soundscape, basic keeps the engine for steps and bumps but no
+# emitters, off stops every channel.
 Suite.define("audio3d: sound_nav decides what a tick leaves playing") do
   a3d = PokeAccess::Audio3D
   saved = A3DModes.snapshot
@@ -134,11 +123,42 @@ Suite.define("audio3d: sound_nav decides what a tick leaves playing") do
   end
 end
 
-# silence_emitters is the basic-mode gate, called every frame: it must stop exactly the emitters and leave
-# the footstep/bump/guide channels alone -- those are one-shots the game re-triggers, and re-stopping them
-# every frame would cut a step short. The list of channels it stops is written out INSIDE the method, so
-# this is the assert that catches a new emitter type added to PING_DEFS and forgotten there (it would keep
-# pinging in basic mode, which is precisely the mode the player chose to stop pings).
+# The frame a step lands in moves the listener to the new tile before the footstep sounds there: tick moves it only
+# at the end of the frame, after the guides run and any guide re-planning off its route is applied.
+Suite.define("audio3d: the listener is on the new tile before the footstep is placed there") do
+  a3d = PokeAccess::Audio3D
+  sp = PokeAccess::Spatial
+  saved = A3DModes.snapshot
+  prev_trainer = $Trainer
+  log = []
+  begin
+    $Trainer = Object.new
+    chans = A3DModes.channels
+    a3d.instance_variable_set(:@ready, true)
+    a3d.instance_variable_set(:@ch, chans)
+    $game_map.load_grid(["######", "#@...#", "######"])
+    World.clear_events
+    A3DModes.record(log)
+    sp.instance_variable_set(:@last_x, 1)
+    sp.instance_variable_set(:@last_y, 1)
+    $game_player.x = 2
+    sp.tick
+    here = [2 * a3d::TILE_UNITS, 1 * a3d::TILE_UNITS]
+    lis = log.index { |c, a| c == :LIS && a == here }
+    step = log.index { |c, a| c == :SET && a[0] == chans[:step] }
+    truthy "the step is placed on the new tile", step && log[step][1][1, 2] == here
+    truthy "with the listener already moved there", lis && step && lis < step
+  ensure
+    $game_player.x = 1
+    $Trainer = prev_trainer
+    A3DModes.restore(saved)
+    World.clear_events
+    $game_map.clear_grid
+  end
+end
+
+# silence_emitters, the basic-mode gate: stops every emitter type, water and wind, and leaves the footstep, bump
+# and guide channels alone.
 Suite.define("audio3d: silence_emitters stops the emitters and spares the footsteps") do
   a3d = PokeAccess::Audio3D
   saved = A3DModes.snapshot
@@ -164,11 +184,7 @@ Suite.define("audio3d: silence_emitters stops the emitters and spares the footst
   end
 end
 
-# Steps, wall bumps and the guide are the cues that survive basic mode, so they are the last thing a player
-# who turned the pings off still navigates by. Each is placed on the tile it MEANS -- the bumped wall, the
-# next step of the route -- because that is what makes HRTF pan it to the right ear; a cue centred on the
-# player would say "something happened" and nothing more. All three also report whether they handled the
-# cue, and Spatial falls back to flat non-positional stereo when they say no, so the false cases matter too.
+# bump, guide and footstep sound on the tile they mean, and return false when declining, for Spatial's flat fallback.
 Suite.define("audio3d: the bump, guide and step cues are placed on the tile they mean") do
   a3d = PokeAccess::Audio3D
   saved = A3DModes.snapshot
@@ -192,19 +208,16 @@ Suite.define("audio3d: the bump, guide and step cues are placed on the tile they
     a3d.bump(8)
     eq "bumping north sounds north", log[0][1], [chans[:wall], 5 * u, 4 * u, 64, 1]
 
-    # Bumping a person is a different sound on a different channel: "you cannot pass" vs "someone is here".
     log.clear
     a3d.bump(4, true)
     eq "bumping into someone plays the interact cue there instead",
        log[0][1], [chans[:interact], 4 * u, 5 * u, 64, 1]
 
-    # With the engine inactive (off mode, or a menu up) the bump must decline so Spatial can fall back.
     log.clear
     a3d.instance_variable_set(:@active, false)
     falsy "an inactive engine declines the bump", a3d.bump(6)
     eq "and plays nothing", log.length, 0
 
-    # The guide is explicit navigation: it answers even with the engine inactive, unlike the bump above.
     log.clear
     PokeAccess::Config.guide_distance = 3
     truthy "the guide still answers while the engine is inactive", a3d.guide(6, 70)
@@ -229,10 +242,7 @@ Suite.define("audio3d: the bump, guide and step cues are placed on the tile they
   end
 end
 
-# Another screen owning the game (a message box, a menu, a battle) must mute the whole soundscape: the
-# looping channels would otherwise play under the screen reader for the entire conversation. The frame
-# AFTER the message closes is deliberately NOT asserted here -- today the loops only return on the next
-# tile change, which is reported as a bug rather than pinned as a contract.
+# A message on screen stops every channel and marks the engine inactive; the frame after it closes is not asserted.
 Suite.define("audio3d: a message on screen mutes the whole soundscape") do
   a3d = PokeAccess::Audio3D
   saved = A3DModes.snapshot
@@ -259,5 +269,112 @@ Suite.define("audio3d: a message on screen mutes the whole soundscape") do
     $game_temp.message_window_showing = nil
     $Trainer = prev_trainer
     A3DModes.restore(saved)
+  end
+end
+
+# Ctrl+Alt+F8 off stops every channel and keeps it quiet; back on rebuilds the scan at once where the player stands.
+Suite.define("audio3d: switching the mod off with Ctrl+Alt+F8 silences the sonar, and on rebuilds it") do
+  a3d = PokeAccess::Audio3D
+  saved = A3DModes.snapshot
+  prev_trainer = $Trainer
+  prev_enabled = PokeAccess::Keys.instance_variable_get(:@enabled)
+  log = []
+  begin
+    $Trainer = Object.new
+    chans = A3DModes.channels
+    a3d.instance_variable_set(:@ready, true)
+    a3d.instance_variable_set(:@ch, chans)
+    a3d.instance_variable_set(:@scan_pos, nil)
+    a3d.instance_variable_set(:@ptime, {})
+    a3d.instance_variable_set(:@ping_idx, {})
+    a3d.instance_variable_set(:@last_ping_any, nil)
+    a3d.instance_variable_set(:@gates, {})
+    PokeAccess::Config.sound_nav = :full
+    $game_map.load_grid(["#########", "#@......#", "#########"])
+    World.clear_events
+    npc = World.event(:kind => :trainer, :id => 1, :x => 4, :y => 1)
+    npc.character_name = "ana"
+    A3DModes.record(log)
+
+    a3d.tick
+    eq "with the mod on, the person in the corridor pings", A3DModes.states(log, chans)[:npc], 1
+
+    log.clear
+    PokeAccess::Keys.instance_variable_set(:@enabled, false)
+    a3d.tick
+    eq "switched off, every channel is stopped", chans.keys.reject { |k| A3DModes.states(log, chans)[k] == 0 }, []
+    falsy "the engine is marked inactive", a3d.instance_variable_get(:@active)
+    truthy "the reason is counted for the diagnostic", a3d.instance_variable_get(:@gates)[:mod_off].to_i > 0
+
+    log.clear
+    a3d.tick
+    eq "and it stays quiet while the mod is off", log.select { |c, a| c == :SET && a[4] == 1 }, []
+
+    npc.x = 6
+    log.clear
+    PokeAccess::Keys.instance_variable_set(:@enabled, true)
+    a3d.tick
+    eq "switched back on, the scan is rebuilt where the player stands without a step (the person who moved " \
+       "meanwhile is where they are now)", a3d.instance_variable_get(:@emitters)[:npc], [[6, 1]]
+    eq "and the wall beside the player blows wind again", A3DModes.states(log, chans)[:wind_w], 1
+
+    log.clear
+    a3d.instance_variable_set(:@ptime, {})
+    a3d.instance_variable_set(:@last_ping_any, nil)
+    a3d.tick
+    eq "so the person pings again at the next beat of its pace", A3DModes.states(log, chans)[:npc], 1
+  ensure
+    PokeAccess::Keys.instance_variable_set(:@enabled, prev_enabled)
+    PokeAccess::Config.sound_nav = :full
+    $Trainer = prev_trainer
+    A3DModes.restore(saved)
+    World.clear_events
+    $game_map.clear_grid
+  end
+end
+
+# With route_cache on, the tick keeps the old scan during an ice slide and rescans once where it stops; with it off
+# every tile is scanned.
+Suite.define("audio3d: with the route cache on, a slide is scanned where it stops, not on every tile") do
+  a3d = PokeAccess::Audio3D
+  saved = A3DModes.snapshot
+  prev_trainer = $Trainer
+  begin
+    $Trainer = Object.new
+    chans = A3DModes.channels
+    a3d.instance_variable_set(:@ready, true)
+    a3d.instance_variable_set(:@ch, chans)
+    a3d.instance_variable_set(:@scan_pos, nil)
+    a3d.instance_variable_set(:@gates, {})
+    PokeAccess::Config.sound_nav = :full
+    PokeAccess::Config.route_cache = true
+    $game_map.load_grid(["##########", "#@.......#", "##########"])
+    World.clear_events
+    (2..6).each { |x| $game_map.set_terrain(x, 1, 12) }
+    $game_player.x = 1; $game_player.y = 1
+    a3d.tick
+    eq "standing still, the scan is where the player is", a3d.instance_variable_get(:@scan_pos)[0, 2], [1, 1]
+
+    $PokemonGlobal.sliding = true
+    [2, 3, 4].each { |x| $game_player.x = x; a3d.tick }
+    eq "while the slide carries the player the scan stays where it was", a3d.instance_variable_get(:@scan_pos)[0, 2], [1, 1]
+
+    $PokemonGlobal.sliding = false
+    $game_player.x = 7
+    a3d.tick
+    eq "and it is redone once, where the slide stops", a3d.instance_variable_get(:@scan_pos)[0, 2], [7, 1]
+
+    PokeAccess::Config.route_cache = false
+    $PokemonGlobal.sliding = true
+    $game_player.x = 3
+    a3d.tick
+    eq "with the cache off every tile of a slide is scanned", a3d.instance_variable_get(:@scan_pos)[0, 2], [3, 1]
+  ensure
+    $PokemonGlobal.sliding = false
+    PokeAccess::Config.sound_nav = :full
+    $Trainer = prev_trainer
+    A3DModes.restore(saved)
+    World.clear_events
+    $game_map.clear_grid
   end
 end

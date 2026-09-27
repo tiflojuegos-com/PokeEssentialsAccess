@@ -1,10 +1,7 @@
 require "tempfile"
 
-# Emergency-fallback provider: when NO real engine provider is registered, DataFallback (priority 0) is the
-# active one and speaks the raw id rather than going silent -- the safety net for an unrecognised engine.
-# The full harness always registers a real provider (gen-6 or modern, priority >= 10) that outranks the
-# fallback, so this can never be the active provider in-process. It is therefore exercised in an isolated
-# child Ruby that loads ONLY the data layer + the fallback, and we assert on that child's verdict.
+# With no engine provider registered, DataFallback (priority 0) answers with the raw id; the harness always has a
+# real one, so this runs in a child Ruby that loads only the data layer and the fallback.
 Suite.define("data: emergency fallback speaks the raw id") do
   root = File.expand_path("../../..", File.dirname(__FILE__))
   script = <<-RUBY
@@ -22,6 +19,8 @@ Suite.define("data: emergency fallback speaks the raw id") do
     chk.call("move_power nil", d.move_power(:TACKLE).nil?)
     chk.call("pokemon_types empty", d.pokemon_types(nil) == [])
     chk.call("species_entry id only", d.species_entry(:X) == ["X", nil, nil])
+    chk.call("species_types empty", d.species_types(:X) == [])
+    chk.call("trainer_type_name nil", d.trainer_type_name(:X).nil?)
     print(bad.empty? ? "OK" : "FAIL: " + bad.join(", "))
   RUBY
   file = Tempfile.new(["pa_fallback", ".rb"])

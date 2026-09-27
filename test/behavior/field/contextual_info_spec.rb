@@ -1,7 +1,4 @@
-# Contextual info builders (the info key targets): summary_text, pokemon_info and move_info turn a Pokemon
-# or move into a spoken line. A name-only Pokemon must NOT silence the line -- the stats and species still
-# come through -- and a move with only an id must still read its name, type, power and accuracy via the data
-# provider. Assertions match through I18n so they hold in whatever language is loaded.
+# The info key's builders. summary_text reads a Pokemon's name, level, species line and stats.
 Suite.define("info: summary_text keeps stats even on a bare Pokemon") do
   pk = Poke.build(:name => "Bulba", :species => 1, :level => 12,
                   :hp => 30, :totalhp => 44, :attack => 20, :defense => 18,
@@ -14,8 +11,7 @@ Suite.define("info: summary_text keeps stats even on a bare Pokemon") do
   match "includes the Speed stat", text, /25/
 end
 
-# pokemon_info (the at-a-glance line): name, level and HP are always present; a held item and a status add a
-# clause, while item 0 / status 0 add nothing.
+# pokemon_info, the at-a-glance line: name, level and HP; item 0 and status 0 add nothing.
 Suite.define("info: pokemon_info reads name, level and HP at a glance") do
   pk = Poke.build(:name => "Char", :level => 30, :hp => 50, :totalhp => 70,
                   :item => 0, :status => 0, :gender => nil)
@@ -25,8 +21,14 @@ Suite.define("info: pokemon_info reads name, level and HP at a glance") do
   truthy "nil Pokemon is nil", PokeAccess::Info.pokemon_info(nil).nil?
 end
 
-# move_info from an id-only move: a missing field never silences the line; the name is spoken at minimum, and
-# type / power / accuracy are pulled from the data provider (gen-6: power via PBMoveData = 40 + id).
+# The glance says the Exp. Share mark the member's panel draws.
+Suite.define("info: the glance says the Exp. Share icon the panel draws") do
+  pk = Poke.build(:name => "Pika", :level => 12)
+  pk.define_singleton_method(:expshare) { true }
+  truthy "the member holding the flag says it", PokeAccess::Info.pokemon_info(pk).include?(PokeAccess::I18n.t(:pty_expshare))
+end
+
+# move_info of an id-only move takes its name and power from the data provider (the gen-6 stub's power is 40 + id).
 Suite.define("info: move_info fills fields from the data provider") do
   move = Object.new
   def move.id; 7; end

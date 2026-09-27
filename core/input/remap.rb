@@ -1,8 +1,6 @@
 module PokeAccess
-  # Optional key remapper: tracks how long each bound key has been held and feeds that into the engine's
-  # input. Two action kinds -- base RPG Maker buttons and game extras bound to a raw virtual-key
-  # (registered via register_extra). A rebound action silences the engine's default key, except directions
-  # (kept additive so movement stays safe). Every addition is rescued, so a bug here can't take control away.
+  # Optional key remapper: tracks how long each bound key has been held and feeds it into the engine's input, for
+  # base buttons and game extras (register_extra). A rebound action silences the engine's key, except directions.
   module Remap
     REPEAT_DELAY = 15
     REPEAT_INTERVAL = 6
@@ -26,20 +24,17 @@ module PokeAccess
     ]
     DIR_CODE = { :up => 8, :down => 2, :left => 4, :right => 6 }
 
-    # The mod's OWN hotkeys, offered in the same remap list as the game's buttons but living in a different
-    # table (Config.keys) with different semantics -- see conflict? and the menu's clear step. Order is the
-    # one a player thinks in: the locator cluster first, then the readers, then the modifiers.
+    # The mod's own hotkeys (Config.keys), in the same remap list: locator keys, then readers, then modifiers.
     MOD_KEYS = [
       [:prev,   :rmk_prev],   [:next,  :rmk_next],  [:where,  :rmk_where],
       [:route,  :rmk_route],  [:info,  :rmk_info],  [:hp,     :rmk_hp],
       [:field,  :rmk_field],  [:coords, :rmk_coords], [:config, :rmk_config],
+      [:hist_prev, :rmk_hist_prev], [:hist_next, :rmk_hist_next], [:verbosity, :rmk_verbosity],
       [:shift,  :rmk_shift],  [:ctrl,  :rmk_ctrl]
     ]
 
-    # Virtual-keys the engine itself answers to. They are not ours to give away: bound to a mod action, the
-    # player would confirm a message and read the screen with the same press, and in a yes/no box that is
-    # unrecoverable. Enter/Space/Escape, the four arrows, and F8-F10 (the mod's fixed Ctrl+Alt gestures,
-    # which are deliberately NOT remappable so there is always a way back from a bad binding).
+    # Virtual-keys no action may take: Enter, Space, Escape and the arrows, which the engine answers, and F8-F10,
+    # the mod's fixed Ctrl+Alt gestures.
     RESERVED = {
       0x0D => :rmp_key_enter, 0x1B => :rmp_key_escape, 0x20 => :rmp_key_space,
       0x25 => :rmp_key_left,  0x26 => :rmp_key_up,     0x27 => :rmp_key_right, 0x28 => :rmp_key_down,
@@ -52,24 +47,21 @@ module PokeAccess
       MOD_KEYS.assoc(sym) ? true : false
     end
 
-    # What already uses this virtual-key, as an i18n key or an action symbol, or nil when it is free.
-    #
-    # ONE check for BOTH assignment paths, because the tables can collide with each other: comparing game
-    # buttons only against other game buttons lets the game's A be bound to a key the mod already owns, so
-    # that key does two things at once with nothing to warn about it. Excludes the action being assigned,
-    # so rebinding a key to itself is not a conflict.
+    # What already uses this virtual-key across the game's rebinds, the mod's keys and the game extras still on the
+    # raw key the game reads them by: a reserved key's i18n key or another action's symbol, or nil when free.
     def self.conflict(code, action)
       return nil if code.nil?
       return RESERVED[code] if RESERVED.has_key?(code)
+      binds = (PokeAccess::Config.rebinds rescue nil) || {}
       hit = nil
-      (PokeAccess::Config.rebinds rescue {}).each { |s, c| hit ||= s if c == code && s != action }
+      binds.each { |s, c| hit ||= s if c == code && s != action }
       (PokeAccess::Config.keys rescue {}).each { |s, c| hit ||= s if c == code && s != action }
+      extras.each { |s, vk, _l| hit ||= s if vk == code && s != action && binds[s].nil? }
       hit
     end
 
-    # The registry of game extras, in registration order: rows of [action symbol, default virtual-key,
-    # label]. An Array like BUTTONS and not a Hash: the rows become a navigable list in the remap menu, and a
-    # Hash iterates in bucket order under 1.8.7.
+    # The game extras as [action symbol, default virtual-key, label] rows, in registration order (an Array, since a
+    # Hash has no order under 1.8.7).
     def self.extras; @extras ||= []; end
 
     # Registers a game-specific action read by raw virtual-key, so it can be rebound from the remap menu.
@@ -79,8 +71,7 @@ module PokeAccess
       extras.push([sym, default_vk, label])
     end
 
-    # The full remap-menu action list: base buttons, game extras, and a final reset-all entry. Built on a
-    # DUP of BUTTONS, which is a constant this rebuilds from on every open of the menu.
+    # The full remap-menu list: base buttons, game extras, the mod's keys and a final reset-all entry.
     def self.buttons
       list = BUTTONS.dup
       list.concat(extras.map { |row| [row[0], nil, row[2]] })
@@ -107,10 +98,7 @@ module PokeAccess
       end
     end
 
-    # Spoken label for an action (a per-game override wins); resolved through I18n, where an unknown
-    # key returns itself. Looked up in `buttons`, the SAME list the remap menu shows, rather than in
-    # BUTTONS plus extras separately: the reset-all row lives only in that assembled list, so a split lookup
-    # misses it and the menu speaks the raw symbol while btn_reset_all sits unused in both languages.
+    # Spoken label for an action: a per-game override, else its row in buttons (the menu's own list), via I18n.
     def self.label(sym)
       row = buttons.assoc(sym)
       raw = (PokeAccess::Config.rebind_labels[sym] rescue nil) || (row ? row[2] : nil) || sym.to_s
@@ -166,18 +154,14 @@ module PokeAccess
     def self.triggered?(bi); s = sym_for_button(bi); s ? triggered_sym?(s) : false; end
     def self.repeated?(bi);  s = sym_for_button(bi); s ? repeated_sym?(s)  : false; end
 
-    # True if a non-direction base button is bound, so its hook uses only the bound key and lets the
-    # engine's default key go silent (directions are never suppressed; a missing GAKS can't lock input).
-    # True when the player has not rebound a single key, which is the case in almost every save. The five
-    # Input wrappers ask on EVERY call the game makes -- five a frame walking, six to eight per active
-    # window in a menu -- and without this each one paid two symbol lookups and a hash read to conclude
-    # nothing. An empty? on a Hash is O(1), so the common case now costs almost nothing; rebind one key and
-    # the shortcut simply stops applying, which is exactly when the full check has to run anyway.
+    # True when the player has not rebound a single key: the Input wrappers' cheap early exit.
     def self.no_rebinds?
       h = (PokeAccess::Config.rebinds rescue nil)
       h.nil? || h.empty?
     end
 
+    # True if a non-direction base button is bound, so its hook answers only the bound key (directions stay
+    # additive; without GAKS nothing is remapped).
     def self.remapped_button?(bi)
       return false unless PokeAccess::Keys::GAKS
       return false if no_rebinds?
@@ -186,11 +170,10 @@ module PokeAccess
       !(PokeAccess::Config.rebinds[s] rescue nil).nil?
     end
 
-    # The 4-direction code from bound movement keys, or 0 if none held. Asked in a fixed order: a Hash's
-    # order is not one under 1.8.7, and two rebound directions held together must resolve the same way on
-    # every engine.
+    # The order bound directions are asked in, fixed (a 1.8.7 Hash has none) so two held together resolve alike.
     DIR_ORDER = [:down, :left, :right, :up]
 
+    # The 4-direction code from bound movement keys, or 0 if none held.
     def self.dir
       sym = DIR_ORDER.detect { |s| pressed_sym?(s) }
       sym ? DIR_CODE[sym] : 0
@@ -212,12 +195,8 @@ module PokeAccess
   end
 end
 
-# Input hooks: feed our bindings into the engine's, rescued so they can never break input. Each wrapper
-# forwards *args/*rest to the original so it matches whatever signature the base uses -- La Base de Sky's
-# dir4/dir8 take an argument while vanilla Essentials' take none, so a fixed arity here crashed Sky games.
-# The five query hooks share one pattern (remapped -> only ours; else engine OR ours), so they are
-# generated from a table -- one source for a body that must never diverge between them. dir4/dir8 keep
-# their own (different) shape.
+# Input hooks feeding the bindings into the engine's: a remapped button answers only its bound key, else engine or
+# bound. Each forwards *args/*rest, since dir4/dir8 take an argument in La Base de Sky and none in vanilla.
 begin
   class << Input
     unless method_defined?(:trigger__access_orig)

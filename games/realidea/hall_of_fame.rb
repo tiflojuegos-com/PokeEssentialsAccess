@@ -1,30 +1,34 @@
-# Realidea's Hall of Fame is the BW rework layered over the FL original: the writePokemonData/writeWelcome
-# pair core hooks still exists but is never called. The living seams are moveSprite (called every frame
-# of an entrant's slide, so deduped by index; -1 is the trainer's own entrance, which has no card) and
-# writePokemonDataPC (the PC viewer's per-Pokemon painter).
+# Realidea's copy of the BW Hall of Fame lost the back key on the PC viewer's record list, which only a click on its
+# cancel button leaves: back stands for that click while the viewer's selection loop runs with no record picked.
 module PokeAccess
-  module RealideaHallOfFame
-    # The spoken card of one hall entrant, or nil.
-    def self.member_line(pk)
-      return nil unless pk
-      PokeAccess::I18n.t(:pc_slot, :name => pk.name, :level => pk.level)
+  module ReaHallOfFame
+    @pc = nil
+
+    def self.watch(scene); @pc = scene; end
+    def self.unwatch; @pc = nil; end
+
+    # True when the viewer asks whether its cancel button was clicked, on a frame back was pressed with no record
+    # picked.
+    def self.cancel?(obj)
+      scene = @pc
+      return false unless scene && obj && !PokeAccess.ivar(scene, :@selectedrecord)
+      obj.equal?(PokeAccess.sprite(scene, "cancelbuttom")) && Input.trigger?(Input::B) ? true : false
     rescue StandardError
-      nil
+      false
     end
   end
 end
 
 PokeAccess::Game.define("realidea") do
-  after("HallOfFameScene", :moveSprite, :optional => true) do |scene, _r, args|
-    i = args[0]
-    next unless i.is_a?(Integer) && i >= 0
-    entry = PokeAccess.ivar(scene, :@hallEntry)
-    PokeAccess::Cursor.announce(scene, :rea_hof_slide, i, false) do
-      PokeAccess::RealideaHallOfFame.member_line((entry[i] rescue nil))
+  around("HallOfFameScene", :pbPCSelection, :optional => true) do |s, nxt, _a|
+    PokeAccess::ReaHallOfFame.watch(s)
+    begin
+      nxt.call
+    ensure
+      PokeAccess::ReaHallOfFame.unwatch
     end
   end
-  after("HallOfFameScene", :writePokemonDataPC, :optional => true) do |_s, _r, args|
-    t = PokeAccess::RealideaHallOfFame.member_line(args[0])
-    PokeAccess.speak(t, true) if t
+  around("Game_Mouse", :leftClick?, :optional => true) do |_m, nxt, args|
+    PokeAccess::ReaHallOfFame.cancel?(args[0]) || nxt.call
   end
 end

@@ -1,11 +1,5 @@
-# The item-storage title, on the gen-6 spelling of the class (ItemStorageScene). Its twin
-# storage_title_gd_spec.rb covers the modern one (ItemStorage_Scene), which is the name eight of the
-# fourteen surveyed games use and which the capture hook did not carry: an :optional hook that binds
-# nowhere fails silently, so "Withdraw item" and "Toss item" -- the ONLY difference between the two modes,
-# same class, same window, same list -- had never been spoken in any of them.
-#
-# Driven through the real chain: the scene paints with drawTextEx, PaintCapture's wrapper notes it, and the
-# hook takes the FIRST row only, since the same opening paints the focused item's description after it.
+# The item store's title, all that tells its modes apart (gen-6 ItemStorageScene; storage_title_gd_spec.rb covers
+# ItemStorage_Scene): the first row drawTextEx paints on opening, taken through PaintCapture, and only that row.
 Suite.define("storage: opening the item store speaks its title, and only the title") do
   SpeakCapture.clear
   WithdrawItemScene.new("Guardar\nobjeto").pbStartScene

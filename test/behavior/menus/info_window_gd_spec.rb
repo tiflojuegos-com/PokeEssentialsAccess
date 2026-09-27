@@ -1,13 +1,5 @@
-# The modern half of info_window_spec.rb, and the two things only this pass can hold.
-#
-# First, the SAME header is a window in one era and painted text in the other. The gen-6 dex keeps seen,
-# owned and the list name in real windows; the modern one has no such windows at all -- its sprites are
-# background, icon, overlay, pokedex, searchbg and searchcursor -- and paints the header straight onto the
-# overlay from pbRefresh. Declaring the gen-6 keys against the modern class was a reader that could never
-# speak: right class, wrong keys, no exception, nothing said, ever.
-#
-# Second, the frame poller. The watch does nothing unless something calls tick every frame, and a spec that
-# calls tick by hand would stay green with that wiring deleted.
+# The modern half of info_window_spec.rb. The modern dex header is painted from pbRefresh, with no windows: read on
+# open and when a total changes, not on every step of the list.
 Suite.define("info window: the modern dex header is read on OPEN, without the row the cursor moves") do
   scene = PokemonPokedex_Scene.new
 
@@ -52,7 +44,7 @@ Suite.define("info window: a declared window the scene does not have is reported
   end
 end
 
-# The wiring itself: the watch is driven by the frame poller, so deleting that line must fail something.
+# The watch is driven by the frame poller.
 Suite.define("info window: the frame poller is what drives the watch") do
   iw = PokeAccess::InfoWindow
   prev_live = iw.live
@@ -69,12 +61,7 @@ Suite.define("info window: the frame poller is what drives the watch") do
   end
 end
 
-# A window the scene HIDES is not on screen, and the mod says what is on screen. The Battle Point shop is
-# the case: it hides its "In Bag" box on the Cancel row and leaves the last item's count written in it, so
-# a reader that only watched the text announced a count for a box nobody could see.
-#
-# The skip must not consume the dedup either. Screens fill their windows before showing them, and a value
-# written while hidden is the FIRST thing the player should hear once the box appears.
+# A hidden window is not read and its dedup is left alone, so a value written while hidden is said once shown.
 Suite.define("info window: a hidden window is not read, and is read the moment it is shown") do
   iw = PokeAccess::InfoWindow
   prev_live = iw.live

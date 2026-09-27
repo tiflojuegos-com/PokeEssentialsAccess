@@ -8,9 +8,10 @@ se engancha está en [03-hooks](03-hooks.md); esto es lo que va dentro del cuerp
 
 | Llamada | Fichero | Qué hace |
 |---|---|---|
-| `PokeAccess.speak(text, interrupt = true)` | `core/speech/speech.rb` | Habla por el lector activo. Colapsa espacios e ignora texto vacío. |
-| `PokeAccess.speak_clean(text, interrupt = true)` | `core/speech/speech.rb` | `speak(clean(text), interrupt)`. |
+| `PokeAccess.speak(text, interrupt = true, category = nil)` | `core/speech/speech.rb` | Habla por el lector activo y archiva la línea en el historial. Colapsa espacios e ignora texto vacío. |
+| `PokeAccess.speak_clean(text, interrupt = true, category = nil)` | `core/speech/speech.rb` | `speak(clean(text), interrupt, category)`. |
 | `PokeAccess.say_dialogue(message)` | `core/dialogue/dialogue.rb` | Diálogo de `pbMessage`: limpia, guarda la línea para la tecla de repetir, descarta la idéntica dentro de 0,5 s y habla encolado. |
+| `DialoguePages.open(win, message, letterbyletter)` | `core/dialogue/pages.rb` | Con `dialogue_pages`, toma el mensaje y lo lee página a página: cada vez que la ventana se para a esperar la tecla, dice lo que ha dibujado desde la parada anterior, cortando la página previa. Lo que no puede seguir (otra forma de ventana, texto de golpe, un mensaje dentro de otro) se deja a `say_dialogue`, y un mensaje del que no se oyó ninguna página se dice entero al cerrarse. |
 
 **Texto que viene del juego va por `speak_clean`**: los strings de Essentials llevan códigos de control que
 el lector de pantalla deletrearía. El texto que construye el mod, vía i18n, ya está limpio y va por `speak`.
@@ -19,6 +20,29 @@ el lector de pantalla deletrearía. El texto que construye el mod, vía i18n, ya
 variable de juego, convierte `\N` y `|` en espacio, y borra `\C[n]`, el resto de `\X` y `\X[..]`, las
 etiquetas `<...>` y los bytes `\x00-\x1f`. Estos últimos importan: sin quitarlos, una línea pausada no
 compara igual que su gemela normal, se escapa del dedup de `say_dialogue` y el diálogo se dice dos veces.
+
+La categoría (`:dialogue`, `:battle`, `:menu`, `:nav`, `:info`, `:system`) solo decide dónde se archiva la línea
+en el historial. Casi nunca hay que pasarla: los puntos de paso ya la llevan (el cursor de los menús y el lector de
+diálogos en sus llamadas, el localizador y las teclas de información con `Speech.as`), y lo demás se deduce del
+momento. Pásala cuando un lector hable algo que no es lo que el momento aparenta (un aviso del sistema en mitad
+de un menú).
+
+### Filas y verbosidad
+
+Una fila que se dice al moverse por un menú (un miembro del equipo, un movimiento, un objeto) no se une a mano:
+se pasan sus partes con el nivel desde el que se dicen y `Verbosity.line` decide cuáles entran con el esquema
+del jugador. Lo esencial va en `:brief`; lo que no hace falta para decidir, en `:medium` o `:full`. Las pistas de
+teclas se dicen solo si `Verbosity.hints?`, y una posición en la lista (o la página de una pantalla de varias) va
+por `Verbosity.list_entry`, `Verbosity.position` o `keep?(:positions, :medium)`. No se pierde nada: la T dice la
+ficha de lo enfocado y Ctrl+T la fila entera, que la pantalla publica con `Verbosity.info_line` o, si tiene ficha
+propia, con `Info.set_info(kind, dato, Verbosity.full_line(partes))`.
+
+```ruby
+# core/menus/menus.rb -- la fila de la Pokédex; la T y Ctrl+T dicen la fila entera
+PokeAccess::Verbosity.info_line(:dex_entry, [[num.to_s, :brief], [name.to_s, :brief], [state, :medium]])
+```
+
+Las lecturas, sus niveles y la API están en [08-referencia](08-referencia.md#verbosidad).
 
 ### El argumento `interrupt`
 
@@ -52,12 +76,12 @@ cadena vacía.
 
 | Test | Qué exige |
 |---|---|
-| `test/static/i18n_parity_spec.rb` | `I18n.parity_issues` vacío: ninguna clave presente en un idioma y ausente en otro, ninguna duplicada dentro de un fichero, y los mismos `%{var}` en ambos. |
-| `test/static/i18n_refs_spec.rb` | Que toda clave referenciada por el código exista en `lang/en.txt`. Escanea `I18n.t(:k)` y la forma corta `t(:k)` en `core/`, `games/` y `plugins/`. |
+| `test/static/i18n_parity_spec.rb` | `I18n.parity_issues` vacío: ninguna clave presente en un idioma y ausente en otro, ninguna duplicada dentro de un fichero, los mismos `%{var}` en todos (y en cada forma de plural), y las formas que pide la regla de cada idioma. |
+| `test/static/i18n_refs_spec.rb` | Que toda clave referenciada por el código exista en `lang/en.txt`, sola o por formas (`clave.one`...). Escanea `I18n.t(:k)` y la forma corta `t(:k)` en `core/`, `games/` y `plugins/`. |
 
 Las claves `__meta__` (prefijo `__`) quedan fuera de la paridad. Una familia construida dinámicamente
-(`:"chr_#{kind}"`) no se puede escanear: su prefijo se declara en `dynamic_prefixes`, dentro de
-`i18n_refs_spec.rb`. `loader/boot.rb` corre la paridad al arrancar y la registra como aviso. Los perfiles
+(`:"chr_#{kind}"`) no se puede escanear, y nada la exime (`dynamic_prefixes`, dentro de `i18n_refs_spec.rb`, sigue
+vacío a propósito): sus claves las comprueba su propio spec. `loader/boot.rb` corre la paridad al arrancar y la registra como aviso. Los perfiles
 monolingües de `games/` admiten literales; ver [05-extender](05-extender.md).
 
 ## Dedup con `Cursor`
@@ -140,10 +164,12 @@ activo es ese (`active_priority` ≤ 0), así un motor no reconocido no queda co
 | `stat_name(s)` | "Ataque" | `PBStats.getName` | `Stat#name` |
 | `status_name(st)` | ver nota | `Config.status_names[st]` | `Status#name` |
 | `pokemon_types(pk)` | `["Fuego", "Volador"]` | `type1` / `type2` | `pk.types` |
+| `species_types(id)` | `["Fuego", "Volador"]` | datos de la dex, dos bytes en el desplazamiento 8 (`pbOpenDexData`) | `Species#types` (`type1`/`type2` en v19) |
+| `trainer_type_name(id)` | "Montañero" | `PBTrainers.getName`, por número o nombre de constante | `TrainerType.try_get(id).name` |
 
 `status_name` es asimétrico: en la era GameData devuelve el texto del estado; en gen-6, la **clave i18n**
 de `Config.status_names` (`:st_burn`), que el llamante pasa por `I18n.t`; en el fallback, `nil`.
-`pokemon_types` nunca devuelve `nil`: `[]` cuando no resuelve.
+`pokemon_types` y `species_types` nunca devuelven `nil`: `[]` cuando no resuelven.
 
 `resolve` devuelve `nil` en dos casos: el dato no existe (silencio intencionado), o el provider ha lanzado
 (probable bug). El segundo se anota una vez por `(método, clase de error)` en el marcador y en

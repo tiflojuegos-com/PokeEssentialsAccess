@@ -1,9 +1,8 @@
 module PokeAccess
-  # v22 title load screen (Essentials v22: UI::LoadVisuals) and in-game save screen (UI::SaveVisuals). Both
-  # show save-slot panels from save_data ([filename, hash], hash has :player and :stats). Reads the focused
-  # title command / save slot and, for a slot, a summary (trainer, play time, dex seen) via the load_* strings.
+  # v22 load screen (UI::LoadVisuals) and save screen (UI::SaveVisuals): the focused command or save slot, with a
+  # slot's summary from save_data ([filename, hash], the hash holding :player and :stats).
   module LoadSaveV22
-    # A one-line summary of a save data hash, or the empty-slot label.
+    # A one-line summary of a save data hash, with the saved team as its icons show it, or the empty-slot label.
     def self.slot_summary(hash)
       return PokeAccess::I18n.t(:pc_empty) unless hash.is_a?(Hash)
       pl = hash[:player]
@@ -14,6 +13,8 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:load_play, :h => hm[0], :m => hm[1])) if hm
       seen = (pl.pokedex.seen_count rescue nil)
       parts.push(PokeAccess::I18n.t(:load_dex, :n => seen)) if seen
+      team = (PokeAccess::LoadPanel.team(pl) if pl)
+      parts.push(team) if team
       parts.empty? ? PokeAccess::I18n.t(:pc_empty) : parts.join(". ")
     rescue StandardError
       nil
@@ -49,14 +50,17 @@ if PokeAccess::Engine.has?("UI::LoadVisuals")
     PokeAccess.speak(t, true)
   end
 
-  # On Continue with several saves, LEFT/RIGHT cycle the slot via set_slot_index (not set_index), so the
-  # chosen save would otherwise stay silent on a destructive pick. Announce the slot number and its summary.
+  # Left/right on Continue cycle the slot (set_slot_index): its number (and total from medium) and its summary.
   PokeAccess::Hooks.after_hook("UI::LoadVisuals", :set_slot_index) do |vis, _ret, _args|
     sd   = PokeAccess.ivar(vis, :@save_data)
     slot = (vis.slot_index rescue nil)
     next unless sd && slot
     hash = (sd[slot] ? sd[slot][1] : nil)
-    pre  = PokeAccess::I18n.t(:load_slot, :n => slot + 1, :tot => sd.length)
+    pre = if PokeAccess::Verbosity.keep?(:positions, :medium)
+            PokeAccess::I18n.t(:load_slot, :n => slot + 1, :tot => sd.length)
+          else
+            PokeAccess::I18n.t(:load_slot_bare, :n => slot + 1)
+          end
     PokeAccess.speak("#{pre}. #{PokeAccess::LoadSaveV22.slot_summary(hash)}", true)
   end
 end

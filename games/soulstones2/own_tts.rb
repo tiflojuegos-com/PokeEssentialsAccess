@@ -1,6 +1,5 @@
-# This game ships a screen reader of its own (Reborn TextToSpeech, off in the shipped scripts). A player who
-# turns it on hears everything twice, and the mod cannot pick which voice to silence, so it says so once,
-# on the first map, and names the file to edit.
+# Soulstones 2 ships its own screen reader (Reborn TextToSpeech, off as shipped); with it on, the mod warns once
+# of the two voices, naming the file to edit.
 module PokeAccess
   module SS2OwnTTS
     # True while the game's own reader is switched on.
@@ -24,7 +23,5 @@ module PokeAccess
   end
 end
 
-# On the first map change, which is the earliest moment the player is listening and the mod is fully up.
-# NOT an after-hook on Scene_Map#main: that method does not return until the player leaves the map, so the
-# notice would arrive on the way out.
+# On the first map change, not after Scene_Map#main, which returns only when the player leaves the map.
 PokeAccess::Events.on(:map_changed) { PokeAccess::SS2OwnTTS.warn_once }

@@ -1,32 +1,20 @@
-# loader/preload_access.rb decides the ONE moment the whole toolkit is loaded, and nothing ever ran it: the
-# suite only compiled it. It cannot be loaded into the harness (it wraps Graphics.update and evals boot.rb),
-# so it is driven here in a child Ruby over a synthetic game folder, exactly as dump_scripts_spec drives the
-# dumper.
-#
-# What it pins is the bug that made four games mute on the run a new player makes first. The preload used to
-# give up waiting after 120 frames and load anyway. Seven gen-6 games call pbSetUpSystem at TOP LEVEL,
-# partway down their script list, and on a first run that call stops there to ask which language to play in;
-# two seconds later the mod loaded into that pause with most of the game's classes not yet defined, bound
-# almost nothing, and stayed silent for the rest of the session. The fallback must therefore wait for the
-# script list to have finished, which Main's pbCallTitle proves.
+# loader/preload_access.rb in a child Ruby over a synthetic game folder: the toolkit loads once, on the first frame
+# with $scene set or after Main's pbCallTitle exists, never while the game's scripts are still being evaluated.
 Suite.define("static: the preload waits for the game's scripts to finish before loading the toolkit") do
   require "fileutils"
   root = File.expand_path("../..", File.dirname(__FILE__))
   preload = File.join(root, "loader", "preload_access.rb")
-  truthy "the preload script is where the installer copies it from", File.file?(preload)
+  truthy "the preload script is where the launcher copies it from", File.file?(preload)
 
   base = File.join(File.dirname(__FILE__), "tmp_preload")
   FileUtils.rm_rf(base)
   FileUtils.mkdir_p(File.join(base, "accessibility", "data"))
   begin
-    # The toolkit, as far as the preload knows: a file that records that it was evaluated.
     File.open(File.join(base, "accessibility", "boot.rb"), "w") do |f|
       f.write("File.open('booted.txt', 'a') { |g| g.write(\"boot\\n\") }\n")
     end
 
-    # A game that pauses mid-boot (no $scene, script list unfinished), runs far past the fallback, and only
-    # then finishes its scripts -- which is the language-chooser sequence, frame for frame.
-    driver = File.join(base, "driver.rb")
+    driver =File.join(base, "driver.rb")
     File.open(driver, "w") do |f|
       f.write(<<-'RB')
 module Graphics
@@ -55,9 +43,7 @@ print "veces=", (File.exist?("booted.txt") ? File.read("booted.txt").split("\n")
            out.include?("es_privado=si")
     truthy "exactly once", out.include?("veces=1")
 
-    # The normal path: Main assigns $scene before the first scene runs, so the toolkit is up for the title
-    # screen without waiting for any fallback.
-    driver2 = File.join(base, "driver2.rb")
+    driver2 =File.join(base, "driver2.rb")
     File.open(driver2, "w") do |f|
       f.write(<<-'RB')
 module Graphics
@@ -75,6 +61,34 @@ print "con_scene_al_primer_frame=", (File.exist?("booted2.txt") ? "si" : "no")
     out2 = IO.popen([RbConfig.ruby, driver2, preload], :chdir => base, :err => [:child, :out]) { |io| io.read }
     truthy "with the main loop running the toolkit loads on the very first frame",
            out2.include?("con_scene_al_primer_frame=si")
+
+    driver3 = File.join(base, "driver3.rb")
+    File.open(driver3, "w") do |f|
+      f.write(<<-'RB')
+module Graphics
+  def self.update(*a); nil; end
+end
+# Rejuvenation evaluates its scripts on a thread and sets $scene before the thread ends.
+class ThreadLoader
+  @@scriptLoadThread = Thread.new { sleep 0.3 }
+  def self.awaitScripts; @@scriptLoadThread.join; @@scriptLoadThread = nil; end
+end
+load ARGV[0]
+$scene = Object.new
+Graphics.update
+print "con_el_hilo_vivo=", (File.exist?("booted3.txt") ? "si" : "no"), " "
+ThreadLoader.awaitScripts
+Graphics.update
+print "tras_el_hilo=", (File.exist?("booted3.txt") ? "si" : "no")
+      RB
+    end
+    File.open(File.join(base, "accessibility", "boot.rb"), "w") do |f|
+      f.write("File.open('booted3.txt', 'a') { |g| g.write(\"boot\\n\") }\n")
+    end
+    out3 = IO.popen([RbConfig.ruby, driver3, preload], :chdir => base, :err => [:child, :out]) { |io| io.read }
+    truthy "a game still loading its scripts on a thread waits for it, $scene set or not",
+           out3.include?("con_el_hilo_vivo=no")
+    truthy "and loads once the thread is done", out3.include?("tras_el_hilo=si")
   ensure
     FileUtils.rm_rf(base)
   end

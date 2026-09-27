@@ -1,14 +1,8 @@
-# GameData-era Essentials battle hooks (Battle::Scene), for v19-v21.1 vanilla and the Sky fork. These bind the
-# triggers specific to this engine's menus (navigation via index=, opening via setIndexAndMode, the mega and
-# shift toggles via mode=/shiftMode=) and route the spoken content through the engine-agnostic
-# PokeAccess::BattleScene reader (core/battle/scene_reader.rb), shared with v22. Each hook binds only where
-# the class/method exists, so it no-ops on gen-6 (no Battle::Scene) and never logs a false typo where a
-# method is absent. Content uses the modern GameData API (inside BattleScene).
+# Battle::Scene hooks for v19-v21.1 and the Sky fork: menu navigation and opening, messages, hp changes, ability
+# splash, mechanic toggles and level-up. The spoken content lives in PokeAccess::BattleScene, shared with v22.
 
-# Battle menu navigation (command / fight / target): index= fires on each move of the cursor (Sky fork and
-# v19-v21). On v22 vanilla it also fires ONCE when the target menu opens (cw.index = pbFirstTarget), and the
-# v22 TargetMenu#update_input hook would then re-read the same slot a frame later -- so sync that hook's
-# dedup ivar here, making index= own the open read and update_input own only real navigation (no double-read).
+# Battle menu navigation (command, fight, target) on index=. On v22 a target menu opening also sets index=, so
+# this syncs the update_input hook's dedup ivar and that hook reads only real navigation.
 PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :index=) do |menu, _r, _a|
   if defined?(::Battle::Scene::TargetMenu) && menu.is_a?(::Battle::Scene::TargetMenu)
     menu.instance_variable_set(:@access_tgt_idx, (menu.index rescue nil))
@@ -16,19 +10,15 @@ PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :index=) do |menu, _r, _
   PokeAccess::BattleScene.read_menu(menu)
 end
 
-# Battle menu opening (v21.1 vanilla and the Sky fork both use setIndexAndMode): places the initial cursor so
-# the first option is read, queued (interrupt false) so a reopening command menu does not cut the hp/turn
-# lines. Bound only where the method exists, so v22 (which opens via set_index_and_commands) records no typo.
-# setIndexAndMode assigns @mode directly and not through the mode= setter, so the mega hook below never sees
-# the fight menu open; @access_mega is primed with the opening mode (arg 1: 1=available, 0=hidden) so the
-# first real available->registered toggle is announced rather than swallowed as if it were the open.
+# Battle menu opening (setIndexAndMode, bypassing mode=): the first option, queued; @access_mega is primed with the
+# opening mode, and a button that opens available is said after the move.
 if PokeAccess::Engine.has?("Battle::Scene::MenuBase#setIndexAndMode")
   PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :setIndexAndMode) do |menu, _r, args|
-    if defined?(::Battle::Scene::FightMenu) && menu.is_a?(::Battle::Scene::FightMenu)
-      m = args[1]
-      menu.instance_variable_set(:@access_mega, m) if m == 1 || m == 2
-    end
+    fight = defined?(::Battle::Scene::FightMenu) && menu.is_a?(::Battle::Scene::FightMenu)
+    m = args[1]
+    menu.instance_variable_set(:@access_mega, m) if fight && m.is_a?(Integer)
     PokeAccess::BattleScene.read_menu(menu, false)
+    PokeAccess.speak(PokeAccess::Battle.ready_text(PokeAccess::Battle.special_action), false) if fight && m == 1
   end
 end
 
@@ -43,49 +33,44 @@ PokeAccess::Hooks.before_hook("Battle::Scene", :pbDisplayPausedMessage) do |_s, 
   PokeAccess.say_dialogue(args[0])
 end
 
-# The QUESTION of a yes/no battle prompt. pbShowCommands writes it straight into the message window instead
-# of going through pbDisplayMessage, so only the option list was read and the player heard a bare "Yes" with
-# nothing to attach it to -- "should X forget a move?", "give up?", "which box?". Before, because the
-# original is the modal loop. The gen-6 branch hooks its twin for the same reason.
+# The question of a battle prompt with options, which pbShowCommands writes straight onto the message window;
+# before, as the original is the modal loop.
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbShowCommands, :optional => true) do |_s, args|
   PokeAccess.say_dialogue(args[0])
 end
 
-# Damage and healing: the scene's pbHPChanged only fires when an animation plays, so it misses many hits.
-# The battler's pbReduceHP/pbRecoverHP run for every hp change and return the actual amount, so they are
-# the reliable place to announce it.
-PokeAccess::Hooks.after_hook("Battle::Battler", :pbReduceHP) do |battler, ret, _a|
-  PokeAccess.speak(PokeAccess::BattleScene.hp_change_text(battler, ret, true), false)
+# Damage and healing off the battler's pbReduceHP and pbRecoverHP (the scene's pbHPChanged needs an animation). The
+# loss wraps the call, as an after hook would mute a plugin's messages inside; one leaving hp no lower is not said.
+PokeAccess::Hooks.around_hook("Battle::Battler", :pbReduceHP) do |battler, nxt, _a|
+  before = (battler.hp rescue nil)
+  ret = nxt.call
+  unless before && (battler.hp rescue before) >= before
+    PokeAccess.speak(PokeAccess::BattleScene.hp_change_text(battler, ret, true), false)
+  end
+  ret
 end
 PokeAccess::Hooks.after_hook("Battle::Battler", :pbRecoverHP) do |battler, ret, _a|
   PokeAccess.speak(PokeAccess::BattleScene.hp_change_text(battler, ret, false), false)
 end
 
-# Ability trigger: the scene splash is graphic-only, so announce which battler's ability fired. Runs only
-# when the splash is shown; with it off, the effect message names the ability instead.
-#
-# Before, because the original IS the splash animation and blocks until it finishes.
+# The ability splash, said before the original, which is the blocking animation; it runs only with the splash on.
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbShowAbilitySplash) do |_s, args|
   PokeAccess.speak(PokeAccess::BattleScene.ability_text(args[0]), false)
 end
 
-# Which mechanic the fight menu is being opened for, remembered before the toggle below can be asked about
-# it. :optional because only the Deluxe Battle Kit takes this second parameter.
+# Remembers which mechanic the fight menu opens for, the second argument the Deluxe Battle Kit passes.
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbFightMenu, :optional => true) do |_s, args|
   PokeAccess::Battle.note_special_action(args[1])
 end
 
-# Special-action button toggle: mode= is shared by MenuBase subclasses, so gate to the FightMenu and announce
-# only a real available(1)<->registered(2) toggle. :optional because v22 uses mega_evolution_state=. Skipped
-# where the Deluxe Battle Kit is installed, whose pbToggleSpecialActions knows WHICH mechanic fired. The
-# focused move is read again afterwards, queued: turning a mechanic on renames all four moves without moving
-# the cursor.
+# The fight menu's special-action toggle on mode= (:optional, v22 uses mega_evolution_state=), then the renamed
+# focused move again, queued. Skipped where the Deluxe Battle Kit's pbToggleSpecialActions names the mechanic.
 unless PokeAccess::Engine.has?("Battle#pbToggleSpecialActions")
 PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :mode=, :optional => true) do |menu, _r, args|
   if defined?(::Battle::Scene::FightMenu) && menu.is_a?(::Battle::Scene::FightMenu)
     v = args[0]
     k = PokeAccess::Battle.special_key(menu.instance_variable_get(:@access_mega), v)
-    menu.instance_variable_set(:@access_mega, v) if v == 1 || v == 2
+    menu.instance_variable_set(:@access_mega, v) if v.is_a?(Integer)
     if k.is_a?(Array)
       PokeAccess.speak(PokeAccess::I18n.t(k[0], :name => PokeAccess::I18n.t(k[1])), true)
     elsif k
@@ -96,24 +81,23 @@ PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :mode=, :optional => tru
 end
 end
 
-# Shift button (multi-battle, modern only): announce when it becomes available (0 -> 1). :optional --
-# absent where the engine has no shift mechanic.
+# The shift button coming up available (0 to 1); :optional, absent where the engine has no shift.
 PokeAccess::Hooks.after_hook("Battle::Scene::FightMenu", :shiftMode=, :optional => true) do |menu, _r, args|
   v = args[0]
   PokeAccess.speak(PokeAccess::I18n.t(:bt_shift), false) if v == 1 && menu.instance_variable_get(:@access_shift) != 1
   menu.instance_variable_set(:@access_shift, v)
 end
 
-# Level-up stat gains (modern): the panel is graphic-only. Every game with this scene class uses the v18+
-# argument order, so the era question the gen-6 binding has to ask is already answered here.
-#
-# Spoken before the original, which blocks on two pbTopRightWindow panels; the old stats arrive as
-# arguments. The panels are muted for the call, since ModalPanel would read the same figures in the game's
-# language. Two hooks on purpose: an around body is re-raised, and a reader that threw would take the
-# level-up down with it, so the reading keeps the before-hook's swallow and the around only holds the mute.
+# Level-up stat gains (v18+ argument order), said before the original blocks on its panels, which are muted. Two
+# hooks on purpose: an around body's errors propagate, a before-hook's are swallowed.
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbLevelUp) do |_s, a|
   PokeAccess.speak(PokeAccess::Battle.levelup_from_args(a, true), false)
 end
 PokeAccess::Hooks.around_hook("Battle::Scene", :pbLevelUp) do |_s, nxt, _a|
   PokeAccess::ModalPanel.muted { nxt.call }
+end
+
+# The icons a databox draws beside a battler's name (icon_own, shiny, icon_mega, icon_primal), as marks.
+PokeAccess::Hooks.around_hook("Battle::Scene::PokemonDataBox", :refresh, :optional => true) do |box, nxt, _a|
+  PokeAccess::Battle.marks_around(box) { nxt.call }
 end

@@ -1,7 +1,4 @@
-# Data resolution on the modern (GameData) harness: DataV21 is the active provider and resolves names and
-# rich fields through GameData::*. Runs only in the gamedata engine pass (the _gd suffix), where GameData is
-# present; on the gen-6 harness GameData is absent so the gen-6 provider is the one selected (see
-# provider_gen6_spec).
+# Data resolution on the modern harness: DataV21 is active and resolves names and fields through GameData::*.
 Suite.define("data: modern provider resolves ids") do
   d = PokeAccess::Data
   eq "modern provider is active", d.active, PokeAccess::DataV21
@@ -24,4 +21,7 @@ Suite.define("data: modern provider resolves ids") do
   pk = Object.new
   def pk.types; [:FIRE, :FLYING]; end
   eq "pokemon_types", d.pokemon_types(pk), ["TypeFIRE", "TypeFLYING"]
+  eq "species_types", d.species_types(:PIKACHU), ["TypeTYPE1"]
+  eq "trainer_type_name", d.trainer_type_name("AQUAGRUNT_M"), "Recluta Aqua"
+  truthy "a class the game lacks is nil", d.trainer_type_name("HIKER").nil?
 end

@@ -1,10 +1,5 @@
-# The data page of the rewritten pokedex entry: ten sections the player walks with the cursor, each drawn as
-# one paragraph. The name of the section is what says WHICH paragraph this is.
-#
-# Two things were wrong. The section was read from @cursor even when the page had been told to draw a
-# different one -- the page's own rule is "cursor = @cursor if !cursor", so the argument wins -- and
-# :encounter, the first section of the page and the one that says where the species is FOUND, was missing
-# from the table, so it arrived with its paragraph and no name at all.
+# The rewritten entry's data page: the section named is the one drawn (pbDrawDataNotes' argument wins over @cursor),
+# and each of its ten sections has a name.
 Suite.define("pokedex data page: the section named is the one drawn, and all ten have a name") do
   scene = PokemonPokedexInfo_Scene.new
   scene.cursor = :general

@@ -1,9 +1,5 @@
-# Opalo gym (map 46, "Gimnasio Pokemon"): two three-tile machines and two levers, all silent about what they
-# did; everything below was read out of Data/Map046.rxdata. The machines at (5..7,9) and (36..38,8) set 178
-# (Water2) if 174 is already on, else 174 (Fire5), then their own guard switch (243, 244), so each works
-# ONCE and nothing turns any of the four back off: three states, passed one way, which is why 178 is watched
-# as well as 174. No obstacles: the "Humo" events are through=true and the tile-graphic events use passable
-# tiles. No :solved: the door to the leader at (24,8) has no switch condition.
+# Opalo's gym (map 46; switches from Data/Map046.rxdata): two machines and two levers (175, 177). A machine
+# sets 174, or 178 once 174 is on, and nothing turns them off. No :solved: the leader's door has no condition.
 PokeAccess::Game.define("opalo") do
   puzzle(46,
     :kind => :state,

@@ -1,13 +1,4 @@
-# Which page the pokedex entry screen is showing. There are two shapes of that screen and the reader has to
-# answer for both: plain Essentials dispatches drawPage(page) on a number, while the Modular UI Scenes plugin
-# rewrites the screen into named pages and keeps the current one in @page_id.
-#
-# Reading only @page_id passed every test we had, because every test -- and every game anyone had checked --
-# shipped MUI. On the three that do not (awakening and both Infinite Fusion) the reader fell back to the info
-# page on every redraw, so left and right produced identical text and the dedup swallowed it. No error, no
-# missing hook, nothing in Hooks.missing: the class is there, drawPage is there, the hook binds perfectly and
-# the page just never speaks. That is why the assertion that matters below is that the three plain pages come
-# out DIFFERENT from each other -- an implementation that ignores the argument satisfies everything else.
+# PokedexInfoV21.page_id on the plain screen (awakening, both Infinite Fusion): drawPage's number names the page.
 Suite.define("battle: the pokedex page is identified on the plain screen, not just the MUI one") do
   pdx = PokeAccess::PokedexInfoV21
   plain = Object.new
@@ -20,14 +11,11 @@ Suite.define("battle: the pokedex page is identified on the plain screen, not ju
   eq "and the three are told apart, which is the whole bug: identical ids read as one page",
      ids.uniq.length, 3
 
-  # A number the screen never passes must not invent a page; the caller reads nil as the info page rather
-  # than announcing something that is not on screen.
-  falsy "an unknown page number yields no id", pdx.page_id(plain, 9)
-  falsy "and neither does a missing argument", pdx.page_id(plain, nil)
+  eq "a page past the vanilla three is a page of its own", pdx.page_id(plain, 9), :page_other
+  falsy "and a missing argument yields no id", pdx.page_id(plain, nil)
 end
 
-# On the four games that ship MUI, @page_id is the authority whenever it is set, whatever number the call
-# carried.
+# With the Modular UI Scenes plugin, @page_id wins over the number whenever it is set.
 Suite.define("battle: MUI's page name still wins over the argument") do
   pdx = PokeAccess::PokedexInfoV21
   mui = Object.new

@@ -1,13 +1,7 @@
-# Infinite Fusion's fusion chooser. The two profiles ship this reader as byte-identical twins, and that is
-# how a Kanto-only literal reached Hoenn: fusion ids are packed as head * NB_POKEMON + body, Kanto sets 501
-# and Hoenn's 002_BattleSettings reassigns the same constant to 576. Decoding with the wrong base names a
-# DIFFERENT fusion, confidently, on the one screen whose whole job is telling the two options apart -- so
-# the base has to be read from the game.
-require File.expand_path("../../../games/infinitefusion/fusion_preview", File.dirname(__FILE__))
+# Infinite Fusion's fusion chooser: ids are head * NB_POKEMON + body, with the game's own base (Kanto 501, Hoenn 576).
+require File.expand_path("../../../games/infinitefusion_common/fusion_preview", File.dirname(__FILE__))
 
-# The engine's own Settings, at top level -- the reader must reach THIS one and not PokeAccess::Settings,
-# which is what a bare Settings:: resolves to from inside the mod's namespace. 576 is Hoenn's real value,
-# the one a hardcoded 501 got wrong.
+# The engine's top-level Settings (inside the mod a bare Settings:: is PokeAccess::Settings), at Hoenn's 576.
 module Settings; end
 Settings.const_set(:NB_POKEMON, 576) unless Settings.const_defined?(:NB_POKEMON)
 
@@ -25,9 +19,7 @@ Suite.define("infinite fusion preview: the packing base comes from the game, and
 
   eq "the base is the game's own constant, never a literal", ifp.nb, Settings::NB_POKEMON
 
-  # DoublePreviewScreen keeps the two PARENTS in the same ivars a fused species would use, and a Pokemon
-  # answers to name -- which is why "not nil" was never a good enough test.
-  fused = FakeFusedSpecies.new("Charizard/Blastoise", FakeParent.new("Charizard"), FakeParent.new("Blastoise"))
+  fused =FakeFusedSpecies.new("Charizard/Blastoise", FakeParent.new("Charizard"), FakeParent.new("Blastoise"))
   truthy "a fused entry is a species", ifp.species?(fused)
   falsy "nil is not", ifp.species?(nil)
 
@@ -40,8 +32,6 @@ Suite.define("infinite fusion preview: the packing base comes from the game, and
   scene.instance_variable_set(:@species_right, fused)
   scene.instance_variable_set(:@selected, 0)
 
-  # startSelection enters its loop already on @selected = 0 and only calls updateSelectionGraphics when the
-  # choice CHANGES, so the opening hook is the only thing that reads the default option.
   SpeakCapture.clear
   ifp.focus(scene)
   spoke "opening on the left fusion speaks it", /Charizard/

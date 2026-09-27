@@ -1,26 +1,24 @@
-# v22 Pokedex main list (Essentials v22: UI::PokedexVisuals). The species list is a passive
-# UI::PokedexVisualsList; the focused species id is exposed as visuals.species, read here on the screen's
-# cursor callback as "name, caught/seen" (or unknown for an unseen entry). The "choose a Dex" screen
-# (UI::PokedexDexes) uses an active Window_CommandPokemon of dex names, already read by the generic reader.
+# v22 Pokedex list (UI::PokedexVisuals): the focused species as "name, caught/seen", the status from medium,
+# "unknown" for an unseen one; the whole row goes to the info key.
 PokeAccess::V22.on_nav("UI::PokedexVisuals") do |vis|
   sp = (vis.species rescue nil)
   if sp
     dex = (PokeAccess::Engine.player.pokedex rescue nil)
     name = (GameData::Species.get(sp).name rescue sp.to_s)
     if (dex && dex.owned?(sp) rescue false)
-      name + ", " + PokeAccess::I18n.t(:dex_caught)
+      PokeAccess::Verbosity.info_line(:dex_entry, [[name, :brief], [PokeAccess::I18n.t(:dex_caught), :medium]])
     elsif (dex && dex.seen?(sp) rescue false)
-      name + ", " + PokeAccess::I18n.t(:dex_seen)
+      PokeAccess::Verbosity.info_line(:dex_entry, [[name, :brief], [PokeAccess::I18n.t(:dex_seen), :medium]])
     else
+      PokeAccess::Info.set_info(:text, PokeAccess::I18n.t(:dex_unknown))
       PokeAccess::I18n.t(:dex_unknown)
     end
   end
 end
 
 module PokeAccess
-  # v22 Pokedex entry detail (UI::PokedexEntryVisuals). @page is :info/:area/:forms (changed by
-  # go_to_next_page / go_to_previous_page); @species / @species_data is the shown species (set_dex_index
-  # changes it with up/down); owned? gates the detail. Content reuses the pdx_* strings.
+  # v22 Pokedex entry detail (UI::PokedexEntryVisuals): the page in @page (:info, :area, :forms) for the species
+  # shown, read on each page or species change.
   module PokedexEntryV22
     # The spoken text for the focused page of the focused species.
     def self.body(vis)
@@ -43,16 +41,16 @@ module PokeAccess
     def self.info_text(vis, name, data)
       owned = (vis.send(:owned_species?) rescue (vis.send(:owned?) rescue false))
       num   = dex_number(vis)
-      parts = [num ? PokeAccess::I18n.t(:pdx_number, :n => num, :name => name) : name]
+      parts = [[num ? PokeAccess::I18n.t(:pdx_number, :n => num, :name => name) : name, :brief]]
       if owned && data
-        cat = (data.category rescue nil); parts.push(PokeAccess::I18n.t(:pdx_category, :cat => cat)) if cat && !cat.to_s.empty?
-        h = (data.height rescue 0).to_i;  parts.push(PokeAccess::I18n.t(:pdx_height, :h => PokeAccess::Pokedex.fmt_dec(h))) if h > 0
-        w = (data.weight rescue 0).to_i;  parts.push(PokeAccess::I18n.t(:pdx_weight, :w => PokeAccess::Pokedex.fmt_dec(w))) if w > 0
-        desc = (data.pokedex_entry rescue nil); parts.push(desc.to_s) if desc && !desc.to_s.empty?
+        cat = (data.category rescue nil); parts.push([PokeAccess::I18n.t(:pdx_category, :cat => cat), :medium]) if cat && !cat.to_s.empty?
+        h = (data.height rescue 0).to_i;  parts.push([PokeAccess::I18n.t(:pdx_height, :h => PokeAccess::Pokedex.fmt_dec(h), :n => h / 10.0), :full]) if h > 0
+        w = (data.weight rescue 0).to_i;  parts.push([PokeAccess::I18n.t(:pdx_weight, :w => PokeAccess::Pokedex.fmt_dec(w), :n => w / 10.0), :full]) if w > 0
+        desc = (data.pokedex_entry rescue nil); parts.push([desc.to_s, :full]) if desc && !desc.to_s.empty?
       else
-        parts.push(PokeAccess::I18n.t(:pdx_not_caught))
+        parts.push([PokeAccess::I18n.t(:pdx_not_caught), :brief])
       end
-      parts.join(". ")
+      PokeAccess::Verbosity.info_line(:dex_page, parts, ". ")
     end
 
     # The regional dex number shown for the current entry, or nil.

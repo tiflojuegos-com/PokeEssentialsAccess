@@ -1,17 +1,8 @@
-# Replay: AUDITS a session recorded in-game by core/util/recorder.rb. It deliberately does not try to
-# re-simulate the session -- rebuilding a real fangame's map faithfully enough to re-derive every reader's
-# decision would need more of the world than a recording can hold, and a half-rebuilt map produces failures
-# that are the harness's fault, not the mod's. Instead it checks the transcript for the three ways this mod
-# actually fails a player, all of them visible in the timeline alone:
-#
-#   SILENCE   the locator's selection moved and nothing was spoken after it -- the cursor moved and the
-#             player was left guessing, which is the bug class the whole mod exists to prevent.
-#   REPEAT    the same line spoken twice with NOTHING from the player in between: a dedup that stopped
-#             deduping. "Nothing from the player" includes keypresses, or a menu re-read looks like a bug.
-#   RAW       a line still carrying RPG Maker control codes (\c[1], \PN): a reader that skipped clean.
-#
-# Drop a real recording into test/fixtures/recordings/ and it becomes a regression test for free: a play
-# session by a blind tester turns into asserts nobody had to write.
+# Replay: audits a session recorded in-game by core/util/recorder.rb, from the transcript alone:
+#   SILENCE   the locator's selection moved and nothing was spoken after it;
+#   REPEAT    the same line spoken twice with nothing from the player in between (a dedup that stopped deduping);
+#   RAW       a line still carrying RPG Maker control codes (\c[1], \PN).
+# A recording dropped into test/fixtures/recordings/ becomes a regression test.
 module Replay
   RAW_CODE = /\\[A-Za-z]/
 
@@ -33,14 +24,8 @@ module Replay
     rows.select { |r| r[1] == "say" && r[3].to_s =~ RAW_CODE }.map { |r| r[3] }
   end
 
-  # Lines spoken twice in a row with NOTHING from the player in between: no step, no map or scene change,
-  # no locator selection and no keypress. A broken dedup speaks the same entry again on its own; the player
-  # walking back to it, cursoring through a menu or pressing the info key twice is legitimate.
-  #
-  # The keypress ("in") is what makes this usable. Without it, a real session was 4 flags and 4 false
-  # positives: navigating a menu moves no position and changes no scene, so every legitimate re-read --
-  # returning to the same entry, or asking for a description again -- looked exactly like a broken dedup.
-  # Returns "text (+Ns)" so a reader can weigh it: a dedup bug repeats within a frame, a person does not.
+  # Lines spoken twice in a row with nothing from the player in between (no step, map or scene change, locator
+  # selection or keypress), as "text (+Ns)": a dedup bug repeats within a frame, a person does not.
   def self.repeats(rows)
     out = []
     last_say = nil
@@ -87,8 +72,7 @@ module Replay
     problems
   end
 
-  # Audits every recording committed under test/fixtures/recordings/ (none by default: the mechanism is
-  # proven by its own spec, and real sessions plug in here).
+  # The recordings committed under test/fixtures/recordings/ (none by default).
   def self.fixtures
     dir = File.join(File.dirname(__FILE__), "..", "fixtures", "recordings")
     Dir.glob(File.join(dir, "*.txt")).sort

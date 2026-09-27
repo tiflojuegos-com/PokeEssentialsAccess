@@ -1,10 +1,6 @@
 module PokeAccess
-  # The player's own markers: a named tile, keyed by map and coordinates, that the locator lists in a
-  # category of its own so the pathfinder and both guides can lead back to it. Where the tags describe what
-  # the GAME put on a tile, a mark is the player's note about the tile itself -- "the shop", "where I
-  # stopped", "the exit that works" -- which is why it is a dictionary of its own and not a tag with no
-  # event: the two are keyed differently, shared with different people, and a tag line parsed as a mark
-  # (or the reverse) silently lands on the wrong thing. Stored as "mapid:x,y=name" lines in marks.txt.
+  # The player's markers: named tiles ("mapid:x,y=name" in marks.txt) that the locator lists in their own
+  # category, for the pathfinder and guides to lead back to; a dictionary apart from the tags, keyed by tile.
   module Marks
     extend PokeAccess::Dictionary
     FILE   = "#{PokeAccess::Paths::DATA}/marks.txt"

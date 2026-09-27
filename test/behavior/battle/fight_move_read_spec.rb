@@ -1,6 +1,5 @@
-# read_fight_move, the move-list reader shared by both fight-menu shapes (stock setIndex, and the
-# Infinite Fusion fork's index= / setIndexAndMode). It was inline in the setIndex hook until the fork
-# needed the same body from two more places, so it is exercised directly here.
+# Battle.read_fight_move, the move-list reader shared by both fight-menu shapes (stock setIndex, and the Infinite
+# Fusion fork's index= and setIndexAndMode).
 
 # The subset of a fight display the reader touches: @battler with its move list, and @index.
 def fight_display(moves, index)
@@ -59,8 +58,7 @@ Suite.define("battle: an empty move slot is neither spoken nor recorded") do
   spoke "so the next real move still reads", /Tackle/
 end
 
-# The fork opens the menu through setIndexAndMode, which has to queue behind the hp/turn lines instead of
-# cutting them -- the same distinction v21 makes.
+# The opening read (the fork's setIndexAndMode) queues behind the hp and turn lines; navigation interrupts.
 Suite.define("battle: the opening read queues, navigation interrupts") do
   d = fight_display([fake_move("Ember")], 0)
   PokeAccess::Battle.read_fight_move(d, false)

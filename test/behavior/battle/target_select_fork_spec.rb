@@ -1,11 +1,5 @@
-# Target selection in doubles, across forks. Stock gen-6 highlights through pbUpdateSelected(index) and the
-# reader hangs off that. Both Infinite Fusion games dropped it: their pbChooseTarget calls
-# pbSelectBattler(index, 2) instead -- and pbSelectBattler is ALSO what the command phase calls, with the
-# default mode, when a battler's turn begins. Reading that second case would announce the player's own
-# Pokemon every turn, so the mode argument is what tells them apart.
-#
-# announce_target itself is engine-agnostic and already covered elsewhere; what is asserted here is the
-# discrimination the fork path depends on.
+# Target selection in doubles by fork: stock gen-6 reads pbUpdateSelected(index); both Infinite Fusion call
+# pbSelectBattler(index, 2), which with the default mode starts a turn instead, so the mode tells them apart.
 
 # The subset of a scene announce_target reads: @battle, with doubles on and two named battlers.
 def target_scene(names)
@@ -25,11 +19,9 @@ def target_scene(names)
   scene
 end
 
-# The gate is driven for real and never copied into the spec: give the fork its class, replay the
-# registration, and call the method. A copy would keep asserting itself while the real one -- a hook body on
-# PokeBattle_Scene, a class the stubs do not have -- changed underneath it.
+# The fork gate, driven for real over a PokeBattle_Scene with only pbSelectBattler (this repo's battle_g6 evaluated
+# again over it); area mode passes the array of target texts instead of an index.
 Suite.define("battle: pbSelectBattler only reads a target when the mode says it is choosing one") do
-  # No pbUpdateSelected on purpose: its absence is exactly what makes battle_g6 take the fork branch.
   scene_cls = Class.new do
     def pbSelectBattler(_index, _mode = 0); :selected; end
   end
@@ -37,8 +29,6 @@ Suite.define("battle: pbSelectBattler only reads a target when the mode says it 
     Object.const_set(:PokeBattle_Scene, scene_cls) unless Object.const_defined?(:PokeBattle_Scene)
     verbose = $VERBOSE
     begin
-      # eval is the harness's own loader (test/support/harness.rb), over this repo's own file by absolute
-      # path. A hook binds once at load, so a class created afterwards needs the registration replayed.
       $VERBOSE = nil
       path = File.join(Harness::ROOT, "core", "battle", "gen6", "battle_g6.rb")
       eval(File.read(path), TOPLEVEL_BINDING, path)
@@ -67,10 +57,6 @@ Suite.define("battle: pbSelectBattler only reads a target when the mode says it 
     hooked.pbSelectBattler(0, 2)
     spoke "deselecting on the way out lets re-entering read again", /Bulbasaur/
 
-    # El modo de area pasa el ARRAY de textos de objetivo en vez de un indice, y sus entradas no nulas son
-    # justo los huecos que la pantalla ilumina (pbCreateTargetTexts solo nombra los objetivos validos).
-    # Ademas en ese modo el cursor NO se mueve -- solo el modo 0 cambia el indice -- asi que este unico
-    # anuncio es toda la lectura que tiene la pantalla: descartarlo la dejaba muda de principio a fin.
     SpeakCapture.clear
     hooked.pbSelectBattler(-1)
     hooked.pbSelectBattler(["a", "b"], 2)
@@ -99,8 +85,7 @@ Suite.define("battle: the target under the cursor is announced once per change")
   spoke "moving to the other target names it", /Bulbasaur/
 end
 
-# The doubles gate had no coverage at all: every fixture here answered doublebattle true, so removing the
-# guard changed nothing. In a single battle there is no target to choose and the cursor must stay silent.
+# A single battle has no target to choose, so the cursor stays silent.
 Suite.define("battle: a single battle has no target cursor to read") do
   scene = target_scene(["Bulbasaur", "Charmander"])
   battle = scene.instance_variable_get(:@battle)

@@ -1,13 +1,6 @@
 module PokeAccess
-  # Item-received popup (Boonzeet's "Item Find" plugin, PokemonItemFind_Scene): shows the name, icon and
-  # description of an item the first time it is found -- a notification, not a menu, so nothing reads it.
-  #
-  # Read off the two windows the popup fills, not off the item it is given. The copies compose those lines
-  # differently for a machine: one appends the move to the name and swaps in the move's description, one
-  # appends it after a colon and keeps the item's, and two have no machine branch at all -- so the item id
-  # alone does not say what is on screen. All four fill @sprites["titlewindow"] and @sprites["descwindow"]
-  # and then block in a loop that calls Input.update every frame, which is where this reads them; by the
-  # time pbShow returns, its own pbEndScene has disposed the sprite hash.
+  # Item-received popup (Boonzeet's "Item Find" plugin): the name and description as its title and description
+  # windows show them (the copies word a machine differently), read by the frame poll while pbShow blocks.
   module ItemFind
     @scene = nil
 

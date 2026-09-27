@@ -1,30 +1,21 @@
 module PokeAccess
-  # Number choosers (buy/sell/toss quantity). Both show the amount in a window whose text starts with the
-  # quantity marker -- the ASCII "x" ("x005" in the field, "x5<r>$ 200" in the gen-6 mart) or the multiply
-  # sign "×" (the v22 mart/BP shop, "×5<r>$200") -- so the amount (and price) is read on change; that
-  # leading marker keeps the hook off normal dialogue.
+  # Number choosers: a quantity text window (starting with "x" or v22's "×", which keeps it apart from dialogue) is
+  # read on change with its price, and the digit-column entry by column.
   module NumberEntry
-    # Announces the chosen amount (and price) when a number-window text changes. Matches a quantity line
-    # only: it starts with "x" (gen-6) or "×" (v22's multiply sign), then digits and an optional price, so
-    # ordinary dialogue is ignored.
-    #
-    # Separators are allowed in the price and stripped afterwards, since the mart builds it with
-    # to_s_formatted and a total of a thousand or more arrives as "x5$ 1,000" (or "1.000"). The alignment
-    # tag becomes a space before anything else, and the currency may be a leading "$" or a trailing word:
-    # the Battle Point shop writes "x1<r>100 PB", which without that space collapses to "x1100 PB".
+    # LAYOUT: the alignment and break tags, turned into spaces. LINE: a quantity line, "x" or "×" and the amount,
+    # then an optional price (with separators; "$" before or a unit word after, as the BP shop's "x1<r>100 PB").
     LAYOUT = /<\s*\/?\s*(?:r|br)\s*\/?\s*>/i
     LINE = /\A(?:x|\303\227)\s*(\d+)(?:(?:\s*\$\s*|\s+)([\d.,]+)(?:\s*([A-Za-z]{1,3}))?)?\s*\z/
 
-    # Drops the last amount spoken, so reopening the same prompt with the same amount speaks again. The
-    # dedup is MODULE-wide -- these text windows are throwaways, there is no instance to hang it on -- so
-    # without this reset a repeated amount (cancel and re-enter on the same item, the normal gesture when
-    # comparing prices) comes in silent.
+    # Drops the module-wide last amount, so reopening a prompt on the same amount speaks again.
     def self.forget; @last = nil; end
 
-    # param win the text window the amount was painted into: its identity joins the dedup key, because
-    # every quantity prompt builds a FRESH window (UIHelper.pbChooseNumber, the marts) -- so reopening a
-    # prompt on the same item speaks again, while the same window re-asserting its text stays deduped.
-    # The window itself is held, not its id: 1.8.7 recycles object ids once the old window is collected.
+    # A line the prompt shows beside its amount (the mart's count in the bag), said once, queued, after the next
+    # amount; nil drops it.
+    def self.aside=(t); @aside = t; end
+
+    # Speaks a quantity line's amount and price, deduped on [window, text] (every prompt builds a fresh window), then
+    # the aside the prompt left; the window itself is held, since 1.8.7 recycles object ids.
     def self.on_text(win, raw)
       t = PokeAccess.clean(raw.to_s.gsub(LAYOUT, " "))
       return unless t =~ LINE
@@ -38,6 +29,9 @@ module PokeAccess
                               PokeAccess::I18n.t(PokeAccess::Config.money_label, :n => price.to_i))
       end
       PokeAccess.speak(msg, true)
+      return unless @aside
+      PokeAccess.speak(@aside, false)
+      @aside = nil
     rescue StandardError
       nil
     end
@@ -50,9 +44,8 @@ module PokeAccess
       PLACES[pw] ? PokeAccess::I18n.t(PLACES[pw]) : PokeAccess::I18n.t(:ne_place, :n => (10 ** pw))
     end
 
-    # Reads a multi-digit number entry (Window_InputNumberPokemon) by column: on open the total, left/
-    # right says the column and its digit ("hundreds: 0"), up/down says the new total -- so which column
-    # you are editing is no longer invisible.
+    # Reads a digit-column number entry (Window_InputNumberPokemon): the total on open, queued behind its question,
+    # the column and its digit ("hundreds: 0") when the cursor moves, the new total when the number changes.
     def self.on_digit_window(win)
       idx = win.instance_variable_get(:@index)
       num = (win.number rescue nil)
@@ -62,7 +55,7 @@ module PokeAccess
       win.instance_variable_set(:@access_lastidx, idx)
       win.instance_variable_set(:@access_lastnum, num)
       if li.nil?
-        PokeAccess.speak(num.to_s, true)
+        PokeAccess.speak(num.to_s, false)
       elsif idx != li
         PokeAccess.speak(digit_column_text(win), true)
       elsif num != ln
@@ -96,14 +89,12 @@ end
   end
 end
 
-# The quantity selector (Window_InputNumberPokemon, "how many?") draws its digits to a bitmap, with a
-# per-digit cursor (left/right) and digit change (up/down), so read the column you land on plus the total.
+# The digit-column quantity selector draws its digits to a bitmap: read while active.
 PokeAccess::Hooks.after_hook("Window_InputNumberPokemon", :update) do |win, _r, _a|
   PokeAccess::NumberEntry.on_digit_window(win) if (win.active rescue false)
 end
 
-# Every quantity prompt builds its own selector, so its birth is the boundary between one prompt and the
-# next: that is where the amount spoken last time is forgotten.
+# A new selector starts a new prompt: forget the amount spoken last.
 PokeAccess::Hooks.after_hook("Window_InputNumberPokemon", :initialize) do |_w, _r, _a|
   PokeAccess::NumberEntry.forget
 end

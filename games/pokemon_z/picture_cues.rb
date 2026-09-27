@@ -1,12 +1,22 @@
-# Pokemon Z picture screens: the alchemy book pages (CommonEvent 62), the berry chart and the two
-# new-game selectors (Map001 events), which light exactly ONE picture at a time for the highlighted
-# option. Z ships as THREE per-language builds (es 2.18, en 2.13, fr 2.12) that repaint these images, so
-# every text below is a per-build transcription READ OFF that build's own PNG -- never a translation of
-# the mod's -- and GameLang picks the running build's set. Two honest quirks preserved: the en build never
-# localised the alchemy pages (they paint Spanish, so they carry no :en entry and GameLang falls back to :es), and each build
-# words its cards differently (the fr berry chart is titled "Baies du jour" and uses other framings).
+# Pokemon Z picture screens: the alchemy book pages, the berry chart, the two new-game selectors, which light one
+# picture per option, and the sheets three items show (the controls guide, also the intro's first picture, and the
+# two Nuzlocke diplomas). Each text is transcribed from that build's own PNG (es 2.18, en 2.13, fr 2.12); the en build
+# paints the alchemy pages and the diplomas in Spanish, so they have no :en entry and fall back to :es.
 PokeAccess::Game.define("pokemon_z") do
   picture_texts_multibuild(:es,
+    "helpbg" => {
+      :es => "Controles. Flechas: Movimiento. X: Interactuar / Menú. C: Interactuar / Correr. Z: Atrás. Q: Turbo.",
+      :en => "Controls. Arrows: Movement. X: Interact / Menu. C: Interact / Run. Z: Back. Alt: Turbo.",
+      :fr => "Note du traducteur : Jouez à la manette, c'est bien mieux ! Contrôles. Flèches : Se déplacer. X : Interagir / Courir. C : Interagir / Menu. Z : Retour. Alt : Accélérer le jeu."
+    },
+    "diplomaNuz1" => {
+      :es => "Este diploma certifica que has completado un nuzlocke de Pokémon Z. ¡Enhorabuena! EricLostie. El diseño gráfico es mi pasión...",
+      :fr => "Félicitations pour avoir fini Pokémon Z en Nuzlock ! graphic design is my passion. EricLostie."
+    },
+    "diplomaNuz2" => {
+      :es => "Este diploma certifica que has completado un nuzlocke de Pokémon Z en dificultad heroica. ¡Enhorabuena! EricLostie. El diseño gráfico es mi pasión...",
+      :fr => "Félicitations pour avoir fini Pokémon Z en Nuzlock héroïque ! graphic design is my passion. EricLostie."
+    },
     "alquimia1" => {
       :es => "Pelaje Fino: pueden soltarlo Pokémon de tipo Normal. Rocío Matinal: pueden soltarlo Pokémon de tipo Bicho. Pluma Suave: pueden soltarlo Pokémon de tipo Volador. Mineral Extraño: pueden soltarlo Pokémon de tipo Roca. Grava Seca: pueden soltarlo Pokémon de tipo Tierra. Polvo Brillante: pueden soltarlo Pokémon de tipo Eléctrico.",
       :fr => "Belle Fourrure : sur les Pokémon Normal. Rosée du Matin : sur les Pokémon Insecte. Plume Douce : sur les Pokémon Vol. Minerai Étrange : sur les Pokémon Roche. Gravier Sec : sur les Pokémon Sol. Poudre Brillante : sur les Pokémon Électrique."
@@ -61,15 +71,11 @@ PokeAccess::Game.define("pokemon_z") do
   )
 end
 
-# Regi legendary inscriptions (maps 289/245/303): a braille message shown as an image. The mod announces a
-# mystery braille message, sends the braille (unicode, U+2800 + dot mask) to any connected braille display
-# and copies it to the clipboard. Per build, like the pictures above: the en build reuses the Spanish
-# plaques byte for byte (verified by hash), the fr build paints its own, decoded dot by dot from its PNGs
-# and shipped as painted (English grade-2-style signs).
+# The Regi inscriptions (maps 289, 245, 303), braille shown as an image: announced, sent to the braille display
+# (U+2800 + dot mask) and copied to the clipboard. The en build reuses the Spanish plaques; fr paints its own.
 module PokeAccess
   module ZRegi
-    # Keys are the games actual picture names: map 289's plaque is "reg1" (no "i"), maps 245/303 are
-    # "regi2"/"regi3" -- the game names them inconsistently, so these match the assets exactly (verified).
+    # Keyed by the pictures' actual names: map 289's plaque is "reg1" (no "i"), the others "regi2" and "regi3".
     BRAILLE = {
       "reg1" => {
         :es => [0x283A, 0x2801, 0x280A, 0x2807, 0x2815, 0x2817, 0x2819, 0x20, 0x2811, 0x2807, 0x20, 0x280F, 0x2817, 0x280A, 0x280D, 0x2811, 0x2817, 0x2815],
@@ -86,9 +92,8 @@ module PokeAccess
     }
     @last = nil
 
-    # On a regi inscription picture: pushes its braille to the display, copies it to the clipboard and
-    # announces it. Deduped so the engine's same-picture re-show does not copy twice; reset() (on erase)
-    # allows re-reading.
+    # On an inscription picture: its braille to the display and the clipboard, and announced; once until the
+    # picture is erased (reset).
     def self.on_picture(name)
       cps = PokeAccess::GameLang.pick(BRAILLE[name.to_s], :es)
       return if cps.nil? || name.to_s == @last
@@ -105,4 +110,28 @@ end
 PokeAccess::Game.define("pokemon_z") do
   on_picture { |name, _args| (PokeAccess::ZRegi.on_picture(name) rescue nil) }
   after("Game_Picture", :erase) { (PokeAccess::ZRegi.reset rescue nil) }
+end
+
+# The three items whose use shows a sheet as a bare sprite (ItemHandlers::UseFromBag, not a picture the show hook
+# sees) and waits for Accept: the sheet is read by its picture's transcription above.
+module PokeAccess
+  module ZItemSheets
+    # The picture each item's sheet shows.
+    SHEETS = { :CONTROLES => "helpbg", :DIPLOMANUZ1 => "diplomaNuz1", :DIPLOMANUZ2 => "diplomaNuz2" }
+
+    # Reads the sheet of an item being used from the bag, again on every use; any other item says nothing.
+    def self.used(item)
+      SHEETS.each do |sym, picture|
+        next unless item == (PBItems.const_get(sym) rescue nil)
+        PokeAccess::PictureCues.reset_last
+        PokeAccess::PictureCues.on_picture(picture, nil)
+      end
+    rescue StandardError
+      nil
+    end
+  end
+end
+
+PokeAccess::Hooks.wrap_singleton("ItemHandlers", :triggerUseFromBag, "z_item_sheets", :before) do |args, _r|
+  PokeAccess::ZItemSheets.used(args[0])
 end

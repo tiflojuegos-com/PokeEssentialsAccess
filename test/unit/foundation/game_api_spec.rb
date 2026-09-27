@@ -1,7 +1,5 @@
-# Adapter API (#1): PokeAccess::Game.define forwards each declarative call to the SAME registration point
-# the raw calls use, so a migrated profile behaves identically. Exercises every forwarder (config,
-# button_labels, screen_reader, after) plus the per-frame registry (poll_each_frame -> Keys.on_frame, run by
-# the single Input.update wrapper via run_frame_pollers).
+# Game.define forwards each declarative call (config, button_labels, screen_reader, after, poll_each_frame) to the
+# registration point the raw calls use.
 Suite.define("game api: define forwards every declarative call") do
   hook_target = Class.new { def ping; :orig; end }
   Object.const_set(:ApiHookTarget, hook_target) unless Object.const_defined?(:ApiHookTarget)
@@ -31,14 +29,8 @@ Suite.define("game api: define forwards every declarative call") do
   truthy "poll_each_frame registers and runs", $frame_log_ref.include?(:tick)
 end
 
-# The DSL's hook forwarders must pass an OPTIONS hash through, or a profile is a second-class citizen of the
-# very API written for it: the core marks its own binds :optional wherever a method is legitimately absent on
-# some build of a game, and a profile -- which meets far more of that variance than the core does -- could
-# not, so its perfectly legitimate bind landed in Hooks.missing, the list whose entire value is that
-# everything on it is a typo. The discriminating case is an absent METHOD on a PRESENT class: an absent
-# class is silent for everyone, flag or no flag, so it would pass even with the options dropped. The
-# non-optional bind at the end is the control: it proves these asserts fail for the right reason and that
-# forwarding opts did not simply stop the binds from being attempted.
+# The DSL's hook forwarders pass their options through (:optional, :hook_container): an optional bind on an absent
+# method of a present class stays out of Hooks.missing; one without the flag does not.
 Suite.define("game api: a profile's hooks take the same options the core's do") do
   opt_target = Class.new { def present_one; :orig; end }
   Object.const_set(:ApiOptTarget, opt_target) unless Object.const_defined?(:ApiOptTarget)

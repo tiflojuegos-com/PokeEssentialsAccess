@@ -1,5 +1,5 @@
 {
-  "_comment": "Catalogo de perfiles. Fuente unica para install.ps1 y el launcher. key = carpeta en games/. display = nombre hablado. Deteccion POR CAPAS (orden decidido 2026-08-01): 1) titles contra el title de mkxp.json o el Title= de Game.ini (gana el match mas largo; es lo que el jugador no renombra), 2) detect (regex ci sobre carpeta+exe; gana el MATCH mas largo, no el primero), 3) exes (nombre exacto de exe distintivo; Game.exe generico no identifica), 4) nada -> preguntar. La lista va en orden alfabetico por key: ninguna capa depende ya del orden (titles y detect ganan por match mas largo, exes por nombre exacto), asi que la posicion de una entrada no decide nada y anadir una no obliga a colocarla.",
+  "_comment": "Catalogo de perfiles. Fuente unica del launcher. key = carpeta en games/. display = nombre hablado. Deteccion POR CAPAS (orden decidido 2026-08-01): 1) titles contra el title de mkxp.json o el Title= de Game.ini (gana el match mas largo; es lo que el jugador no renombra), 2) detect (regex ci sobre carpeta+exe; gana el MATCH mas largo, no el primero), 3) exes (nombre exacto de exe distintivo; Game.exe generico no identifica), 4) nada -> preguntar. La lista va en orden alfabetico por key: ninguna capa depende ya del orden (titles y detect ganan por match mas largo, exes por nombre exacto), asi que la posicion de una entrada no decide nada y anadir una no obliga a colocarla. convert (opcional) = motor de assets/engine/<convert>/ al que el launcher pasa el juego cuando aun usa el reproductor de RPG Maker XP; markers = archivos del juego sin los que no se convierte. Un juego con ese reproductor que ninguna entrada convierte recibe, con aviso, una conversion experimental al motor del primer convert de esta lista. compat (opcional) = script del perfil (games/<key>/<compat>, desplegado en accessibility/game/) que el launcher registra en el preloadScript JUSTO ANTES del cargador del mod: corre antes que los scripts del juego y neutraliza lo que el reproductor original traia y mkxp-z no puede ejecutar.",
   "profiles": [
     {
       "key": "africanus",
@@ -49,6 +49,17 @@
         "pokémon awakening"
       ],
       "detect": "awakening",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "desolation",
+      "display": "Pokémon Desolation",
+      "titles": [
+        "pokemon desolation",
+        "pokémon desolation"
+      ],
+      "detect": "desolation",
       "exes": [],
       "engine": "gen6"
     },
@@ -109,6 +120,22 @@
       "engine": "gamedata"
     },
     {
+      "key": "insurgence",
+      "display": "Pokemon Insurgence",
+      "titles": [
+        "pokemon insurgence",
+        "pokémon insurgence"
+      ],
+      "detect": "insurgence",
+      "exes": [],
+      "engine": "gen6",
+      "convert": "mkxp-z-1.3.0-x86",
+      "markers": [
+        "Game.rgssad",
+        "MGC_Hmode7.dll"
+      ]
+    },
+    {
       "key": "opalo",
       "display": "Pokemon Ópalo",
       "titles": [
@@ -141,6 +168,30 @@
       ],
       "detect": "realidea",
       "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "reborn",
+      "display": "Pokemon Reborn",
+      "titles": [
+        "pokemon reborn",
+        "pokémon reborn"
+      ],
+      "detect": "reborn",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "rejuvenation",
+      "display": "Pokémon Rejuvenation",
+      "titles": [
+        "pokemon rejuvenation",
+        "pokémon rejuvenation"
+      ],
+      "detect": "rejuv",
+      "exes": [
+        "Rejuvenation.exe"
+      ],
       "engine": "gen6"
     },
     {
@@ -177,6 +228,17 @@
       "engine": "gamedata"
     },
     {
+      "key": "soulstones1",
+      "display": "Pokémon Soulstones",
+      "titles": [
+        "pokemon soulstones",
+        "pokémon soulstones"
+      ],
+      "detect": "soulstones",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
       "key": "soulstones2",
       "display": "Pokemon Soulstones 2",
       "titles": [
@@ -188,6 +250,25 @@
       "detect": "soulstones[ -]?2|time[ -]?wardens",
       "exes": [],
       "engine": "gamedata"
+    },
+    {
+      "key": "uranium",
+      "display": "Pokemon Uranium",
+      "titles": [
+        "pokemon uranium",
+        "pokémon uranium"
+      ],
+      "detect": "uranium",
+      "exes": [
+        "Uranium.exe"
+      ],
+      "engine": "gen6",
+      "convert": "mkxp-z-1.3.0-x86",
+      "markers": [
+        "Uranium.rgssad",
+        "KleinBitmap.dll"
+      ],
+      "compat": "compat.rb"
     }
   ]
 }

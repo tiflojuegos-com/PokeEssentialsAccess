@@ -1,18 +1,13 @@
-# The player's marks on the map: Ctrl+G names the tile under the player, the locator lists the map's marks
-# in a category of their own, and the two keys that already act on a selected target (Shift+K rename,
-# Ctrl+K menu) act on a mark too. What is pinned is the player-visible contract -- one key creates, edits
-# and removes; the category exists only where there is something in it; a mark is a target like any other
-# -- because every piece is a small branch in code that already works for events, and a branch that quietly
-# falls into the event path speaks "this cannot be labelled" at a tile the player just marked.
+# The player's marks: Ctrl+G creates, edits and removes the mark under the player; the :marks category exists only
+# where there is one; Shift+K and the Ctrl+K menu act on a selected mark as on any target.
 
-# Deletes the marks files and forgets the store, before and after.
+# Deletes the marks files and reloads the empty store.
 def marks_wipe
   [PokeAccess::Marks::FILE, PokeAccess::Marks::IMPORT, PokeAccess::Marks::EXPORT].each { |f| (File.delete(f) rescue nil) }
   PokeAccess::Marks.reload!
 end
 
-# Stands in for the engine's text box for the duration of the block: every prompt answers with the given
-# text (nil = the player cancelled), and the stand-in is removed afterwards so no other suite inherits it.
+# Answers every pbEnterText prompt in the block with answer (nil: the player cancelled).
 def with_text_answer(answer)
   $marks_spec_answer = answer
   Object.send(:define_method, :pbEnterText) { |*_a| $marks_spec_answer }
@@ -21,8 +16,7 @@ ensure
   Object.send(:remove_method, :pbEnterText)
 end
 
-# Stands in for the engine's choice menu: every menu picks the given index. The stub engine already answers
-# Kernel.pbMessage with nil (which show_menu prefers over the bare call), so the singleton is what is replaced.
+# Makes every choice menu in the block pick index, via the Kernel.pbMessage singleton that show_menu prefers.
 def with_menu_choice(index)
   $marks_spec_choice = index
   orig = Kernel.method(:pbMessage)
@@ -32,8 +26,7 @@ ensure
   Kernel.define_singleton_method(:pbMessage, orig)
 end
 
-# Runs the block with the locator's category cursor and target saved and restored, on a map with the player
-# at a known tile.
+# Runs the block with the locator's category and target saved and restored, the player at (5, 5) on map 1, no marks.
 def with_marks_state
   loc = PokeAccess::Locator
   ivars = [:@cat, :@ti, :@target, :@targets]

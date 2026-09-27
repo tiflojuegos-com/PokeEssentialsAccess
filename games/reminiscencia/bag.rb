@@ -1,27 +1,37 @@
 module PokeAccess
-  # Reminiscencia's bag (PokemonBag_Scene) is a normal Window_DrawableCommand, but here the generic
-  # command-window hook does not read it, so the bag stays silent. Its choose loop calls Input.update every
-  # frame, so the active bag scene is registered and its item window read from a per-frame poll, reusing
-  # the core bag extractor.
+  # Reminiscencia's bag (PokemonBag_Scene): the item window of the active scene, read each frame through the core
+  # bag extractor and claimed from the generic command-window reader, which would say every row twice.
   module ReminBag
     @scene = nil
     @last = nil
 
-    # Marks a bag scene as active (called around its choose loop).
-    def self.watch(scene); @scene = scene; @last = nil; end
+    # Marks a bag scene as active (called around its choose loop) and claims its item window.
+    def self.watch(scene)
+      @scene = scene
+      @last = nil
+      PokeAccess.dedicate(PokeAccess.sprite(scene, "itemwindow"))
+    end
 
     # Stops watching (loop finished).
     def self.unwatch; @scene = nil; @last = nil; end
 
-    # True while a bag choose loop is active. The bag opens over the pause menu, whose loop is suspended but
-    # whose poll keeps running, so ReminMenu reads this to stop re-arming the menu lock while the bag is in
-    # front -- which keeps the mod's own config key reachable there. The lock gates ONLY that key
-    # (core/input/input.rb), never the info key.
+    # True while a bag loop is active; ReminMenu then stops re-arming its menu lock, so the config key works here.
     def self.watching?; !@scene.nil?; end
 
-    # Reads the focused item when it changes. Dedup keys on [pocket, row] -- the PREFIX-FREE row -- and the
-    # spoken line adds the pocket prefix on top: keying on the rendered text re-reads the same row the frame
-    # after a pocket switch, because the prefix legitimately appears once and then goes away.
+    # The pocket of the run's rogue items, whose title paints how many the bag holds against its limit.
+    SPECIAL_POCKET = 3
+
+    # The pocket prefix due on a switch, the Special pocket's with the count its title paints under it.
+    def self.pocket_prefix(win)
+      pre = PokeAccess::Menus.bag_prefix(win)
+      return pre if pre.empty? || (win.pocket rescue nil) != SPECIAL_POCKET
+      n = ($PokemonBag.getRogueItemCount rescue nil)
+      lim = ($Trainer.rogueItemLimit rescue nil)
+      return pre if n.nil? || lim.nil?
+      "#{pre.sub(/\.\s*\z/, '')}, #{PokeAccess::I18n.t(:list_pos, :i => n, :n => lim)}. "
+    end
+
+    # Reads the focused item when [pocket, row] changes; the key leaves out the pocket prefix, said only on a switch.
     def self.poll
       s = @scene
       return unless s
@@ -34,7 +44,7 @@ module PokeAccess
       key = [(win.pocket rescue nil), row]
       return if key == @last
       @last = key
-      PokeAccess.speak(PokeAccess.clean("#{PokeAccess::Menus.bag_prefix(win)}#{row}"), true)
+      PokeAccess.speak(PokeAccess.clean("#{pocket_prefix(win)}#{row}"), true)
       PokeAccess::Menus.mark_bag_pocket(win)
     rescue StandardError
       nil
@@ -42,15 +52,11 @@ module PokeAccess
   end
 end
 
-# Hold the bag scene for the duration of its choose loop, and read the focused item each frame while it is
-# open (the loop calls Input.update).
+# Holds the bag scene during pbChooseItem and reads its focused item each frame.
 PokeAccess::SceneWatcher.wire("PokemonBag_Scene", :pbChooseItem, PokeAccess::ReminBag)
 
-# The same scene has a SECOND blocking loop, pbCheckItem, used when the game asks the player to pick an item
-# rather than to browse: pbCheckItemScreen wraps it and the give-a-berry flow calls it. It navigates exactly
-# like the main loop but was not held, so that whole screen read nothing. Only the hold is registered here --
-# wire above already registered the per-frame poll for this reader, and a second one would run it twice a
-# frame for no gain. The two loops never nest, so the flat watch/unwatch pair is enough.
+# pbCheckItem, the scene's second loop (picking an item rather than browsing): only held, since wire above already
+# registered the poll; the two loops never nest.
 PokeAccess::Game.define("reminiscencia") do
   around("PokemonBag_Scene", :pbCheckItem, :optional => true) do |scene, call_next, _a|
     PokeAccess::ReminBag.watch(scene)
@@ -58,8 +64,7 @@ PokeAccess::Game.define("reminiscencia") do
   end
 end
 
-# This game's bag-watcher section of the diagnostic dump (was hardcoded in the core diag before the
-# register_diag_section primitive existed).
+# This game's bag-watcher section of the diagnostic dump.
 PokeAccess::Game.define("reminiscencia") do
   diag_section(:reminbag) do |o|
     rb = PokeAccess::ReminBag

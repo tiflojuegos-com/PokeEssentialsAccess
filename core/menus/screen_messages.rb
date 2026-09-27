@@ -1,8 +1,5 @@
-# Menu screens (party, bag, storage, mart, save, relearner, summary, facility shops) draw their prompts
-# and results onto their own help window, not through pbMessageDisplay, so the dialogue hook never sees
-# them (e.g. the "X already holds Y, swap?" confirm was silent). These read those scene messages too,
-# routed through say_dialogue (which dedupes an identical line within half a second). The yes/no list is
-# read by the generic command-window hook. Battle scenes are excluded -- their messages have own readers.
+# Menu screens' own prompts and results (party, bag, storage, mart, save, relearner, summary, facility shops), drawn
+# on their help window outside pbMessageDisplay, read through say_screen_message; battle scenes have their own.
 module PokeAccess
   # The player-facing menu scene classes, in both gen-6 and modern naming (the hook guards on existence).
   SCREEN_MSG_SCENES = [
@@ -12,17 +9,12 @@ module PokeAccess
     "PokemonMartScene", "PokemonMart_Scene", "BattlePointShop_Scene", "BattleSwapScene",
     "PurifyChamberScene", "RelicStoneScene", "PokemonSummary_Scene", "PokemonSummaryScene"
   ]
-  # The message-drawing methods these scenes use (names vary by scene and engine). pbShowCommands is the
-  # QUESTION half of a yes/no: the answers are a command window the generic reader names, the question a
-  # text window nobody read. Before, since it does not return until the player has answered. Two of the
-  # scenes (the summary's action menu and the frontier swap screen) take the command list FIRST and no
-  # message at all, which is why the shared body (say_screen_message) reads a String and nothing else.
+  # The message-drawing methods these scenes use; pbShowCommands carries a yes/no's question (read before, as it
+  # blocks), and in two scenes a command list first, which say_screen_message skips by reading only a String.
   SCREEN_MSG_METHODS = [:pbDisplay, :pbDisplayPaused, :pbConfirm, :pbDisplayConfirm, :pbShowCommands]
 end
 
-# This is intentional over-binding (each scene uses only some of these methods, and the names vary by
-# engine), declared :optional so the typo detector does not flag dozens of legitimate cross-engine
-# absences as "possible typos". Behaviour is identical (an absent method was a no-op anyway).
+# Deliberate over-binding (each scene has only some of these methods), hence :optional: absences are not typos.
 PokeAccess::SCREEN_MSG_SCENES.each do |cname|
   PokeAccess::SCREEN_MSG_METHODS.each do |meth|
     PokeAccess::Hooks.before_hook(cname, meth, :optional => true) do |_scene, args|
@@ -31,10 +23,8 @@ PokeAccess::SCREEN_MSG_SCENES.each do |cname|
   end
 end
 
-# The item-storage TITLE ("Withdraw item" / "Toss item"), the one thing that tells the two modes apart.
-# Captured on open, and only the first row painted AS A CAPTION: the modern era refreshes the item list before
-# it draws the title. Both spellings of the class, as SCREEN_MSG_SCENES lists them; the Withdraw/Toss
-# subclasses override only initialize, so the parent covers them.
+# The item-storage title (Withdraw or Toss), captured on open as the first caption painted (the modern era paints
+# the list first), queued. The Withdraw/Toss subclasses override only initialize, so the parent covers them.
 PokeAccess::Hooks.variants(["ItemStorageScene", "ItemStorage_Scene"], :pbStartScene) do |cname|
   PokeAccess::Hooks.around_hook(cname, :pbStartScene, :optional => true) do |_s, nxt, _a|
     PokeAccess::PaintCapture.arm(:itemstorage_title)
@@ -45,5 +35,42 @@ PokeAccess::Hooks.variants(["ItemStorageScene", "ItemStorage_Scene"], :pbStartSc
       t = PokeAccess.clean(rows.is_a?(Array) ? rows.first.to_s : "")
       PokeAccess.speak(t, false)
     end
+  end
+end
+
+# The party screen's help line ("Move to where?"): said on change, queued, after the setter runs, since a screen
+# hiding the line moves its window away there.
+module PokeAccess
+  # Says a party screen's help line when it changed, unless its help window is hidden or moved off screen.
+  def self.say_party_help(scene, text)
+    win = PokeAccess.sprite(scene, "helpwindow")
+    return if win && (!(win.visible rescue true) || (win.y rescue 0).to_i >= Graphics.height)
+    t = PokeAccess.clean(text.to_s)
+    PokeAccess.speak(t, false) if !t.empty? && PokeAccess::Cursor.changed?(scene, :party_help, t)
+  end
+end
+
+["PokemonScreen_Scene", "PokemonParty_Scene"].each do |cname|
+  PokeAccess::Hooks.around_hook(cname, :pbSetHelpText, :optional => true) do |scene, nxt, args|
+    r = nxt.call
+    PokeAccess.say_party_help(scene, args[0])
+    r
+  end
+end
+
+# The pause menu's info box (pbShowInfo: Safari steps and balls, the contest's catch), queued before the focused
+# command; PokemonMenu_Scene on gen-6, PokemonPauseMenu_Scene from v19.
+module PokeAccess
+  # Says the pause menu's info box, a line of the box per piece.
+  def self.say_menu_info(text)
+    return unless text.is_a?(String)
+    parts = text.split(/\n/).map { |l| PokeAccess.clean(l) }.reject { |l| l.empty? }
+    PokeAccess.speak(parts.join(", "), false) unless parts.empty?
+  end
+end
+
+["PokemonMenu_Scene", "PokemonPauseMenu_Scene"].each do |cname|
+  PokeAccess::Hooks.before_hook(cname, :pbShowInfo, :optional => true) do |_scene, args|
+    PokeAccess.say_menu_info(args[0])
   end
 end

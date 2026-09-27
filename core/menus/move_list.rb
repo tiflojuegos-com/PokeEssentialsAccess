@@ -1,20 +1,8 @@
 module PokeAccess
-  # A move list drawn by hand: the focused move's name reaches the screen as a bitmap and its detail --
-  # type, power, accuracy, pp, description -- is not spoken at all. Two screens share that exact shape
-  # (@pokemon, @moves, a "commands" sprite holding the cursor): the v21 Move Relearner and the egg-move
-  # tutor a plugin adds.
-  #
-  # Named after the job rather than after whichever screen needed it first, and in the shared layer rather
-  # than in the fork's folder, so a core reader calling it is not one version crossing into another and the
-  # coupling check needs no whitelist entry for it.
+  # Hand-drawn move lists (@pokemon, @moves, a "commands" sprite holding the cursor), shared by the relearners and
+  # plugin screens of that shape: the focused move and its spoken detail.
   module MoveList
-    # The move id under the cursor, or nil when there is no usable selection.
-    #
-    # The traversal is the same on every one of these screens -- @moves, the "commands" sprite, its index --
-    # and it was written out three times: here, in the gen-6 relearner and in a profile's own copy. The
-    # [id, tag] unwrap comes from the gen-6 one, where BetterMoveRelearner pairs each id with a tag; it is
-    # inert on a plain list, so one implementation serves all three instead of the newest screen quietly
-    # lacking a case the oldest already handled.
+    # The move id under the cursor, unwrapping BetterMoveRelearner's [id, tag] pairs, or nil.
     def self.focused_id(scene)
       moves = PokeAccess.ivar(scene, :@moves)
       idx = (PokeAccess.sprite(scene, "commands").index rescue nil)
@@ -25,11 +13,22 @@ module PokeAccess
       nil
     end
 
-    # Speaks the full detail of the move under the cursor. param scene any hand-drawn move list
+    # The tag a row paints beside its move (BetterMoveRelearner's "MT" on a machine move), or "" for a plain row.
+    def self.focused_tag(scene)
+      moves = PokeAccess.ivar(scene, :@moves)
+      idx = (PokeAccess.sprite(scene, "commands").index rescue nil)
+      return "" unless moves.is_a?(Array) && idx && idx >= 0 && idx < moves.length && moves[idx].is_a?(Array)
+      PokeAccess.clean(moves[idx][1].to_s)
+    rescue StandardError
+      ""
+    end
+
+    # Speaks the focused move's detail at the learn move reading's level, led once per scene by its title where a
+    # profile gives one; the info key keeps the move whole. A list with no Pokemon reads the move's own data.
     def self.detail(scene)
       pk = PokeAccess.ivar(scene, :@pokemon)
       id = focused_id(scene)
-      return unless pk && id
+      return unless id
       d = (GameData::Move.get(id) rescue nil)
       return unless d
       nm = (d.name rescue PokeAccess::I18n.t(:info_move))
@@ -40,9 +39,19 @@ module PokeAccess
       acc = acc.to_i if acc
       tot = PokeAccess.attr_of(d, :total_pp, :totalpp)
       desc = (d.description rescue "")
-      s = PokeAccess::MoveInfo.line(nm.to_s, ty, pw, acc, :pp => tot, :total_pp => tot, :desc => desc)
-      PokeAccess.speak(s, true)
+      cat = PokeAccess::MoveInfo.category_word((d.display_category(pk) rescue (d.category rescue nil)))
+      opts = { :cat => cat, :pp => tot, :total_pp => tot, :desc => desc }
+      PokeAccess::Info.set_info(:text, PokeAccess::MoveInfo.line(nm.to_s, ty, pw, acc, opts))
+      line = PokeAccess::MoveInfo.leveled(:learn_move, nm.to_s, ty, pw, acc, opts)
+      head = title(scene)
+      line = "#{head}. #{line}" if head && !head.empty? && PokeAccess::Cursor.changed?(scene, :move_list_title, head)
+      PokeAccess.speak(line, true)
     rescue StandardError
+      nil
+    end
+
+    # The list's painted title, said ahead of its first move, or nil: core reads none, a profile overrides it.
+    def self.title(_scene)
       nil
     end
   end

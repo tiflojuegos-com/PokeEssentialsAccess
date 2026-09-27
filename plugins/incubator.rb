@@ -1,9 +1,9 @@
-# Egg incubator (Kyu's plugin, class Incubadora): the same six-slot grid the core Hatcher screen has --
-# @index over $PokemonGlobal.eggs, egg.eggsteps for the hatch hint -- under a different class name, which
-# is the only reason the core's own hooks never matched it. refresh runs on open and after every move.
-#
-# The two copies are the SAME FILE, byte for byte, so there is nothing to reconcile and this can simply
-# point the core reader at the other class name.
+# Egg incubator (Kyu's plugin, class Incubadora): the core Hatcher screen's six-slot grid under another class name,
+# read by the core reader on refresh (on open and after every move).
+PokeAccess::Hooks.before_hook("Incubadora", :refresh, :optional => true) { |_scene, _a| PokeAccess::Incubator.arm }
 PokeAccess::Hooks.after_hook("Incubadora", :refresh, :optional => true) do |scene, _r, _a|
   PokeAccess::Incubator.announce(scene)
 end
+PokeAccess::Hooks.after_hook("Incubadora", :dispose, :optional => true) { |_s, _r, _a| PokeAccess::Info.clear_text }
+
+PokeAccess::Verbosity.define_reading(:incubator, :vb_incubator, :vbh_incubator)

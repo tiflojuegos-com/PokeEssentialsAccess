@@ -1,11 +1,14 @@
-# Africanus's two bespoke minigames plus the truth-tables gallery. The cage kick and the archery range are
-# TIMING games, so they use an audio cue (a tick whose PITCH rises toward the perfect point) and speech only
-# for what does not change every frame. None of these scenes is ever $scene: the game drives its own
-# blocking loop, so the instance is held with an around-hook on that loop and read by the per-frame poller.
+# Africanus's two minigames and the truth-tables gallery: the cage kick and archery play a tick whose pitch rises
+# toward the perfect point, and say each kick and each arrow's points. Each scene is held by an around-hook on its
+# blocking loop and read per frame.
 module PokeAccess
   module AfricanusMinigames
     @active = nil
     @kind = nil
+
+    # The points each numeral of the archery's "points" sprite stands for, by the x its source rect is cut at: X,
+    # VII, V and I.
+    ARROW_POINTS = { 0 => 10, 78 => 7, 172 => 5, 202 => 1 }
 
     # Holds the running minigame while its blocking loop is on the stack.
     def self.hold(scene, kind); @active = scene; @kind = kind; end
@@ -15,7 +18,7 @@ module PokeAccess
     def self.poll
       return unless @active
       case @kind
-      when :kick   then kick(@active)
+      when :kick   then kick(@active); kick_count(@active)
       when :archer then archer(@active); archer_score(@active)
       when :tables then tables(@active)
       end
@@ -23,8 +26,7 @@ module PokeAccess
       nil
     end
 
-    # Maps a 0.0-1.0 closeness (1.0 = dead on the perfect point) to a playback pitch and plays the tick.
-    # The range spans roughly an octave so the target is unmistakable by ear.
+    # Plays the gauge tick for a 0.0-1.0 closeness (1.0 = dead on the perfect point).
     def self.tick(closeness)
       PokeAccess::Spatial.gauge(closeness)
     end
@@ -47,11 +49,24 @@ module PokeAccess
       nil
     end
 
-    # Archery: same idea on the "selector" sprite -- except that the bullseye is NOT the midpoint of the
-    # travel, so the game's own PERFECT_SHOT_Y is what the pitch peaks on. The scene builds the range as
-    # PERFECT_SHOT_Y - CURSOR_MOVEMENT * CURSOR_STEPS .. PERFECT_SHOT_Y + 6 + CURSOR_MOVEMENT * CURSOR_STEPS,
-    # so the bottom half is six pixels longer and (lo + hi) / 2 lands three below the spot that actually
-    # scores -- three pixels of telling the player to release in the wrong place.
+    # Says each kick once, against the kick that fells the door.
+    def self.kick_count(scene)
+      n = PokeAccess.ivar(scene, :@kickCount)
+      return if n.nil? || n.to_i <= 0
+      PokeAccess::Cursor.announce(scene, :afr_kick, n.to_i, false) do
+        PokeAccess::I18n.t(:afr_kick, :n => n.to_i, :total => kicks_to_fall)
+      end
+    rescue StandardError
+      nil
+    end
+
+    # The kick that fells the door: three rope states of NUM_KICKS_PER_STATE kicks each.
+    def self.kicks_to_fall
+      (PokeAccess.const_at("EscapeGaulScene::NUM_KICKS_PER_STATE") || 3).to_i * 3
+    end
+
+    # Archery: the same on the "selector" sprite, peaking on the game's PERFECT_SHOT_Y, which is not the travel's
+    # midpoint (the lower half is six pixels longer).
     def self.archer(scene)
       spr = PokeAccess.sprite(scene, "selector")
       return unless spr
@@ -68,27 +83,27 @@ module PokeAccess
       nil
     end
 
-    # Spoken once per arrow: how many are shot and the running total.
-    #
-    # Deduped on the arrow count alone. The score is added to the total THIRTY frames before the count goes
-    # up, and those frames pump input, so a key that included the total fired twice per arrow -- the first
-    # time with the previous arrow's number beside the new total, a pair that never existed.
+    # Says each arrow once, with the points its numeral sprite shows.
     def self.archer_score(scene)
       n = PokeAccess.ivar(scene, :@arrowCount)
       return if n.nil? || n.to_i <= 0
       PokeAccess::Cursor.announce(scene, :afr_archer, n.to_i, false) do
-        PokeAccess::I18n.t(:afr_archer, :n => n.to_i, :pts => PokeAccess.ivar(scene, :@sumPoints).to_i)
+        pts = arrow_points(scene)
+        pts ? PokeAccess::I18n.t(:afr_archer, :arrow => n.to_i, :n => pts) : nil
       end
     rescue StandardError
       nil
     end
 
-    # Truth tables: a 2-column grid whose cursor is a LOCAL variable, so the focus is read back from the
-    # selector sprite's position -- the game places it at x = 16 + col*246, y = 24 + row*44.
-    #
-    # Named with the scene's own @pictures_prefix. There are two shelves of sixteen, and the game tells them
-    # apart by that word alone ("tabla" against "tablo"), so numbering them without it makes the second one
-    # indistinguishable by ear.
+    # The points of the last arrow, from the source rect of the "points" sprite, or nil when it cannot be read.
+    def self.arrow_points(scene)
+      spr = PokeAccess.sprite(scene, "points")
+      x = spr ? (spr.src_rect.x rescue nil) : nil
+      x.nil? ? nil : ARROW_POINTS[x.to_i]
+    end
+
+    # Truth tables: the cell under the selector (x = 16 + col*246, y = 24 + row*44), said by the name its shelf's
+    # background paints.
     def self.tables(scene)
       sel = PokeAccess.ivar(scene, :@selector)
       return unless sel && (sel.visible rescue false)
@@ -97,9 +112,9 @@ module PokeAccess
       idx = (row * 2) + col
       return if idx < 0
       PokeAccess::Cursor.announce(scene, :afr_tables, idx, true) do
+        name = PokeAccess::AfricanusTablas.cell_name(PokeAccess.ivar(scene, :@pictures_prefix), idx)
         open = (scene.can_access_table?(idx) rescue true)
-        pre = (PokeAccess.ivar(scene, :@pictures_prefix).to_s.capitalize rescue "")
-        PokeAccess::I18n.t(open ? :afr_table : :afr_table_locked, :n => idx + 1, :p => pre)
+        (name.nil? || open) ? name : PokeAccess::I18n.t(:afr_table_locked, :name => name)
       end
     rescue StandardError
       nil

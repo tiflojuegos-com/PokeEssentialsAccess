@@ -13,6 +13,16 @@
     picker
     extras
     hoopa
+    battle_box
+    battle_effect
+    logros
+    pokocho
+    amie
+    pc_grid
+    rogue_shop
+    party_keys
+    party_panel
+    info_screens
   ],
   :plugins => %w[item_find logros text_log slide_banners bw_key_items]
 }

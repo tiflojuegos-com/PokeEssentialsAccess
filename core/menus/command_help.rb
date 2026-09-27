@@ -1,54 +1,59 @@
 module PokeAccess
-  # Generic per-option help for Kernel.pbShowCommandsWithHelp, the standard Essentials "menu with a help
-  # line" used across gen-6, v21 and v22 (campfire-style menus, the PC, etc.). The option list is read by
-  # the generic command-window hook; this adds the help line each option shows in a side message window.
-  #
-  # That help window is an ordinary Window_AdvancedTextPokemon -- the same class plain dialogue uses, with
-  # no tag to tell them apart -- so we only listen to its text= WHILE pbShowCommandsWithHelp is running
-  # (a flag set by an around-wrap of that function). Outside it, dialogue is untouched (no double reads).
-  # Gated by Config.read_help so the user can switch it off; spoken after the option name (queued, not
-  # interrupting) and also stored for the info key.
+  # The help line of Kernel.pbShowCommandsWithHelp and its variants (every era); the options are read by the generic
+  # command-window hook. The help window is the dialogue's class, so it is read only while such a menu runs and no
+  # deeper message is up. Always stored for the info key.
   module CommandHelp
     @stack = []
+    @held = nil
 
-    # The variant currently running (or nil): :withhelp for pbShowCommandsWithHelp, :rogue for the Rogue
-    # variant. A help-window listener passes which variant ITS window serves and reads only when they match,
-    # so ordinary dialogue (no variant active) is never read. Under :rogue both windows serve it: the
-    # Unformatted one carries the per-option help, the AdvancedText one the caption set once at open -- the
-    # protagonist's aside, seventy-odd lines of prose in Reminiscencia that appear nowhere else.
-    def self.current; @stack.last; end
-    def self.enter(kind); @stack.push(kind); end
-    # Clears the stored help line with the last menu on the stack, the same way RegionMap.forget does on
-    # close. In the field the next frame overwrites it, but going straight from one menu to another left
-    # the info key answering with the PREVIOUS menu's help. Only a parked string goes: a Pokemon or an item
-    # filed before the menu still answers the key once it closes, which matters on a screen with a loop of
-    # its own, where no map poll comes round to refile anything.
-    def self.leave
-      @stack.pop
-      PokeAccess::Info.clear_text if @stack.empty?
+    # The variant running, or nil: :withhelp (pbShowCommandsWithHelp and its AndText form) or :rogue.
+    def self.current; (@stack.last || [])[0]; end
+
+    # Pushes a menu with the message depth it opens at, and holds the help it writes on the way in for release.
+    def self.enter(kind)
+      @stack.push([kind, PokeAccess.message_depth])
+      @held = [[], 0]
     end
 
-    # Voices a help line (queued, so it follows the option name) and stores it for the info key, only when
-    # the listener's variant is the one running. Deduped per window.
+    # Pops a menu; when the last closes, drops the held help and the info key's text line (a Pokemon or item stays).
+    def self.leave
+      @stack.pop
+      return unless @stack.empty?
+      @held = nil
+      PokeAccess::Info.clear_text
+    end
+
+    # Stores a help line for the info key and speaks it queued (held while the menu opens) if read_help is on and the
+    # verbosity says descriptions; only for the running variant with no message on top, deduped per window.
     def self.note(win, serves, raw)
-      return unless current == serves && (PokeAccess::Config.read_help rescue true)
+      return unless current == serves
+      return if PokeAccess.message_depth > @stack.last[1]
       txt = PokeAccess.clean(raw.to_s)
       return if txt.empty? || txt == PokeAccess.ivar(win, :@access_cmdhelp)
       win.instance_variable_set(:@access_cmdhelp, txt)
       PokeAccess::Info.set_info(:text, txt)
-      PokeAccess.speak(txt, false)
+      return unless (PokeAccess::Config.read_help rescue true) && PokeAccess::Verbosity.descriptions?
+      @held ? @held[0].push(txt) : PokeAccess.speak(txt, false)
     rescue StandardError
       nil
+    end
+
+    # From the frame poller: counts the menu's first frames, and on the second says what it held.
+    def self.release
+      return unless @held
+      @held[1] += 1
+      return if @held[1] < 2
+      lines = @held[0]
+      @held = nil
+      lines.each { |t| PokeAccess.speak(t, false) }
     end
   end
 end
 
-# The standard pbShowCommandsWithHelp, Pokémon Z's pbShowCommandsWithHelpAndText (its ability changer,
-# which paints each ability's description into the same help window as the cursor moves) and
-# Reminiscencia's pbShowCommandsRogue (the rogue mode's chest and item menus, 0500 Messages.rb:877, whose
-# help goes to an Unformatted window). Each marks which variant is running so the listener reads only that
-# variant's help window. Añil spells the ability changer's helper as a module singleton,
-# MessageUI.show_commands_with_help_and_text, marked from its profile.
+PokeAccess::Keys.on_frame { PokeAccess::CommandHelp.release }
+
+# Marks the running variant around pbShowCommandsWithHelp, pbShowCommandsWithHelpAndText (Pokémon Z's ability
+# changer) and Reminiscencia's pbShowCommandsRogue; Añil's MessageUI helper is marked from its profile.
 [["pbShowCommandsWithHelp", :withhelp], ["pbShowCommandsWithHelpAndText", :withhelp],
  ["pbShowCommandsRogue", :rogue]].each do |fn, kind|
   PokeAccess::Hooks.wrap_kernel(fn, "hook_cmdhelp", :around) do |_args, call_next|
@@ -61,10 +66,8 @@ end
   end
 end
 
-# Help lands in different window classes by variant: WithHelp uses the AdvancedText window, the Rogue
-# variant the Unformatted one for its help and the AdvancedText one for its caption. Each listener declares
-# which variant it serves so note() reads only when that variant is running (and never plain dialogue);
-# the AdvancedText listener serves whichever of the two is up, since it is the caption under Rogue.
+# The help windows: AdvancedText holds :withhelp's help and :rogue's caption, Unformatted holds :rogue's help. Each
+# listener passes the variant it serves, so plain dialogue is never read.
 PokeAccess::Hooks.after_hook("Window_AdvancedTextPokemon", :text=) do |win, _r, args|
   PokeAccess::CommandHelp.note(win, PokeAccess::CommandHelp.current == :rogue ? :rogue : :withhelp, args[0])
 end

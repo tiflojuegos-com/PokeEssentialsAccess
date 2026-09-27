@@ -1,11 +1,6 @@
-# Hearing a setting as it moves: a volume or tone row of the audio menus auditions its family's sound on
-# every press. Through the positional engine when it is up (centred on the player, so the whole octave is
-# audible), through the flat glossary sample when it is not; a looping sample is stopped again after a
-# moment and when the menu closes. The tone submenu itself is asserted here too, next to the volumes and
-# frequencies it sits with.
-#
-# The engine state is forced the way the audio suites do it: the harness ships no PA3D dll, so the suite
-# seeds the channel table, marks the engine ready and records the entry points it watches.
+# A volume or tone row of the audio menus auditions its family's sound on every press: through the engine when it is
+# up (centred on the player), else the flat glossary sample; a loop is stopped after a moment. The harness has no
+# dll, so the suites seed the channel table, mark the engine ready and record the native calls.
 module MenuAudition
   IVARS = [:@ch, :@tone_sent, :@ready, :@master_sent]
   FNS = [:SET, :PITCH, :MAST]

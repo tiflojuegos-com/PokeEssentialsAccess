@@ -1,10 +1,5 @@
-# command_label (modern BattleScene reader): the v19-v21 CommandMenu exposes neither @texts nor #command,
-# so the focused button is read by position -- but the position labels depend on the menu mode. A regular
-# battle (mode 0) reads Fight/Bag/Pokemon/Run; the Safari Zone (mode 3) reads Ball/Bait/Rock/Run and the
-# Bug-Catching Contest (mode 4) reads Fight/Ball/Pokemon/Run. Reading the regular defaults in those modes
-# would make a blind player pick the opposite of the shown button. A tiny menu stub supplies only #index
-# and #mode (and no @texts / #command), driving the positional fallback; expected labels go through I18n so
-# the assertion holds in whatever language is loaded.
+# BattleScene.command_label with no @texts or #command (the v19-v21 CommandMenu): the button by position, its label
+# following the menu mode (0 regular, 1 cancel, 2 call, 3 Safari, 4 Bug Contest).
 class FakeCommandMenu
   attr_accessor :index, :mode
 

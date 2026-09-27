@@ -9,13 +9,8 @@ module PokeAccess
     LIB    = "accessibility/lib"
     LANG   = "accessibility/lang"
 
-    # Writable location for runtime files. mkxp-z reads through its virtual filesystem but writes to
-    # the OS working dir (which can be read-only on a tester's machine), so pick the first writable of
-    # the game-folder data dir or mkxp-z's per-game AppData. Chosen once at load.
-    #
-    # POKEACCESS_DATA_DIR overrides the choice outright: the test harness runs from the repo root, and
-    # without it every marker the stubs provoke accumulated in an accessibility/ folder INSIDE the
-    # repo (2.8 MB of test noise before anyone noticed). Inside a real game the variable is absent.
+    # The writable folder for runtime files, chosen once: accessibility/data (or POKEACCESS_DATA_DIR, which the
+    # test harness sets), else mkxp-z's per-game data directory.
     DATA = begin
       override = (ENV["POKEACCESS_DATA_DIR"] rescue nil)
       candidates = (override && !override.to_s.empty?) ? [override] : ["accessibility/data"]

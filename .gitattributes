@@ -3,6 +3,8 @@
 
 # Binary assets must never be normalized.
 *.dll binary
+*.exe binary
+*.sf2 binary
 *.wav binary
 *.png binary
 *.rxdata binary

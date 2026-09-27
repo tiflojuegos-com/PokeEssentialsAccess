@@ -1,18 +1,11 @@
-# Player look / gender picker at the start of a new game (PokemonGenderSelection), a third-party plugin
-# several fangames ship under different script names. The choice is two pictures with no text. The copies
-# are identical: same four methods and the same @select convention (1 neutral, 2 the boy, 4 the girl, the
-# odd values the confirm step, which the dialogue reader speaks). input runs every frame of the picker's
-# loop, so a plain after-hook is enough even though the scene blocks inside initialize.
+# The new-game gender picker (PokemonGenderSelection), two pictures with no text; @select is 1 neutral, 2 the boy,
+# 4 the girl, and odd values the confirm step. input runs every frame of the picker's loop.
 module PokeAccess
   module GenderSelection
     BOY = 2
     GIRL = 4
 
-    # The i18n key for a cursor value, or nil where the screen is not a picker any more.
-    #
-    # The confirm values answer nil on purpose: the whole confirm step -- the question, the player change and
-    # a twenty-frame fade -- runs inside input before it returns, so a label for 3 or 5 lands on a screen
-    # that is already gone.
+    # The i18n key for a cursor value; nil for the confirm values, a step that runs whole inside input.
     def self.label_key(sel)
       return :gsel_boy if sel == BOY
       return :gsel_girl if sel == GIRL
@@ -32,19 +25,12 @@ module PokeAccess
   end
 end
 
-# The controls, once, before the picker takes over: two unlabelled pictures give no clue that left and
-# right are the choice.
-#
-# The help names no direction on purpose: the games disagree on which side is which (armonia and realidea
-# put the boy on RIGHT, awakening on LEFT) and the mapping is inside the method body where nothing can
-# introspect it. Moving the cursor announces the choice, which is what actually locates the player.
+# The controls, once, as the picker opens; they name no side, as the games disagree on which one is the boy.
 PokeAccess::Hooks.before_hook("PokemonGenderSelection", :main_method, :optional => true) do |_s, _a|
-  PokeAccess.speak(PokeAccess::I18n.t(:gsel_help), true)
+  PokeAccess.speak(PokeAccess::Verbosity.with_hint(PokeAccess::I18n.t(:gsel_help), PokeAccess::I18n.t(:gsel_help_hint)), true)
 end
 
-# hook_container because input is not a leaf: the confirm step runs a whole pbConfirmMessage inside it, and
-# under the default reentrancy guard the command window's own reader is discarded as nested -- so the yes/no
-# of an irreversible choice was answered with nothing spoken.
+# hook_container, since input runs the confirm step's pbConfirmMessage, whose reader the guard would drop as nested.
 PokeAccess::Hooks.after_hook("PokemonGenderSelection", :input, :optional => true, :hook_container => true) do |s, _r, _a|
   PokeAccess::GenderSelection.announce(s)
 end

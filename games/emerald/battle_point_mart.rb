@@ -1,5 +1,4 @@
-# The "Battle Point Mart", which only this game has: the Battle Point shop in every respect that matters to
-# a reader, under its own class names and the mart's lifecycle.
+# Emerald's Battle Point Mart, read as a shop under its own class names and with the mart's lifecycle.
 PokeAccess::Menus.def_extractor("Window_PokemonMart_BattlePoints") do |win, i|
   PokeAccess::Shops.row(win, i)
 end
@@ -13,5 +12,6 @@ PokeAccess::Game.define("emerald") do
   end
 end
 
-PokeAccess::InfoWindow.watch("PokemonMart_Scene_BattlePoints", "qtywindow", :bpm_bag, PokeAccess::Shops::MART_LIFECYCLE)
+PokeAccess::InfoWindow.watch("PokemonMart_Scene_BattlePoints", "qtywindow", :bpm_bag,
+                             PokeAccess::Shops::MART_LIFECYCLE.merge(:reading => [:shop_item, :medium]))
 PokeAccess::InfoWindow.watch("PokemonMart_Scene_BattlePoints", "coinswindow", :bpm_points, PokeAccess::Shops::MART_LIFECYCLE)

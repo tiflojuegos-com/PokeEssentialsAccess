@@ -1,8 +1,5 @@
-# The keyboard switch around a naming screen. A modern mkxp-z starts with text input off and Input.gets
-# yields nothing until Input.text_input = true; a gen-6 naming script on that runtime opens a box nobody can
-# type into (Reminiscencia: Ctrl+G, Shift+K and Shift+M all "opened nothing"). What is pinned is the
-# contract that makes the fix safe everywhere else: on for the screen, restored afterwards, and a runtime or
-# a game that already manages the switch is left exactly as found.
+# TextEntry.with_keyboard_input: a modern mkxp-z starts with text input off, so a naming screen runs with
+# Input.text_input on and the switch is restored after, raise or not; a switch already on is left alone.
 
 # Gives the stub Input a text_input switch for the block, recording every write, and removes it after.
 def with_text_input_switch(initial)

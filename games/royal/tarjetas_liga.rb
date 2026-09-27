@@ -1,41 +1,42 @@
-# royal's League Cards list ([ROYAL] Tarjetas Liga -> class TarjetasLiga_Scene): a sprite grid, @index is
-# the on-screen slot and @tarjeta_elegida the actual card index into TarjetasLiga.tarjetas (each card is an
-# array: [id, name, ?, description]). actualizarTarjetasPantalla redraws on every cursor move, so read the
-# focused card's name and description there, deduped by the chosen card index.
+# Royal's League Cards list (TarjetasLiga_Scene), a sprite grid: @tarjeta_elegida indexes TarjetasLiga.tarjetas,
+# each card [id, name, ?, description].
 PokeAccess::Game.define("royal") do
-  # A card you have not unlocked yet is drawn as "???" with no action, and reading its real name and lore
-  # paragraph handed a blind player the very spoiler the screen withholds -- plus no hint as to why the
-  # button only buzzes there. The screen's own gate is a global, tarjeta_desbloqueada?(index), so it is asked
-  # rather than guessed. "???" is what a sighted player sees; spoken, it says nothing useful, so the locked
-  # state is named instead.
-  # Only the name and the position are spoken, which is all the list paints: the lore in card[3] is a
-  # five-hundred-character paragraph that lives on the card VIEW (opened with USE) and read here it
-  # interrupted itself on every arrow, so it goes to the info key. A locked card also drops whatever the
-  # info key held, or it would answer with the previous card's lore attributed to this one.
+  # The focused card by name and place, its lore on the info key; a locked card is said as locked (the screen
+  # draws "???"), with no lore. The grid repaints every frame, so the card is said again on the way back from it.
   after("TarjetasLiga_Scene", :actualizarTarjetasPantalla) do |scn, _ret, _args|
     i = PokeAccess.ivar(scn, :@tarjeta_elegida)
-    next unless PokeAccess::Cursor.changed?(scn, :tl, i)
+    back = PokeAccess::RoyalTarjetaInfo.back!
+    next unless PokeAccess::Cursor.changed?(scn, :tl, i) || back
+    total = (TarjetasLiga.tarjetas.length rescue 0)
     unless (tarjeta_desbloqueada?(i) rescue true)
       PokeAccess::Info.clear_text
-      next PokeAccess.speak(PokeAccess::I18n.t(:rl_card_locked), true)
+      next PokeAccess.speak(PokeAccess::Verbosity.list_entry(PokeAccess::I18n.t(:rl_card_locked), i + 1, total), true)
     end
     card = (TarjetasLiga.tarjetas[i] rescue nil)
     next unless card.is_a?(Array)
     name = card[1].to_s
     next if name.empty?
-    total = (TarjetasLiga.tarjetas.length rescue 0)
-    PokeAccess.speak_clean(PokeAccess::I18n.t(:list_entry, :name => name, :n => i + 1, :tot => total), true)
+    PokeAccess.speak_clean(PokeAccess::Verbosity.list_entry(name, i + 1, total), true)
     PokeAccess::Info.set_info(:text, card[3].to_s)
   end
+
+  after("TarjetasLiga_Scene", :pbEndScene, :optional => true) { |_s, _r, _a| PokeAccess::Info.clear_text }
 end
 
 module PokeAccess
-  # The single-card view (InfoTarjetasLiga_Scene): pbStartScene paints the card name and the two key hints
-  # (captured through PaintCapture), and the USE branch of its own loop paints the description with
-  # drawTextEx mid-loop, so that one is spoken live while pbStartActions runs.
+  # The single-card view (InfoTarjetasLiga_Scene): what pbStartScene paints (name, key hints), then the description
+  # drawTextEx paints while pbStartActions runs; closing it sends the list back to its focused card.
   module RoyalTarjetaInfo
     def self.arm_desc; @desc = true; end
     def self.disarm; @desc = nil; end
+
+    # Marks the card view closed, and answers (once) whether it was, for the list's next repaint.
+    def self.closed; @back = true; end
+    def self.back!
+      b = @back
+      @back = nil
+      b
+    end
 
     def self.desc_painted(text)
       return unless @desc
@@ -56,4 +57,5 @@ PokeAccess::Game.define("royal") do
     begin; nxt.call; ensure; PokeAccess::RoyalTarjetaInfo.disarm; end
   end
   kernel("drawTextEx", :before) { |args, _r| PokeAccess::RoyalTarjetaInfo.desc_painted(args[5]) }
+  after("InfoTarjetasLiga_Scene", :pbEndScene, :optional => true) { |_s, _r, _a| PokeAccess::RoyalTarjetaInfo.closed }
 end

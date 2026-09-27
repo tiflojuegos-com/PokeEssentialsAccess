@@ -1,7 +1,5 @@
-# royal's trainer-points screen (PokemonOptionPuntos_Scene): the running total under the sliders is a
-# standing window the scene rewrites after every edit, and it is what the sliders are spent against. The
-# stand-in is declared before the profile loads, because a watch on a class that does not exist yet
-# registers nothing.
+# Royal's trainer-points screen (PokemonOptionPuntos_Scene): the running total, a window rewritten after every slider
+# edit, is read on open and on each change. The stand-in comes first: a watch on a missing class registers nothing.
 class PokemonOptionPuntos_Scene
   attr_reader :sprites
   def initialize; @sprites = { "puntos_totales" => FakeTextWin.new }; end

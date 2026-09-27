@@ -1,3 +1,2 @@
-# Armonia zone banners (the JessLetreros plugin). Registers the shared location-banner reader
-# (core/field/location_banner.rb) for this profile.
+# Armonia zone banners (the JessLetreros plugin), on the shared location-banner reader.
 PokeAccess::LocationBanner.define("armonia")

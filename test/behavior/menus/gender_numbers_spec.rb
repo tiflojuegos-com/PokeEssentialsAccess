@@ -1,11 +1,5 @@
-# Numbered gender portraits (pantallaGenero1/2). The core table is a GUESS -- one game numbers the boy 1,
-# the next numbers the girl 1 -- and a guess that lands the wrong way announces the player as the opposite
-# of what is on screen, which is worse than saying nothing. Opalo is the one game that ships them and it
-# numbers them the other way round, so its profile declares the mapping; this pins that it does, because
-# the failure it prevents is silent and reads as correct.
-#
-# Driven through the REAL profile file, evaluated the way the harness loads one, and everything it touches
-# is restored: it registers picture texts and an observer besides the mapping.
+# Opalo's numbered gender portraits (pantallaGenero1/2) are declared by its profile, the other way round from the core
+# default; this repo's profile file is evaluated for real, and everything it registers restored.
 Suite.define("opalo: the numbered gender portraits are declared, not guessed") do
   cues = PokeAccess::PictureCues
   numbers = PokeAccess::Config.gender_numbers
@@ -19,7 +13,6 @@ Suite.define("opalo: the numbered gender portraits are declared, not guessed") d
         PokeAccess::Appearance.gender_for_picture("pantallaGenero2")], [:ap_boy, :ap_girl]
 
     path = File.join(Harness::ROOT, "games", "opalo", "picture_cues.rb")
-    # eval is the harness's own loading mechanism (test/support/harness.rb): this repo's file, by absolute path.
     eval(File.read(path), TOPLEVEL_BINDING, path)
 
     eq "opalo numbers them the other way, which is what its selector really shows",

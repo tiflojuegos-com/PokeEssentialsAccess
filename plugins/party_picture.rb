@@ -1,9 +1,5 @@
-# The team photo of the "Fotos del equipo" plugin (PartyPicture; Anil and Royal ship the same camera): with
-# the party in place, PartyPicture#main pans the camera with the arrows, one pbScrollMap(dir, 1) per step up
-# to MAX_HORIZONTAL_MOVEMENT tiles sideways and MAX_VERTICAL_MOVEMENT up or down, and bumps at its limit.
-# Its menus and help go through pbMessage; the camera shows no text. The offset is measured on the map's
-# own display rather than counted from the steps: on a map that snaps to its edges (four photo spots in
-# Anil) the display stops at the border while the plugin keeps counting.
+# The team photo camera of the "Fotos del equipo" plugin (PartyPicture#main pans it with pbScrollMap): each step
+# says the offset from the start, measured on the map's display, as a map edge can stop it while the plugin counts.
 module PokeAccess
   module TeamPhoto
     # Takes the camera's starting position, as main begins.
@@ -38,9 +34,7 @@ module PokeAccess
       PokeAccess.speak(text, true)
     end
 
-    # Display units to tiles, to the nearest half: the camera starts centred on the player and off the tile
-    # grid (half a tile across Anil's screen, five eighths down Royal's), so once a map edge has stopped it
-    # short it stands between two tiles, and whole tiles would make one step sound like two.
+    # Display units to tiles, to the nearest half (the camera starts off the tile grid, so it can stop between two).
     def self.tiles(units)
       v = (units.abs / tile * 2 + 0.5).floor / 2.0
       units < 0 ? -v : v

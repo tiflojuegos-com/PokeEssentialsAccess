@@ -1,14 +1,6 @@
-# Regenerates test/static/ivar_census.txt: for every instance variable the mod reads off a game object,
-# which games' scripts actually contain that name.
-#
-# NOT a spec (no _spec suffix, so the runner ignores it): it reads the decompiled script dumps, which live
-# OUTSIDE the repo and are absent on CI. That is why the answer is a committed file rather than a live scan
-# -- a check that quietly disappears when its input is missing is exactly the hole this closes.
-#
-# Run by hand after adding a reader, a profile or a refreshed dump:
+# Builds ivar_census.txt, loop_census.txt, spec_census.txt and lifecycle_census.txt from the decompiled dumps,
+# which are absent on CI (tools/dump_scripts.rb makes one). Run by hand after adding a reader, a profile or a dump:
 #   ruby test/static/build_reader_census.rb ["path\to\decompiled Scripts"]
-#
-# To get a dump of a game you have, use tools/dump_scripts.rb.
 require File.expand_path("reader_sites", File.dirname(__FILE__))
 
 DEFAULT_DUMPS = File.expand_path("../../../../decompiled Scripts", File.dirname(__FILE__))
@@ -27,10 +19,7 @@ if games.empty?
   exit 1
 end
 
-# Vanilla Essentials joins the survey as a fourteenth source. No fangame here runs v22, so every v22 reader
-# was unverifiable by construction: its classes, methods and ivars appeared in no dump and the checks had to
-# exempt the whole folder. The upstream tree is a plain script folder like any other, so pointing the same
-# scan at it answers those reads against the engine they were written for -- and answers the v21 ones twice.
+# Vanilla Essentials joins the survey, so the v22 readers, which no surveyed fangame runs, are checked too.
 VANILLA = File.expand_path("../../../../pokemon-essentials/Data/Scripts", File.dirname(__FILE__))
 vanilla = ENV["PA_VANILLA"] || VANILLA
 sources_of = {}
@@ -46,15 +35,8 @@ end
 wanted = {}
 ReaderSites.ivars_by_file.each_value { |names| names.each { |n| wanted[n] = {} } }
 
-# One pass per game over its whole dump, matching every wanted name at once: the dumps are tens of
-# megabytes and a pass per name would be hundreds of passes over the same bytes. Read binary, because the
-# dumps carry Latin-1 accents in comments and a UTF-8 String would raise on the match.
-#
-# The owning class is tracked alongside, because "which game has this name" is only half the question a
-# reader needs answered: a name can be present in the game and still be on the wrong OBJECT, which is a
-# silent nil just the same. The check cannot decide that on its own -- it would have to know which object
-# each read is aimed at -- so the census names the classes instead, and the answer is one grep away rather
-# than a manual search of the dumps.
+# One pass per game matching every wanted name at once, read binary (the dumps carry Latin-1 in comments); the
+# owning classes are listed too, since a name can be in the game and still on the wrong object.
 names = wanted.keys.sort
 owners = {}
 pattern = /@(#{names.map { |n| Regexp.escape(n) }.join("|")})\b/
@@ -98,26 +80,9 @@ puts "wrote #{OUT}: #{names.length} ivar names across #{games.length} games"
 missing = names.select { |n| wanted[n].empty? }
 puts "never found in any dump (#{missing.length}): #{missing.join(', ')}" unless missing.empty?
 
-# --- second census: which of the methods the mod binds an AFTER hook to are the screen's blocking loop.
-#
-# An after hook runs when its method RETURNS. Bound to the loop that IS the screen, it fires on the way out,
-# so the screen is silent for exactly as long as the player is in it -- and the reader looks perfectly
-# correct, because it is: it is just being asked at the only moment nobody is listening.
-#
-# A method blocks when it both loops and pumps the frame: a loop alone is any bit of data processing, and
-# pumping inside one is what makes it the screen's own turn-taking. One level of indirection counts too,
-# because the common shape is a constructor whose last statement is the loop method.
-#
-# All three forms below started too narrow, and the narrowness was invisible: every row came out clean, so
-# the file read as thirteen games' worth of evidence when parts of it could not produce a finding at all.
-#
-# PUMP_FORM was Graphics.update alone. Every Battle::Scene modal loop pumps through pbUpdate or
-# pbGraphicsUpdate instead (royal's 002_Battle_Scene), so NO battle-scene loop was
-# detectable -- the ability splash, the level-up panels and the battler grid all reported clean.
-#
-# LOOP_FORM was loop/while true/until false. A plain conditional while is the same screen loop written
-# differently, and widening it adds 263 methods across the fourteen sources. `for` is deliberately left
-# out: it produced four false positives, all `for i in 0..2` next to an animation.
+# Second census: which after-hooked methods are the screen's blocking loop (an after hook there speaks only on the
+# way out). A method blocks when it loops (LOOP_FORM) and pumps the frame (PUMP_FORM), directly or through its last
+# statement; `for` is left out of LOOP_FORM on purpose: its only hits were false positives.
 LOOP_OUT = File.join(File.dirname(__FILE__), "loop_census.txt")
 LOOP_FORM = /^\s*(?:loop\s+do|while\b|until\b)/
 PUMP_FORM = /\b(?:Graphics\.update|pbUpdate|pbGraphicsUpdate)\b/
@@ -127,19 +92,21 @@ ReaderSites.after_hooks_by_file.each_value { |sites| sites.each { |s| hooked[s] 
 hooked_classes = {}
 hooked.each_key { |s| hooked_classes[s.split("#").first.split("::").last] = true }
 
-# The scan below indexes by the LAST namespace segment, because that is the only name a decompiled `class`
-# line reliably carries. The census keys are fully qualified, so every lookup has to be shortened the same
-# way -- it was not, and all twenty-eight namespaced sites (Battle::Scene, UI::*, VideoPoker::*) missed on
-# every game and were reported as clean without a single comparison having been made.
+# A census key shortened to its last namespace segment, the only name a decompiled class line reliably carries.
 def short_key(key)
   cls, meth = key.split("#", 2)
   "#{cls.split('::').last}##{meth}"
 end
 
-# Which sites any dump defines at all. A site nothing defines cannot be checked, and printing it with the
-# same empty list as a checked-and-clean one is the difference between "no bug" and "no evidence".
-# evidence is keyed by the DEFINING class; seen records the hook keys some game answered for, whether on
-# the class itself, an ancestor or Object.
+# evidence: the Class#method pairs some dump defines, keyed by the defining class; seen: the hook keys some game
+# answered for, on the class, an ancestor or Object. A site nothing defines is printed as NO-DUMP, not as clean.
+# - the superclass lines are collected first, so evidence covers a hooked class's ancestors too.
+# - attr_* lines count as method definitions with no body, so they never match a blocking loop.
+# - a def at file scope files under Object, as Ruby resolves it.
+# - a method's body runs to its own `end` or the next `def`, whichever comes first; a mismatched `end` indent or a
+#   nested def can truncate it early, which misses a loop rather than inventing one.
+# - a method counts as indirection only through its last statement, an optional trailing if/unless included.
+# - an unresolved method name is looked up through its class's superclass chain, then Object.
 evidence = {}
 seen = {}
 
@@ -147,10 +114,6 @@ games.each do |g|
   profile = ReaderSites::PROFILE_OF[g] || g
   direct = {}
   calls = {}
-  # The superclass lines first, on their own pass, so the defs pass can keep evidence for the ANCESTORS of a
-  # hooked class as well: a hooked method the class inherits -- addLabel on ButtonEventScene comes from
-  # EventScene -- is defined where nothing is hooked, and a pass that only kept the hooked classes filed it
-  # as NO-DUMP.
   supers = {}
   Dir.glob(File.join(sources_of[g], "**", "*.rb")).each do |f|
     src = File.open(f, "rb") { |io| io.read }
@@ -170,9 +133,6 @@ games.each do |g|
     lines = File.open(f, "rb") { |io| io.readlines }
     lines.each_with_index do |line, i|
       cur = stack.feed(line)
-      # attr_accessor and friends define real methods with no body: a hooked getter or setter that comes
-      # from one would report NO-DUMP, which reads as "nothing to check" when the truth is "nothing that
-      # could ever block". Game_Temp#in_battle= and #in_menu= are both of these.
       if cur && line =~ /^\s*attr_(accessor|reader|writer)\s+(.+)$/
         kind = $1
         $2.scan(/:([a-zA-Z_]\w*)/) do
@@ -184,19 +144,9 @@ games.each do |g|
       next unless line =~ /^(\s*)def\s+(?:self\.)?([a-zA-Z_]\w*[?!=]?)/
       indent = $1.length
       meth = $2
-      # A def at file scope is not lost: Ruby makes it a private instance method of Object, so every class
-      # in the game inherits it, and three of the sites the mod hooks are written exactly that way (awakening
-      # closes Glosario_Historia and then defines update_cursor at column 0; likewise its EquipScreen and
-      # emerald's WonderCardAlbumScene). Filed under Object and resolved through it below, which is what the
-      # interpreter does. Reported as NO-DUMP before -- unfalsifiable rather than clean.
       cur = stack.owner_at(indent) || cur
       cur = "Object" if cur.nil? && indent == 0
       next unless cur && (wanted[cur] || cur == "Object")
-      # The body ends at its own `end` OR at the next `def`, whichever comes first. The second terminator is
-      # what makes this work on decompiled scripts: RPG Maker's editor lets a method sit at column 0 with its
-      # closing `end` indented, and matching the `end` alone then ran straight past it -- one such method
-      # swallowed the blocking loop of the NEXT one and was reported as a blocker itself. A method with a
-      # nested def is truncated early instead, which fails closed: a missed loop, never an invented one.
       body = []
       j = i + 1
       while j < lines.length
@@ -209,23 +159,12 @@ games.each do |g|
       key = "#{cur}##{meth}"
       evidence[key] = true
       direct[key] = true if text =~ LOOP_FORM && text =~ PUMP_FORM
-      # Indirection counts only when the call is the method's LAST statement. That is the shape that matters
-      # -- a constructor whose final act is to run the screen -- and stopping there is what keeps a method
-      # that merely CAN reach a blocking animation down one branch from being called a blocking loop.
-      #
-      # A trailing if/unless modifier still counts. "pbSelectBattlerInfo if select" IS the last statement,
-      # and it is how DBK opens the battler panel from pbUpdateBattlerSelection -- demanding a bare call
-      # meant that whole screen was followed nowhere.
-      tail = body.reverse.find { |l| l.strip != "" && l.strip != "end" }
+      tail =body.reverse.find { |l| l.strip != "" && l.strip != "end" }
       m = tail.to_s.match(/^\s*(?:self\.)?([a-z_]\w*)\s*(?:(?:if|unless)\s+\S.*)?$/)
       calls[key] = m ? ["#{cur}##{m[1]}"] : []
     end
   end
-  # Where to look for a method the class itself does not define: up its superclass chain, then Object,
-  # which is where a top-level def lands. Both are what the interpreter would do, and both were reported as
-  # NO-DUMP before -- unfalsifiable rather than clean. The chain is capped, so a cycle in a dump cannot
-  # spin here.
-  aliases = lambda do |s|
+  aliases =lambda do |s|
     cls, meth = s.split("#", 2)
     out = [s]
     5.times do
@@ -278,9 +217,7 @@ puts "wrote #{LOOP_OUT}: #{hooked.length} after-hook sites, #{blocking.length} b
      "#{no_evidence.length} with no dump, #{unresolved.values.flatten.length} unresolved"
 puts "blocking: #{blocking.join(', ')}" unless blocking.empty?
 
-# The spec census: every *_spec.rb the runner must discover, committed so run_all can refuse a sweep
-# whose glob went quiet (a renamed folder shrinks the suite without failing anything). Needs no dumps,
-# so it regenerates on any machine.
+# Third census: every *_spec.rb run_all must discover, so a sweep whose glob went quiet fails; needs no dumps.
 SPEC_OUT = File.join(File.dirname(__FILE__), "spec_census.txt")
 test_root = File.expand_path(File.join(File.dirname(__FILE__), ".."))
 spec_rel = Dir.glob(File.join(test_root, "{unit,behavior,static}", "**", "*_spec.rb"))
@@ -291,21 +228,8 @@ File.open(SPEC_OUT, "wb") do |io|
 end
 puts "wrote #{SPEC_OUT}: #{spec_rel.length} spec files"
 
-# --- fourth census: the LIFECYCLE each watched information-window scene really has.
-#
-# InfoWindow.watch binds a scene's open and close by name, and a name no game answers to binds nothing:
-# the class is there, the windows are there, and the screen is simply never entered. Nothing said so. The
-# mart shipped exactly that way -- declared against the engine's pbStartScene/pbEndScene, which it has
-# neither of, because it names both ends after the mode (pbStartBuyScene/pbEndBuyScene and the sell pair)
-# in all fifteen games. The suite stayed green because the stub had been given the engine's pair.
-#
-# So the census answers two things per watched class: which lifecycle methods the GAMES define on it, and
-# which ones the MOD declares. The spec then asks the only question with one right answer -- do the two
-# sets meet?
-#
-# The class is rarely a literal: the phone and the dex list are registered through Hooks.variants over
-# their spellings, and the mart through Engine.scene_classes, so those lists count as class names too. And
-# an :open list may be a constant, which is resolved from wherever the mod defines it.
+# Fourth census: per scene InfoWindow watches, the lifecycle methods the games define and those the mod declares,
+# which must meet; class names listed through variants or scene_classes count, and an :open constant is resolved.
 LIFE_OUT = File.join(File.dirname(__FILE__), "lifecycle_census.txt")
 LIFE_RE = /\A(?:pbStart[A-Za-z]*|pbEnd[A-Za-z]*|start|main)\z/
 DEFAULT_OPENERS = %w[pbStartScene start]
@@ -328,9 +252,8 @@ mod_src.each_value do |src|
   end
 end
 
-# One InfoWindow.watch call at a time, arguments and all (one level of nested parentheses, for .merge(...)):
-# the class is its first argument when literal, else the spellings the file lists through variants or
-# scene_classes; the openers are the defaults plus whatever the arguments declare or carry in a constant.
+# One InfoWindow.watch call with its arguments (one level of nested parentheses): its class is the first argument
+# when literal, else the file's variants/scene_classes spellings; its openers, the defaults plus the declared ones.
 WATCH_CALL = /\bInfoWindow\.watch\(((?:[^()]|\([^()]*\))*)\)/m
 watched = {}
 mod_src.each do |f, src|

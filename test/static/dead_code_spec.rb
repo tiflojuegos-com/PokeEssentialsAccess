@@ -1,12 +1,5 @@
-# No module method is defined and never called.
-#
-# A `def self.x` nobody references is not harmless: it is read, maintained and trusted as if it ran. Two had
-# accumulated by 0.4.6, both from the first version (a hidden-objects iterator, and a teleporter-pattern
-# registrar no profile could reach until the DSL exposed it), and nothing but a sweep would ever have said
-# so. References are counted as bare word matches across core, games, plugins, loader and test, which is
-# what keeps this cheap and parser-free; a method reached only through a name built at runtime
-# (send("#{k}=")) leaves no bare word to match and belongs in the skip list below, next to the names every
-# object answers.
+# No module method (def self.x) is defined and never referenced: bare word matches across core, games, plugins,
+# loader and test; a name only built at runtime (send("#{k}=")) goes in the skip list.
 Suite.define("static: every module method is referenced somewhere") do
   root = File.expand_path("../..", File.dirname(__FILE__))
   src = %w[core games plugins loader].map { |d| Dir.glob(File.join(root, d, "**", "*.rb")) }.flatten.sort

@@ -1,8 +1,5 @@
-# Defensive ivar/sprite readers: the mod introspects game objects by instance variable everywhere, so these
-# fold the (obj.instance_variable_get(:@x) rescue fallback) idiom into one place. Faithful to that idiom: an
-# unset ivar reads as nil (Ruby does not raise on a missing ivar), so fallback only applies when the read
-# itself raises. This matches the ~171 `rescue nil` sites it replaces, which also yielded nil for an absent
-# ivar. It must never propagate: reading off something that cannot take instance_variable_get returns fallback.
+# PokeAccess.ivar: an unset ivar reads as nil (Ruby does not raise on one), the fallback only when the read raises,
+# and it never raises itself.
 Suite.define("ivar: reads the value, nil when unset, fallback only on error") do
   obj = Object.new
   obj.instance_variable_set(:@here, 7)
@@ -13,7 +10,7 @@ Suite.define("ivar: reads the value, nil when unset, fallback only on error") do
   eq "a malformed ivar name (the raising case) uses the fallback", PokeAccess.ivar(obj, :bad_name, :safe), :safe
 end
 
-# ivar_i coerces to Integer for the numeric ivars whose open-coded reads fell back to 0.
+# ivar_i coerces to Integer, 0 or the fallback when absent.
 Suite.define("ivar_i: coerces to integer with a numeric fallback") do
   obj = Object.new
   obj.instance_variable_set(:@n, "5")

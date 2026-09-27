@@ -16,6 +16,12 @@ Essentials exists in versions with incompatible APIs and real fangames mix them.
 Eras are named after their data API, not "old/modern". `Engine.kind` tells only two apart, `:gen6` and
 `:gamedata`; every finer cut is a capability.
 
+The **Reborn engine** (Reborn, Rejuvenation and Desolation) grew out of Essentials v16, but runs on Ruby 3.1 and
+keeps its data in a `$cache`. To the mod it is `:gen6`, and what that engine names its own way lives in the common
+profile `games/rv_common/`, which the three import, its data provider (`data_rv`) first. The games the launcher
+**converts** (Insurgence and Uranium) move from the original RPG Maker XP player to an own 32-bit build of mkxp-z
+1.3.0 with Ruby 1.8.7, and to the mod they are gen-6 like any other.
+
 ## Detection
 
 `gamedata?` is exactly `defined?(GameData) && defined?(GameData::Species)`; `gen6?` is its negation and
@@ -121,7 +127,7 @@ PATH: the `MODERN` constant, in `check187.py` and `check187_real.rb`, both of th
 | Exempt (Ruby 3.x) | Checked (1.8.7) |
 |---|---|
 | any path containing `/v21/` or `/v22/` | the rest of `core/` and `loader/*.rb` |
-| `games/anil/`, `games/royal/`, `games/relict/`, `games/emerald/`, `games/infinitefusion/`, `games/infinitefusion_hoenn/` | the rest of `games/` |
+| `games/anil/`, `games/fireash/`, `games/royal/`, `games/relict/`, `games/soulstones2/`, `games/emerald/`, `games/infinitefusion/`, `games/infinitefusion_hoenn/`, `games/infinitefusion_common/`, `games/skyflyer_common/` | the rest of `games/`, the Reborn engine too although it runs Ruby 3.1 |
 | | all of `plugins/`: a third-party plugin can be installed in a gen-6 fangame |
 
 ### Banned in dual code

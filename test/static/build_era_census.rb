@@ -1,20 +1,6 @@
-# Builds test/static/era_census.txt: every Essentials API name (the pb-prefixed functions and methods) that
-# the SHARED core calls, and which surveyed sources define it. Run it the way the other census builders are
-# run -- it reads the decompiled dumps, which live OUTSIDE the repo and are absent on CI:
-#
-#   ruby test/static/build_era_census.rb ["path\to\decompiled Scripts"]
-#
-# Why this census exists. Shared core runs on both engine eras, and it asks the game for things under
-# `rescue`, so a call to a method only ONE era defines does not fail: it answers nil in the other era, for
-# ever, and the reader built on it is silent there without a trace. The spin-tile reader asked
-# $game_player.pbTerrainTag, a modern method, and the two games with spin tiles are gen-6: it never named a
-# direction in any game. The names below are the mechanical half of that class -- the API names Essentials
-# spells with its pb prefix -- so a call to one that some game lacks has to be either a ladder to the other
-# era's name, a guard, or an entry in era_calls_spec.rb with its reason.
-#
-# Shared core is core/ minus the era folders (gen6/, v21/, v22/), whose files are gated by construction.
-# Names inside string literals are dropped (they are hook labels and window keys), names the mod defines
-# itself are dropped, and so are the wrapper aliases (__pa_ / __access_ suffixes).
+# Builds test/static/era_census.txt: every pb-prefixed Essentials name shared core (core/ minus gen6/, v21/, v22/)
+# calls, and which sources define it, from the decompiled dumps (absent on CI). Names in strings, the mod's own and
+# wrapper aliases are dropped. Run: ruby test/static/build_era_census.rb ["path\to\decompiled Scripts"]
 require "find"
 
 DEFAULT_DUMPS = File.expand_path("../../../../decompiled Scripts", File.dirname(__FILE__))
@@ -38,6 +24,8 @@ note = lambda do |name, rel|
   next if name.include?("__")
   (calls[name] ||= []).push(rel) unless (calls[name] || []).include?(rel)
 end
+# A quoted name counts as a call when wrap_kernel, wrap_global or kernel( appears on its line or the next three (a
+# loop's name list sits just above its wrap), so a hook label or window key is not taken for a function.
 Dir.glob(File.join(ROOT, "core", "**", "*.rb")).sort.each do |f|
   rel = f[ROOT.length + 1..-1].tr("\\", "/")
   src = File.read(f)
@@ -47,10 +35,6 @@ Dir.glob(File.join(ROOT, "core", "**", "*.rb")).sort.each do |f|
   lines.each_with_index do |ln, i|
     next if ln =~ /\A\s*#/
     bare = ln.sub(/\s#(?!\{).*\z/, "")
-    # A function wrapped BY NAME is a call to it too: wrap_kernel("pbShowCommandsRogue") binds one game's
-    # function and quietly none of the others', which is exactly what the census is for. Only where a wrap
-    # follows within a few lines (the name list of a loop sits just above its wrap_kernel), so a hook label
-    # or a window key in quotes is not taken for a function.
     near = lines[i, 4].join
     bare.scan(/"(pb[A-Z][A-Za-z0-9_]*[?!]?)"/) { |(name)| note.call(name, rel) } if near =~ /\b(?:wrap_kernel|wrap_global|kernel)\(/
     code = bare.gsub(/"(?:[^"\\]|\\.)*"|'(?:[^'\\]|\\.)*'/, '""')

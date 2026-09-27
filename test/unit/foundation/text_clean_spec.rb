@@ -1,6 +1,5 @@
-# Text cleaning for speech: clean strips Essentials control codes (\c[n], \v[n], \PN...) and HTML-like
-# tags, collapses whitespace, and removes the non-speakable control bytes (\x00-\x1f) whose presence makes a
-# paused line differ from its twin and slip past say_dialogue's dedup (the double-battle-message bug).
+# PokeAccess.clean strips Essentials control codes (\c[n], \v[n], \PN...) and tags, and turns control bytes and
+# line breaks into single spaces.
 Suite.define("text: clean strips control codes and markup") do
   out = PokeAccess.clean("\\c[3]Hola\\v[1] <b>mundo</b>")
   truthy "no control codes or tags remain", out && out !~ /\\c|\\v|<b>/
@@ -16,9 +15,7 @@ Suite.define("text: clean strips control codes and markup") do
   eq "blank input cleans to empty", PokeAccess.clean(nil), ""
 end
 
-# A bare code is glued straight onto the text ("\bHello!"), so the stripper must know the codes by name:
-# matched as "a backslash and some letters" it swallowed the first word of every such line, which is how
-# all of FireAsh's dialogue (speaker colour \b on every message) lost its opening word.
+# A bare code glued to the text ("\bHello!") is stripped by name, keeping the word after it.
 Suite.define("text: a control code glued to the text loses the code and keeps the word") do
   bs = "\\"
   eq "the speaker colour before the first word", PokeAccess.clean(bs + "bHello! Sorry to keep you waiting!"),
@@ -36,10 +33,7 @@ Suite.define("text: a control code glued to the text loses the code and keeps th
   eq "a hex colour code goes", PokeAccess.clean(bs + "[ff00ff00]Red" + bs + "[00000000]!"), "Red!"
 end
 
-# A bare code the list does not know is not stripped, it is SPOKEN: the generic remover leaves a code glued
-# to its text alone on purpose, so that it cannot eat the first word. Which makes the list of codes the only
-# thing standing between the player and hearing "upnHOLA jugador" out loud -- and that is a real line from a
-# real game, whose message system adds the player's name in upper and lower case.
+# The player's name codes: \upn upper case, \dpn lower case, \PN as is; \xn[name] becomes the speaker.
 Suite.define("text: the player's name is spoken in the case the code asks for") do
   bs = "\\"
   who = $Trainer.name
@@ -49,11 +43,8 @@ Suite.define("text: the player's name is spoken in the case the code asks for") 
   eq "the speaker-name code becomes the speaker", PokeAccess.clean(bs + "xn[Cara]Vale."), "Cara: Vale."
 end
 
-# WHO IS SPEAKING. Seven spellings of the name-box code across the games and their plugins, and only two of
-# them were resolved: the other five went through the generic bracket sweep, so the box appeared on screen
-# and the line reached the player with no subject at all. And the \xn family carries a whole parameter list
-# (name, base colour, shadow colour, font, size, alignment, x, y, skin) of which the window paints only the
-# first field -- the rest was read out as hexadecimal.
+# Every name-box code says the name before the line; of the \xn family's parameter list (name, colours, font, size,
+# ...) only the name, the one field the box paints.
 Suite.define("text: every code that opens a name box says the name, and only the name") do
   %w[tg ta tb js dxn xn xna xnb xnc].each do |code|
     line = '\\' + code + "[Brock]Hola."
@@ -63,9 +54,8 @@ Suite.define("text: every code that opens a name box says the name, and only the
      PokeAccess.clean('\xn[Brock,ef2110,ffadbd,0,0,nil,0,0,0]Hola.'), "Brock: Hola."
 end
 
-# A bare code that is not on the list falls to the generic sweep, which cannot tell where it ends: it eats
-# the word after it, and where the next letter is accented -- not [A-Za-z] -- it splits the word instead and
-# the code itself is spoken letter by letter. \pt alone is in vanilla and eight of the games.
+# The bare codes of the money and points windows (\pt, \hs, \qp, \apw, \pksz, \wshs) are stripped by name, the word
+# after them kept.
 Suite.define("text: the bare codes of the money and points windows leave the sentence whole") do
   { '\ptSi.' => "Si.", '\hsOh.' => "Oh.", '\ptAsi que si.' => "Asi que si.",
     '\qp5 puntos.' => "5 puntos.", '\apwHola.' => "Hola.", '\pkszHola.' => "Hola.",
@@ -74,16 +64,55 @@ Suite.define("text: the bare codes of the money and points windows leave the sen
   end
 end
 
-# The name in the CODE is not always the name on the SCREEN. One game hides a character behind "???" until a
-# switch is flipped and rewrites the parameter on its way to the box, so reading the code raw handed the
-# player exactly what that scene is withholding. The rule is the game's, so a profile registers it.
+# register_name_filter lets a profile rewrite the name a name-box code shows (a game's "???" for a hidden speaker);
+# a box of question marks, which a screen reader drops, is said as the word for an unknown speaker.
 Suite.define("text: a profile can say what name the box really shows") do
   before = PokeAccess.name_filters.dup
+  unknown = PokeAccess::I18n.t(:msg_speaker_unknown)
   begin
     PokeAccess.register_name_filter { |nm| nm == "Anthony" ? "???" : nil }
-    eq "the profile's rule wins", PokeAccess.clean('\tg[Anthony]Hola.'), "???: Hola."
+    eq "the profile's rule wins, its question marks said as a word", PokeAccess.clean('\tg[Anthony]Hola.'),
+       "#{unknown}: Hola."
     eq "and leaves every other name alone", PokeAccess.clean('\tg[Brock]Hola.'), "Brock: Hola."
   ensure
     PokeAccess.name_filters.replace(before)
   end
+end
+
+# Reminiscencia's intro names its speaker "???" outright (\tg[???]); the box paints the marks, and the line must not
+# sound like narration.
+Suite.define("text: a name box of question marks is an unknown speaker, not a silent one") do
+  unknown = PokeAccess::I18n.t(:msg_speaker_unknown)
+  eq "\\tg[???] leads with the word", PokeAccess.clean('\tg[???]¿Dónde...? ¿Dónde me encuentro...?'),
+     "#{unknown}: ¿Dónde...? ¿Dónde me encuentro...?"
+  eq "any run of them", PokeAccess.clean('\tg[??]Hola.'), "#{unknown}: Hola."
+  eq "a name with a question mark in it stays", PokeAccess.clean('\tg[¿Quién?]Hola.'), "¿Quién?: Hola."
+  eq "and marks in the message itself are the message's", PokeAccess.clean('\tg[Kyle]¿???'), "Kyle: ¿???"
+end
+
+# The games' text drawing turns five entities back into characters (toUnformattedText, getFormattedText); the
+# spoken line does too, after the tags are gone, &amp; last as the games do.
+Suite.define("text: the entities a game writes are said as the characters it paints") do
+  eq "quotes", PokeAccess.clean('\tg[Raiu]&quot;Señor Raiu&quot;, ¿eh?'), "Raiu: \"Señor Raiu\", ¿eh?"
+  eq "apostrophe, ampersand, angle brackets", PokeAccess.clean("Kyle&apos;s &amp; Co &lt;3 &gt;"), "Kyle's & Co <3 >"
+  eq "a decoded bracket is not taken for a tag", PokeAccess.clean("&lt;b&gt;negrita&lt;/b&gt;"), "<b>negrita</b>"
+  eq "an escaped entity stays one, as painted", PokeAccess.clean("&amp;quot;"), "&quot;"
+  eq "real tags still go", PokeAccess.clean("<c2=06644bd2>Hola</c2> &quot;tú&quot;"), "Hola \"tú\""
+end
+
+# PokeAccess.sentences puts one period between parts: none after a part that closes its own, or after a colon.
+Suite.define("sentences: one mark between parts, none after a closing one or a lead-in colon") do
+  eq "plain parts take a period", PokeAccess.sentences(["Piso 3", "Nivel maximo 15"]), "Piso 3. Nivel maximo 15"
+  eq "a part that closes its own takes no second one", PokeAccess.sentences(["Teletr.", "Uno"]), "Teletr. Uno"
+  eq "a label ending in a colon leads into the next part", PokeAccess.sentences(["LISTA DE TARJETAS:", "Pulsa C"]),
+     "LISTA DE TARJETAS: Pulsa C"
+  eq "and empty parts are left out", PokeAccess.sentences(["", "Uno", " "]), "Uno"
+end
+
+# PokeAccess.clean_fields joins a panel's fields with ", ": a money window's right-align tag is a separator, the comma
+# grouping the thousands of the sum it paints is not.
+Suite.define("text: clean_fields separates a panel's fields and keeps a painted sum whole") do
+  eq "a money window", PokeAccess.clean_fields("Money:\r\n<r>$3,000"), "Money:, $3,000"
+  eq "every group of a long number", PokeAccess.clean_fields("1,234,567 pts<br>next"), "1,234,567 pts, next"
+  eq "runs of separators become one", PokeAccess.clean_fields("<r>a,,b , c<br>"), "a, b, c"
 end

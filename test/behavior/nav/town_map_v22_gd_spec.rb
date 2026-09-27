@@ -1,12 +1,9 @@
-# v22 town map. Its reading lives in TownMapV22 and not inside the hook body, which a spec cannot reach
-# (hooks bind at load, so a class defined later is never wired). What it pins is the behaviour a blind player
-# depends on while sweeping the map with a held direction: the town is named when the cursor reaches it,
-# NOT repeated frame after frame, and blank points between towns stay silent without eating the next name.
+# v22 town map (TownMapV22): a town is named once when the cursor reaches it, a blank point is silent but takes the
+# dedup key, so sweeping off a town and back names it again; the dedup is per screen.
 Suite.define("town map v22: names the focused location once, stays quiet on blanks") do
   vis = Object.new
   def vis.point; @point; end
   def vis.point=(p); @point = p; end
-  # The screen's own accessor: a point with a name, or one without (the sea, a blank tile).
   def vis.get_point_data
     @point.nil? ? nil : { :real_name => @point }
   end
@@ -31,9 +28,6 @@ Suite.define("town map v22: names the focused location once, stays quiet on blan
   PokeAccess::TownMapV22.announce(vis)
   spoke_once "the next town after the blank IS named", /Ciudad Verde/
 
-  # Off a town and straight back ONTO IT -- not via a third town, which is what made the old walk pass
-  # either way. The blank has to consume the dedup key: if it does not, the last key is still that same town
-  # and the return is silent, which on a map you navigate by sweeping is the whole screen going quiet.
   vis.point = "Pueblo Paleta"
   PokeAccess::TownMapV22.announce(vis)
   vis.point = nil

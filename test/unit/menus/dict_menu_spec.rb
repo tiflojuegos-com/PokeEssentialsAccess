@@ -1,12 +1,9 @@
-# The "labels and markers" branch of the config menu: one table (ConfigMenu::DICTS) drives an import
-# submenu, an export submenu and three editable lists, one per dictionary. Pinned here is the shape a
-# player navigates by ear -- the same four rows in import and export, the same three actions on every
-# entry -- and the two results that matter most: a foreign file is refused with its game named, and
-# forgetting an entry drops it from the list the player is standing in.
+# The config menu's Personalization branch (ConfigMenu::DICTS): import and export submenus and one editable list
+# per game dictionary, beside the verbosity schemes.
 
 # Deletes every dictionary file and forgets the stores, before and after a suite.
 def dict_menu_wipe
-  [PokeAccess::Tags, PokeAccess::Marks, PokeAccess::MapNames].each do |m|
+  [PokeAccess::Tags, PokeAccess::Marks, PokeAccess::MapNames, PokeAccess::VerbositySchemes].each do |m|
     [m::FILE, m::IMPORT, m::EXPORT].each { |f| (File.delete(f) rescue nil) }
     m.reload!
   end
@@ -30,22 +27,24 @@ def dict_menu_items(cm, mode)
   cm.items
 end
 
-Suite.define("dict menu: the labels branch offers import, export and one list per dictionary") do
+Suite.define("dict menu: Personalization offers verbosity, one list per dictionary, import and export") do
   with_dict_menu do |cm|
-    top = dict_menu_items(cm, :tags)
-    eq "the branch enters import, export and the three lists, then back",
+    top = dict_menu_items(cm, :personal)
+    eq "the branch enters verbosity, the three lists, import and export, then back",
        top.map { |i| i[:group] || i[:kind] },
-       [:dict_import, :dict_export, :list_tags, :list_marks, :list_maps, :back]
+       [:verbosity, :list_tags, :list_marks, :list_maps, :dict_import, :dict_export, :back]
+    eq "and the top list enters it where the tags branch used to be",
+       dict_menu_items(cm, :top).select { |i| i[:group] == :personal }.map { |i| i[:label] }, [:cat_personal]
 
     imp = dict_menu_items(cm, :dict_import)
-    eq "import offers each dictionary and then everything at once",
+    eq "import offers each store, the verbosity schemes too, and then everything at once",
        imp.map { |i| i[:action] || i[:kind] },
-       [[:import, :tags], [:import, :marks], [:import, :maps], [:import, :all], :back]
+       [[:import, :tags], [:import, :marks], [:import, :maps], [:import, :schemes], [:import, :all], :back]
     exp = dict_menu_items(cm, :dict_export)
-    eq "export is the same four rows", exp.map { |i| i[:action] || i[:kind] },
-       [[:export, :tags], [:export, :marks], [:export, :maps], [:export, :all], :back]
+    eq "export is the same five rows", exp.map { |i| i[:action] || i[:kind] },
+       [[:export, :tags], [:export, :marks], [:export, :maps], [:export, :schemes], [:export, :all], :back]
     eq "and the two submenus are labelled by their own keys",
-       [imp[3][:label], exp[3][:label]], [:act_import_all, :act_export_all]
+       [imp[4][:label], exp[4][:label]], [:act_import_all, :act_export_all]
 
     empty = dict_menu_items(cm, :list_marks)
     eq "an empty list says so instead of offering only back", empty.map { |i| i[:kind] }, [:note, :back]
@@ -128,10 +127,11 @@ Suite.define("dict menu: import refuses a foreign file by name, and export repor
     PokeAccess::Marks.set(1, 2, 3, "Tienda")
     SpeakCapture.clear
     cm.run_transfer(:export, :all)
-    eq "export all speaks one result per dictionary, in order", SpeakCapture.lines,
+    eq "export all speaks one result per store, in order", SpeakCapture.lines,
        [[PokeAccess::I18n.t(:act_export_none),
          PokeAccess::I18n.t(:act_export_marks_done, :n => 1),
-         PokeAccess::I18n.t(:act_export_maps_none)].join(". ")]
+         PokeAccess::I18n.t(:act_export_maps_none),
+         PokeAccess::I18n.t(:act_export_schemes_none)].join(". ")]
     truthy "and the marks export file exists", File.exist?(PokeAccess::Marks::EXPORT)
   end
 end

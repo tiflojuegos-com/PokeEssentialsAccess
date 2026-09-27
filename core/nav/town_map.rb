@@ -1,27 +1,18 @@
 module PokeAccess
-  # Moving the region map's cursor, the ONE thing the three region-map implementations do not share. Reading
-  # is uniform (pbGetMapLocation / pbGetMapDetails / pbGetHealingSpot are the same three names in all
-  # thirteen games, see nav/region_map), so this exists only for the fly-jump.
-  #
-  # Dispatch is by SHAPE, never by class name or engine version, because the names lie: Arcky's Region Map
-  # and the v21+ UI rework BOTH define PokemonRegionMap_Scene, with the cursor in different ivars. A profile
-  # can register its own provider and it WINS, since providers are searched newest first and profiles load
-  # after the core -- fangames rewrite this screen freely, sprites, zoom and custom point tables included.
+  # The region map's fly-jump (J/K/L/I): moves the cursor through a provider picked by the scene's shape, not its
+  # class name (Arcky's plugin and the v21 rework share PokemonRegionMap_Scene); the last registered wins.
   module TownMap
     # provider: [name, handles?(scene), cursor(scene) -> [x,y], move(scene,x,y), points(scene) -> [[x,y]..],
     # flyable(scene) -> [[x,y]..] or nil]
     def self.providers; @providers ||= []; end
 
-    # Registers a cursor provider. Last registered wins, so a profile overrides the built-ins.
-    # param flyable only for a screen that KNOWS its own flyable set; the generic rule below derives it from
-    #   pbGetHealingSpot plus visitedMaps, which is what the standard screens draw their icon from, and a
-    #   screen with a fly-anywhere mode of its own draws more places than that rule allows
+    # Registers a cursor provider; the last registered wins, so a profile overrides the built-ins.
+    # param flyable only for a screen with its own flyable set, as a fly-anywhere mode draws more than fly_points
     def self.register(name, handles, cursor, move, points, flyable = nil)
       providers.push([name, handles, cursor, move, points, flyable])
     end
 
-    # The provider that fits this scene, or nil when none does (the feature then simply does not exist for
-    # that game -- never a half-working jump).
+    # The provider that fits this scene, or nil when none does (no jump there).
     def self.provider_for(scene)
       providers.reverse.each { |p| return p if (p[1].call(scene) rescue false) }
       nil
@@ -40,18 +31,15 @@ module PokeAccess
       (p[3].call(scene, x, y); true) rescue false
     end
 
-    # Every point on the map as [x, y] pairs -- the CANDIDATES, not the flyable ones: whether a point can
-    # be flown to is the game's answer (pbGetHealingSpot), never ours to infer.
+    # Every point on the map as [x, y] pairs, flyable or not (see fly_points).
     def self.points(scene)
       p = provider_for(scene)
       return [] unless p
       (p[4].call(scene) rescue []) || []
     end
 
-    # The subset of points the screen actually MARKS as flyable, as [x, y]. Two rules, both the game's own:
-    # pbGetHealingSpot says whether the square has a destination at all, and visitedMaps says whether the
-    # player has been there. The screen draws its fly icon under both and refuses the jump without the
-    # second, so asking only the first offered towns that pressing action will not go to.
+    # The points the screen marks as flyable, as [x, y]: the provider's own set, else those with a healing spot
+    # (pbGetHealingSpot) on a visited map.
     def self.fly_points(scene)
       p = provider_for(scene)
       own = (p && p[5]) ? (p[5].call(scene) rescue nil) : nil
@@ -64,9 +52,7 @@ module PokeAccess
       out
     end
 
-    # The healing spot for a map square, asked the way THIS copy declares the method: most take (x, y) and
-    # one takes the map data first. A fixed arity turned every answer into nil through the rescue, and the
-    # jump then reported "nowhere to fly" over a map full of towns.
+    # The healing spot for a map square, by (x, y) or, where the method takes the map data first, (map, x, y).
     def self.healing_spot(scene, xy)
       begin
         return scene.pbGetHealingSpot(xy[0], xy[1])
@@ -78,8 +64,7 @@ module PokeAccess
       (scene.pbGetHealingSpot(PokeAccess.ivar(scene, :@map), xy[0], xy[1]) rescue nil)
     end
 
-    # Whether the destination's map has been visited, which is the flyable rule the screen adds on top.
-    # A game with no such record answers yes, so a missing accessor cannot empty the list.
+    # Whether the destination's map has been visited; yes when the game keeps no such record.
     def self.visited?(spot)
       id = spot.is_a?(Array) ? spot[0] : nil
       return true if id.nil?
@@ -90,15 +75,11 @@ module PokeAccess
       true
     end
 
-    # Whether the jump is offered at all. A profile turns it off when its game already has something
-    # better: Arcky's Region Map ships a Quick Fly that lists the visited places BY NAME, which
-    # beats jumping blind in a direction, so duplicating it there would make the screen worse.
+    # Whether the jump is offered at all; a profile turns it off where the game has better (Arcky's Quick Fly list).
     def self.jump_enabled; @jump_enabled = true if @jump_enabled.nil?; @jump_enabled; end
     def self.jump_enabled=(v); @jump_enabled = v; end
 
-    # The map scene currently on screen, or nil. Its own loop blocks the map driver, so this is the only
-    # way the per-frame poll knows the screen is up -- and clearing it is what keeps J/K/L/I doing the
-    # locator's job everywhere else.
+    # The map scene on screen, or nil; while it is set, J/K/L/I jump instead of working the locator.
     def self.open_scene; @open; end
 
     def self.opened(scene)
@@ -111,16 +92,16 @@ module PokeAccess
       @fly_cache = nil
     end
 
-    # The flyable points of the open scene, computed once per opening: pbGetHealingSpot walks the point
-    # table on every call, and a keypress must not pay for that repeatedly.
+    # The flyable points of the open scene, computed once per opening; a provider with its own set is asked every time
+    # (its map may pan).
     def self.fly_cache(scene)
+      p = provider_for(scene)
+      return fly_points(scene) if p && p[5]
       @fly_cache ||= fly_points(scene)
     end
 
-    # Jumps to the nearest flyable point in a direction. Returns true when the cursor moved.
-    #
-    # It deliberately does NOT announce the destination: the scene's own loop calls pbGetMapLocation with
-    # the new coordinates on the very next frame, and the existing reader speaks it there. One announcer.
+    # Jumps to the nearest flyable point in a direction; true when the cursor moved. The destination is not said
+    # here: the scene's pbGetMapLocation reader says it next frame.
     def self.jump(scene, dir)
       return false unless scene && jump_enabled
       here = cursor(scene)
@@ -133,11 +114,7 @@ module PokeAccess
       move(scene, target[0], target[1])
     end
 
-    # The nearest flyable point strictly in one direction from (x, y), or nil.
-    #
-    # "Nearest in that direction" and not "nearest overall": the player is navigating a map they cannot
-    # see, and a jump that lands somewhere behind them destroys the mental picture they are building. Ties
-    # break by the smaller sideways drift, so pressing right twice walks a row instead of zig-zagging.
+    # The nearest point strictly in one direction from (x, y), or nil; ties go to the smaller sideways drift.
     def self.nearest(candidates, x, y, dir)
       best = nil
       best_key = nil
@@ -161,12 +138,8 @@ module PokeAccess
   end
 end
 
-# gen-6 vanilla and Arcky's plugin: the cursor is @mapX/@mapY and the points are the raw @map[2] rows.
-#
-# Moving it drags the drawn cursor along too. The scene recomputes the NAME from the ivars every frame but
-# only repositions the sprite on its own animated path, so setting the ivars alone would leave the icon
-# behind. The formula is the one the scene runs two lines before its loop; without the sprite or the
-# constants it just moves the ivars, which still works.
+# Gen-6 vanilla and Arcky's plugin: the cursor is @mapX/@mapY, the points the raw @map[2] rows. The cursor sprite
+# is moved too, by the scene's own formula, as the scene only repositions it on its animated path.
 PokeAccess::TownMap.register(
   :classic,
   lambda { |s| !PokeAccess.ivar(s, :@mapX).nil? },
@@ -186,11 +159,8 @@ PokeAccess::TownMap.register(
   lambda { |s| m = PokeAccess.ivar(s, :@map); (m && m[2] ? m[2] : []).map { |p| [p[0], p[1]] } }
 )
 
-# The v21+ UI rework: snake_case ivars and its own point-to-screen helpers, so the sprite is placed by
-# ASKING the scene instead of copying arithmetic.
-#
-# The point list comes in both shapes, the rework's @map.point and the old Array with the points at index
-# 2: the snake_case ivars arrived a version before the data did (soulstones2 016_UI/009_UI_RegionMap.rb:82).
+# The v21+ UI rework: snake_case ivars, the sprite placed by the scene's point_x_to_screen_x helpers, and points
+# in @map.point or, where the ivars came a version before the data, in the old @map[2].
 PokeAccess::TownMap.register(
   :ui_rework,
   lambda { |s| !PokeAccess.ivar(s, :@map_x).nil? },
@@ -211,14 +181,10 @@ PokeAccess::TownMap.register(
   end
 )
 
-# J K L I while the map is up. They are the locator's keys, and the locator's own driver hangs off
-# Game_Player#update, which does NOT run inside the map's blocking loop -- so there is nothing to arbitrate:
-# the keys are simply free here. Outside the map open_scene is nil and this costs one nil check per frame.
+# The locator keys as jump directions while the map is up; the locator's driver does not run inside its loop.
 PokeAccess::TownMap::DIRS = [[:prev, :left], [:next, :right], [:route, :up], [:where, :down]]
 
-# A provider whose close hook fails to bind (an :optional dispose a fork renamed) would leave @open
-# pointing at a dead screen and the locator keys hijacked forever. A map screen cannot outlive a map
-# transition, so the transition is a safe moment to drop the reference.
+# Drops the open scene on a map change too, in case a close hook failed to bind and left the keys hijacked.
 PokeAccess::Caches.register(:town_map_open) { PokeAccess::TownMap.closed(nil) }
 
 PokeAccess::Keys.on_frame do

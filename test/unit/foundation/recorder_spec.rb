@@ -1,8 +1,5 @@
-# The session recorder and the transcript auditor, the two halves of the replay harness. The recorder
-# must transcribe through the single on_speak observer (no hooks of its own inside the readers), write
-# only CHANGES so the file stays a timeline, survive a tab in a spoken line, and cost nothing when off.
-# The auditor must find the three failure modes a real session can show -- and, just as important, NOT
-# flag the legitimate look-alikes (the same line after moving away and back).
+# The session recorder: it observes the speech dispatcher, writes only changes, keeps a tab in a line from splitting
+# the record, counts the whole session, and does nothing when off.
 Suite.define("recorder: transcribes speech and state changes, and stays inert when off") do
   rec = PokeAccess::Recorder
   prev_on = rec.instance_variable_get(:@on)
@@ -30,9 +27,6 @@ Suite.define("recorder: transcribes speech and state changes, and stays inert wh
     truthy "tabs and newlines in a line can never split the record",
            rec.instance_variable_get(:@lines).last.split("\t").length == 4
 
-    # The spoken "N events saved" must count the whole session, not the tail still in the buffer: flush
-    # empties @lines every FLUSH_EVERY notes, so counting the buffer would under-report a long session
-    # by an order of magnitude -- and the debug menu says that number out loud.
     rec.instance_variable_set(:@count, 0)
     rec.instance_variable_set(:@lines, [])
     5.times { |i| rec.note("say", 1, "linea #{i}") }
@@ -50,8 +44,6 @@ Suite.define("recorder: transcribes speech and state changes, and stays inert wh
     rec.on_change("pos", :pos, 5, 8)
     eq "a changed field writes again", rec.instance_variable_get(:@lines).length, 2
 
-    # The context dump: it must reuse the diag's own sections (so it can never drift from them) and
-    # never pull in the two that would falsify the perf window or run a 5000-iteration benchmark.
     falsy "the perf window is never snapshotted automatically", rec::SNAP_MAP.include?(:diag_perf)
     falsy "nor the poll micro-benchmark", rec::SNAP_START.include?(:diag_polls)
     truthy "the map snapshot carries the surroundings and the route",
@@ -66,17 +58,12 @@ Suite.define("recorder: transcribes speech and state changes, and stays inert wh
     falsy "the diag's own timestamp header never reaches the transcript (it would defeat the check below)",
           rows.any? { |l| l.include?("=== PokeAccess diag") }
 
-    # The scene flips between nil, :message and :in_menu constantly. In a real session those identical
-    # six-line dumps were half the file, burying the events that mattered.
     rec.instance_variable_set(:@lines, [])
     rec.snapshot([:diag_map], "map")
     eq "a dump identical to the previous one collapses to a single marker",
        rec.instance_variable_get(:@lines).length, 1
     truthy "and the marker says so", rec.instance_variable_get(:@lines)[0].include?("igual que el anterior")
 
-    # A snapshot taken in the frame of the change photographs the mod BEFORE its own readers react: a real
-    # recording showed the new map's size next to the previous map's target list, with coordinates that
-    # could not exist on it. The recorder's frame hook runs before the locator's, so it must wait a frame.
     rec.instance_variable_set(:@lines, [])
     rec.instance_variable_set(:@last_snap, {})
     rec.instance_variable_set(:@pending, [])
@@ -91,34 +78,37 @@ Suite.define("recorder: transcribes speech and state changes, and stays inert wh
     rec.instance_variable_set(:@path, prev_path)
     rec.instance_variable_set(:@lines, [])
     rec.instance_variable_set(:@seen, {})
-    PokeAccess.on_speak = nil
+    PokeAccess::Speech.unobserve(:recorder)
   end
 end
 
-# The observer contract: speak() must feed the recorder without the recorder touching any reader, and a
-# broken observer must never be able to silence the mod.
-Suite.define("recorder: on_speak observes every line and a raising observer cannot mute the mod") do
+# Speech observers see every spoken line as a message; a raising observer cannot silence the mod.
+Suite.define("recorder: an observer sees every line as a message and a raising one cannot mute the mod") do
   seen = []
   begin
-    PokeAccess.on_speak = lambda { |text, interrupt| seen.push([text, interrupt]) }
+    PokeAccess::Speech.observe(:spec_observer) { |msg| seen.push(msg) }
     SpeakCapture.clear
-    PokeAccess.speak("hola mundo", true)
+    PokeAccess.speak("hola mundo", true, :system)
     eq "the observer saw the line", seen.length, 1
-    eq "with its text", seen[0][0], "hola mundo"
-    eq "and its interrupt flag", seen[0][1], true
+    eq "with its text", seen[0].text, "hola mundo"
+    eq "its interrupt flag", seen[0].interrupt, true
+    eq "and its category", seen[0].category, :system
     spoke "and the player still heard it", /hola mundo/
 
-    PokeAccess.on_speak = lambda { |_t, _i| raise "observer exploded" }
+    PokeAccess::Speech.observe(:spec_observer) { |_msg| raise "observer exploded" }
     SpeakCapture.clear
     PokeAccess.speak("sigo hablando", true)
     spoke "a raising observer does not stop the speech", /sigo hablando/
+    PokeAccess::Speech.unobserve(:spec_observer)
+    seen.clear
+    PokeAccess.speak("ya nadie escucha", true)
+    eq "and one removed hears nothing more", seen.length, 0
   ensure
-    PokeAccess.on_speak = nil
+    PokeAccess::Speech.unobserve(:spec_observer)
   end
 end
 
-# The auditor over synthetic transcripts: each rule must fire on its own bug and stay quiet on the
-# look-alike that is NOT a bug.
+# The transcript auditor on synthetic transcripts: each rule fires on its own bug and not on the look-alike.
 Suite.define("replay: the transcript auditor finds silence, repeats and raw codes") do
   clean = "# pea-recording 1\tgen6\t16.0\n" +
           "1.00\tmap\t60\tCentro Pokemon\n" +
@@ -145,9 +135,7 @@ Suite.define("replay: the transcript auditor finds silence, repeats and raw code
   truthy "a real repeat says how long after, so a human can weigh it",
          Replay.audit(repeat).any? { |p| p.include?("+0.20s") }
 
-  # Without the keypress, a real session was four flags and four false positives: navigating a menu moves
-  # no position and changes no scene, so asking for the same description again looked like a broken dedup.
-  asked = "1.00\tsay\t1\tMT20. Ataca con agua hirviendo\n" +
+  asked ="1.00\tsay\t1\tMT20. Ataca con agua hirviendo\n" +
           "1.40\tin\ttecla:info\n" +
           "4.10\tsay\t1\tMT20. Ataca con agua hirviendo\n"
   falsy "asking again with a key is not a broken dedup",
@@ -161,8 +149,6 @@ Suite.define("replay: the transcript auditor finds silence, repeats and raw code
   truthy "a line with control codes is caught",
          Replay.audit(raw).any? { |p| p.include?("raw control codes") }
 
-  # Con cero grabaciones esto comparaba [] con [] y se leia como cobertura sin tener entrada ninguna, que
-  # es un no-op estructural y no un "hoy no hay nada". Exigir al menos una lo convierte en comprobacion.
   truthy "hay grabaciones de referencia que auditar (#{Replay.fixtures.length})", Replay.fixtures.length >= 1
   eq "committed fixture recordings all audit clean",
      Replay.fixtures.map { |f| [File.basename(f), Replay.audit(File.read(f))] }.reject { |_n, p| p.empty? }, []

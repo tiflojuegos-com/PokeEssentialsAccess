@@ -1,19 +1,16 @@
 module PokeAccess
-  # Accessible puzzle helper. Puzzles are registered per map in kinds: :grid (floor-rune grids unsolvable
-  # blind), :state (mechanisms whose progress lives in unseen switches/variables, e.g. cranks/valves) and
-  # :facing (rotatable statues). Each kind scales with the puzzle_assist setting (off = the minimum
-  # invisible state, on = more help): it announces changes as they happen, reads the whole puzzle on the
-  # info key, and with assist adds the explicit solution.
+  # Puzzle helper, registered per map by kind (:grid floor grids, :state hidden switches and variables, :facing
+  # rotatable statues, :stages): announces changes, reads the puzzle on the info key, and gives the solution with
+  # puzzle_assist.
   module Puzzles
     @defs = {}
     # Grid runtime state.
     @map = nil; @cell = nil; @settle = 0; @states = nil; @stage = nil; @solved = nil; @entered = false
     # State-puzzle runtime: last seen watched values and last solved flag.
     @sp_last = nil; @sp_solved = nil
-    # Obstacle proximity runtime: last player tile checked and whether an obstacle was adjacent there.
+    # Obstacle runtime: the last proximity key, whether an obstacle was adjacent, and the cached obstacle events.
     @obs_pos = nil; @obs_adj = nil; @obs_events = nil; @obs_map = nil
-    # Control-event cache: the player-toggleable events that flip a watched flag, paired with their watch
-    # entry, cached per map since events are static.
+    # Control-event cache per map: [event, watch entry] for the events that flip a watched flag.
     @controls = nil; @controls_map = nil
     # Facing-puzzle runtime: statue events cached per map, and their last-seen facings (to announce a turn).
     @statues = nil; @statues_map = nil; @face_last = nil
@@ -26,13 +23,13 @@ module PokeAccess
     # Frames to wait after stepping on a tile before reading its state, so the game's toggle has applied.
     SETTLE = 2
 
-    # Registers a puzzle for a map (one per map; a puzzle may span maps by registering the same def under
-    # each map id). :kind selects the behaviour (:grid default, or :state). opts --
+    # Registers a puzzle for a map (the same def under several ids spans maps). :kind is :grid (default), :state,
+    # :facing or :stages (keys in puzzles/stages.rb). opts --
     #   grid: :cols, :rows, :cells ([[x,y],...] row-major), :lit (->(i){bool}), :active (->{bool}),
     #     :target (->{ {:name=>String, :pattern=>[bool,...]} or nil }), :solved (->{bool}),
     #     :names (cell-name keys, default the 3x3 scheme).
     #   state: :kind=>:state, :watch ([{:switch|:var=>id, :label, :on, :off, :min}]), :solved (->{bool}),
-    #     :solved_msg, :hint (assist-only). Labels/states/messages are i18n symbols or literal strings.
+    #     :solved_msg, :hint (assist-only). Labels, states and messages go through label_of.
     def self.register(map_id, opts); @defs[map_id] = opts; end
 
     # The puzzle definition for the current map, or nil.
@@ -41,7 +38,7 @@ module PokeAccess
       @defs[$game_map.map_id]
     end
 
-    # The kind of a puzzle definition (:grid default, or :state).
+    # The kind of a puzzle definition, :grid by default.
     def self.kind(d); d[:kind] || :grid; end
 
     # True while a puzzle on this map is in its active phase; gates the info-key readout.
@@ -51,22 +48,20 @@ module PokeAccess
       case kind(d)
       when :state  then state_active?(d)
       when :facing then !facing_statues(d).empty?
+      when :stages then stages_active?(d)
       else !!(d[:active].call)
       end
     rescue StandardError
       false
     end
 
-    # True when the current puzzle has something the locator's puzzles category should list (grid cells,
-    # obstacle walls, or facing statues), so the category appears only when it is useful.
-    # An EMPTY list does not count as something to list. d[:cells] and d[:obstacles] are declared in the
-    # profile and can come out empty on one map: with a bare presence check the locator category showed up
-    # anyway and the player walked through all of it finding nothing.
+    # True when the puzzle gives the locator's puzzles category something to list; an empty list does not count.
     def self.has_locator_targets?
       d = current
       return false unless d
       return true if (d[:cells].respond_to?(:empty?) ? !d[:cells].empty? : d[:cells])
       return true if (d[:obstacles].respond_to?(:empty?) ? !d[:obstacles].empty? : d[:obstacles])
+      return !stages_targets(d).empty? if kind(d) == :stages
       kind(d) == :facing ? !facing_statues(d).empty? : false
     rescue StandardError
       false
@@ -79,6 +74,7 @@ module PokeAccess
       @obs_pos = nil; @obs_adj = nil; @obs_events = nil; @obs_map = nil
       @controls = nil; @controls_map = nil
       @statues = nil; @statues_map = nil; @face_last = nil
+      reset_stages
     end
 
     # The lit state of every cell as a boolean array.
@@ -113,6 +109,7 @@ module PokeAccess
       case kind(d)
       when :state  then state_tick(d)
       when :facing then facing_tick(d)
+      when :stages then stages_tick(d)
       else grid_tick(d)
       end
       obstacle_tick(d) if d[:obstacles]
@@ -120,8 +117,8 @@ module PokeAccess
       nil
     end
 
-    # Grid frame: announces target/stage changes and the win (which still fire as the puzzle goes
-    # inactive), then the cell/state the player steps on. Progress runs always; cell feedback only while active.
+    # Grid frame: announces the target and the win (even as the puzzle goes inactive), then, while active, the cell
+    # the player steps on.
     def self.grid_tick(d)
       if $game_map.map_id != @map
         @map = $game_map.map_id; @cell = nil; @settle = 0; @states = nil; @stage = nil
@@ -151,8 +148,7 @@ module PokeAccess
       @stage = stage
     end
 
-    # Speaks the current target letter, plus the exact cells to light when assist is on. param advanced
-    # true when a previous letter was just completed
+    # Speaks the target letter (as the next one when advanced), plus with assist the cells to light.
     def self.announce_stage(d, tgt, advanced)
       msg = PokeAccess::I18n.t(advanced ? :puzzle_next : :puzzle_form, :name => tgt[:name])
       msg += ". " + PokeAccess::I18n.t(:puzzle_light, :cells => cells_phrase(d, lit_cells(tgt[:pattern]))) if assist?
@@ -186,6 +182,7 @@ module PokeAccess
       case kind(d)
       when :state  then state_read(d)
       when :facing then facing_read(d)
+      when :stages then stages_read(d)
       else grid_read(d)
       end
     rescue StandardError
@@ -234,8 +231,7 @@ module PokeAccess
 
     # ---- state puzzles ----
 
-    # True while a state puzzle with watched flags is unsolved; gates its info-key readout. An
-    # obstacles-only puzzle (no :watch) does not hijack the info key, so it would read nothing.
+    # True while a state puzzle with watched flags is unsolved; gates its info-key readout.
     def self.state_active?(d)
       return false unless d[:watch] && !d[:watch].empty?
       !(d[:solved] && (d[:solved].call rescue false))
@@ -279,8 +275,7 @@ module PokeAccess
       PokeAccess.speak("#{label_of(w[:label])}: #{label_of(on ? w[:on] : w[:off])}", false)
     end
 
-    # The info-key readout for a state puzzle: every watched flag's label and state, plus the def's hint
-    # when assist is on.
+    # The info-key readout for a state puzzle: each watched flag's label and state, plus the hint with assist.
     def self.state_read(d)
       parts = (d[:watch] || []).map { |w| "#{label_of(w[:label])}: #{label_of(flag_value(w) ? w[:on] : w[:off])}" }
       parts.push(label_of(d[:hint])) if assist? && d[:hint]
@@ -295,8 +290,7 @@ module PokeAccess
     # The spoken compass name of a facing (an rpg maker direction code 2/4/6/8).
     def self.face_name(dir); PokeAccess::I18n.t(FACE[dir] || :face_south); end
 
-    # True if an event currently shows the statue sprite the def matches (all four facings share the same
-    # sprite, so this holds whichever way the bust is turned).
+    # True if an event shows the statue sprite the def matches, whichever way it faces.
     def self.statue?(ev, d)
       m = d[:match]
       !!(m && ((ev.character_name.to_s rescue "") =~ m))
@@ -338,8 +332,7 @@ module PokeAccess
       PokeAccess.speak(msg, true)
     end
 
-    # The info-key readout: the statue the player faces (or every one on the map if none is in front),
-    # each with its facing and (assist) its goal -- so a bust's orientation can be checked without rotating it.
+    # The info-key readout: the statue in front (else every one on the map), its facing and, with assist, its goal.
     def self.facing_read(d)
       sts = facing_statues(d)
       return if sts.empty?
@@ -358,9 +351,8 @@ module PokeAccess
 
     # ---- obstacles (puzzle-scoped, so no hidden wall elsewhere is ever revealed) ----
 
-    # The obstacle kind of an event per the current puzzle's :obstacles list (each entry
-    # { :match => /sprite regex/, :kind => :wall|:mover }), or nil off a puzzle map or for a non-obstacle
-    # sprite. Backs the positional-audio obstacle cue; only sprites the puzzle declares ever sound.
+    # An event's obstacle kind per the puzzle's :obstacles ([{ :match => /sprite/, :kind => :wall|:mover }], :wall by
+    # default), or nil off a puzzle map or for another sprite.
     def self.obstacle_kind(ev)
       d = current
       obs = d && d[:obstacles]
@@ -373,9 +365,8 @@ module PokeAccess
       nil
     end
 
-    # The targets the locator's "puzzles" category lists: a grid's cells (synthetic tile targets, so each
-    # can be found and routed to) or, for a state puzzle, its controls (cranks/valves, labelled by colour)
-    # plus its static obstacle walls. Moving hazards are left out (they go stale; they still sound in 3D).
+    # The targets of the locator's puzzles category: a grid's cells, the statues, the stage targets, or a state
+    # puzzle's controls and clustered walls (movers are left out; they still sound in 3D).
     def self.category_targets
       d = current
       return [] unless d
@@ -387,6 +378,8 @@ module PokeAccess
         end
       elsif kind(d) == :facing
         facing_statues(d).map { |ev| PokeAccess::Locator::SurfaceTarget.new(ev.x, ev.y, label_of(d[:label]), :statue) }
+      elsif kind(d) == :stages
+        stages_targets(d)
       else
         ctrls = controls.map { |c| ev = c[0]; PokeAccess::Locator::SurfaceTarget.new(ev.x, ev.y, label_of(c[1][:label]), :puzzle_control) }
         walls = cluster_walls($game_map.events.values.select { |ev| obstacle_kind(ev) == :wall })
@@ -396,9 +389,7 @@ module PokeAccess
       []
     end
 
-    # Merges contiguous same-sprite wall tiles into one target each (so a long geyser/steam wall is a
-    # single entry, not dozens), reusing the positional-audio clusterer; falls back to the raw list if
-    # it is unavailable.
+    # Merges touching same-sprite wall tiles into one target each (Audio3D.cluster), else the raw list.
     def self.cluster_walls(walls)
       return walls if walls.length <= 1
       list = walls.map { |ev| [ev.x, ev.y, 0, (ev.character_name.to_s rescue "")] }
@@ -409,8 +400,7 @@ module PokeAccess
       walls
     end
 
-    # True when the current puzzle declares a moving hazard (:mover); lets the positional audio refresh
-    # those emitters live each frame, only where needed.
+    # True when the current puzzle declares a moving obstacle (:mover), whose emitters Audio3D re-reads.
     def self.has_movers?
       d = current
       obs = d && d[:obstacles]
@@ -419,12 +409,8 @@ module PokeAccess
       false
     end
 
-    # Drops the cached obstacle list so the next look rescans the map.
-    #
-    # Called from the same event-end hook that invalidates the pathfinder caches, which is the moment a
-    # switch an event just wrote can have raised one barrier and lowered another. Keyed on the map alone,
-    # the list froze the room as it stood when the player walked in: a barrier raised afterwards never
-    # became an obstacle, and one lowered went on warning forever.
+    # Drops the cached obstacle list so the next look rescans the map; called when an event ends, as its switches
+    # may have raised or lowered a barrier.
     def self.forget_obstacles
       @obs_events = nil
       @obs_map = nil
@@ -438,9 +424,8 @@ module PokeAccess
       false
     end
 
-    # The events the puzzle declares as obstacles, cached until an event ends. A map's events are never
-    # created or destroyed, but WHICH of them is an obstacle is read off the current page's graphic, and
-    # swapping that page is exactly what a puzzle switch does -- so the map, alone, is not enough of a key.
+    # The events the puzzle declares as obstacles (by their current page's graphic), cached until the map changes or
+    # an event ends.
     def self.obstacle_events
       mid = ($game_map.map_id rescue 0)
       if @obs_events.nil? || @obs_map != mid
@@ -452,13 +437,8 @@ module PokeAccess
       []
     end
 
-    # Speaks a heads-up the moment the player becomes newly adjacent to a puzzle obstacle (debounced by
-    # tile, so it fires once per approach). The spoken layer; the positional audio pans the obstacle in
-    # 3D when enabled, but the warning works with positional audio off too.
-    # The key includes the ADJACENCY, not just the player's tile. A moving obstacle approaches a standing
-    # player -- exactly the case to warn about -- and keyed on position alone that case left through the
-    # return above without checking anything. The obstacle list is cached per map, so looking at the four
-    # neighbouring tiles every frame walks a handful of events, not the whole map's.
+    # Warns once when the player becomes adjacent to a puzzle obstacle; the key holds the adjacency as well as the
+    # tile, so an obstacle moving up to a standing player warns too.
     def self.obstacle_tick(d)
       px = $game_player.x; py = $game_player.y
       mid = ($game_map.map_id rescue 0)
@@ -473,9 +453,8 @@ module PokeAccess
 
     # ---- controls (the invisible cranks/valves that flip a watched flag) ----
 
-    # The player-toggleable events that write a watched switch/variable, each paired with the watch entry
-    # it controls. These are the graphic-less cranks/valves, found by what they DO, not by a sprite.
-    # Cached per map (events are static).
+    # [event, watch entry] for each player-triggered event that writes a watched flag, found by its commands rather
+    # than a sprite; cached per map.
     def self.controls
       d = current
       return [] unless d && d[:watch] && $game_map
@@ -533,9 +512,12 @@ module PokeAccess
       nil
     end
 
-    # Resolves a label/state/message: an i18n symbol is translated, a string is used verbatim.
+    # Resolves a label, state or message: a symbol through i18n, a string as is, a [symbol, {interpolations}] pair
+    # through i18n with them, and a lambda by asking it each time.
     def self.label_of(x)
       return "" if x.nil?
+      return label_of(x.call) if x.respond_to?(:call)
+      return PokeAccess::I18n.t(x[0], x[1] || {}) if x.is_a?(Array)
       x.is_a?(Symbol) ? PokeAccess::I18n.t(x) : x.to_s
     end
 
@@ -544,7 +526,6 @@ module PokeAccess
   end
 end
 
-# Drop puzzle state on map change (Caches.reset_all). Most puzzle caches self-invalidate by map_id, but
-# @sp_last / @face_last only clear in reset_state (called when a map has NO puzzle); jumping straight
-# between two puzzle maps would otherwise carry them over and could mis-announce a flip/turn on entry.
+# Drops puzzle state on map change or load (Caches.reset_all), so @sp_last and @face_last do not carry over
+# between two puzzle maps.
 PokeAccess::Caches.register(:puzzles) { PokeAccess::Puzzles.reset_state }

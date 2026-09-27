@@ -1,12 +1,8 @@
 module PokeAccess
-  # Watches for a screen that came up and said nothing, and writes what it saw into the diagnostic: a reader
-  # bound to the wrong ivar or the wrong moment leaves no trace, so a new screen followed by WINDOW frames
-  # without a line spoken goes in a list the diagnostic prints. EVIDENCE, not a fault: an animation or a
-  # cutscene is legitimately silent, and what matters is a screen the player knows they were navigating.
+  # Lists for the diagnostic each screen that came up and spoke nothing for WINDOW frames: evidence of a reader
+  # bound wrong, not a fault in itself (a cutscene is silent too).
   module Silence
-    # Two seconds at 60fps. Long enough that a screen with a reader has always spoken by then (readers fire
-    # on the opening frame or the first cursor move), short enough that a screen the player opened and
-    # closed quickly is still caught.
+    # Frames a new screen gets to speak: two seconds at 60 fps.
     WINDOW = 120
     MAX = 20
 
@@ -27,19 +23,16 @@ module PokeAccess
     # The screens that stayed quiet, in the order they were first seen.
     def self.quiet; @order; end
 
-    # Which screen the player is on. Hooks.screen -- the class whose hooked method ran last -- rather than
-    # $scene, because a screen with its own blocking loop is never assigned to $scene: through a whole
-    # minigame $scene still answers Scene_Map, and those are exactly the screens most likely to be silent.
-    # $scene is the fallback for the stretch before any hook has fired.
+    # The screen the player is on: Hooks.screen (the class whose hooked method ran last), which sees blocking-loop
+    # screens that $scene does not; $scene before any hook has fired.
     def self.current
       s = (PokeAccess::Hooks.screen rescue nil)
       return s if s && !s.to_s.empty?
       ($scene.class.to_s rescue nil)
     end
 
-    # One frame of the silence watch: a screen that has just come up gets WINDOW frames to say something,
-    # and is noted if it never does. Anything spoken at all clears the watch -- the screen has a voice, and
-    # whether every part of it does is not something a frame counter can answer.
+    # One frame of the watch: a new screen gets WINDOW frames to say something and is noted if it never does;
+    # anything spoken clears the watch.
     def self.tick
       now = current
       return if now.nil? || now.empty?
@@ -62,7 +55,7 @@ module PokeAccess
       (PokeAccess.spoken_seq rescue 0)
     end
 
-    # Capped and deduped, like the suppressed-hook list: it must never grow with playtime.
+    # Notes a quiet screen with its map id, deduped and capped at MAX.
     def self.note(name)
       return if @seen[name] || @order.length >= MAX
       @seen[name] = true

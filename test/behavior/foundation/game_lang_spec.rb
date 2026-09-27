@@ -1,9 +1,5 @@
-# GameLang: the running BUILD's language, asked of the game's own LANGUAGES table -- with the guard that
-# separates a declaration the game lives by from template residue: an entry only counts when the message
-# file it names actually ships. The audit that shaped this: 8 of 13 games leave the table empty, three
-# declare truthfully, infinitefusion_hoenn declares en+fr over a lone messages.dat (residue), and
-# reminiscencia declares es+en where only English.dat exists -- its in-game switch is real, and the
-# detector must follow $PokemonSystem.language live.
+# GameLang: the build's language from the game's own LANGUAGES table, read live at $PokemonSystem.language; an
+# entry counts only when the message file it names ships (otherwise it is template residue).
 Suite.define("game_lang: the build's own declaration decides, and only with its file on disk") do
   eq "with no LANGUAGES table there is no declared language", PokeAccess::GameLang.code, nil
   eq "and pick() then falls back to the authored base",

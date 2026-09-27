@@ -1,12 +1,7 @@
-# HPA* (#12) must reach the TYPICAL target -- an NPC/sign/item on a tile the player cannot enter -- by
-# routing to an ADJACENT tile, exactly as A* and JPS do (the shared target_reached? criterion). Before the
-# fix its refinement only succeeded ENTERING the exact goal tile, so a solid target always returned :fallback
-# and the plain A* ran on top of the wasted hierarchical work. These specs pin the crossing to a blocking
-# target across several clusters, prove the walkable-target route is unaffected, and keep a legitimately
-# unreachable target falling back.
+# HPA* reaches a target on a tile the player cannot enter by routing adjacent to it (target_reached?, as A* does),
+# still enters a walkable target, and returns :fallback for an unreachable one.
 
-# hpa_fresh_grid / hpa_arena live in test/support/hpa_helpers.rb (runner-loaded), shared with the
-# cache-readonly spec.
+# hpa_fresh_grid and hpa_arena come from test/support/hpa_helpers.rb.
 
 # Walks a step route from (sx,sy) checking each step is passable; returns [all_passable, end_x, end_y].
 def hpa_walk(route, sx, sy)
@@ -41,15 +36,11 @@ Suite.define("pathfinder: HPA* reaches a blocking target by routing adjacent, no
          ok && pf.target_reached?(ex, ey, tx, ty)
   falsy "and never stands on the solid target tile itself", ex == tx && ey == ty
 
-  # A* on the same blocking target must also arrive adjacent, so this is genuinely routable (the HPA* result
-  # is not an artefact) and matches HPA* in reach.
   hpa_fresh_grid(hpa_arena("N"))
   $game_map.events.values.find { |e| e.x == tx && e.y == ty }.blocking = true
   PokeAccess::Config.path_algorithm = :astar
   astar = pf.find_path(tx, ty)
   aok, aex, aey = astar ? hpa_walk(astar, sx, sy) : [false, -1, -1]
-  # "Adjacently" was in the label and nowhere in the assertion: the walk was computed and dropped, so a route
-  # ending ON the solid tile, or nowhere near it, passed. Same check the HPA* branch already makes.
   truthy "A* also reaches the blocking target adjacently",
          astar && !astar.empty? && aok && pf.target_reached?(aex, aey, tx, ty)
   truthy "the HPA* route is near-optimal versus A* to the blocking target",
@@ -68,7 +59,6 @@ Suite.define("pathfinder: HPA* to a WALKABLE target still enters it (behaviour u
 
   tx = 22; ty = 12
   hpa_fresh_grid(hpa_arena("G"))
-  # The auto-created event on the target tile stays non-blocking, so the tile is walkable.
   ev = $game_map.events.values.find { |e| e.x == tx && e.y == ty }
   ev.blocking = false if ev
   truthy "the walkable target tile can be entered", $game_map.passable?(tx, ty - 1, 2)
@@ -84,6 +74,7 @@ Suite.define("pathfinder: HPA* to a WALKABLE target still enters it (behaviour u
   PokeAccess::Config.route_cache = true
 end
 
+# A wall column at x=6 seals off the target, whose walkable neighbour keeps the search from short-circuiting.
 Suite.define("pathfinder: HPA* still falls back when the target is genuinely unreachable") do
   pf = PokeAccess::Pathfinder
   PokeAccess::Config.route_cache = false
@@ -91,9 +82,6 @@ Suite.define("pathfinder: HPA* still falls back when the target is genuinely unr
   PokeAccess::Config.astar_max = 5000
   PokeAccess::Config.path_algorithm = :hpa
 
-  # A solid wall column at x=6 fully seals the right region: no gap, so no portal connects the player's
-  # component to the target's. The target N at (12,4) has a walkable neighbour, so arrivals are non-empty
-  # (the search is not short-circuited) yet no hierarchical route exists -> the legitimate :fallback.
   sealed = []
   sealed << "#" * 15
   (1..8).each do |y|

@@ -1,24 +1,54 @@
-# [DBK] Enhanced Battle UI, the battle panels La Base de Sky bundles (anil, emerald, relict, royal): the
-# move-info window, the battler-info panel and the ball/battler selectors. One file because they are ONE
-# third-party plugin and share DBKMoveInfo; the Deluxe Battle Kit's own mechanic toggles are dbk_battle.
+# [DBK] Enhanced Battle UI, bundled by La Base de Sky (anil, emerald, relict, royal): the move-info window, the
+# battler-info panel and the ball and battler selectors; the Deluxe Battle Kit's mechanic toggles are dbk_battle.
 
 module PokeAccess
-  # DBK Enhanced Battle UI "Move Info" overlay (Battle::Scene#pbUpdateMoveInfoWindow): a panel toggled over
-  # the fight menu that details the focused move (type, category, power, accuracy). The fight menu already
-  # voices the move name and PP, so this adds the extra stats, recomputed from the move data exactly as the
-  # window does (power = move.power, type = move.pbCalcType(battler), category = move.category). Gated by
-  # method existence so only DBK games bind.
+  # The Move Info panel (Battle::Scene#pbUpdateMoveInfoWindow), toggled over the fight menu: the focused move's type,
+  # category and figures as the window works them out, and its effectiveness on each foe.
   module DBKMoveInfo
-    CATS = [:cat_physical, :cat_special, :cat_status]
     STATUS_CAT = 2
 
     # The five states pbDrawTypeEffectiveness paints over each opposing battler, in its own order.
     EFFECT_KEYS = [:mv_eff_unknown, :mv_eff_none, :mv_eff_weak, :mv_eff_super, :mv_eff_neutral]
 
-    # The spoken stats line for the move at index idx of battler, or nil. Mirrors DBK's window by converting
-    # the move clone to its Z-move / Max-move form when that mechanic is staged (special + cw.mode == 2), so
-    # the announced type/power match what is drawn instead of the base move.
-    def self.text(battler, idx, special = nil, cw = nil, scene = nil)
+    # Function codes of Tera Blast and Tera Starstorm, in that order, whose type and category the window works out.
+    TERA_CATEGORY = ["CategoryDependsOnHigherDamageTera", "TerapagosCategoryDependsOnHigherDamage"]
+
+    # Whether the window draws the move as terastallized: the battler is, Tera is staged for it, or it is Terapagos in
+    # its Stellar Form (elsewhere than Anil and Royal that form comes only with terastallizing).
+    def self.terastal?(battler, special, cw)
+      return true if (battler.tera? rescue false)
+      return true if special == :tera && ((cw.teraType rescue 0).to_i > 0)
+      (battler.isSpecies?(:TERAPAGOS) rescue false) && (battler.form rescue 0).to_i == 2
+    end
+
+    # The type the window draws for a move: the calculated one, but for the two Tera moves their stored type until
+    # terastallized, then the Tera type (Tera Blast) or, on Terapagos, Stellar (Tera Starstorm).
+    def self.shown_type(move, battler, terastal)
+      fc = (move.function_code rescue nil)
+      calc = (move.pbCalcType(battler) rescue nil) || (move.type rescue nil)
+      return calc unless TERA_CATEGORY.include?(fc)
+      return (move.type rescue nil) unless terastal
+      return (battler.tera_type rescue nil) || calc if fc == TERA_CATEGORY[0]
+      (battler.isSpecies?(:TERAPAGOS) rescue false) ? :STELLAR : calc
+    end
+
+    # The category the window draws for a move: for the Tera moves calcCategory, or the higher attacking stat once
+    # terastallized; target-dependent ones against the foe ahead; the rest their own.
+    def self.shown_category(move, battler, terastal)
+      fc = (move.function_code rescue nil)
+      if TERA_CATEGORY.include?(fc)
+        return (move.calcCategory rescue nil) unless terastal
+        atk, spatk = battler.getOffensiveStats
+        return atk > spatk ? 0 : 1
+      end
+      PokeAccess::MoveInfo.target_category(move, battler) || PokeAccess::MoveInfo.category_of(move)
+    rescue StandardError
+      PokeAccess::MoveInfo.category_of(move)
+    end
+
+    # The spoken stats of battler's move idx, one phrase each, or nil; a staged Z-move or Max Move (cw.mode 2), or a
+    # dynamaxed battler's, is read in that form, as the window draws it.
+    def self.parts(battler, idx, special = nil, cw = nil, scene = nil)
       move = (battler.moves[idx] rescue nil)
       return nil unless move
       move = (move.clone rescue move)
@@ -35,25 +65,28 @@ module PokeAccess
       parts = []
       name = PokeAccess.clean((move.name rescue ""))
       parts.push(name) unless name.to_s.empty?
-      t = (move.pbCalcType(battler) rescue nil) || (move.type rescue nil)
+      terastal = terastal?(battler, special, cw)
+      t = shown_type(move, battler, terastal)
       tname = t ? (GameData::Type.get(t).name rescue nil) : nil
       parts.push(PokeAccess::I18n.t(:mv_type, :t => tname)) if tname
-      cat = (move.category rescue nil)
-      parts.push(PokeAccess::I18n.t(:mv_category, :c => PokeAccess::I18n.t(CATS[cat]))) if cat && CATS[cat]
+      cat = PokeAccess::MoveInfo.category_word(shown_category(move, battler, terastal))
+      parts.push(cat) if cat
       figures(move).each { |f| parts.push(f) }
+      parts.push(bonus) if bonus
+      if PokeAccess::Verbosity.keep?(:battle_move, :medium)
+        words = flag_words(move)
+        parts.push(PokeAccess::I18n.t(:dbk_flags, :list => words.join(", "))) unless words.empty?
+      end
       eff = effectiveness(scene, move, t)
       parts.push(eff) if eff
-      parts.empty? ? nil : parts.join(", ")
+      parts.empty? ? nil : parts
     rescue StandardError
       nil
     end
 
-    # The four figures the panel writes (power, accuracy, priority, added-effect chance) as spoken lines,
-    # from what it PAINTED, falling back to the move data when nothing was painted except for the effect
-    # chance, which is only ever spoken from the panel: the panel runs the whole damage calculation through
-    # pbGetFinalModifiers, and recomputing it would mean reimplementing the plugin. Its placeholders map onto
-    # words the reader already has: "---" on power is no damage, "???" a variable-power move, "---" on
-    # accuracy never misses, and "---" on priority or effect chance means none.
+    # The panel's four figures (power, accuracy, priority, effect chance) as spoken lines, from what it painted (its
+    # damage runs through pbGetFinalModifiers), else the move data with no effect chance. "---" is no power, no miss,
+    # no priority or no chance by column, "???" a variable power.
     def self.figures(move)
       p = @painted
       out = []
@@ -81,29 +114,68 @@ module PokeAccess
       s.to_s == "---" ? PokeAccess::I18n.t(:mv_acc_perfect) : s.to_s
     end
 
-    # Captures the panel's own draw call while it is painting.
-    #
-    # The four figures are found by ALIGNMENT: they are the only rows the panel centres, the labels beside
-    # them being left-aligned. That holds in the four copies and, unlike matching the labels themselves,
-    # does not break if a game translates "Pow" or shifts the columns (one of them does both).
+    # The panel's figures and bonus line, caught from its own draw call while it paints: the only four centred rows
+    # (the labels are left-aligned), which holds in every copy whatever it translates or shifts, and the left-aligned
+    # row pushed after them when pbGetFinalModifiers gives one ("Poder potenciado por Torrente."), its stop dropped
+    # as the reading joins its phrases with commas.
     @painted = nil
+    @bonus = nil
     @armed = false
 
-    def self.capture_on; @painted = nil; @armed = true; end
+    def self.capture_on; @painted = nil; @bonus = nil; @armed = true; end
     def self.capture_off; @armed = false; end
 
     def self.note_draw(rows)
       return unless @armed && rows.is_a?(Array)
       vals = rows.select { |r| r.is_a?(Array) && r[3] == :center }.map { |r| r[0].to_s.strip }
-      @painted = vals if vals.length == 4
+      return unless vals.length == 4
+      @painted = vals
+      last = rows.rindex { |r| r.is_a?(Array) && r[3] == :center }
+      after = rows[(last + 1)..-1].select { |r| r.is_a?(Array) && r[3] == :left }
+      t = after.empty? ? "" : PokeAccess.clean(after.first[0].to_s).sub(/\.+\z/, "")
+      @bonus = t.empty? ? nil : t
     rescue StandardError
       nil
     end
 
-    # How the move lands on each opposing battler, worded from the icon the panel paints over it. This is the
-    # reason the panel exists -- a sighted player reads that icon at a glance -- and it was the one thing the
-    # reader never said, so a blind player toggled the panel open and got the same four stats the fight menu
-    # already gives. Status moves have no icon, and neither has this.
+    # The bonus line the panel painted with its figures, or nil.
+    def self.bonus; @bonus; end
+
+    # The move-property icons (Move Flags) by flag, the same set in every copy.
+    FLAG_KEYS = {
+      "Contact" => :dbkf_contact, "NoProtect" => :dbkf_noprotect, "NoMirrorMove" => :dbkf_nomirror,
+      "TramplesMinimize" => :dbkf_minimize, "HighCriticalHitRate" => :dbkf_crit, "ThawsUser" => :dbkf_thaws,
+      "Sound" => :dbkf_sound, "Wind" => :dbkf_wind, "Punching" => :dbkf_punch, "Biting" => :dbkf_bite,
+      "Bomb" => :dbkf_bomb, "Pulse" => :dbkf_pulse, "Powder" => :dbkf_powder, "Dance" => :dbkf_dance,
+      "Slicing" => :dbkf_slice, "ElectrocuteUser" => :dbkf_electro, "DynamaxMove" => :dbkf_dynamax,
+      "ZMove" => :dbkf_zmove
+    }
+
+    # The icons pbDrawMoveFlagIcons draws, named in its order and at most nine: the move's flags (a Z or Max Move's
+    # by its family, a critical-hit one too) and, aimed at a foe, NoProtect and NoMirrorMove when it lacks
+    # CanProtect and CanMirrorMove; a flag with no icon is skipped.
+    def self.flag_words(move)
+      flags = ((move.flags rescue nil) || []).map { |f| f.to_s }
+      if (GameData::Target.get(move.target).targets_foe rescue false)
+        flags.push("NoProtect") unless flags.include?("CanProtect")
+        flags.push("NoMirrorMove") unless flags.include?("CanMirrorMove")
+      end
+      words = []
+      flags.uniq.each do |f|
+        break if words.length > 8
+        f = "ZMove" if f.include?("ZMove_")
+        f = "DynamaxMove" if f.include?("DynamaxMove_") || f == "GmaxMove"
+        f = "HighCriticalHitRate" if f.include?("HighCriticalHitRate_")
+        key = FLAG_KEYS[f]
+        words.push(PokeAccess::I18n.t(key)) if key
+      end
+      words
+    rescue StandardError
+      []
+    end
+
+    # How the move lands on each opposing battler, worded from the icon the panel paints over it; nil for a status
+    # move, which has no icon.
     def self.effectiveness(scene, move, type)
       battle = (scene ? scene.instance_variable_get(:@battle) : nil)
       return nil unless battle && type && (move.category rescue STATUS_CAT) < STATUS_CAT
@@ -120,9 +192,7 @@ module PokeAccess
       nil
     end
 
-    # The icon index for one target, classified exactly as pbDrawTypeEffectiveness does -- unknown species
-    # included: the panel hides the answer for a species the player has neither battled nor owns, and saying
-    # it anyway would hand out information the screen is deliberately withholding.
+    # The icon index for one target, classified as pbDrawTypeEffectiveness does, the hidden unknown species included.
     def self.effect_index(b, type)
       return 0 if unknown_species?(b)
       return 3 if (b.tera? rescue false) && type == :STELLAR
@@ -133,9 +203,8 @@ module PokeAccess
       4
     end
 
-    # Whether the panel withholds the effectiveness for this target. Same precedence as the plugin: a
-    # celestial battler is always hidden, the setting reveals every new species, and otherwise it is hidden
-    # until the player has battled or owned the species.
+    # Whether the panel withholds the effectiveness for this target, in the plugin's order: always for a celestial
+    # battler, never with the reveal setting, else until the species is battled or owned.
     def self.unknown_species?(b)
       return true if (b.celestial? rescue false)
       return false if (Settings::SHOW_TYPE_EFFECTIVENESS_FOR_NEW_SPECIES rescue false)
@@ -146,8 +215,7 @@ module PokeAccess
   end
 end
 
-# Around, so the panel's draw call happens with the capture armed. The reading still runs after, on the
-# figures it just wrote.
+# Arms the capture around the panel's draw; the reading runs after, on the figures it wrote.
 PokeAccess::Hooks.around_hook("Battle::Scene", :pbUpdateMoveInfoWindow, :optional => true) do |_s, nxt, _a|
   PokeAccess::DBKMoveInfo.capture_on
   begin; nxt.call; ensure; PokeAccess::DBKMoveInfo.capture_off; end
@@ -157,32 +225,35 @@ PokeAccess::Hooks.wrap_kernel("pbDrawTextPositions", "dbk_moveinfo_draw", :befor
   PokeAccess::DBKMoveInfo.note_draw(args[1])
 end
 
-# Queued rather than interrupting: the same keypress moves the fight menu, which already speaks name, type,
-# power, accuracy and PP, and this panel refreshes one call later -- interrupting would cut the line it extends.
+# Closing the panel lets its dedup slot go, so reopening it on the same move next turn reads again.
+PokeAccess::Hooks.before_hook("Battle::Scene", :pbHideInfoUI, :optional => true) do |scene, _a|
+  PokeAccess::Cursor.reset(scene, :dbk_moveinfo)
+  PokeAccess::BattleScene.panel_shut
+end
+
+# The move panel, queued after the fight menu's line with only what that line did not say (BattleScene.unheard);
+# keyed on the stats too, as staging a mechanic repaints them under an unmoved cursor.
 PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateMoveInfoWindow, :optional => true) do |scene, _ret, args|
   battler = args[0]; cw = args[2]
   if PokeAccess.ivar(scene, :@enhancedUIToggle) == :move && battler && cw
     idx = (cw.index rescue nil)
-    key = idx.nil? ? nil : "mi#{(battler.index rescue 0)}_#{idx}"
-    PokeAccess::Cursor.announce(scene, :dbk_moveinfo, key, false) do
-      PokeAccess::DBKMoveInfo.text(battler, idx, args[1], cw, scene)
+    parts = idx.nil? ? nil : PokeAccess::DBKMoveInfo.parts(battler, idx, args[1], cw, scene)
+    if parts && PokeAccess::Cursor.changed?(scene, :dbk_moveinfo, [(battler.index rescue 0), idx, parts])
+      fresh = PokeAccess::BattleScene.unheard(battler, idx, parts)
+      PokeAccess.speak(PokeAccess.clean(fresh.join(", ")), false) unless fresh.empty?
     end
   else
+    PokeAccess::BattleScene.panel_shut
     PokeAccess::Cursor.reset(scene, :dbk_moveinfo)
   end
 end
 
 module PokeAccess
-  # DBK Enhanced Battle UI "Battler Info" overlay (Battle::Scene#pbUpdateBattlerInfo): a panel detailing a
-  # battler, navigable left/right between battlers and up/down through its active effects. Read the battler
-  # summary when the focused battler changes, and the focused effect when it changes (effects are
-  # [name, tick, desc] triples from pbGetDisplayEffects). Gated by method existence so only DBK games bind.
+  # The Battler Info panel (Battle::Scene#pbUpdateBattlerInfo): left and right between battlers, up and down through
+  # their effects ([name, tick, desc] from pbGetDisplayEffects); the summary and the focused effect as they change.
   module DBKBattlerInfo
-    # The types the panel PAINTS, which are not always the real ones. The panel settles three cases before
-    # drawing: with Illusion active on a foe it shows the disguise's types, Terastallized it shows the ones
-    # from BEFORE terastallizing, and only with neither the current ones. Reading the real ones revealed the
-    # illusion -- the very fact the foe is hiding -- and contradicted the screen mid-battle.
-    # param battler the focused battler
+    # The types the panel paints: a foe's disguise under Illusion, the pre-Tera ones once terastallized, else the
+    # current ones.
     def self.display_types(battler)
       poke = ((battler.opposes? rescue false) ? (battler.displayPokemon rescue nil) : (battler.pokemon rescue nil))
       illusion = ((battler.effects[PBEffects::Illusion] rescue nil) && !(battler.pbOwnedByPlayer? rescue true))
@@ -193,10 +264,8 @@ module PokeAccess
       (battler.types rescue nil)
     end
 
-    # The battler's types as the panel paints them, or nil. Drawn for BOTH sides, outside the
-    # owned-by-player gate, and on a foe they are the reason the panel is opened at all. Hidden behind the
-    # panel's own rule for a species never seen -- the same predicate the move-info panel uses, so the two
-    # cannot disagree about what is known.
+    # The battler's types as the panel paints them, for both sides, or nil; "unknown" for a species the panel hides
+    # (DBKMoveInfo.unknown_species?).
     def self.types(battler)
       return PokeAccess::I18n.t(:pdx_unknown_value) if (PokeAccess::DBKMoveInfo.unknown_species?(battler) rescue false)
       list = display_types(battler)
@@ -207,11 +276,8 @@ module PokeAccess
       nil
     end
 
-    # The summary line for a battler (name, level, HP, status, ability, item, last move used), or nil. What
-    # the panel WITHHOLDS is withheld here too: ability, held item and numeric HP are drawn only for the
-    # player's own battlers, so a foe's HP comes out as the percentage the rest of the mod uses for a bar
-    # (Battle.hp_phrase), and the level reads "???" for a raid boss. The stat block IS read, from
-    # Battle.stat_changes, the same source as the HP key.
+    # The summary line for a battler, or nil, withholding what the panel does: ability, item and numeric HP only for
+    # the player's own (a foe's HP as Battle.hp_phrase), an unknown level for a raid boss, and the stat stages.
     def self.summary(battler)
       owned = (battler.pbOwnedByPlayer? rescue true)
       parts = identity_parts(battler) + condition_parts(battler, owned) + detail_parts(battler, owned)
@@ -221,12 +287,14 @@ module PokeAccess
       nil
     end
 
-    # Who the battler is: name, sex, shiny, its trainer and the turn count.
+    # Who the battler is: name, sex, shiny, its trainer and the turn count. Name, sex and shiny mark are those of
+    # the Pokemon the panel draws (an Illusion shows the one it imitates), with no sex on a raid boss.
     def self.identity_parts(battler)
-      parts = [PokeAccess.clean((battler.name rescue ""))]
-      gw = (PokeAccess::Party.gender_word(battler) rescue nil)
+      shown = shown_pokemon(battler)
+      parts = [PokeAccess.clean(((shown.name rescue nil) || (battler.name rescue "")).to_s)]
+      gw = (battler.isRaidBoss? rescue false) ? nil : (PokeAccess::Party.gender_glyph(shown) rescue nil)
       parts.push(gw) if gw
-      parts.push(PokeAccess::I18n.t(:dbk_shiny)) if (battler.shiny? rescue false)
+      parts.push(shiny_word(shown)) if (PokeAccess::Party.shiny?(shown) rescue false)
       unless (battler.wild? rescue true)
         ow = (battler.battle.pbGetOwnerName(battler.index) rescue nil)
         parts.push(PokeAccess::I18n.t(:dbk_trainer, :name => ow)) if ow && !ow.to_s.empty?
@@ -236,14 +304,31 @@ module PokeAccess
       parts
     end
 
+    # The word for the shiny star the panel draws: one star for every shiny in the plugin; a copy that draws another
+    # for a super shiny overrides this in its profile (royal).
+    def self.shiny_word(_pk)
+      PokeAccess::I18n.t(:dbk_shiny)
+    end
+
+    # The Pokemon the panel draws for a battler: a foe's displayed one, the player's own one.
+    def self.shown_pokemon(battler)
+      (battler.opposes? rescue false) ? (battler.displayPokemon rescue battler) : (battler.pokemon rescue battler)
+    end
+
+    # The level the panel paints: :unknown (a placeholder) on a raid boss, else the battler's, or nil; a profile whose
+    # copy hides it elsewhere overrides this (royal).
+    def self.panel_level(battler)
+      (battler.isRaidBoss? rescue false) ? :unknown : (battler.level rescue nil)
+    end
+
     # How the battler stands: level, HP as the panel shows it, types and status.
     def self.condition_parts(battler, owned)
       parts = []
-      if (battler.isRaidBoss? rescue false)
+      lvl = panel_level(battler)
+      if lvl == :unknown
         parts.push(PokeAccess::I18n.t(:dbk_level_unknown))
-      else
-        lvl = (battler.level rescue nil)
-        parts.push(PokeAccess::I18n.t(:dbk_level, :n => lvl)) if lvl
+      elsif lvl
+        parts.push(PokeAccess::I18n.t(:dbk_level, :n => lvl))
       end
       hp = (battler.hp rescue nil); thp = (battler.totalhp rescue nil)
       if hp && thp
@@ -276,7 +361,7 @@ module PokeAccess
         parts.push(PokeAccess::I18n.t(:dbk_lastmove, :m => mv)) if mv
       end
       st = (PokeAccess::Battle.stat_changes(battler) rescue "")
-      parts.push(st.to_s.sub(/\A,\s*/, "")) unless st.to_s.empty?
+      parts.push(st.to_s.sub(/\A[.,]\s*/, "")) unless st.to_s.empty?
       parts
     end
 
@@ -295,8 +380,7 @@ module PokeAccess
   end
 end
 
-# Opening the panel forgets the keys: the dedup hangs off Battle::Scene, which lives for the whole
-# battle, so reopening on the same battler must re-read (the sibling selector resets :dbk_bsel likewise).
+# Opening the panel forgets its dedup keys, which live on the battle-long Battle::Scene, so reopening reads again.
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbOpenBattlerInfo, :optional => true) do |scene, _a|
   PokeAccess::Cursor.reset(scene, :dbk_binfo_b)
   PokeAccess::Cursor.reset(scene, :dbk_binfo_e)
@@ -327,15 +411,11 @@ PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBattlerInfo, :optional =>
 end
 
 module PokeAccess
-  # DBK Enhanced Battle UI in-battle SELECTORS (sprite cursors, no command window, so the generic hook
-  # cannot see them). Two screens sit on the action path: the Poke Ball picker (which ball to throw) and the
-  # battler-selection grid (which battler to inspect). The detail panel that opens AFTER picking a battler is
-  # read by DBKBattlerInfo above; here we read the CURSOR as it moves. Gated by method existence so only DBK games
-  # bind, and no-op on gen-6 (no Battle::Scene).
+  # The in-battle selectors, sprite cursors with no command window: the Poke Ball picker and the battler-selection
+  # grid, read as the cursor moves (the panel a battler opens is DBKBattlerInfo).
   module DBKSelectors
     # The focused ball line ("name, count") from the [item_id, count] entry, or the Back label.
-    # param show_desc true while the panel is showing the ball's description, which is what the details key
-    #   toggles: the screen paints a whole paragraph and the index does not move
+    # param show_desc true while the panel shows the ball's description (the details key), which is then added
     def self.ball_text(items, index, show_desc = false)
       e = (items[index] rescue nil)
       return nil unless e
@@ -351,8 +431,8 @@ module PokeAccess
       nil
     end
 
-    # The focused battler line ("name, owner's") for the selection grid, rebuilt the way the plugin lays the
-    # grid out (own side, then the other side reversed), so idxSide/idxPoke map to the same battler.
+    # The focused battler line ("name sign, owner's") of the selection grid, laid out as the plugin does: own side,
+    # then the other reversed. The sex sign is drawn on every slot but a raid boss's.
     def self.battler_text(scene, idxSide, idxPoke)
       battle = PokeAccess.ivar(scene, :@battle)
       return nil unless battle
@@ -360,9 +440,11 @@ module PokeAccess
                (battle.allOtherSideBattlers.reverse rescue [])]
       b = (sides[idxSide][idxPoke] rescue nil)
       return nil unless b
-      pk = (b.displayPokemon rescue (b.pokemon rescue nil))
+      pk = PokeAccess::Battle.grid_pokemon(b, idxSide == 0)
       nm = (pk.name rescue (b.name rescue nil))
       return nil unless nm && !nm.to_s.empty?
+      sign = (idxSide == 0 || !(b.isRaidBoss? rescue false)) ? PokeAccess::Party.gender_glyph(pk) : nil
+      nm = "#{nm} #{sign}" if sign
       owner = (battle.pbGetOwnerFromBattlerIndex(b.index).name rescue nil)
       (owner && !owner.to_s.empty?) ? PokeAccess::I18n.t(:dbk_owner, :name => nm, :owner => owner) : nm.to_s
     rescue StandardError
@@ -371,12 +453,8 @@ module PokeAccess
   end
 end
 
-# Poke Ball selector: pbUpdateBallSelection(items, index, showDesc) redraws on open and on each left/right
-# move; read the focused ball. The dedup ivar lives on the battle-long Scene, so reset it when the selector
-# (re)opens, or reopening on the same index would stay mute.
-#
-# The key is [index, showDesc], not the index alone: the details key toggles a full description panel open
-# and shut WITHOUT moving the cursor, so an index-only key never noticed that the screen had changed.
+# Poke Ball selector: pbUpdateBallSelection(items, index, showDesc) redraws on each move, read deduped by [index,
+# showDesc] (the details key toggles the description in place) and reset when the selector opens.
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbSelectBallInfo, :optional => true) do |scene, _a|
   PokeAccess::Cursor.reset(scene, :dbk_ball)
 end
@@ -386,11 +464,8 @@ PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateBallSelection, :optional 
   end
 end
 
-# Battler selection grid: pbUpdateBattlerSelection(idxSide, idxPoke, select) redraws on each cursor move; read
-# the highlighted battler, deduped by the [side, poke] pair and reset on (re)open. BEFORE and not after,
-# because with select true the method ends in pbSelectBattlerInfo, which IS the panel's modal loop, so an
-# after-hook would not speak until the player closed it; before also leaves the original unguarded, so
-# pbUpdateBattlerInfo and pbUpdateMoveInfoWindow are never suppressed.
+# Battler selection grid: pbUpdateBattlerSelection(idxSide, idxPoke, select), read deduped by [side, poke] and reset
+# on opening. A before hook: with select the method runs the panel's modal loop, whose readers must not be guarded.
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbSelectBattlerInfo, :optional => true) do |scene, _a|
   PokeAccess::Cursor.reset(scene, :dbk_bsel)
 end

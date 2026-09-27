@@ -1,9 +1,4 @@
-# Slot Machine and Tile Puzzle readers (core/field/minigames): both minigames ship in the shared "La Base de
-# Sky" set bundled by many fangames, and both are 100% visual (spinning reels, a grid of picture tiles), so a
-# blind player got nothing. These readers voice the reel symbols and payout, and the tile-puzzle cursor cell,
-# from the scenes' own ivars. Driven here through the module functions with stub scenes (the hooks just call
-# these), asserting the spoken lines and the per-change dedup. A double-underscore fake sprite mimics the
-# @sprites["key"].score / .position the readers read.
+# Slot Machine and Tile Puzzle readers (core/field/minigames), driven through the module functions with stub scenes.
 
 # A minimal stand-in for the game's sprite objects the readers introspect (payout counter, cursor).
 class FakeSlotSprite
@@ -17,8 +12,7 @@ end
 
 # --- Slot Machine ---------------------------------------------------------------------------------------
 
-# stopSpinning only ASKS the reel to stop; it keeps turning for up to four more symbols. The reel is read on
-# the frame @spinning actually goes false, so the symbol named is the one the machine paid on.
+# A slot reel says its centre symbol once, on the frame @spinning goes false (it turns on after stopSpinning).
 Suite.define("minigames: slot reel voices the symbol it lands on, not the one it was asked to stop at") do
   reel = Object.new
   def reel.showing; @showing; end
@@ -54,10 +48,8 @@ Suite.define("minigames: slot wager is voiced once per change") do
   spoke "raising the wager announces the new amount", /2/
 end
 
-# The prize is the CREDIT delta across pbPayout. Reading the payout counter after the method returned always
-# answered zero -- its own counting loop drains it into the credit before it gets there -- so every win in
-# every game was announced as a loss. The fixture reproduces that: the payout sprite reads 0 in all three
-# cases, exactly as it does in play once the animation has run.
+# The slot payout is the credit gained across pbPayout (the payout counter reads 0 by then); the extra rows follow the
+# wager the hook sampled before it, since pbPayout zeroes @wager.
 Suite.define("minigames: slot payout voices a win, a loss and a free game") do
   won = Object.new
   won.instance_variable_set(:@sprites, { "payout" => FakeSlotSprite.new(0), "credit" => FakeSlotSprite.new(65) })
@@ -79,8 +71,6 @@ Suite.define("minigames: slot payout voices a win, a loss and a free game") do
   PokeAccess::Minigames.slot_payout(free, 50)
   spoke "three replay symbols announce a free game", /#{PokeAccess::I18n.t(:mg_slot_replay_win)}/
 
-  # The extra rows depend on the wager, and pbPayout has already zeroed @wager when the reader runs: the
-  # value the hook sampled beforehand is what arms them, never the ivar.
   SpeakCapture.clear
   reel = Class.new { attr_reader :showing; def initialize(s); @showing = s; end }
   rows = Object.new
@@ -105,7 +95,6 @@ def tp_scene(cursor_pos, tiles, angles = [0, 0, 0, 0])
   s.instance_variable_set(:@tiles, tiles)
   s.instance_variable_set(:@angles, angles)
   s.instance_variable_set(:@sprites, { "cursor" => FakeCursorSprite.new(cursor_pos) })
-  # solved iff every tile is home with angle 0
   def s.pbCheckWin
     t = instance_variable_get(:@tiles); a = instance_variable_get(:@angles)
     (0...t.length).all? { |i| t[i] == i && (a[i].to_i % 4) == 0 }
@@ -114,14 +103,14 @@ def tp_scene(cursor_pos, tiles, angles = [0, 0, 0, 0])
 end
 
 Suite.define("minigames: tile puzzle voices the cursor cell with position and tile") do
-  scene = tp_scene(0, [2, 1, 0, 3]) # position 0 holds tile id 2 (not its home)
+  scene = tp_scene(0, [2, 1, 0, 3])
   PokeAccess::Minigames.tile_puzzle(scene)
   spoke "the cursor cell reads its row/column", /#{PokeAccess::I18n.t(:mg_rowcol, :row => 1, :col => 1)}/
   spoke "the cursor cell reads which tile sits there", /#{PokeAccess::I18n.t(:tp_tile, :n => 3)}/
 end
 
 Suite.define("minigames: tile puzzle marks a tile already in place and dedups a held cursor") do
-  scene = tp_scene(1, [2, 1, 0, 3]) # position 1 holds tile id 1 -> in place
+  scene = tp_scene(1, [2, 1, 0, 3])
   PokeAccess::Minigames.tile_puzzle(scene)
   spoke "a tile in its solved spot is announced as placed", /#{PokeAccess::I18n.t(:tp_placed)}/
 
@@ -131,7 +120,7 @@ Suite.define("minigames: tile puzzle marks a tile already in place and dedups a 
 end
 
 Suite.define("minigames: tile puzzle announces the win when solved") do
-  scene = tp_scene(0, [0, 1, 2, 3]) # every tile home, angle 0
+  scene = tp_scene(0, [0, 1, 2, 3])
   PokeAccess::Minigames.tile_puzzle(scene)
   spoke "a solved board announces the win", /#{PokeAccess::I18n.t(:tp_solved)}/
 end

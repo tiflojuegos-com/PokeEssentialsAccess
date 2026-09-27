@@ -1,21 +1,7 @@
-# The timed-contest clock (Battle.contest_time_left), the one reader that compares two of the ENGINE's own
-# timestamps instead of the mod's wall clock -- and therefore the one place where the engine's units matter.
-# It forks:
-#
-#   - MODERN (mkxp-z): a System.uptime stamp against BugContestState::TIME_ALLOWED. Some forks ship an
-#     mkxp-z whose uptime counts MICROSECONDS, which made the elapsed figure a million times too big and
-#     every Bug Contest read "0:00" from the first second. The fix divides by the measured uptime scale, so
-#     the suite below runs the same microsecond numbers through both scales and pins that only the scaled
-#     one survives.
-#   - GEN-6: a Graphics.frame_count stamp against BugContestState::TimerSeconds, divided by the frame rate.
-#
-# Which fork runs is decided by the STATE object (does it carry timer_start?), not by the engine name, so
-# that choice is pinned too -- with both clocks present and both constants set to different lengths, so the
-# assertion can only pass for the intended branch. Every fake is installed inside its suite and removed in
-# ensure (the base gen-6 stub defines neither System nor Graphics.frame_count), so nothing leaks out.
+# The timed-contest clock (Battle.contest_time_left), which compares two engine timestamps: modern, a System.uptime
+# stamp over the measured uptime scale; gen-6, a frame_count stamp over the frame rate; the state's own stamp picks.
 
-# Runs the block with a BugContestState module carrying exactly the given constants, restoring (or removing)
-# whatever was there, so no other suite ever sees a contest running.
+# Runs the block with a BugContestState carrying exactly consts, then restores (or removes) the previous one.
 def with_contest_consts(consts)
   prev = (Object.const_defined?(:BugContestState) ? Object.const_get(:BugContestState) : nil)
   Object.send(:remove_const, :BugContestState) if prev
@@ -28,8 +14,8 @@ ensure
   Object.const_set(:BugContestState, prev) if prev
 end
 
-# Runs the block under a System.uptime frozen at value, dropping the System module again when this helper
-# had to create it (the gen-6 stub has none).
+# Runs the block under a System.uptime frozen at value, removing System after if it had to create it; not nestable
+# (the inner ensure strips the outer's uptime).
 def with_fake_uptime(value)
   had = Object.const_defined?(:System)
   mod = had ? System : Object.const_set(:System, Module.new)
@@ -40,8 +26,7 @@ ensure
   Object.send(:remove_const, :System) unless had
 end
 
-# Runs the block under a Graphics.frame_count frozen at value, then removes it (the base stub defines the
-# frame RATE but no counter, which is what lets the "no counter at all" case be tested).
+# Runs the block under a Graphics.frame_count frozen at value, then removes it (the base stub has none).
 def with_fake_frame_count(value)
   Graphics.define_singleton_method(:frame_count) { value }
   yield
@@ -49,8 +34,7 @@ ensure
   Graphics.singleton_class.send(:remove_method, :frame_count)
 end
 
-# Runs the block with the clock's uptime memo pinned (scale = uptime units per real second, boot = the
-# stamp taken at load), restoring both so the real clock keeps whatever it had measured.
+# Runs the block with the clock's uptime memo pinned (scale: uptime units per real second; boot: the stamp at load).
 def with_uptime_memo(scale, boot)
   keys = [:@uptime_scale, :@uptime0]
   prev = keys.map { |k| PokeAccess.instance_variable_get(k) }
@@ -100,9 +84,10 @@ Suite.define("contest timer: the modern branch counts seconds off the uptime sta
   end
 end
 
+# A microsecond uptime (the contest below started 60 real seconds ago) is divided by the measured scale; with no
+# scale measured yet the uptime is taken as seconds.
 Suite.define("contest timer: a microsecond uptime is divided by the measured scale, not taken for seconds") do
   b = PokeAccess::Battle
-  # The very numbers the microsecond mkxp-z reports: a contest started 60 real seconds ago.
   state = uptime_state(100_000_000.0)
   with_contest_consts(:TIME_ALLOWED => 1200) do
     with_fake_uptime(160_000_000.0) do
@@ -116,8 +101,6 @@ Suite.define("contest timer: a microsecond uptime is divided by the measured sca
         eq "and the player hears 19:00, not 0:00", b.fmt_mmss(b.contest_time_left(state)), "19:00"
       end
     end
-    # Same clock, seconds this time, with nothing measured yet: the reader must fall back to 1.0 rather
-    # than divide by nil. (Fakes are never nested -- the inner ensure would strip the outer's uptime.)
     with_fake_uptime(160.0) do
       with_uptime_memo(nil, nil) do
         eq "with no scale measurable yet the uptime is taken as seconds (the safe default)",
@@ -148,10 +131,10 @@ Suite.define("contest timer: the gen-6 branch counts frames off the frame counte
   end
 end
 
+# The state's stamp picks the branch: with both stamps and two different lengths, 1140 (1200 - 60) is the uptime
+# branch and 540 (600 - 60) the frame branch.
 Suite.define("contest timer: the state's own stamp picks the branch, not the engine") do
   b = PokeAccess::Battle
-  # Both stamps present, and the two lengths differ so the answer names the branch that ran:
-  # the uptime branch gives 1200-60 = 1140, the frame branch 600-60 = 540.
   both = Object.new
   both.define_singleton_method(:timer_start) { 100.0 }
   both.define_singleton_method(:timer) { 1600 }

@@ -1,6 +1,5 @@
-# The team photo camera (plugins/party_picture.rb): each arrow is one pbScrollMap call inside
-# PartyPicture#main, and the reader says where the camera stands from where it started. The stub keeps the
-# plugin's loop, the bump at the edge included.
+# The team photo camera (plugins/party_picture.rb): each pbScrollMap step inside PartyPicture#main says the camera's
+# offset from where it started.
 Suite.define("team photo: each camera step says the offset from the start, and the centre when back") do
   i = PokeAccess::I18n
   up1 = i.t(:photo_cam_up, :n => 1)

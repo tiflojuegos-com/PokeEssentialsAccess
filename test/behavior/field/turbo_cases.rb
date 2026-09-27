@@ -1,8 +1,5 @@
-# Shared body of turbo_spec (gen-6 pass) and turbo_gd_spec (gamedata pass): the announcer is core and runs
-# in every game, so both engine stubs drive the same cases. What is pinned: the first sight is silent, a
-# speed index change on the map says the multiplier from the script's table (halves included), a frame-rate
-# switch says fast or normal against the rate the map first showed, a move made off the map is neither
-# announced nor announced late, and when both move in one frame only the multiplier is said.
+# Shared cases of turbo_spec and turbo_gd_spec: a speed index or frame-rate change on the map is said (only the
+# multiplier when both move); first sight and changes off the map, in battle or inside quietly are not.
 module TurboCases
   # Runs the block with Graphics.frame_rate answering a settable value, restored afterwards.
   def self.with_rate
@@ -57,21 +54,42 @@ def define_turbo_suites
       SpeakCapture.clear
       $GameSpeed = 1; t.tick
       $GameSpeed = 2; t.tick
-      eq "Delta's table reads its halves, and a whole number without a decimal", TurboCases.said,
-         [PokeAccess::I18n.t(:turbo_speed, :n => 1.5), PokeAccess::I18n.t(:turbo_speed, :n => 2)]
+      eq "Delta's table reads its halves with the language's decimal comma, and a whole number without one",
+         TurboCases.said, [PokeAccess::I18n.t(:turbo_speed, :n => "1,5"), PokeAccess::I18n.t(:turbo_speed, :n => 2)]
 
       TurboCases.stages(nil)
       SpeakCapture.clear
       $GameSpeed = 0; t.tick
       eq "without a table the index counts from one", TurboCases.said, [PokeAccess::I18n.t(:turbo_speed, :n => 1)]
 
+      Object.const_set(:SPEED_SETTING_FILE, "Save Files/GameSpeedSetting.dat")
+      SpeakCapture.clear
+      $GameSpeed = 2; t.tick
+      $GameSpeed = 3; t.tick
+      $GameSpeed = 1; t.tick
+      eq "Better Fast Forward keeps the multiplier itself, 1 to 3, and it is said as it is", TurboCases.said,
+         [2, 3, 1].map { |n| PokeAccess::I18n.t(:turbo_speed, :n => n) }
+      Object.send(:remove_const, :SPEED_SETTING_FILE)
+
+      SpeakCapture.clear
+      t.quietly do
+        $GameSpeed = 0; t.tick
+        $GameSpeed = 2; t.tick
+      end
+      t.tick
+      eq "a routine that drops the speed and puts it back by itself is neither announced nor announced late",
+         TurboCases.said, []
+      $GameSpeed = 1; t.tick
+      eq "and the next real press after it speaks", TurboCases.said, [PokeAccess::I18n.t(:turbo_speed, :n => 2)]
+      $GameSpeed = 0; t.tick
+
       Object.const_set(:TurboConfig, Module.new) unless Object.const_defined?(:TurboConfig)
       TurboConfig.const_set(:SPEED_STAGES, [1.0, 1.5, 2.0])
       SpeakCapture.clear
       $GameSpeed = 1; t.tick
       $GameSpeed = 2; t.tick
-      eq "Royal keeps its table under TurboConfig and says x1.5 then x2", TurboCases.said,
-         [PokeAccess::I18n.t(:turbo_speed, :n => 1.5), PokeAccess::I18n.t(:turbo_speed, :n => 2)]
+      eq "Royal keeps its table under TurboConfig and says x1,5 then x2", TurboCases.said,
+         [PokeAccess::I18n.t(:turbo_speed, :n => "1,5"), PokeAccess::I18n.t(:turbo_speed, :n => 2)]
       Object.send(:remove_const, :TurboConfig)
 
       SpeakCapture.clear
@@ -94,6 +112,7 @@ def define_turbo_suites
     ensure
       ($game_temp.in_battle = false rescue nil)
       Object.send(:remove_const, :TurboConfig) if Object.const_defined?(:TurboConfig)
+      Object.send(:remove_const, :SPEED_SETTING_FILE) if Object.const_defined?(:SPEED_SETTING_FILE)
       $scene = old_scene
       TurboCases.stages(nil)
       $GameSpeed = nil

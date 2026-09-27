@@ -2,10 +2,8 @@
 # amount are locals inside a blocking loop, so the read points are the scene's own redraw calls.
 module PokeAccess
   module ItemCrafting
-    # The recipe at an index, as [result_item, flat ingredient pairs], or nil.
-    #
-    # @stock holds one of two shapes: the inline recipe [item, [ingredient, qty, ...]] in the older copies,
-    # or a GameData::Recipe id in the newer one. The shape is read, never assumed.
+    # The recipe at an index as [result_item, flat ingredient pairs], or nil; @stock holds inline recipes [item,
+    # [ingredient, qty, ...]] in the older copies, GameData::Recipe ids in the newer one.
     def self.recipe(scene, index)
       stock = PokeAccess.ivar(scene, :@stock)
       return nil unless stock.is_a?(Array) && index && index >= 0 && index < stock.length
@@ -26,11 +24,8 @@ module PokeAccess
       out
     end
 
-    # An item's spoken name, through the scene's adapter first and the mod's data provider after.
-    #
-    # The plural is asked for before anything else, because the adapter's getName only returns the singular.
-    # An ingredient may also be a category flag (a plain String such as "berry"); the screen prints what the
-    # scene's own FLAG_TO_TEXT says for it, so that table is consulted before falling back to the raw flag.
+    # An item's spoken name, from the scene's adapter, else the mod's data (plural first when asked); a category flag
+    # (a String such as "berry") by the scene's FLAG_TO_TEXT, else as is.
     # param plural true to ask for the plural form
     def self.item_name(scene, item, plural = false)
       ad = PokeAccess.ivar(scene, :@adapter)
@@ -91,23 +86,8 @@ module PokeAccess
       out.empty? ? nil : out
     end
 
-    # Whether every ingredient is in stock, or nil when this copy cannot tell. Counts through the stock
-    # helper so a category flag adds up the same way the detail screen adds it.
-    def self.craftable?(scene, pairs, volume)
-      ad = PokeAccess.ivar(scene, :@adapter)
-      return nil unless ad && ad.respond_to?(:getQuantity)
-      ok = true
-      pairs.each_slice(2) do |item, qty|
-        have = stock(ad, item)
-        ok = false if qty && have && have < (volume * qty)
-      end
-      ok
-    end
-
-    # How many one craft produces where the copy has a yield and it is more than one, else nil.
-    #
-    # A separate datum, never a factor: the screen paints the yield beside the item name and the volume in
-    # its own counter, and the two are never multiplied on screen.
+    # How many one craft produces where the copy has a yield above one, else nil; said apart from the volume, as
+    # the screen paints them.
     def self.recipe_yield(scene, index)
       stock = PokeAccess.ivar(scene, :@stock)
       return nil unless stock.is_a?(Array) && index && index >= 0 && index < stock.length
@@ -119,50 +99,65 @@ module PokeAccess
       nil
     end
 
-    # The focused recipe in the list: its name, plus a warning when the materials are short.
-    #
-    # The shortage warning is the one place this reader says more than the screen paints, and it is
-    # deliberate: it reveals nothing hidden, since the same count sits on the detail screen one keypress
-    # away, and a sighted player sees at a glance which rows are worth opening.
+    # The focused recipe in the list: its name, all the row paints (the stock counts are the open recipe's); the info
+    # key gets the item it makes.
     def self.announce_list(scene, index)
       r = recipe(scene, index)
       return unless r
       PokeAccess::Cursor.announce(scene, :craft_list, index, true) do
         name = item_name(scene, r[0])
         next nil if name.nil? || name.to_s.empty?
-        can = craftable?(scene, r[1], 1)
-        (can == false) ? PokeAccess::I18n.t(:craft_missing, :name => name) : name.to_s
+        PokeAccess::Info.set_info(:item, r[0])
+        name.to_s
       end
     rescue StandardError
       nil
     end
 
-    # The focused recipe in detail: name, amount, yield and the ingredients where the plugin reports them.
-    # One copy switches back to the list before redrawing on the way out, so a redraw with the list showing
-    # clears both dedup slots (that copy also resets the volume to 1, the value the next visit opens on). The
-    # ingredient line is IN the dedup key: crafting changes what you have without moving the cursor or the
-    # amount.
+    # The focused recipe in detail: name, amount, yield and ingredients where reported, keyed on the ingredients too
+    # (crafting changes stock in place), kept for the info key with the item, then its description. A redraw with the
+    # list showing resets the dedup slots.
     def self.announce_detail(scene, index, volume)
       r = recipe(scene, index)
       return unless r
       if screen_of(scene) == 0
         PokeAccess::Cursor.reset(scene, :craft_list)
         PokeAccess::Cursor.reset(scene, :craft_detail)
+        PokeAccess::Cursor.reset(scene, :craft_desc)
         return
       end
       vol = (volume || 1).to_i
       vol = 1 if vol < 1
       ings = ingredients(scene, r[1], vol)
       PokeAccess::Cursor.announce(scene, :craft_detail, [index, vol, ings], true) do
-        name = item_name(scene, r[0], vol > 1)
-        next nil if name.nil? || name.to_s.empty?
-        head = (vol > 1) ? PokeAccess::I18n.t(:craft_amount, :name => name, :n => vol) : name.to_s
-        y = recipe_yield(scene, index)
-        head = PokeAccess::I18n.t(:craft_yield, :head => head, :n => y) if y
-        ings ? PokeAccess::I18n.t(:craft_detail, :head => head, :list => ings.join(", ")) : head
+        line = detail_line(scene, r, index, vol, ings)
+        PokeAccess::Info.set_info(:item, r[0], line) if line
+        line
       end
+      describe(scene, index, r[0])
     rescue StandardError
       nil
+    end
+
+    # The detail as one line, or nil when the result has no name to say.
+    def self.detail_line(scene, r, index, vol, ings)
+      name = item_name(scene, r[0], vol > 1)
+      return nil if name.nil? || name.to_s.empty?
+      head = (vol > 1) ? PokeAccess::I18n.t(:craft_amount, :name => name, :n => vol) : name.to_s
+      y = recipe_yield(scene, index)
+      head = PokeAccess::I18n.t(:craft_yield, :head => head, :n => y) if y
+      ings ? PokeAccess::I18n.t(:craft_detail, :head => head, :list => ings.join(", ")) : head
+    end
+
+    # The description of the item made, in the window every copy fills on pbRedrawItem: kept for the info key and
+    # Ctrl+T, and said in full, queued behind the recipe, once per recipe.
+    def self.describe(scene, index, item)
+      desc = PokeAccess.clean((PokeAccess.sprite(scene, "itemtext").text rescue nil).to_s)
+      return if desc.empty?
+      PokeAccess::Info.note_item_desc(item, desc)
+      PokeAccess::Info.add_to_row(desc, :craft_desc)
+      return unless PokeAccess::Cursor.changed?(scene, :craft_desc, [index, desc])
+      PokeAccess.speak(desc, false) if PokeAccess::Verbosity.descriptions?
     end
   end
 end

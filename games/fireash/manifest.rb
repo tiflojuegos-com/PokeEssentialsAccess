@@ -1,15 +1,13 @@
-# Load order for the Pokemon Fire Ash game modules (no .rb), loaded after core. Fire Ash is Essentials v19
-# on a modern mkxp-z, so core/v21 covers everything vanilla; only the screens the fork ADDS need readers.
-#
-# The plugin list is empty on purpose and not :auto. The game ships thirty-odd plugins of its own, none of
-# them one the mod has a reader for: the detection table found no match in the whole tree. Naming none is
-# the honest answer, and it costs nothing to fill in when a reader for one of them is written.
+# Load order of the Pokemon Fire Ash modules (no .rb), after core; Fire Ash is Essentials v19, so core/v21
+# covers its vanilla screens. Plugins by hand: ZUD's summary marks (dynamax) and Multiple save (v.19).
 {
   :modules => %w[
     records
     gc_card
     enemy_buffs
-    battle_swap
+    fishing_speed
+    summary_ivs
+    passability
   ],
-  :plugins => %w[]
+  :plugins => %w[dynamax multi_save_v19 zud_raid_database]
 }

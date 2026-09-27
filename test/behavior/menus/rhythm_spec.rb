@@ -1,7 +1,5 @@
-# Royal's curry rhythm minigame. SongNote#note is a STRING, so the old DIRS[v.to_i] resolved every note to
-# index 0 and the reader said "arriba" for all of them. Picking the pending note is the other half: notes
-# are never removed from @notes and a note the player let through is never marked hit, so anything simpler
-# than "un-hit AND still short of the selector" sticks on one note for the rest of the song.
+# Royal's curry rhythm minigame: a note's direction from its string (SongNote#note), and the pending note the first
+# one not hit and still short of the selector (a missed note stays in @notes, never marked hit).
 require File.expand_path("../../../games/royal/rhythm", File.dirname(__FILE__))
 
 class FakeSongNote
@@ -13,7 +11,7 @@ Suite.define("royal rhythm: the next note to press, by its own direction") do
   rr = PokeAccess::RoyalRhythm
   sel = rr.selector_x(Object.new)
 
-  eq "directions come from the note's string", rr::DIRS["left"], :dir_left
+  eq "directions come from the note's string, as the arrow buttons are named", rr::DIRS["left"], :btn_left
   eq "a rest beat is not a direction", rr::DIRS[""], nil
 
   scene = Object.new

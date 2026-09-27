@@ -1,12 +1,8 @@
 module PokeAccess
-  # In-engine verification of what the test harness can only FAKE. The suite runs on hand-written stubs,
-  # so a stub more permissive than mkxp-z means a green suite and a mod that dies in the game -- the one
-  # gap no CI run can close. Run from the debug menu inside a real game, this probes the live engine for
-  # the assumptions the stubs hard-code, lists every hook that failed to bind HERE, and writes it all to
-  # data/selfcheck.txt for the player to read back or attach to a report.
+  # Debug-menu self-check in the real game: probes the live engine for what the test stubs assume, lists the
+  # hooks that failed to bind, and appends it all to selfcheck.txt in the data folder.
   module SelfCheck
-    # Each probe: [label, ok?, detail-or-nil]. Curated to the surface the readers actually lean on; a
-    # probe that raises is itself the finding.
+    # The engine probes, each [label, ok?, detail-or-nil]; a probe that raises fails with the error as detail.
     def self.probes
       out = []
       out.push(probe("graphics") { Graphics.width.to_i > 0 && Graphics.height.to_i > 0 })
@@ -38,9 +34,8 @@ module PokeAccess
       [label, ok, detail]
     end
 
-    # Engine facts worth recording even though they are not pass/fail: which era the mod detected, what
-    # language the build declares, and whether this game's script patch turns Array#+ into an in-place
-    # mutator (the MTS landmine the whole style guard exists for).
+    # Engine facts that are not pass/fail: the era, the build's language, whether Array#+ mutates in place (MTS),
+    # the registry sizes and the 3D audio device.
     def self.facts
       a = [1]
       b = (a + [2] rescue a)
@@ -55,8 +50,7 @@ module PokeAccess
       ]
     end
 
-    # Runs everything, writes the report and speaks the two numbers that matter: probes failed and hooks
-    # that never bound in THIS game (non-optional ones; an :optional miss is variance, not a fault).
+    # Runs everything, appends the report and speaks how many probes failed and how many hooks never bound here.
     def self.run
       lines = ["=== autochequeo #{Time.now.strftime('%Y-%m-%d %H:%M') rescue ''} ==="]
       bad = 0

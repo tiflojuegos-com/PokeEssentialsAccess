@@ -1,11 +1,24 @@
-# The Tables of Truth (TablesScreen): two shrines of 16 stone tables each, every one a fullscreen PNG of
-# historical commentary -- the game separating its Punic-Wars fiction from the real record. showImage
-# blocks on an image with no text, so each table is TRANSCRIBED here off its own PNG, keyed by the
-# basename the screen resolves at runtime (@pictures[select]): the "tabla"/"tablo" prefix comes through
-# the game's _INTL, so the English mode lands on the _eng transcriptions with no language logic of ours.
-# Texts are verbatim from the images, the game's own typos included -- reading, not editing.
+# The Tables of Truth (TablesScreen): each table is a picture of text, transcribed here verbatim (typos included) and
+# keyed by the basename the screen resolves (@pictures[select]); the English mode's names land on the _eng texts.
+# The grid the tables are picked from paints each cell's name on its background, transcribed in GRID.
 module PokeAccess
   module AfricanusTablas
+    # The cells as tablas/bg.png (the "tabla" shelf) and bg2.png (the "tablo" shelf) paint them, row by row over the
+    # two columns, in both builds.
+    GRID = {
+      "tabla" => ["Sagunto", "Emporiae", "Massilia", "Pisae", "Roma", "Tarraco", "Cartago Nova", "Ibossim", "Gades",
+                  "Carales", "Tarento", "Siracusa", "Siga", "Iol", "Cirta", "Cartago"],
+      "tablo" => ["Roma I", "Publio", "Roma II", "Aníbal", "Roma III", "Lelio", "Roma IV", "Olympeus", "Sagunto II",
+                  "Unión de Amat", "Cannae", "Panteón", "Baecula", "Olimpo", "Zama", "Atlántida"]
+    }
+
+    # The painted name of a grid cell on the shelf the screen's picture prefix names ("tablo_eng" is still the tablo
+    # shelf), or nil past the grid.
+    def self.cell_name(prefix, idx)
+      i = idx.to_i
+      i < 0 ? nil : GRID[prefix.to_s =~ /\Atablo/ ? "tablo" : "tabla"][i]
+    end
+
     TEXTS = {
       "tabla1" => "Sagunto - Sucesos en el año 218 a.C. El asedio de Sagunto por parte de Aníbal rompiendo el tratado del Ebro fue un hecho, sin embargo tanto el personaje protagonista como el personaje de Cepressus son inventados para la trama del juego. Aníbal no sufrió una derrota en este asedio, pero sí se dice que fue herido por una jabalina en la pierna durante el mismo. Este asedio comenzaría la segunda guerra púnica.",
       "tabla2" => "Emporiae - Sucesos en el año 218 a.C. Los eventos de Emporiae son ficción histórica, para esa época Publio y Cneo estarían en el norte de Italia, y Publio hijo estaría probablemente formándose en Roma con su hermano y su madre Pomponia. Se hace mención a que Publio planea interceptar a Aníbal en el Ródano, esa tarea sí la trató de llevar a cabo, sin embargo, como se refleja en el juego más tarde, falló en realizarla.",
@@ -73,9 +86,8 @@ module PokeAccess
       "tablo_eng16" => "Atlantis. Atlantis, mentioned in Plato's myth, is a famous part of the classical mythology. In this city we find Alexander the Great, a Macedonian hero from the 4th century BC, which marked the history of the ancient world, being exalted and converted into a true legend. His survival is obviously false and the existence of Atlantis has not been proven... yet..."
     }
 
-    # Speaks the transcription of the table the screen just slid in, or the generic fullscreen-image
-    # notice for a picture this table does not know; either way the text is stashed for the info key so
-    # a long page can be re-read.
+    # Speaks the transcription of the table just shown, also kept for the info key, or the fullscreen-image notice
+    # for an unknown picture.
     def self.on_show(scene, select)
       pics = PokeAccess.ivar(scene, :@pictures)
       base = (pics.is_a?(Array) && pics[select.to_i]) ? pics[select.to_i].to_s.split("/").last : nil

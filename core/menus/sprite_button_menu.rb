@@ -1,14 +1,14 @@
 module PokeAccess
-  # Sprite-button pause menus: a fangame addon that replaces PokemonMenu_Scene with a custom bezier/sprite
-  # panel (no command window). selectButton(index) fires on open and on every cursor move over @buttons (an
-  # array of [key, label] pairs), so reading the focused label there voices the whole menu, opening
-  # included, with no duplication. A profile with this menu opts in with SpriteButtonMenu.define(game).
+  # Sprite-button pause menus (a PokemonMenu_Scene with @buttons, [key, label] pairs, and no command window): the
+  # focused label on each selectButton, opening included. A profile opts in with SpriteButtonMenu.define(game).
   module SpriteButtonMenu
     @depth = 0
     @last = nil
 
-    # Speaks the focused button and remembers it, so the return below has something to repeat.
+    # Speaks the focused button and keeps it for returned; sets the info key's trainer answer, since these loops
+    # never update the map.
     def self.focus(scene, idx)
+      PokeAccess::Info.set_info(:trainer, nil)
       buttons = PokeAccess.ivar(scene, :@buttons)
       return unless buttons.is_a?(Array) && idx && idx >= 0 && idx < buttons.length
       label = (buttons[idx][1] rescue nil)
@@ -19,39 +19,31 @@ module PokeAccess
       nil
     end
 
-    # A depth and not a flag: the two games that ship this menu keep their loop in different methods
-    # (pbStartScene in one, pbMenuLoop in the other), both are held, and in the first the second is nested
-    # inside it. A flag would be cleared by the inner one while the menu was still up.
+    # A depth, not a flag: pbStartScene and pbMenuLoop are both held, and one can nest in the other.
     def self.open!; @depth += 1; end
 
-    # The label is NOT cleared on the way out. Armonia announces the opening option from inside pbStartScene
-    # and only then enters its loop, so clearing here wiped the label between the two and the first return
-    # from a subscreen came back silent -- the very case this exists for. Leaving it stale costs nothing: the
-    # depth gate is what decides whether anything may be said.
+    # Lowers the depth but keeps the label: a menu can speak its first option before its loop starts, and the depth
+    # alone gates returned.
     def self.close!
       @depth -= 1 if @depth > 0
     end
 
-    # Coming back from a subscreen. These menus open the party, the bag and the rest from inside their own
-    # loop and then simply carry on: selectButton never runs again, so the menu came back silent with the
-    # cursor on an option the player could no longer hear. MenuReturn is the signal -- the fade every
-    # returning option is wrapped in, or a dialogue that ends with the menu still up -- and only its
-    # OUTERMOST exit reaches here, so an inner fade (giving an item from inside the bag) never announces the
-    # menu over the child that is actually on screen.
-    #
-    # Gated on the menu being OPEN, because those seams fire for everything: without the gate a map
-    # transition would announce the last pause-menu option out of nowhere.
+    # Back from a subscreen (MenuReturn's outermost exit): repeats the last focused button while the menu is open,
+    # since selectButton does not run again; the gate keeps map fades silent.
     def self.returned
-      PokeAccess.speak_clean(@last, true) if @depth > 0 && @last
+      return unless @depth > 0
+      PokeAccess::Info.set_info(:trainer, nil)
+      PokeAccess.speak_clean(@last, true) if @last
     rescue StandardError
       nil
     end
 
-    # Registers the selectButton reader for a game profile. The menu's blocking loop is HELD rather than
-    # hooked after, because holding is what tells the return above whether the menu is still on screen; the
-    # method that holds it differs by game, so both candidates are registered.
-    # param bare a list of ["Class", :method] whose call is a subscreen that does NOT fade, declared to
-    #   MenuReturn so returning from one still announces once
+    # The menu ended its scene inside its loop (a key item or field move in use): its messages' returns stay silent.
+    def self.gone!; @last = nil; end
+
+    # Registers the reader for a game profile, holding the menu loop (pbStartScene or pbMenuLoop) so returned knows
+    # the menu is up.
+    # param bare [Class, method, opts] entries for subscreens that do not fade; opts (optional) go to MenuReturn.bare
     def self.define(game, bare = [])
       PokeAccess::Game.define(game) do
         after("PokemonMenu_Scene", :selectButton) do |scene, _r, args|
@@ -64,8 +56,11 @@ module PokeAccess
             begin; nxt.call; ensure; PokeAccess::SpriteButtonMenu.close! end
           end
         end
+        before("PokemonMenu_Scene", :pbEndScene, :optional => true) { |_s, _a| PokeAccess::SpriteButtonMenu.gone! }
       end
-      bare.each { |cname, meth| PokeAccess::MenuReturn.bare(cname, meth.to_sym, :optional => true) }
+      bare.each do |cname, meth, extra|
+        PokeAccess::MenuReturn.bare(cname, meth.to_sym, { :optional => true }.merge(extra || {}))
+      end
     end
   end
 end

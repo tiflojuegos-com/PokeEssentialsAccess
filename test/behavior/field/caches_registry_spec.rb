@@ -1,12 +1,8 @@
-# The cache registry, and the failure it is meant to prevent: a module that caches per-map state and never
-# registers its reset. Nothing complains -- the module simply answers with the previous map's data, which
-# for a screen reader means a terrain label, a target list or a "no route" verdict from where the player no
-# longer is. The registry is printed by the diagnostic, which is the only place such a module shows up.
+# Every module that caches per-map state registers its reset (the list is literal on purpose, not derived from the
+# code), and one reset raising does not stop the others.
 Suite.define("caches: every module that remembers the map is registered to forget it") do
   names = PokeAccess::Caches.names
 
-  # Named one by one on purpose. A list derived from the code would pass whatever the code happens to do,
-  # which is the property under test.
   [:puzzles, :audio3d, :pathfinder, :spatial, :cursor_global].each do |mod|
     truthy "#{mod} registers a reset", names.include?(mod)
   end
@@ -23,8 +19,8 @@ Suite.define("caches: every module that remembers the map is registered to forge
   end
 end
 
-# The two modules R4 caught. Their memos are keyed on coordinates or on a terrain label, neither of which
-# survives a door, so the reset is the only thing standing between the player and a stale announcement.
+# Spatial's map reset forgets its terrain, radar and lens tiles; Cursor.reset_global empties the module-wide dedup
+# table that readers with no holder share.
 Suite.define("caches: Spatial and the module-wide cursor table really do forget") do
   sp = PokeAccess::Spatial
   sp.instance_variable_set(:@surf_here, :terrain_water)
@@ -35,8 +31,6 @@ Suite.define("caches: Spatial and the module-wide cursor table really do forget"
   eq "the radar's remembered tile", sp.instance_variable_get(:@radar_key), nil
   eq "and the lens tile", sp.instance_variable_get(:@lens_pos), nil
 
-  # Readers with no scene to hang on (the HUD line, Awakening's cards) dedup here, and this table used to
-  # outlive everything: only the test harness ever emptied it.
   holderless = PokeAccess::Cursor
   SpeakCapture.clear
   holderless.announce(nil, :spec_slot, 1, true) { "primero" }
@@ -50,8 +44,8 @@ Suite.define("caches: Spatial and the module-wide cursor table really do forget"
   spoke "until the map changes, when it starts over", /primero/
 end
 
-# The guide's "there is no route" answer is memoised on [px, py, tx, ty] with no map in it, and the memo
-# short-circuits A* entirely -- so carried across a map it does not go stale, it goes WRONG.
+# clear_targets drops the guide's memos: the no-route verdict (keyed on [px, py, tx, ty], with no map in it), the
+# route and its target.
 Suite.define("caches: clearing targets also drops the guide's route memo") do
   loc = PokeAccess::Locator
   loc.instance_variable_set(:@noroute_key, [1, 2, 3, 4])

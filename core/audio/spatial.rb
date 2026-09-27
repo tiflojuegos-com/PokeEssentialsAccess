@@ -1,8 +1,6 @@
 module PokeAccess
-  # Spatial navigation audio, kept sparse: a footstep on movement (water variant while surfing) and a
-  # wall cue when pushing into an impassable tile, panned to the wall's side. Target location is the
-  # guide cane's job (see Locator). Pre-panned files give the direction since old mkxp-z cannot pan a
-  # mono sound at playback.
+  # Footsteps, the wall cue, radar, surface and hidden-tile notices, earcons and the busy? gate. Flat cues give
+  # direction with pre-panned files, since old mkxp-z cannot pan a mono sound at playback.
   module Spatial
     DIR = PokeAccess::Paths::SOUNDS
     @flip = false
@@ -18,10 +16,7 @@ module PokeAccess
     @surf_pos = nil
     @lens_pos = nil
 
-    # Drops everything tied to the map the player just left: every ivar here is an "already said this" memo
-    # keyed on coordinates or on a terrain label, neither of which survives a map change. Its twin Audio3D
-    # puts the map id inside its keys instead, which this module cannot do, because @surf_here holds a
-    # LABEL and not a position and would match itself through a door onto water.
+    # Drops the "already said this" memos, keyed on coordinates or a terrain label, when the map changes.
     def self.reset_map_state
       @radar_key = nil; @radar_pos = nil
       @surf_here = nil; @surf_front = nil; @surf_pos = nil
@@ -38,10 +33,8 @@ module PokeAccess
       Audio.se_play("#{DIR}/#{name}", volume, pitch) rescue nil
     end
 
-    # The rate factor a family's tone applies to a flat cue, held inside what mkxp accepts for an SE (50 to
-    # 150): the factor is reduced until the highest pitch the cue uses fits under 150 and the lowest stays
-    # over 50, so a pair like the guide's 140 ahead and 70 behind keeps its ratio, and its meaning, at any
-    # tone. low and high are that cue's extreme base pitches.
+    # The rate factor a family's tone applies to a flat cue, clamped so the cue's base pitches low and high stay
+    # within the 50-150 an SE accepts (a pitch pair keeps its ratio).
     def self.tone_factor(key, low = 100, high = 100)
       f = PokeAccess.tone_to_pitch(PokeAccess::Config.send(key)) / 100.0
       f = 150.0 / high if high * f > 150
@@ -51,20 +44,13 @@ module PokeAccess
       1.0
     end
 
-    # The guide family's tone factor, one for every path. The cane's ahead/behind code (140 and 70) lives on
-    # the flat channel by design, because HRTF cannot place front and back on plain stereo headphones; so
-    # the whole family, the engine's left and right included, moves by the factor that keeps that pair
-    # inside 50-150. The guide tone therefore goes down almost half an octave and up about a semitone, and
-    # its four directions never disagree.
+    # The guide family's tone factor for every path, the engine's included: the one that keeps the flat 140 (ahead)
+    # and 70 (behind) pitches inside 50-150.
     def self.guide_tone_factor
       tone_factor(:guide_tone, 70, 140)
     end
 
-    # The named NON-positional earcons: symbol => [file, default pitch]. One vocabulary so a sound keeps a
-    # single meaning across readers -- the 3D/panned cues (walls, guide cane, puzzle tones) already mean
-    # "wall", "npc" or "control" and stay out of this table on purpose: reusing one here would read as the
-    # sonar firing in the middle of a minigame. pa_mg_tick is a short 60 ms percussive blip made to repeat
-    # every frame without smearing when pitch-shifted.
+    # The named non-positional earcons: symbol => [file, default pitch].
     EARCONS = {
       :minigame_tick => ["pa_mg_tick", 100],
       :radar_blip    => ["pa_guide_c", 150]
@@ -77,22 +63,13 @@ module PokeAccess
       cue(e[0], volume, pitch || e[1])
     end
 
-    # The pitch range a gauge sweeps: it starts at LOW and spans SPAN, reaching 150, the most the flat SE
-    # channel plays (mkxp pins anything above it, which is what let an older top of 180 flatten the last
-    # third of every approach). Low enough to read as "far" and high enough to read as "now" without
-    # leaving the range where the 60 ms tick still sounds like the same sound. A base and a span rather
-    # than a low and a high, so the mapping below needs no subtraction: the MTS guard cannot prove a
-    # constant minus a constant is scalar.
+    # The pitch range a gauge sweeps: from LOW up by SPAN to 150, the most the flat SE channel plays. A base and a
+    # span, not a low and a high: the MTS guard cannot prove a constant minus a constant is scalar.
     GAUGE_LOW = 80
     GAUGE_SPAN = 70
 
-    # A cue whose PITCH carries a magnitude: 0.0 at the low end, 1.0 at the high end. The shared answer to
-    # "how close am I to the good moment", which every timing minigame needs, defined here alongside the
-    # vocabulary it belongs to.
-    #
-    # A fraction outside 0..1 is clamped rather than refused: callers derive it from live game state that
-    # can overshoot by a frame, and going quiet at the moment the player most needs the cue is the worst
-    # failure this sound has.
+    # A cue whose pitch carries a magnitude, 0.0 low to 1.0 high, for timing minigames; a fraction outside 0..1 is
+    # clamped, not refused (live state can overshoot by a frame).
     def self.gauge(fraction, volume = 60, name = :minigame_tick)
       f = fraction.to_f
       f = 0.0 if f < 0.0
@@ -102,18 +79,14 @@ module PokeAccess
       nil
     end
 
-    # True while the player is NOT under free control (message, menu, battle, selection/picture screen, a
-    # forced move route, or a blocking event), so audio/cues/guide fall silent. Gates on the active scene
-    # (some fangame menus don't set in_menu) plus a registered reader for Scene_Map-overlay menus. The
-    # locator KEYS use keys_locked? instead, which ignores the interpreter so the npc list stays usable
-    # during a walkable cutscene.
+    # True while the player is not under free control (see busy_reason), so the cues and the guide fall silent. The
+    # locator keys use keys_locked? instead.
     def self.busy?
       !busy_reason.nil?
     end
 
-    # WHICH condition is holding the player out of free control, or nil when none is. Same order and same
-    # tests as busy? (which is just this, as a boolean) -- split out so a soundscape that keeps cutting out
-    # can name its cause in the diagnostic instead of leaving "busy" as an opaque true.
+    # Which condition holds the player out of free control (a scene, battle, menu, message, mini update, forced move
+    # route or running interpreter), or nil when none does.
     def self.busy_reason
       return :other_scene if (defined?(::Scene_Map) && $scene && !$scene.is_a?(::Scene_Map))
       return :battle if (PokeAccess::Battle.in_battle? rescue false)
@@ -125,6 +98,7 @@ module PokeAccess
         return :in_menu if ($game_temp.in_menu rescue false)
         return :in_battle if ($game_temp.in_battle rescue false)
       end
+      return :mini_update if mini_update?
       return :move_route if ($game_player && $game_player.move_route_forcing rescue false)
       return :interpreter if ($game_system && $game_system.map_interpreter && $game_system.map_interpreter.running? rescue false)
       nil
@@ -132,26 +106,33 @@ module PokeAccess
       nil
     end
 
-    # True only while another screen genuinely owns the arrows/action keys (character selection, a picture
-    # menu, an open menu or a battle). Unlike busy? this is NOT true for a plain message or a running
-    # interpreter, so the locator keys keep working during a parallel-event cutscene the player can walk through.
+    # True while another screen owns the arrows and action keys (selection, a picture menu, a menu, a battle, or a
+    # mini update with no message up); unlike busy?, not for a message or a running interpreter.
     def self.keys_locked?
       return true if (PokeAccess::Appearance.selecting? rescue false)
       return true if (PokeAccess::PictureCues.menu_showing? rescue false)
       if $game_temp
         return true if ($game_temp.in_menu rescue false)
         return true if ($game_temp.in_battle rescue false)
+        return true if mini_update? && !$game_temp.message_window_showing
       end
       false
     rescue StandardError
       false
     end
 
-    # Runs once per map frame: footstep on movement, panned wall feedback, radar, surface cues and the
-    # hidden-area notice.
+    # True while a message or menu loop updates the map: $game_temp.in_mini_update (v21) or $PokemonTemp.miniupdate.
+    def self.mini_update?
+      return true if ($game_temp.in_mini_update rescue false)
+      ($PokemonTemp.miniupdate rescue false) ? true : false
+    end
+
+    # Runs once per map frame: the 3D listener onto the player's tile first, then footstep on movement, panned wall
+    # feedback, radar, surface cues and the hidden-area notice.
     def self.tick
       return unless $game_map && $game_player
       return if busy?
+      PokeAccess::Audio3D.follow_player
       footstep
       wall_cue
       radar
@@ -161,14 +142,8 @@ module PokeAccess
 
     # The tile directly in front of the player, by facing direction.
     def self.front_tile
-      x = $game_player.x; y = $game_player.y
-      case $game_player.direction
-      when 2 then [x, y + 1]
-      when 4 then [x - 1, y]
-      when 6 then [x + 1, y]
-      when 8 then [x, y - 1]
-      else [x, y]
-      end
+      d = PokeAccess::DIR_DELTA[$game_player.direction] || [0, 0]
+      [$game_player.x + d[0], $game_player.y + d[1]]
     end
 
     # The map event occupying a tile, if any.
@@ -221,13 +196,8 @@ module PokeAccess
       @surf_front = nil if !ahead || surfing
     end
 
-    # Announces a generic "hidden area" cue when the player steps onto a tile holding a Lens-of-Truth (#EOT)
-    # event, so a place invisible without the lens is still noticeable on foot. Deduped per tile, and worded
-    # generically because the revealing item is named differently per game. Driven from tick and not from
-    # the terrain cues, which are off by default and whose help line promises terrain. Checked once per
-    # tile like its siblings: it was the one poller in tick without a position guard, sweeping every event
-    # of the map on every frame, in the nine games without the plugin too. A tile is looked at on arrival
-    # only: #EOT events are fixed markers named in the map data, so nothing appears under a standing player.
+    # Says a generic "hidden area" line on arriving at a tile that holds a Lens-of-Truth (#EOT) event; generic because
+    # each game names the lens differently.
     def self.announce_lens_tile
       pos = [$game_player.x, $game_player.y]
       return if pos == @lens_pos
@@ -267,12 +237,8 @@ module PokeAccess
       false
     end
 
-    # Plays a wall cue panned to the wall's side when the player pushes into an impassable tile: when the
-    # push starts, when it turns to another wall (@was_blocked keeps the wall's direction) and once per
-    # cooldown while it lasts. The costly passability test runs only while a direction is held and the
-    # player is not already walking (a bump's one-step animation does not count), so idle/free-walking frames
-    # stay cheap. Records the push, the cue's direction and whether it could be heard, which decide whether a
-    # game bump right after it is a second answer to the same push.
+    # Plays a wall cue toward the wall when the player pushes into an impassable tile: on the push, on turning to
+    # another wall and once per cooldown; records the push, direction and audibility for just_cued?.
     def self.wall_cue
       return if (PokeAccess::Audio3D.nav_off? rescue false)
       v = PokeAccess::Config.wall_volume
@@ -304,10 +270,8 @@ module PokeAccess
       @was_blocked = blocked ? dir : false
     end
 
-    # The names the game's own bump plays under: "bump" in the gen-6 era (played inline by Game_Player when
-    # a step fails) and "Player bump" from v18 on (Game_Player#bump_into_object). Every era plays it through
-    # pbSEPlay(param, volume, pitch), the one seam the fifteen surveyed games share; param is the file name,
-    # or an RPG::AudioFile carrying it.
+    # The game's own bump by file name, lowercased: "bump" in the gen-6 era, "Player bump" from v18 on. Every era
+    # plays it through pbSEPlay, whose param is the name or an RPG::AudioFile carrying it.
     GAME_BUMP_NAMES = ["bump", "player bump"]
 
     def self.game_bump?(param)
@@ -318,13 +282,8 @@ module PokeAccess
       false
     end
 
-    # Whether the mod's own wall cue answers for this bump -- the same test wall_cue makes, asked when the
-    # game plays its own -- so only WALL bumps are muted: of the sixty-two places the games write this call
-    # (sixteen of them commented out), the ones that answer a blocked step are walls, the autosurf and
-    # diagonal-stairs Game_Player overrides included, while an options preview bumps at nothing, which is
-    # why the test is the wall and not the file name. Facing against the held direction, as wall_cue does;
-    # the cooldown is deliberately not copied, since holding into a wall is where the game's per-step bump
-    # becomes noise.
+    # Whether the mod's wall cue answers for this bump: wall_cue's test (a held push into a wall, not walking), minus
+    # the cooldown on purpose, so only wall bumps are muted.
     def self.wall_cue_takes_over?
       return false if (Input.dir4 rescue 0) == 0
       return false if walking?
@@ -341,17 +300,14 @@ module PokeAccess
       !ev.nil? && (PokeAccess::Locator.interactable?(ev) rescue false)
     end
 
-    # Whether the player is really taking a step. A v21 bump plays a one-step animation of its own
-    # (bump_into_object starts the move timer and sets @bumping) that is no walk: holding the wall cue back
-    # until it ended left a short tap against a wall with no sound at all, the game's bump already muted.
+    # Whether the player is really taking a step; a v21 bump's one-step animation (@bumping) does not count.
     def self.walking?
       return false unless ($game_player.moving? rescue false)
       !($game_player.instance_variable_get(:@bumping) rescue false)
     end
 
-    # Whether the mod's wall cue can be heard: sound navigation on and a wall volume above zero, and when
-    # the positional engine plays the cue (on its interact channel when interact, else its wall one), its
-    # master volume above zero too.
+    # Whether the mod's wall cue can be heard: sound navigation on, wall volume above zero and, when the positional
+    # engine would play it, the engine's master volume above zero.
     def self.cue_audible?(interact = false)
       return false if (PokeAccess::Audio3D.nav_off? rescue false)
       return false if (PokeAccess::Config.wall_volume rescue 0).to_i <= 0
@@ -364,12 +320,8 @@ module PokeAccess
       (PokeAccess::Config.bump_cooldown rescue 16).to_f / PokeAccess::FPS
     end
 
-    # Whether the game's bump stays silent now: the player has not asked for it back (game_bump off), the
-    # sound comes from the walk on the map, it really is the bump file, and the mod's own wall cue is about
-    # to answer for it. That cue plays from tick, which runs only while Locator.polling? (the mod on, its
-    # menu shut) and stands down while busy? holds the player; a bump played outside either -- the mod
-    # switched off, a team photo's camera or a minigame's countdown run by an event -- stays the game's,
-    # unless the cue has just answered the same push (just_cued?). One bump: never zero, never two.
+    # Whether the game's bump is muted: game_bump off, on the map, the bump file, and the wall cue just answered
+    # this push or is about to (it plays only while Locator.polling? and not busy?). One bump, never zero or two.
     def self.mute_game_bump?(param)
       return false if (PokeAccess::Config.game_bump rescue true)
       return false unless ($scene.is_a?(Scene_Map) rescue false)
@@ -380,16 +332,12 @@ module PokeAccess
       wall_cue_takes_over?
     end
 
-    # How long a game bump still answers the push the wall cue answered, in seconds, past the cue's cooldown
-    # and past the release of the arrow. A touch event on a solid tile starts on the push's frame and bumps
-    # on the next (Infinite Fusion's Mt. Moon summit), which may already be the frame the arrow was let go,
-    # under an interpreter the rest of the filter no longer judges; held, the push repeats the cue once per
-    # cooldown, and on that very frame the interpreter's bump comes first.
+    # Seconds past the cue's cooldown, and past releasing the arrow, during which a game bump still counts as the same
+    # push: a touch event on a solid tile bumps one frame after the push.
     SAME_PUSH = 0.25
 
-    # Whether a game bump now is a second answer to a push the mod's wall cue already answered: a cue the
-    # player could hear, towards the wall the player still faces, within the cue's cooldown plus SAME_PUSH,
-    # with the arrow still held or let go less than SAME_PUSH ago.
+    # Whether a game bump now repeats a push the wall cue answered audibly, toward the wall still faced, within the
+    # cooldown plus SAME_PUSH, with the arrow held or let go less than SAME_PUSH ago.
     def self.just_cued?
       return false if @bump_time.nil? || !@bump_heard
       return false if @bump_dir && @bump_dir != ($game_player.direction rescue nil)
@@ -399,12 +347,10 @@ module PokeAccess
   end
 end
 
-# The game's own bump, filtered at the one function every era plays it through: an :around body that does
-# not call nxt swallows the sound, and anything that is not the walk's bump goes through untouched.
+# Mutes the game's own bump at pbSEPlay (the around body skips nxt); every other sound goes through.
 PokeAccess::Hooks.wrap_kernel("pbSEPlay", "game_bump", :around) do |args, nxt|
   PokeAccess::Spatial.mute_game_bump?(args[0]) ? nil : nxt.call
 end
 
-# Drop the previous map's "already said this" memos on map change or load (Caches.reset_all), the same way
-# Audio3D does. Without it a terrain label or a cursor coordinate carried across the door.
+# Drops the previous map's "already said this" memos on map change or load (Caches.reset_all).
 PokeAccess::Caches.register(:spatial) { PokeAccess::Spatial.reset_map_state }

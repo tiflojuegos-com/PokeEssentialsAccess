@@ -45,7 +45,7 @@ licensing:
 - `MINIAUDIO_DIR`: the miniaudio repo (`miniaudio.h` at its root).
 
 ```bash
-./build.sh   # defaults to ../../../../repositorios genericos/_refmods/{steam-audio,miniaudio}
+STEAMAUDIO_DIR=<steam-audio checkout> MINIAUDIO_DIR=<miniaudio checkout> ./build.sh
 ```
 
 There is no SDK import library to fetch: `build.sh` generates one from the `phonon.dll` in

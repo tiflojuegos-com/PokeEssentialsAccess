@@ -1,8 +1,5 @@
-# Settings.apply is the one boot step the harness never ran: boot.rb applies the player's settings.ini
-# over the profile defaults, but Harness.load_all stops at the profile and Reset returns everything to
-# SCHEMA -- so the whole suite always ran on factory config and a parse crash or a wrong clamp in apply
-# was invisible. Driven here through the real read/apply/write cycle against a scratch ini, with FILE
-# repointed for the duration.
+# Settings.apply, which the harness never runs: the real read/apply/write cycle on a scratch ini (FILE repointed),
+# stamped with the current VERSION so that its language is not migrated to :auto.
 Suite.define("settings: apply reads a player ini over the defaults, clamped and typed") do
   dir = File.join(File.dirname(__FILE__), "tmp_settings")
   Dir.mkdir(dir) unless File.directory?(dir)
@@ -12,8 +9,6 @@ Suite.define("settings: apply reads a player ini over the defaults, clamped and 
     PokeAccess::Settings.send(:remove_const, :FILE)
     PokeAccess::Settings.const_set(:FILE, file)
 
-    # Stamped with the current layout version: an unstamped ini is one from before the automatic
-    # language and is migrated to :auto on the way in, which is its own suite's business.
     File.open(file, "w") do |f|
       f.write("settings_version=#{PokeAccess::Settings::VERSION}\n")
       f.write("audio3d_volume=250\n")
@@ -36,14 +31,26 @@ Suite.define("settings: apply reads a player ini over the defaults, clamped and 
     eq "a key_ line overrides a mod hotkey the mod has", PokeAccess::Config.keys[:next], 88
     falsy "and an unknown action name cannot invent one", PokeAccess::Config.keys.has_key?(:bogus)
 
-    # The ini above lacks most schema keys, so apply must have rewritten it complete: a new setting is
-    # editable by hand right after updating, without opening the config menu first.
     rewritten = File.read(file)
     missing = PokeAccess::Settings.schema_keys.reject { |k| rewritten =~ /^#{Regexp.escape(k)}=/ }
     eq "apply rewrote the ini with every schema key", missing, []
     truthy "and stamped the layout version", rewritten =~ /^settings_version=#{PokeAccess::Settings::VERSION}$/
 
-    # An absent file is created with the defaults -- the first-boot path.
+    PokeAccess::Config.keys = PokeAccess::Config::KEY_DEFAULTS.dup
+    PokeAccess::Config.rebinds = {}
+    File.open(file, "w") do |f|
+      f.write("settings_version=#{PokeAccess::Settings::VERSION}\n")
+      f.write("bind_l=36\n")
+      f.write("key_hp=35\n")
+    end
+    PokeAccess::Settings.apply
+    eq "a default key a saved binding already uses gives way to it (Home was the L button's)",
+       [PokeAccess::Config.keys[:hist_prev], PokeAccess::Config.rebinds[:l]], [nil, 36]
+    eq "and to a mod key the player moved there (End was the HP key's)",
+       [PokeAccess::Config.keys[:hist_next], PokeAccess::Config.keys[:hp]], [nil, 35]
+    eq "the other defaults stay", PokeAccess::Config.keys[:next], PokeAccess::Config::KEY_DEFAULTS[:next]
+    PokeAccess::Config.rebinds = {}
+
     File.delete(file)
     PokeAccess::Settings.apply
     truthy "a missing ini is created", File.file?(file)

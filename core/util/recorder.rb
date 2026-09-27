@@ -1,9 +1,6 @@
 module PokeAccess
-  # Session recorder: turns a play session into a TRANSCRIPT of what the mod saw and what it said, in order.
-  # A tester hands over a recording instead of describing the moment, and test/support/replay.rb audits the
-  # same file for a cursor that moved without speaking, the same line twice in a row, and raw control codes.
-  # Nothing inside a reader is hooked: everything arrives through PokeAccess.on_speak and a per-frame read
-  # of state the mod already keeps. Off, it costs a nil observer and one boolean.
+  # Session recorder: a transcript of what the mod saw and said, in order, fed by a speech observer and a
+  # per-frame sample; test/support/replay.rb audits it.
   #
   # Line format (tab-separated, text always last; the auditor parses it):
   #   # pea-recording 1 <engine kind>  <engine version>  <fork>
@@ -19,11 +16,8 @@ module PokeAccess
     FLUSH_EVERY = 120
     HEADER = /\A=== PokeAccess diag/
 
-    # Diagnostic sections dumped into the transcript, so a report also answers what the mod SAW: the nearby
-    # objects and their classification, the reachability flood and the route, the surfaces, the scene. They
-    # are the diag's own sections, profile-registered ones included, so this never grows a second copy.
-    # diag_perf and diag_polls stay out: the first RESETS the window it reads and would falsify the
-    # player's own measurements, and the second runs a 5000-iteration benchmark.
+    # The diag sections dumped into the transcript at start, on a map change and on a scene change. diag_perf
+    # and diag_polls stay out: the first resets its window, the second runs a benchmark.
     SNAP_START = [:diag_focus, :diag_map, :diag_locator, :diag_pathfinder, :diag_surface,
                   :diag_audio3d, :diag_scene, :diag_runtime]
     SNAP_MAP   = [:diag_map, :diag_locator, :diag_pathfinder, :diag_surface]
@@ -57,7 +51,7 @@ module PokeAccess
       @on = true
       e = PokeAccess::Engine
       @lines.push("# pea-recording 1\t#{e.kind rescue '?'}\t#{e.version rescue '?'}\t#{e.fork.inspect rescue '?'}")
-      PokeAccess.on_speak = lambda { |text, interrupt| note("say", interrupt ? 1 : 0, text) }
+      PokeAccess::Speech.observe(:recorder) { |msg| note("say", msg.interrupt ? 1 : 0, msg.text) }
       snapshot(SNAP_START, "start")
       flush
       File.basename(@path)
@@ -66,13 +60,12 @@ module PokeAccess
       nil
     end
 
-    # Stops the recording, removes the observer and writes what is pending. Returns the number of events
-    # in the WHOLE session, counted as they are noted and never as the buffer length: flush empties the
-    # buffer every FLUSH_EVERY lines, so its length is only what is still pending.
+    # Stops the recording, removes the observer and writes what is pending; returns the session's event count
+    # (not the buffer length, which flush empties).
     def self.stop
       return 0 unless @on
       @on = false
-      PokeAccess.on_speak = nil
+      PokeAccess::Speech.unobserve(:recorder)
       flush
       @count
     rescue StandardError
@@ -95,8 +88,7 @@ module PokeAccess
       nil
     end
 
-    # Writes the buffered lines and empties the buffer. Buffered rather than per-event so a per-frame
-    # sampler cannot turn into a file write per frame.
+    # Appends the buffered lines to the file and empties the buffer.
     def self.flush
       return if @path.nil? || @lines.empty?
       pending = @lines
@@ -107,8 +99,7 @@ module PokeAccess
       nil
     end
 
-    # Records a field only when it CHANGED, so the transcript stays a list of events instead of a dump
-    # of every frame. Returns whether it wrote, so a caller can hang a snapshot off the same change.
+    # Notes a field only when it changed since the last call for that key; returns whether it wrote.
     def self.on_change(kind, key, *fields)
       return false if @seen[key] == fields
       @seen[key] = fields
@@ -116,13 +107,8 @@ module PokeAccess
       true
     end
 
-    # Dumps diagnostic sections into the transcript, one row per line, tagged with why it was taken. Each
-    # row rides the normal event format, so the auditor ignores them while a human gets the full picture.
-    #
-    # The diag's own timestamped header is dropped: every row already carries a time, and keeping it would
-    # make each dump differ from the last by the clock alone and defeat the check below. A dump identical to
-    # the previous one for the same reason writes ONE marker line -- the scene flips between nil, :message
-    # and :in_menu constantly, and repeating six lines each time buries the rest of the file.
+    # Dumps diag sections into the transcript as "diag" rows tagged with why, minus the timestamped header; a
+    # dump identical to the last one for the same why writes a single marker row instead.
     def self.snapshot(sections, why)
       return unless @on
       text = (PokeAccess::Keys.diag_build(sections) rescue nil)
@@ -138,15 +124,12 @@ module PokeAccess
       nil
     end
 
-    # Queues a snapshot for the NEXT frame instead of taking it now. The recorder's own frame hook runs
-    # BEFORE the map readers' (a real recording proved it: the map-change dump showed the new map's size
-    # alongside the previous map's target list, with coordinates that could not exist on it). Waiting one
-    # frame lets every other reader react first, so the dump describes the state the player is actually in.
+    # Queues a snapshot for the next frame, since the recorder's frame hook runs before the map readers update.
     def self.defer(sections, why)
       @pending.push([sections, why])
     end
 
-    # Takes the snapshots queued by defer. Called at the top of the next sample, one frame after the change.
+    # Takes the snapshots queued by defer (at the top of the next sample).
     def self.flush_pending
       return if @pending.empty?
       due = @pending
@@ -154,12 +137,8 @@ module PokeAccess
       due.each { |s| snapshot(s[0], s[1]) }
     end
 
-    # The per-frame sample: map, position, scene and the locator's selected target, each only on change. A
-    # new map or scene drags in a diagnostic snapshot too, since those are the moments a report needs the
-    # surroundings for and they are rare enough to afford it.
-    #
-    # The scene key is the class AND busy_reason: many menus run as an overlay of the map scene, so the
-    # class alone never changes and busy_reason is what tells a menu, a battle and a message apart.
+    # The per-frame sample: the input pressed, and on change the map, position, scene (class and busy_reason,
+    # which tells overlay menus apart) and locator selection; a new map or scene queues a snapshot.
     def self.sample
       return unless @on
       flush_pending
@@ -181,11 +160,8 @@ module PokeAccess
       nil
     end
 
-    # What the player pressed this frame, or nil. The auditor needs it to tell a broken dedup ("it said the
-    # same line twice on its own") from the player asking again -- moving inside a menu changes no position
-    # and no scene, so without this every legitimate re-read looked like a bug. Directions use repeat?, not
-    # trigger?: holding a direction to scroll a list moves the cursor repeatedly, and each of those moves is
-    # a real player action. Mod keys do not come through here; Keys.key reports them as they fire.
+    # What the player pressed this frame ("confirm", "cancel", "dir"), or nil, so the auditor can tell a re-read
+    # from a repeat; directions use repeat?, since a held direction keeps moving the cursor.
     def self.game_input
       return nil unless defined?(Input)
       return "confirm" if (Input.trigger?(Input::C) rescue false)
@@ -197,19 +173,12 @@ module PokeAccess
       nil
     end
 
-    # Records a mod key the moment it fires. Called from Keys.key, the single point every configured key
-    # goes through, so no caller has to remember to report itself.
+    # Records a mod key as it fires (called from Keys.key).
     def self.note_key(name)
       note("in", "tecla:#{name}")
     end
   end
 end
 
-# Sampled from the GLOBAL per-frame driver, not from Game_Player#update. Game_Player#update only runs while
-# the map scene is updating, so a screen with its own blocking loop -- which is most of the ones worth
-# recording -- produced a transcript with a gap exactly where the player was when it went wrong. Keys.on_frame
-# rides Input.update, which every loop calls, so the sample follows the player into the menus.
-#
-# It also stays out of the reentrancy guard by construction: the poller registry is not a hooked method, so
-# the recorder can never take part in deciding which reader speaks.
+# Sampled on Keys.on_frame (Input.update), which also runs inside the menus' own blocking loops.
 PokeAccess::Keys.on_frame { (PokeAccess::Recorder.sample rescue nil) }

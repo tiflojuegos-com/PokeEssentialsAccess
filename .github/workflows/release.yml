@@ -14,7 +14,14 @@ permissions:
   contents: write
 
 jobs:
+  launcher:
+    uses: ./.github/workflows/reusable-launcher.yml
+    with:
+      create_artifact: true
+      run_tests: false
+
   package_mod:
+    needs: launcher
     runs-on: ubuntu-latest
     outputs:
       tag: ${{ steps.meta.outputs.tag }}
@@ -48,10 +55,7 @@ jobs:
           echo "zip_sha=$SHAZIP" >> "$GITHUB_OUTPUT"
           echo "launcher_version=$LAUNCHER_VERSION" >> "$GITHUB_OUTPUT"
 
-      # The same three gates CI runs, on the exact tree about to be packaged: pushing a tag must never publish
-      # a build that does not pass its own tests. The syntax sweep is the only parse plugins/ gets on a runner
-      # with no 1.8.7 interpreter; the marker grep refuses a filtered pass that skipped the static checks
-      # while still printing "0 fail"; the profile smoke loads every games/*/manifest.rb in isolation.
+      # The same three gates as CI (syntax, suite with its static checks, profile smoke) on the tree to package.
       - name: syntax
         run: |
           for f in $(find core games plugins loader test -name '*.rb'); do ruby -c "$f" >/dev/null || exit 1; done
@@ -85,18 +89,27 @@ jobs:
           }
           JSON
 
+      - name: download launcher
+        uses: actions/download-artifact@v4
+        with:
+          name: pokeessentialsaccess-launcher
+          path: launcher-bin
+
       - name: build zip
         shell: bash
         run: |
           set -euo pipefail
           mkdir -p stage
-          cp -r assets core lang loader installer version.json stage/
+          cp -r assets core lang loader version.json stage/
+          cp launcher-bin/pokeessentialsaccess-launcher.exe launcher/commands.txt stage/
           cp -r games stage/games
           cp -r plugins stage/plugins
-          for d in assets core games plugins lang loader installer; do
+          for d in assets core games plugins lang loader; do
             [ -d "stage/$d" ] || { echo "::error::stage/$d missing from the zip"; exit 1; }
           done
-          [ -f "stage/version.json" ] || { echo "::error::stage/version.json missing from the zip"; exit 1; }
+          for f in version.json pokeessentialsaccess-launcher.exe commands.txt; do
+            [ -f "stage/$f" ] || { echo "::error::stage/$f missing from the zip"; exit 1; }
+          done
           cp LICENSE stage/
           for f in README.md README.es.md README.en.md; do [ -f "$f" ] && cp "$f" stage/; done
           cp -r docs stage/docs
@@ -114,12 +127,6 @@ jobs:
           if-no-files-found: error
           retention-days: 1
 
-  launcher:
-    uses: ./.github/workflows/reusable-launcher.yml
-    with:
-      create_artifact: true
-      run_tests: false
-
   publish_release:
     needs:
       - package_mod
@@ -133,6 +140,8 @@ jobs:
         with:
           path: release-artifacts
 
+      # The release notes are the annotated tag's message, read through the API (this job has no checkout); a
+      # lightweight tag has none and publishes empty notes.
       - name: Publish release assets
         env:
           GH_TOKEN: ${{ github.token }}
@@ -156,11 +165,6 @@ jobs:
 
           ASSETS=("$MOD_ZIP" "$MOD_SHA" "$MOD_VERSION" "$LAUNCHER_BIN")
 
-          # The changelog is the annotated tag's own message, so a release needs no editing by hand after it
-          # is published: whoever tags writes the notes once, in the words the players read. Read through the
-          # API rather than with --notes-from-tag because this job has no checkout, and a LIGHTWEIGHT tag
-          # simply carries no message: that publishes an empty changelog instead of aborting, since half a
-          # release is worse than a blank one.
           NOTES_FILE=""
           REF=$(gh api "repos/${GH_REPO}/git/ref/tags/${TAG}" 2>/dev/null || echo "")
           if [ -n "$REF" ] && [ "$(echo "$REF" | jq -r .object.type)" = "tag" ]; then

@@ -1,32 +1,24 @@
 module PokeAccess
-  # Reminiscencia's title, pause and world-map menus are fully image-based (no text windows), each
-  # navigated by index in its own blocking loop, so the generic command-window hook never sees them. Those
-  # loops call Input.update every frame, so the active menu is registered (a stack, since the world map
-  # opens over the pause menu) and its focused index read from the per-frame poll. Labels are fixed per
-  # menu except the world map, whose destination resolves to the real map name.
+  # Reminiscencia's image-only title, pause and world-map menus: the active one is kept on a stack (the world map
+  # opens over the pause menu) and its focused index read each frame; the button words come from lang/.
   module ReminMenu
-    LOAD_MAIN  = ["Continuar", "Opciones", "Salir"]
-    # The six bubbles of the load screen. Their captions are painted into Titulo/Bubbles.png, so the names
-    # come from the game's own prose instead. Each bubble index maps to a $game_mode and a save file in
-    # 2090 PScreen_Load_NEW, and 0500 Messages describes each $game_mode by name: index 3 loads
-    # Endless.rxdata ($game_mode 4), which Messages lists among the menu entries as "Modo Refraccion" --
-    # the game says "Modo Infinito" only once, in an options help text about a mechanic. Index 4 loads
-    # DatingSim.rxdata ($game_mode 3), named "Modo Recuerdo" in the superseded command list of
-    # PScreen_Load_NEW, whose help line ("Conoce mejor a los personajes") matches Messages' dating-sim
-    # entry exactly; it never says "Modo Simulacion" anywhere.
-    LOAD_MODES = ["Modo historia", "Capítulo extra", "Modo Mazmorra",
-                  "Modo Refracción", "Modo Recuerdo", "Modo???"]
+    # The title's three buttons (Titulo/Continuar.png says "Jugar").
+    LOAD_MAIN  = [:rem_title_play, :rem_title_options, :rem_title_quit]
+    # The load screen's six bubbles by index (3 loads Endless.rxdata, 4 DatingSim.rxdata); the sixth paints "???",
+    # said as a word, since a screen reader drops a run of question marks.
+    LOAD_MODES = [:rem_mode_story, :rem_mode_extra, :rem_mode_dungeon,
+                  :rem_mode_infinite, :rem_mode_simulator, :rem_mode_unknown]
     @stack = []
 
-    # Pushes a menu as active and announces its focused option. Suspends the 3D loops on entry: this
-    # game's call_menu never writes $game_temp.in_menu, and these blocking loops starve tick, so neither
-    # of the usual silencers fires and the ambience would sound through the whole menu.
+    # Pushes a menu as active and announces its focused option, and the panel for the pause menu; suspends the 3D
+    # audio, which nothing else silences in these menus.
     # param kind which menu: :load_main, :load_modes, :pause or :worldmap
     def self.open(scene, kind)
       PokeAccess::MenuReturn.reset_nesting if @stack.empty?
       @stack.push({ :scene => scene, :kind => kind, :last => nil })
       (PokeAccess::Audio3D.suspend rescue nil)
       poll
+      PokeAccess::PausePanel.say(pause_panel(scene)) if kind == :pause
     end
 
     # Pops the top menu; the one underneath re-announces its option on the next poll.
@@ -35,22 +27,24 @@ module PokeAccess
       @stack.last[:last] = nil if @stack.last
     end
 
-    # Forgets the top menu's focus without popping, so it re-announces on the next poll. For screens the
-    # pause menu opens from inside its own loop WITHOUT registering a frame here (the help screen, the
-    # upgrade tree): on their way out the menu is still the top of the stack, just mute.
+    # Forgets the top menu's focus without popping, so the next poll re-announces it.
     def self.refocus
       @stack.last[:last] = nil if @stack.last
     end
 
-    # True while any custom menu is open. These are Scene_Map overlays (the map keeps updating underneath),
-    # so the field audio/cues must pause during them or they process every frame and lag. Read by Spatial.busy?.
+    # Marks the top menu as off screen while its loop still runs (the pause menu ends its scene before running the
+    # chosen entry), so the end of each of that entry's messages does not bring its option back.
+    def self.ended
+      @stack.last[:ended] = true if @stack.last
+    end
+
+    # True while any of these menus is open; Spatial.busy? reads it to pause the field cues under these overlays.
     def self.active?; !@stack.empty?; end
 
-    # Reads the focused option of the top menu when it changes, and keeps the mod's overworld keys quiet so
-    # they don't clash with the game's own menu keys.
+    # Reads the top menu's focused option when it changes and holds the menu lock; nothing while the bag is in front.
     def self.poll
       top = @stack.last
-      return unless top
+      return if top.nil? || top[:ended]
       return if (defined?(PokeAccess::ReminBag) && PokeAccess::ReminBag.watching? rescue false)
       (PokeAccess::Keys.menu_lock! rescue nil)
       st = (state(top) rescue nil)
@@ -66,39 +60,81 @@ module PokeAccess
       s = top[:scene]
       case top[:kind]
       when :pause      then i = s.instance_variable_get(:@index); [i, pause_label(i)]
-      when :load_main  then i = s.instance_variable_get(:@index); [i, LOAD_MAIN[i]]
-      when :load_modes then i = s.instance_variable_get(:@bubbleIndex); [i, LOAD_MODES[i]]
+      when :load_main  then i = s.instance_variable_get(:@index); [i, word(LOAD_MAIN[i])]
+      when :load_modes then i = s.instance_variable_get(:@bubbleIndex); [i, word(LOAD_MODES[i])]
       when :worldmap   then worldmap_state(s)
       end
     end
 
-    # World map: at island level read the island number; at MAP level say nothing and leave it to the
-    # drawInfo capture in extras. @id is NOT resolved through Locator.map_name, since the screen shows "???"
-    # for an island the player has not visited. Map level returns a key with no label rather than nil, so
-    # backing out to the island level (which redraws nothing the capture sees) still counts as a change.
+    def self.word(key)
+      key ? PokeAccess::I18n.t(key) : nil
+    end
+
+    # World map: the island by the game's own name for it (getIslaName), else its number; at map level an unlabelled
+    # key, the place being drawInfo's, so backing out to the islands still counts as a change.
     def self.worldmap_state(s)
       return [[:mapa], nil] unless (s.instance_variable_get(:@menu) rescue 0) == 0
       isla = s.instance_variable_get(:@currentisla)
-      [[:isla, isla], "Isla #{isla}"]
+      [[:isla, isla], island_name(isla)]
     end
 
-    # Pause options; two of them change with the mode the player is in. The menu is icons only, with no text
-    # anywhere on screen, so these labels are the only naming there is -- which is why a wrong one here is
-    # invisible to everyone but the person relying on it.
+    # The first map the world map's getIsla lists for each island (Anthony's house, the village and the two cities),
+    # which getIslaName names.
+    ISLAND_MAPS = { 1 => 8, 2 => 67, 3 => 69, 4 => 82 }
+
+    # The island's name as getIslaName gives it for one of its maps, or "Island n" where the game has none.
+    def self.island_name(isla)
+      map = ISLAND_MAPS[isla]
+      name = map ? (getIslaName(map) rescue nil) : nil
+      (name.nil? || name.to_s.strip.empty?) ? PokeAccess::I18n.t(:rem_island, :n => isla) : PokeAccess.clean(name.to_s)
+    end
+
+    # Pause options (Main Menu/0..4.png), two of them drawn from another picture in the mode the player is
+    # in: "Abandonar" on a dungeon map, "Descansar" in the dating sim.
     def self.pause_label(idx)
-      case idx
-      when 0 then "Pokemon"
-      when 1 then "Bolsa"
-      when 2 then (in_dungeon? ? "Salir de la mazmorra" : "Guardar")
-      when 3 then "Opciones"
-      when 4 then (dating_sim? ? "Dormir" : "Logros")
-      end
+      word(case idx
+           when 0 then :rem_menu_pokemon
+           when 1 then :rem_menu_bag
+           when 2 then (in_dungeon? ? :rem_menu_quit : :rem_menu_save)
+           when 3 then :rem_menu_options
+           when 4 then (dating_sim? ? :rem_menu_rest : :rem_menu_achievements)
+           end)
     end
 
-    # True in the dating-sim mode, where option 4 stops opening the achievements screen. Outside a dungeon it
-    # runs common event 56, named "GoSleep", which gates on allKyleTasksDone? and answers "No puedo ir a
-    # dormir aun" when tasks remain; inside one it only shows a line of Kyle's. Either way the entry is the
-    # day's end, not the achievements it was being called.
+    # The pause panel: the top key boxes while key hints are said, and in the dating sim the day's objectives.
+    def self.pause_panel(scene)
+      lines = PokeAccess::Verbosity.hints? ? key_boxes(scene) : []
+      lines.concat(objectives(scene))
+    end
+
+    # The pause panel's key boxes: fast travel (or the endless mode's upgrades) on T, help on S.
+    def self.key_boxes(scene)
+      lines = []
+      lines.push(PokeAccess::I18n.t(:rem_key_travel)) if PokeAccess.sprite(scene, "viaje")
+      lines.push(PokeAccess::I18n.t(:rem_key_boosts)) if PokeAccess.sprite(scene, "scroll")
+      lines.push(PokeAccess::I18n.t(:rem_key_help)) if PokeAccess.sprite(scene, "ayuda")
+      lines
+    end
+
+    # The colours the objectives window writes a task in: green when done, red when not.
+    TASK_STATES = { "008000" => :rem_task_done, "d00606" => :rem_task_pending }
+
+    # The objectives window's lines: its title, then each task with the state its colour shows.
+    def self.objectives(scene)
+      raw = (PokeAccess.sprite(scene, "objective").text rescue nil)
+      return [] if raw.nil?
+      raw.to_s.split("\n").map do |line|
+        t = PokeAccess.clean(line)
+        key = TASK_STATES[(line[/<c3=([0-9A-Fa-f]{6})/, 1] || "").downcase]
+        if t.empty?
+          nil
+        else
+          key ? PokeAccess::I18n.t(key, :task => t) : t
+        end
+      end.compact
+    end
+
+    # True in the dating-sim mode, where option 4 is resting (the day's end) instead of the achievements.
     def self.dating_sim?
       (isDatingSim? rescue false) ? true : false
     end
@@ -113,13 +149,23 @@ module PokeAccess
   end
 end
 
-# Reminiscencia reads these from the pause menu by raw key (Input.triggerex?), so they clash with movement/
-# info; register them as remapper extras so they can be reassigned. Then wrap each blocking menu loop:
-# announce the focused option on entry, read changes through the per-frame poll, clear on exit.
+# Every raw key the game reads itself (Input.triggerex?/pressex?) as a rebindable extra named by all its uses, so the
+# remap menu refuses them to other actions until moved: T and S in the pause menu and several screens, F the map's
+# text log, A the blessings' odds and the dating-sim tabs, V the message skip, 1 to 4 the summary's moves.
 PokeAccess::Game.define("reminiscencia") do
-  remap_extra(:fast_travel, 0x54, :ext_fast_travel)
-  remap_extra(:help, 0x53, :ext_help)
+  remap_extra(:fast_travel, 0x54, :rem_ext_key_t)
+  remap_extra(:help, 0x53, :rem_ext_key_s)
+  remap_extra(:text_log, 0x46, :rem_ext_key_f)
+  remap_extra(:game_a, 0x41, :rem_ext_key_a)
+  remap_extra(:skip_text, 0x56, :rem_ext_key_v)
+  remap_extra(:key_1, 0x31, :rem_ext_key_1)
+  remap_extra(:key_2, 0x32, :rem_ext_key_2)
+  remap_extra(:key_3, 0x33, :rem_ext_key_3)
+  remap_extra(:key_4, 0x34, :rem_ext_key_4)
+end
 
+# Each image menu held during its blocking loop.
+PokeAccess::Game.define("reminiscencia") do
   [["PokemonLoadScene",  :pbChoose,       :load_main],
    ["PokemonLoadScene",  :pbChooseBubble, :load_modes],
    ["PokemonMenuNuevo",  :pbUpdate,       :pause],
@@ -134,18 +180,17 @@ PokeAccess::Game.define("reminiscencia") do
     end
   end
 
-  # Per-frame poll for the active custom menu, via the adapter API (the core runs it from its single
-  # Input.update wrapper).
+  # Per-frame poll for the active menu.
   poll_each_frame { PokeAccess::ReminMenu.poll }
+
+  before("PokemonMenuNuevo", :pbEndScene) { |_s, _a| PokeAccess::ReminMenu.ended }
 end
 
-# Every entry that only puts a message box (or a fade) over the menu returns to the same loop with the same
-# index; the shared return signal nudges the top menu into re-announcing, exactly once, when it closes.
+# On the shared return signal (a message box or fade over the menu closing), the top menu re-announces once.
 PokeAccess::MenuReturn.on_return { PokeAccess::ReminMenu.refocus }
 
-# The pause menu opens every entry BARE (pbEndScene, then the screen's own method, no fade): each is declared
-# a nesting level, or the first message box inside the party or the save screen counted as the return and
-# the poll re-announced the pause option over the screen the player was still on.
+# The pause menu opens every entry bare (pbEndScene, then the screen's method, no fade): each is declared a nesting
+# level, so a message box inside it is not taken for the return.
 [["PokemonScreen", :pbPokemonScreen], ["PokemonBagScreen", :pbStartScreen], ["PokemonSave", :pbSaveScreen],
  ["PokemonOption", :pbStartScreen], ["Logros_Scene", :initialize]].each do |cname, meth|
   PokeAccess::MenuReturn.bare(cname, meth)

@@ -1,12 +1,5 @@
-# The sliding banners plugin: a line painted on a bitmap (with drawTextEx or with pbDrawTextPositions) is
-# spoken when that same bitmap slides in through Scene_Map#addSprite. What is pinned: the pairing is by
-# identity and not by recency (two banners in flight read each their own line, in slide order), a slid
-# bitmap is spoken once, text that never slides is never spoken and cannot pile up, a burst of rows reads
-# as one line, and a paint with no letter or digit (Awakening's autosave asterisk) is not a banner.
-#
-# The harness ships neither paint function nor the FastItemGet addSprite, so the three are defined here and
-# the plugin file is evaluated again over them: its wraps install only over functions that exist, and the
-# harness loaded it before these existed.
+# The sliding banners plugin: a line painted on a bitmap is spoken once when that bitmap slides in through addSprite
+# (paired by identity); the paint functions and addSprite are defined here if missing, and the plugin re-evaluated.
 class Scene_Map
   def addSprite(x, y, bitmap); [x, y, bitmap]; end
 end unless Scene_Map.method_defined?(:addSprite)
@@ -14,8 +7,7 @@ end unless Scene_Map.method_defined?(:addSprite)
 def drawTextEx(bitmap, x, y, width, numlines, text, base = nil, shadow = nil); text; end unless Object.private_method_defined?(:drawTextEx)
 def pbDrawTextPositions(bitmap, textpos); textpos; end unless Object.private_method_defined?(:pbDrawTextPositions)
 
-# eval is the harness's own loading mechanism (test/support/harness.rb): it evaluates THIS repo's file by
-# absolute path under Harness::ROOT, never external input, the same replay plugins_smoke_spec does.
+# Re-evaluates this repo's own plugin file under Harness::ROOT, as the harness loads it; never external input.
 begin
   verbose = $VERBOSE
   $VERBOSE = nil

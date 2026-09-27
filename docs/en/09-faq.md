@@ -218,7 +218,11 @@ fixture against the dump before assuming the spec was right.
 At the end of the work, never halfway through:
 
 ```bash
-powershell -File installer/install.ps1 -Force
+launcher/target/x86_64-pc-windows-msvc/release/pokeessentialsaccess-launcher.exe local install --yes
 ```
+
+That is the launcher `cargo build --release` builds in `launcher/`; the released one works the same when run from
+inside the repository. `local` takes the mod from the repository; with no game it opens the folder picker, and
+with `all` it reinstalls in every game of the list. The commands are in `launcher/commands.txt`.
 
 Reinstalling on top is an update: it keeps `settings.ini` and the tags.

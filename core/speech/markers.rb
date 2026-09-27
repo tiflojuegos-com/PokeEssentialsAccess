@@ -9,19 +9,14 @@ module PokeAccess
   rescue StandardError
   end
 
-  # Formats an error for a diagnostic line: an exception as "Class: message @ frame <- frame <- frame"
-  # (its top three backtrace frames), or any other value as its string. Shared by log_once,
-  # Audio3D.log3d, and Hooks.run_body so a swallowed failure reads the same everywhere.
+  # Formats an error for a diagnostic line: an exception as "Class: message @ frame <- frame <- frame" (its top three
+  # backtrace frames), any other value as its string.
   def self.format_error(e)
     return e.to_s unless e.respond_to?(:backtrace)
     "#{e.class}: #{e.message} @ #{((e.backtrace || [])[0, 3]).join(' <- ')}"
   end
 
-  # Writes the FIRST failure for a given key to the marker, then stays silent for that key, so a per-frame
-  # path that throws every frame leaves one diagnostic line instead of thousands. Accepts an exception or a
-  # plain string. The single home for "log a swallowed error once" (Hooks.run_body and Audio3D.log3d follow
-  # the same pattern over their own per-scope stores). Self-guarded so it can never itself raise out of a
-  # rescue clause.
+  # Writes the first failure (exception or string) for a key to the marker, and nothing more for it; never raises.
   def self.log_once(key, e)
     @logged_once ||= {}
     return if @logged_once[key]
@@ -31,9 +26,7 @@ module PokeAccess
     nil
   end
 
-  # Returns value, logging once when it is nil. Call this only at a point where the object was expected to
-  # exist (a battle scene mid-fight, the storage inside the PC), so the log line means "a reader went quiet
-  # because X was missing" -- never on lookups whose nil is a normal state (title screen, no save loaded).
+  # Returns value, logging once when nil: only where the object must exist, never where nil is a normal state.
   def self.expect!(key, value)
     log_once("expect.#{key}", "expected but absent") if value.nil?
     value
@@ -41,13 +34,7 @@ module PokeAccess
     value
   end
 
-  # Seconds since the mod loaded, the source for all cue pacing. Plain wall time, because a cue cadence is
-  # something a human hears: "a ping every 0.4 s" has to mean 0.4 real seconds in every game.
-  #
-  # Neither engine clock is safe. One fangame ships an mkxp-z whose System.uptime does NOT return seconds,
-  # which meets every interval on the next frame and fires the whole soundscape at frame rate; frame_count
-  # is only right while the game holds its nominal rate, and it jumps when loading a save rewrites it.
-  # FPS survives as the frames-to-seconds constant the tunables are expressed in (see freq_to_seconds).
+  # Seconds since the mod loaded in wall time, for all cue pacing (engine clocks are not reliably in seconds).
   def self.clock
     if @epoch.nil?
       @epoch = Time.now
@@ -56,11 +43,8 @@ module PokeAccess
     (Time.now - @epoch).to_f
   end
 
-  # How many System.uptime units make one real second: 1.0 where it counts seconds, 1_000_000.0 on the
-  # microsecond build noted in clock (its own scripts give it away -- 001_MKXP_Compatibility.rb defines
-  # Graphics.delta_s as Graphics.delta / 1_000_000). nil while there is no uptime to read, or before
-  # enough time has passed to measure it. Anything comparing two of the ENGINE's own uptime stamps has to
-  # divide by this; the mod's own pacing never touches uptime at all (see clock).
+  # System.uptime units per real second (1.0, or 1_000_000.0 on a microsecond build), measured against clock; nil
+  # without uptime or before a second has passed. Divide any difference of the engine's uptime stamps by it.
   def self.uptime_scale
     return @uptime_scale if @uptime_scale
     now = clock
@@ -77,10 +61,8 @@ module PokeAccess
     base / FPS
   end
 
-  # Playback rate, in percent of the recording, for a 0-100 tone setting: 50 is the recording itself, 0 an
-  # octave down (half rate) and 100 an octave up (double rate), in equal steps of pitch rather than of rate.
-  # Shared by the positional engine, the flat cues and the menu preview so one setting sounds the same on
-  # every path.
+  # Playback rate, in percent of the recording, for a 0-100 tone setting: 50 is the recording, 0 an octave down, 100
+  # an octave up, in equal steps of pitch.
   def self.tone_to_pitch(tone)
     (100 * (2 ** ((tone.to_i - 50) / 50.0))).round
   end

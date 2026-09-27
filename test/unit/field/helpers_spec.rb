@@ -1,6 +1,5 @@
-# Field overlay readers (mail, itemfinder, money, berry, dex, books, achievements): each is a pure helper
-# turning a game object or globals into a spoken line, with an explicit nil for the empty/guarded case.
-# Spoken fragments are asserted through I18n, never against a hardcoded language literal.
+# Field overlay readers (mail, itemfinder, money, berry, dex, books, achievements): pure helpers from a game object to
+# a spoken line, nil when empty or guarded.
 Suite.define("field: mail and money overlays") do
   mailobj = Struct.new(:message, :sender)
   eq "mail body and sender",
@@ -51,8 +50,8 @@ Suite.define("field: berry plant state normalization") do
          suffix.start_with?(", #{PokeAccess::I18n.t(:berry_flowering)}")
 end
 
-# Spoken cues that have no live engine in the harness: the reflex wrap, the phone rematch and the fishing
-# bite still resolve to a real localized string (never the bare key), and readiness guards to false.
+# Cues with no live engine in the harness (the fishing bite, the phone rematch) resolve to real localized strings,
+# and readiness guards to false.
 Suite.define("field: guarded cues resolve real localized strings") do
   truthy "fishing bite cue is translated",
          PokeAccess::I18n.t(:fish_bite) != "fish_bite" && !PokeAccess::I18n.t(:fish_bite).empty?
@@ -61,9 +60,7 @@ Suite.define("field: guarded cues resolve real localized strings") do
          PokeAccess::I18n.t(:phone_rematch) != "phone_rematch" && !PokeAccess::I18n.t(:phone_rematch).empty?
 end
 
-# Pokedex / ribbon formatting helpers: one-decimal formatting follows the active language's decimal_sep
-# (comma in Spanish, point in English) on both fmt_float (real units) and fmt_dec (tenth units); a nil
-# ribbon id is guarded (modern-only; no GameData::Ribbon in the gen-6 harness).
+# fmt_float (units) and fmt_dec (tenths) follow the language's decimal_sep; a nil ribbon id is guarded.
 Suite.define("field: dex one-decimal and ribbon guard") do
   prev = PokeAccess::Config.language
   begin
@@ -76,13 +73,12 @@ Suite.define("field: dex one-decimal and ribbon guard") do
   ensure
     PokeAccess::Config.language = prev
   end
-  truthy "nil ribbon id is guarded", PokeAccess::Summary.ribbon_text(nil).nil?
+  truthy "nil ribbon id is guarded", PokeAccess::Summary.ribbon_parts(nil).nil?
 end
 
 # Tip cards (tutorial-card addon): reads the focused card's title + body via the game's _INTL + Settings
 # table (stubbed here), stripping markup; an out-of-range index yields nil.
 Suite.define("field: tip card title and body") do
-  def _INTL(s, *_a); s; end
   module ::Settings
     TIP_CARDS_CONFIGURATION = { :swim => { :Title => "Como nadar", :Text => "Usa <b>Surf</b> en el agua." } }
   end unless defined?(::Settings::TIP_CARDS_CONFIGURATION)
@@ -101,13 +97,8 @@ Suite.define("field: book page reader") do
   truthy "nil book is nil", PokeAccess.book_text(nil, 0).nil?
 end
 
-# Indexed achievements: name, status and description, whatever the entry hands over. Status constants are
-# absent in the harness, so the helper falls back to 3/2/1 (done / pending / locked).
-#
-# The locked case keeps its description ON PURPOSE. Whether an unearned achievement withholds its text is
-# the game's decision, and each copy has already taken it inside name/desc -- one substitutes a placeholder
-# there, the others hand over the real strings and paint them -- so a second layer of hiding in the reader
-# would silence the copies that hide nothing.
+# Indexed achievements: name, status (3/2/1 done/pending/locked, the harness having no status constants) and the
+# description the entry hands over, a locked one's included (hiding it is the game's call).
 Suite.define("field: indexed achievement status") do
   flogro = Struct.new(:name, :status, :desc)
   eq "completed shows description",
@@ -116,10 +107,60 @@ Suite.define("field: indexed achievement status") do
   eq "locked keeps the description the screen is showing",
      PokeAccess.logro_indexed_text(flogro.new("Primera medalla", 1, "Consigue tu primera medalla.")),
      "Primera medalla, #{PokeAccess::I18n.t(:ach_locked)}. Consigue tu primera medalla."
-  eq "and repeats the placeholder when the game is the one hiding it",
-     PokeAccess.logro_indexed_text(flogro.new("????", 1, "Logro no disponible.")),
-     "????, #{PokeAccess::I18n.t(:ach_locked)}. Logro no disponible."
   eq "active is pending with description",
      PokeAccess.logro_indexed_text(flogro.new("Pescador", 2, "Pesca 10.")),
      "Pescador, #{PokeAccess::I18n.t(:ach_pending)}. Pesca 10."
+end
+
+# A copy that swaps in its placeholders for a hidden achievement (Africanvs and Awakening paint NOMBREOCULTO and
+# DESCOCULTO) is said as painted, with no state word of the mod's, and its placeholder description is kept at every
+# level, being the only state it shows.
+Suite.define("field: a hidden achievement reads as its copy's placeholders") do
+  made = !Object.const_defined?(:NOMBREOCULTO)
+  Object.const_set(:NOMBREOCULTO, "????") if made
+  flogro = Struct.new(:name, :status, :desc)
+  hidden = flogro.new("????", 1, "Este es un logro oculto, ¡suerte en su búsqueda!")
+  begin
+    eq "the placeholder name and description, no word added",
+       PokeAccess.logro_indexed_text(hidden), "????. Este es un logro oculto, ¡suerte en su búsqueda!"
+    PokeAccess::Config.verbosity = :medium
+    eq "and the description stays at medium", PokeAccess.logro_indexed_text(hidden),
+       "????. Este es un logro oculto, ¡suerte en su búsqueda!"
+    PokeAccess::Config.verbosity = :full
+    eq "a hidden achievement that keeps its real name still reads as locked",
+       PokeAccess.logro_indexed_text(flogro.new("Primera medalla", 1, "Consigue tu primera medalla.")),
+       "Primera medalla, #{PokeAccess::I18n.t(:ach_locked)}. Consigue tu primera medalla."
+  ensure
+    PokeAccess::Config.verbosity = :full
+    Object.send(:remove_const, :NOMBREOCULTO) if made
+  end
+end
+
+# With Logros::LOGRO_ACTIVO (Royal's copy) the middle state, earned with its reward waiting, is said as earned.
+Suite.define("field: an earned achievement with its reward waiting") do
+  made = !Object.const_defined?(:Logros)
+  Object.const_set(:Logros, Module.new) if made
+  begin
+    Logros.const_set(:LOGRO_ACTIVO, 2) unless Logros.const_defined?(:LOGRO_ACTIVO)
+    flogro = Struct.new(:name, :status, :desc)
+    eq "earned, then the reward line",
+       PokeAccess.logro_indexed_text(flogro.new("Pescador", 2, "Pesca 10.")),
+       "Pescador, #{PokeAccess::I18n.t(:ach_earned)}. Pesca 10. #{PokeAccess::I18n.t(:ach_reward)}"
+  ensure
+    Object.send(:remove_const, :Logros) if made
+  end
+end
+
+# An achievement's description waits for full verbosity; the info key has it at any level.
+Suite.define("field: an achievement's description waits for full, and the info key keeps it") do
+  flogro = Struct.new(:name, :status, :desc)
+  PokeAccess::Config.verbosity = :medium
+  begin
+    eq "medium: the name and the state", PokeAccess.logro_indexed_text(flogro.new("Campeon", 3, "Vence a la Liga.")),
+       "Campeon, #{PokeAccess::I18n.t(:ach_done)}"
+    eq "the info key keeps the description", PokeAccess::Info.info_text,
+       "Campeon, #{PokeAccess::I18n.t(:ach_done)}. Vence a la Liga."
+  ensure
+    PokeAccess::Config.verbosity = :full
+  end
 end

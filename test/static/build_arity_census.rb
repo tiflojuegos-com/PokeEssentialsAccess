@@ -1,30 +1,6 @@
-# Builds test/static/arity_census.txt: for every method the mod hooks, how many arguments the surveyed
-# games really pass it. Run it the way the other census builders are run -- it reads the decompiled dumps,
-# which live OUTSIDE the repo and are absent on CI:
-#
-#   ruby test/static/build_arity_census.rb ["path\to\decompiled Scripts"]
-#
-# Why this census exists. A hook binds by NAME, and the reader then indexes args[0], args[1], args[2]. If
-# the game's method takes fewer parameters than that, the hook still binds perfectly and the reader quietly
-# reads nil -- or worse, reads a DIFFERENT value that happens to sit in that position. Three separate bugs
-# of exactly that shape were fixed in one release:
-#
-#   - Enhanced UI 1.1.2 keeps every method name of the current release and changes the arities, so the
-#     reader took an index for a list of effects.
-#   - Fire Ash's team viewer declares writePokemonData(pokemon) where the vanilla one takes
-#     (pokemon, hallNumber), so args[1] was nil and every redraw queued instead of interrupting.
-#   - The ready menu read a tuple out of a window that is handed plain strings.
-#
-# None of the three failed a test, because in each case the stub had been written to match the reader.
-#
-# The census records the MINIMUM and MAXIMUM number of parameters across the games that define the method,
-# counting a block parameter and a splat as "open ended" (recorded as -1 max), so the spec can tell a
-# reader that indexes past what any game passes from one that is merely reading an optional argument.
-#
-# It also records the parameter NAMES, as the distinct signatures the games declare, because the count is
-# not the whole story: pbShowCommands takes (message, commands) on the PC and the bag and (commands, index)
-# on the summary, and a body bound to all of them read a command list as the message. The pairs come from
-# ReaderSites.registrations, loops expanded -- the message net alone is twenty scenes by five methods.
+# Builds test/static/arity_census.txt from the decompiled dumps (outside the repo, absent on CI): for every hooked
+# method, the min and max parameter count across the games (a splat or block parameter makes it open ended) and
+# the distinct signatures they declare. Run: ruby test/static/build_arity_census.rb ["path\to\decompiled Scripts"]
 require "find"
 require File.expand_path("reader_sites", File.dirname(__FILE__))
 
@@ -87,8 +63,9 @@ credit = lambda do |key, n, open, names, g|
   row[:sigs].push(names) unless row[:sigs].include?(names) || row[:sigs].length >= 4
 end
 
-# The fifteen dumps plus the stock Essentials tree, which is the sixteenth source every other census counts.
-# Without it a method whose vanilla signature differs from every fangame's would go unnoticed here.
+# Every dump folder plus the stock Essentials tree, which the other censuses count too. Each class is keyed by its
+# full owner path, or the bare leaf for a top-level class, so a nested class is not taken for a namesake; attr_*
+# lines define methods too (a getter of arity 0, a setter of 1).
 sources = {}
 Dir.entries(dumps).sort.each do |g|
   next if g.start_with?(".")
@@ -110,9 +87,6 @@ sources.keys.sort.each do |g|
     src = (File.open(f, "rb") { |h| h.read } rescue nil)
     next if src.nil?
     src = src.gsub(/[^\t\n\r -~]/n, "?")
-    # The owner is the shared ClassStack's, full path first so a nested Battle::Scene::MenuBase is never
-    # taken for a top-level namesake; the bare leaf counts only for a top-level class. A def line may end in
-    # a comment, and attr_accessor and friends define real methods too (a getter of arity 0, a setter of 1).
     stack = ReaderSites::ClassStack.new
     src.each_line do |line|
       stack.feed(line)
@@ -145,9 +119,8 @@ sources.keys.sort.each do |g|
   end
 end
 
-# A hooked method the class INHERITS is found too: the v18 hybrids define setIndexAndMode once on
-# BattleMenuBase and the mod hooks it on CommandMenuDisplay and FightMenuDisplay, where Engine.has? answers
-# through the same inheritance. Walked by leaf name through the superclass lines each game declares.
+# An inherited hooked method is credited too, walked by leaf name up each game's superclass lines, the way
+# Engine.has? answers through inheritance.
 wanted.keys.each do |key|
   cls, meth = key.split("#", 2)
   leaf = cls.split("::").last

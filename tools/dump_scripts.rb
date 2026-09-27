@@ -1,18 +1,9 @@
 # Extracts a game's Ruby scripts to readable .rb files, so a profile can be written against what the game
-# actually does instead of against a guess. This is the tool the docs point at whenever they say "look at
-# your game's scripts": nothing in this repo ships anybody's decompiled game, and nobody should need one but
-# their own.
+# actually does instead of against a guess. Reads only the game folder, on any modern Ruby (Marshal and Zlib are
+# stdlib); a colliding script name gets a numeric suffix and a line in the summary, never a silent drop.
 #
 #   ruby tools/dump_scripts.rb "C:\path\to\the game"          -> writes <the game>/Scripts_dump/
 #   ruby tools/dump_scripts.rb "C:\path\to\the game" out_dir  -> writes out_dir/
-#
-# Runs on any modern Ruby with no gems: Marshal and Zlib are stdlib. It only ever reads the game folder.
-#
-# Two things it deliberately does NOT do. It does not decompile bytecode -- there is none, RPG Maker stores
-# Ruby source, just deflated inside a Marshal dump -- and it never silently drops a script: names collide
-# (RPG Maker allows duplicates, and sanitising for Windows creates more), and a dump that quietly loses a
-# file is worse than no dump, because you go on to conclude the game does not have the class you were
-# looking for. Collisions get a numeric suffix and a line in the summary.
 require "zlib"
 
 module ScriptDumper
@@ -55,14 +46,8 @@ module ScriptDumper
 
     private
 
-    # The folder under Data holding the most .rb files, then widened to the top of its own subtree so a game
-    # that splits its code into numbered section folders yields the whole tree and not one section. A folder
-    # stops being part of the tree as soon as it holds something other than scripts and more folders, which
-    # is what stops the walk at Data itself.
-    #
-    # Only under Data, because that is where the engine loads game data from, and looking wider finds the
-    # wrong thing: games bundle Ruby's own standard library beside the executable, and it is larger than the
-    # game, so any "biggest tree wins" rule dumps the interpreter instead.
+    # The folder under Data holding the most .rb files, widened to the top of its own subtree until it stops
+    # holding only scripts and folders; never past Data, so a bundled Ruby stdlib copy isn't mistaken for the tree.
     def script_folder
       data = File.join(@root, "Data")
       return nil unless File.directory?(data)
@@ -184,20 +169,20 @@ module ScriptDumper
     raw.to_s.gsub(/[^\x20-\x7e]/, "_")
   end
 
-  # RPG Maker script names are free text: they carry slashes as section folders in newer Essentials, and
-  # anything else a human typed, including characters Windows refuses in a filename.
+  # RPG Maker script names are free text -- slashes as section folders in newer Essentials, anything else a
+  # human typed -- sanitized for Windows and prefixed with the load-order index unless the name starts with one.
   def self.safe_path(name, index)
     parts = to_text(name).split("/").map { |part| part.gsub(/[\\:*?"<>|\x00-\x1f]/, "_").strip }
     parts.reject! { |part| part.empty? || part == "." || part == ".." }
     return format("%04d_untitled", index) if parts.empty?
     parts[-1] = parts[-1].sub(/\.rb\z/i, "")
-    # The index is what preserves load order, which matters: a class can be reopened later and the last
-    # definition wins. Names that already begin with their own number carry that order themselves.
     numbered = parts.first == "_PluginScripts" || parts[-1] =~ /\A\d/
     parts[-1] = format("%04d_%s", index, parts[-1]) unless numbered
     parts.join("/")
   end
 
+  # Dumps whichever of Scripts.rxdata or the loose script tree holds more code, keeping the loader beside it: it
+  # says where the tree lives and in what order it loads.
   def self.dump(game_dir, out_dir)
     raise "#{game_dir} is not a folder." unless File.directory?(game_dir)
     source = Source.new(game_dir)
@@ -205,14 +190,8 @@ module ScriptDumper
     tree = source.loose_tree
     raise no_scripts_message(game_dir) if engine.nil? && tree.empty?
     scripts = engine ? engine_scripts(engine) : []
-    # A game running on mkxp-z can keep its code as individual files and leave nothing in Scripts.rxdata but
-    # a loader, which would otherwise be dumped as a game with no code in it. Whichever source holds more
-    # code is the game: a loader is a couple of kilobytes against megabytes, and a game that keeps both in
-    # sync has them byte for byte equal, so the packed one stays the default.
     if !tree.empty? && volume(tree) > volume(scripts)
       puts "Data/Scripts.rxdata only holds a loader; reading the #{tree.length}-file script tree instead."
-      # The loader is kept: it is the script that says where the tree lives and in what order it loads, and
-      # it is the first thing to read when a game turns out to do something unusual.
       scripts += tree
     end
     plugins = source.read("Data/PluginScripts.rxdata")

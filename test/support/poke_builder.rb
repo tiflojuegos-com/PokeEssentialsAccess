@@ -1,6 +1,4 @@
-# Fabricates a Pokemon stand-in with every field the readers touch, so a behaviour spec can hand a tailored
-# Pokemon to a builder (summary_text, memo_text, move_detail...) and assert the spoken text. Defaults are
-# sane; each spec overrides only what it cares about (a fainted mon, an egg, an item-less mon, empty moves).
+# A Pokemon stand-in with every field the readers touch; each spec overrides only what it cares about.
 class TestPoke
   attr_accessor :name, :level, :species, :hp, :totalhp, :attack, :defense, :spatk, :spdef, :speed,
                 :nature, :ability, :item, :moves, :iv, :ev, :status, :gender, :ribbons, :happiness,
@@ -35,7 +33,7 @@ class TestPoke
     p
   end
 
-  # The panel draws a star for a shiny, and the mod says so; a spec that wants one asks for it.
+  # Shiny only when the spec asks for it (:shiny => true).
   def shiny?; @shiny ? true : false; end
 end
 

@@ -1,20 +1,13 @@
 module PokeAccess
-  # The "Bag screen with interactable party" addon (PokemonBag_Scene with PokemonBagPartyPanel), bundled by
-  # several games alike: the team panels embedded in the bag are navigable, but live in PokemonBagPartyPanel
-  # -- a Sprite subclass unrelated to the standard PokemonPartyPanel -- so the core party hook never sees
-  # them.
-  #
-  # Read off the scene's @activecmd, not off the panels' selected= setter: two panels are selected at once
-  # here, because the screen marks the fusion partner last and unconditionally, so the setter would always
-  # end a move by naming the slot the player is not on.
+  # The "Bag screen with interactable party" addon: its team panels (PokemonBagPartyPanel, not the core party
+  # panel), read off the scene's @activecmd, since selected= also marks the fusion partner; and, while the item list
+  # is browsed, the word each panel shows for the focused item in place of its HP.
   module BagParty
     @scene = nil
     @depth = 0
 
-    # Holds the scene for as long as ANY selection loop is running. They nest -- moving an item opens a
-    # second loop from inside the first -- so a depth counter is what keeps the outer one watched when the
-    # inner returns. The dedup slot is cleared on entry and exit because the screen puts @activecmd back to
-    # 0 each time, which is usually the member already announced.
+    # Holds the scene while any selection loop runs (they nest, hence the depth), clearing the dedup on entry
+    # and exit, where the screen puts @activecmd back to 0.
     def self.watch(scene)
       @scene = scene
       @depth += 1
@@ -27,9 +20,7 @@ module PokeAccess
       PokeAccess::UIV21.reset(:party)
     end
 
-    # The focused member, with the annotation that is the reason the bag opens the team at all: it says
-    # whether the item can be used on this one ("able" / "not able" / "learned"). The panel keeps it in the
-    # same place the standard party panel does.
+    # The focused member with its annotation (whether the item can be used on it).
     def self.poll
       s = @scene
       return unless s
@@ -39,41 +30,93 @@ module PokeAccess
       return unless panel
       pk = PokeAccess.ivar(panel, :@pokemon)
       return unless pk
-      PokeAccess::Info.set_info(:pokemon, pk)
       ann = PokeAccess.ivar(panel, :@text)
-      PokeAccess::UIV21.speak_changed(:party, PokeAccess::UIV21.party_member(pk, ann) + panel_extras(pk), i)
+      PokeAccess::Info.set_info(:pokemon, pk, PokeAccess::Verbosity.whole { member(pk, ann) })
+      PokeAccess::UIV21.speak_changed(:party, member(pk, ann), i)
     rescue StandardError
       nil
     end
 
-    # The panel paints four states beyond the standard party line -- status ailment, held item,
-    # shininess and an active Pokerus infection -- so they travel with the member. Status resolves through Data so both engines' shapes
-    # (gen-6 integer, modern symbol) read right.
-    def self.panel_extras(pk)
-      parts = []
-      st = (pk.status rescue nil)
-      if st && st != 0 && st.to_s != "NONE"
-        sn = (PokeAccess::Data.status_name(st) rescue nil)
-        parts.push(sn) if sn && !sn.to_s.empty?
+    # A member as this panel shows it: the state slot kept under an annotation, no game party icons. SHINYICON
+    # and PKRSICON pick the star and pokerus icon; a release without them draws the star and pokerus in the slot.
+    def self.member(pk, ann)
+      return PokeAccess::UIV21.party_member(pk, ann) if PokeAccess::Summary.egg?(pk)
+      rus = pokerus_icon(pk)
+      PokeAccess::Party.member_line(pk, :annotation => ann, :status_always => true,
+                                    :shiny => setting(:SHINYICON) != false, :pokerus_slot => setting(:PKRSICON).nil?,
+                                    :panel_marks => false, :marks => (rus ? [rus] : []))
+    end
+
+    # The panel's own pokerus icon, or nil where it draws none.
+    def self.pokerus_icon(pk)
+      return nil unless setting(:PKRSICON)
+      case (pk.pokerusStage rescue 0).to_i
+      when 1 then PokeAccess::I18n.t(:pk_pokerus)
+      when 2 then PokeAccess::I18n.t(:pk_pokerus_cured)
       end
-      it = (pk.item_id rescue nil)
-      it = (pk.item rescue nil) if it.nil?
-      if it && it != 0
-        iname = (PokeAccess::Data.item_name(it) rescue nil)
-        parts.push(PokeAccess::I18n.t(:pk_holds, :item => iname)) if iname && !iname.to_s.empty?
-      end
-      parts.push(PokeAccess::I18n.t(:dbk_shiny)) if (pk.shiny? rescue false)
-      parts.push(PokeAccess::I18n.t(:pk_pokerus)) if (pk.pokerusStage rescue 0).to_i == 1
-      parts.empty? ? "" : ", " + parts.join(", ")
+    end
+
+    # One of the addon's switches as the game sets it, nil where its release has no such switch.
+    def self.setting(name)
+      k = PokeAccess.const_at("BagScreenWiInParty")
+      (k && k.const_defined?(name)) ? k.const_get(name) == true : nil
     rescue StandardError
-      ""
+      nil
+    end
+
+    @browsing = nil
+    @annotated = nil
+
+    # Holds the scene while its item list is browsed (pbChooseItem); browsing it again (back from an item's menu)
+    # starts from what the panels show, so nothing already said is repeated.
+    def self.browse(scene)
+      again = PokeAccess.ivar(scene, :@pa_bag_browsed) ? true : false
+      scene.instance_variable_set(:@pa_bag_browsed, true)
+      @browsing = scene
+      @annotated = again ? annotation_state(scene) : nil
+    end
+
+    def self.unbrowse; @browsing = nil; end
+
+    # The focused item and what the panels write in place of HP for it, grouped by word in team order, as
+    # [item, [[word, [member, ...]], ...]]; no groups for an item they annotate nothing for.
+    def self.annotation_state(scene)
+      list = PokeAccess.sprite(scene, "itemlist")
+      item = (list.item rescue nil)
+      groups = []
+      (::Settings::MAX_PARTY_SIZE rescue 6).times do |i|
+        panel = PokeAccess.sprite(scene, "pokemon#{i}")
+        pk = PokeAccess.ivar(panel, :@pokemon) if panel
+        word = PokeAccess.clean(PokeAccess.ivar(panel, :@text).to_s) if panel
+        next if pk.nil? || word.nil? || word.empty?
+        who = PokeAccess::Summary.egg?(pk) ? PokeAccess::I18n.t(:pty_egg) : PokeAccess.clean(pk.name.to_s)
+        g = groups.assoc(word)
+        g ? g[1].push(who) : groups.push([word, [who]])
+      end
+      [item, groups]
+    end
+
+    # After the game annotates the panels while an item is browsed: when the item or its annotations changed, who
+    # is able, unable or has it learned, queued after the item's row from the bag reading's medium level, and kept
+    # with the row for Ctrl+T.
+    def self.annotations(scene)
+      return unless @browsing && @browsing.equal?(scene)
+      state = annotation_state(scene)
+      return if state == @annotated
+      @annotated = state
+      return if state[1].empty?
+      text = PokeAccess.sentences(state[1].map { |word, who| "#{word}: #{who.join(', ')}" })
+      PokeAccess::Info.add_to_row(text, :bagp_ann)
+      return unless PokeAccess::Verbosity.keep?(:bag_item, :medium)
+      PokeAccess.speak(text, false, :menu)
+    rescue StandardError
+      nil
     end
   end
 end
 
-# Both selection loops. pbChoosePokemon is the fusion picker, called only by the DNA splicers; the everyday
-# one, reached from Use, Give, Teach and Select, is pbChoosePoke(option, switching). They share @activecmd
-# and the same panel sprites, so one poller serves both.
+# Both selection loops, one poller: pbChoosePoke (Use, Give, Teach, Select) and pbChoosePokemon (the DNA
+# splicers' fusion picker).
 PokeAccess::Hooks.around_hook("PokemonBag_Scene", :pbChoosePoke, :optional => true) do |scene, nxt, _a|
   PokeAccess::BagParty.watch(scene)
   begin; nxt.call; ensure; PokeAccess::BagParty.unwatch; end
@@ -84,3 +127,15 @@ PokeAccess::Hooks.around_hook("PokemonBag_Scene", :pbChoosePokemon, :optional =>
 end
 
 PokeAccess::Keys.on_frame { PokeAccess::BagParty.poll }
+
+# While the item list is browsed, the per-frame pbUpdateAnnotation rewrites each panel's word for the focused item
+# (a machine or an evolution stone); the item's row is read first, by the list's own update.
+PokeAccess::Hooks.around_hook("PokemonBag_Scene", :pbChooseItem, :optional => true) do |scene, nxt, _a|
+  PokeAccess::BagParty.browse(scene)
+  begin; nxt.call; ensure; PokeAccess::BagParty.unbrowse; end
+end
+PokeAccess::Hooks.around_hook("PokemonBag_Scene", :pbUpdateAnnotation, :optional => true) do |scene, nxt, _a|
+  ret = nxt.call
+  PokeAccess::BagParty.annotations(scene)
+  ret
+end

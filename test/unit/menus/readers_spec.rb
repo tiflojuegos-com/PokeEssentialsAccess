@@ -1,6 +1,5 @@
-# Purify Chamber set reader: overview of a set (count, shadow, tempo, purifiable) with an empty branch.
-# The fake chamber mirrors the gen-6 API (setCount / getShadow / isPurifiable? / [] / class.maximumTempo);
-# a nil chamber yields nil.
+# The Purify Chamber's set overview (count, shadow, tempo, purifiable), over a fake of the gen-6 chamber API
+# (setCount, getShadow, isPurifiable?, [], class.maximumTempo).
 Suite.define("menus: purify chamber set overview") do
   fake_set = Class.new do
     def initialize(len, tempo); @len = len; @tempo = tempo; end
@@ -25,14 +24,28 @@ Suite.define("menus: purify chamber set overview") do
      PokeAccess::PurifyChamber.set_text(pch, 1),
      [PokeAccess::I18n.t(:pchm_set, :n => 2), PokeAccess::I18n.t(:pchm_empty)].join(", ")
   truthy "nil chamber is nil", PokeAccess::PurifyChamber.set_text(nil, 0).nil?
+
+  t = PokeAccess::I18n
+  rows = vb_levels { PokeAccess::PurifyChamber.set_text(pch, 0) }
+  eq "brief: the set, its shadow Pokemon and whether it can be purified", rows[0],
+     [t.t(:pchm_set, :n => 1), t.t(:pchm_shadow, :name => "Larvitar oscuro"), t.t(:pchm_purifiable)].join(", ")
+  eq "medium: and how many it holds", rows[1],
+     [t.t(:pchm_set, :n => 1), t.t(:pchm_count, :n => 3), t.t(:pchm_shadow, :name => "Larvitar oscuro"),
+      t.t(:pchm_purifiable)].join(", ")
+  eq "full: the tempo too, as it always said", rows[2], pexp
+  PokeAccess::Config.verbosity = :brief
+  PokeAccess::PurifyChamber.set_text(pch, 0)
+  PokeAccess::Config.verbosity = :full
+  eq "the info key keeps the whole set", PokeAccess::Info.info_text, pexp
 end
 
-# Encounter list: a type header + species (name + Pokedex status), capped at 15 with "and N more".
+# Encounter list: a type header + species (name + Pokedex status), capped at 15 with "and N more". A
+# species never seen is a silhouette on screen, and is said as unknown without its name.
 Suite.define("menus: encounter list summary") do
   entries = [["Pidgey", :dex_caught], ["Rattata", :dex_seen], ["Caterpie", :dex_unknown]]
   exp = "#{PokeAccess::I18n.t(:enc_type, :type => 'Hierba alta', :n => 3)}: " \
         "Pidgey #{PokeAccess::I18n.t(:dex_caught)}, Rattata #{PokeAccess::I18n.t(:dex_seen)}, " \
-        "Caterpie #{PokeAccess::I18n.t(:dex_unknown)}"
+        "#{PokeAccess::I18n.t(:dex_unknown)}"
   eq "type plus species", PokeAccess::EncounterList.summary("Hierba alta", entries), exp
   eq "empty is just the header",
      PokeAccess::EncounterList.summary("Agua", []), PokeAccess::I18n.t(:enc_type, :type => "Agua", :n => 0)
@@ -41,11 +54,21 @@ Suite.define("menus: encounter list summary") do
   truthy "caps at 15 plus the remainder",
          PokeAccess::EncounterList.summary("Cueva", big).include?(PokeAccess::I18n.t(:enc_more, :n => 2)) &&
          !PokeAccess::EncounterList.summary("Cueva", big).include?("Sp16")
+
+  t = PokeAccess::I18n
+  rows = vb_levels { PokeAccess::EncounterList.summary("Hierba alta", entries) }
+  eq "brief: the type and each species by name", rows[0], "Hierba alta: Pidgey, Rattata, #{t.t(:dex_unknown)}"
+  eq "medium: with their state", rows[1],
+     "Hierba alta: Pidgey #{t.t(:dex_caught)}, Rattata #{t.t(:dex_seen)}, #{t.t(:dex_unknown)}"
+  eq "full: and how many there are", rows[2], exp
+  PokeAccess::Config.verbosity = :brief
+  eq "the info key's line is whole at any level", PokeAccess::EncounterList.summary("Hierba alta", entries, true), exp
+  eq "and an empty type says so at any level", PokeAccess::EncounterList.summary("Agua", []),
+     t.t(:enc_type, :type => "Agua", :n => 0)
+  PokeAccess::Config.verbosity = :full
 end
 
-# Auto-detect (#3): generic introspection reads the focused entry from a window's OWN data (never the
-# screen), conservatively -- strings/symbols/.name/.text only, staying silent on pairs/ids/raw objects so it
-# can never speak garbage. This lets unknown navigable menus read without a dedicated extractor or OCR.
+# Generic auto-detect reads a window's focused entry from its own data: a string, symbol, .name or .text only.
 Suite.define("menus: conservative auto-detect of focused entries") do
   win_cmd = Class.new { def initialize(c); @commands = c; end }
   win_items = Class.new { def initialize(i); @items = i; end }

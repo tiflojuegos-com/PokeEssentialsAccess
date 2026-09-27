@@ -9,7 +9,7 @@ so the Spanish field names below are the code's own.
 
 | Key | What it does | Output |
 |---|---|---|
-| Ctrl+Alt+F8 | Toggles the mod; re-enabling also retries speech init | Spoken |
+| Ctrl+Alt+F8 | Toggles the mod and silences the sonar with it; re-enabling retries speech init and rebuilds the sonar where you stand | Spoken |
 | Ctrl+Alt+F9 | Full dump, all 11 sections | `<DATA>/diag.txt`, appended. `DATA` is `accessibility/data`, or the game's AppData folder when that one is not writable |
 | Ctrl+Alt+F10 | Short spoken diagnostic | Voice only |
 
@@ -101,7 +101,7 @@ most likely to belong to. It has three values, and they **do not mean the same t
 Started from the debug menu, not from a key; it writes
 `accessibility/data/recordings/rec-YYYYMMDD-HHMMSS.txt` and reports the event count when stopped. It turns a
 play session into a **transcript**: what the mod saw and what it said, in order. It hooks nothing inside the
-readers — everything reaches it through `PokeAccess.on_speak` and a per-frame read of state the mod already
+readers — everything reaches it as an observer of the speech dispatcher (`Speech.observe`) and a per-frame read of state the mod already
 keeps — so the instrument can never break a reader, and costs nothing when off. Tab-separated, text last:
 
 | Line | Fields | When |

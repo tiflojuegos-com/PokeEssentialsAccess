@@ -1,17 +1,10 @@
-# say_dialogue is the mod's anti-double-read for story text, and it had no assertions at all. Every message
-# hook funnels through it, and several of them are LAYERED on the same line: a battle "paused message" fires
-# its own before_hook AND the internal pbMessageDisplay the engine then calls, an event's pbMessage reaches
-# both the Kernel singleton and (on modern engines) the bare Object function. Without the short suppression
-# window the player hears every such line twice. The window must stay short, because re-talking to an NPC has
-# to speak again; and a SUPPRESSED line must still be remembered, because the repeat key (shift+info) reads
-# whatever was last shown -- if the swallowed copy skipped note_dialogue, the repeat key would replay a stale
-# line. The dedup only works because clean() strips the \x01/\x02 pause bytes, so the paused twin of a line
-# compares equal to the plain one (the double battle message that motivated the byte stripping).
+# say_dialogue, which every message hook funnels through: a repeat within half a second is swallowed but still feeds
+# the repeat key, and a line's paused twin (\x01/\x02 bytes) compares equal to it.
 
-# Runs the block with the dialogue memory blanked (the repeat-key line, the dedup text and its stamp) and
-# restores whatever was there, so this file can neither inherit a remembered line nor leak one.
+# Runs the block with the dialogue memory (repeat-key line, dedup text, its led form and stamp, the pending head)
+# blanked, then restores it.
 def with_clean_dialogue
-  keys = [:@last_dialogue, :@last_say, :@last_say_t]
+  keys = [:@last_dialogue, :@last_say, :@last_say_t, :@last_led, :@head]
   prev = keys.map { |k| PokeAccess.instance_variable_get(k) }
   keys.each { |k| PokeAccess.instance_variable_set(k, nil) }
   yield
@@ -66,9 +59,6 @@ Suite.define("dialogue: a swallowed line is still what the repeat key replays") 
     PokeAccess.say_dialogue("Toma esta Poke Ball")
     eq "the spoken line is remembered", PokeAccess.last_dialogue, "Toma esta Poke Ball"
 
-    # Point the repeat key somewhere else, then feed the SAME line again: it is swallowed, yet
-    # note_dialogue runs before the dedup returns, so the repeat key must still end up on it. If the
-    # suppression short-circuited first, the key would keep replaying the stale line below.
     PokeAccess.instance_variable_set(:@last_dialogue, "una linea vieja")
     SpeakCapture.clear
     PokeAccess.say_dialogue("Toma esta Poke Ball")
@@ -96,10 +86,34 @@ Suite.define("dialogue: the paused twin of a line compares equal, so a layered h
   end
 end
 
-# End to end through the engine's own entry point: gen-6 defines Kernel.pbMessageDisplay as a singleton, and
-# the toolkit aliases it at load. Driving THAT (rather than say_dialogue) proves the alias is in place and
-# that the engine re-showing a line -- which is what actually happens when two layers hit the same message --
-# does not double-read.
+# A head promised for the next line (who a speech bubble points at) leads that line once, in the same utterance, and
+# stays with it for the repeat key even when another hook's copy of the line comes through.
+Suite.define("dialogue: a promised head leads the next line once and stays with it for the repeat key") do
+  with_clean_dialogue do
+    PokeAccess.before_next_line("Niño, 2 izquierda")
+    PokeAccess.say_dialogue("")
+    PokeAccess.say_dialogue("¡Uno!")
+    eq "an empty message is no line: the head leads the next one, queued", SpeakCapture.log,
+       [["Niño, 2 izquierda: ¡Uno!", false]]
+    eq "the repeat key keeps the line as it was said", PokeAccess.last_dialogue, "Niño, 2 izquierda: ¡Uno!"
+    PokeAccess.say_dialogue("¡Uno!")
+    eq "another hook's copy is swallowed and leaves the repeat key led", PokeAccess.last_dialogue,
+       "Niño, 2 izquierda: ¡Uno!"
+
+    SpeakCapture.clear
+    PokeAccess.say_dialogue("¡Dos!")
+    eq "the line after it goes without the head", SpeakCapture.lines, ["¡Dos!"]
+
+    PokeAccess.before_next_line("Niña, 1 arriba")
+    PokeAccess.before_next_line(nil)
+    SpeakCapture.clear
+    PokeAccess.say_dialogue("¡Tres!")
+    eq "a head dropped before its line leads nothing", SpeakCapture.lines, ["¡Tres!"]
+  end
+end
+
+# End to end through gen-6's Kernel.pbMessageDisplay singleton, which the toolkit aliases at load: a re-shown line is
+# read once and feeds the repeat key.
 Suite.define("dialogue: the gen-6 Kernel message path reads once and feeds the repeat key") do
   with_clean_dialogue do
     truthy "the Kernel message path really is hooked", Kernel.respond_to?(:pbMessageDisplay__access_orig)
@@ -119,9 +133,7 @@ Suite.define("dialogue: the gen-6 Kernel message path reads once and feeds the r
   end
 end
 
-# The diagnostic counters behind the diag's "dialogue:" line: which entry point got wrapped and how many
-# lines came through. A game whose story text is silent is told apart by them -- zero seen and a wrap list
-# that names the wrong form, or a growing count with the line remembered and lost somewhere after.
+# The counters behind the diag's "dialogue:" line: which entry point got wrapped and how many lines came through.
 Suite.define("dialogue: the diag counters name the wrapped entry point and count the lines seen") do
   with_clean_dialogue do
     truthy "the gen-6 harness defines the Kernel singleton, and that is what got wrapped",

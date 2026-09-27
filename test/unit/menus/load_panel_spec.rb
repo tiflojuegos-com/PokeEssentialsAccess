@@ -1,15 +1,9 @@
-# The save panel of the continue screen, whose arguments are NOT in a fixed place. Four shapes of
-# pbStartScene across the surveyed games, and the two things worth saying move between them:
-#
+# The continue screen's save panel, whose pbStartScene arguments come in four shapes; the map id is always the last,
+# the play time whichever middle one answers for it:
 #   (commands, showContinue, trainer, framecount, mapid)              seven gen-6 games
 #   (commands, show_continue, trainer, stats, map_id)                 anil, emerald, relict, royal
 #   (commands, show_continue, trainer, frame_count, map_id)           Fire Ash, both Infinite Fusions
 #   (commands, show_continue, trainer, frame_count, stats, map_id)    Soulstones 2
-#
-# Read by position, the reader took a stats object for a frame count in three games and, in the one with six
-# parameters, read the stats object AS the map id -- so the save announced no location and no play time at
-# all. Asked by shape: the map id is the last argument in all four, and the play time is whichever of the
-# middle ones answers for it.
 Suite.define("load panel: the map and the play time are found whatever shape the screen passes them in") do
   lp = PokeAccess::LoadPanel
   stats = Object.new
@@ -28,7 +22,6 @@ Suite.define("load panel: the map and the play time are found whatever shape the
 
   eq "a stats object is preferred over nothing", lp.seconds(["c", true, nil, stats, 9]), 7200
 
-  # The whole line, through the real reader.
   trainer = Object.new
   def trainer.name; "Ash"; end
   def trainer.badge_count; 3; end

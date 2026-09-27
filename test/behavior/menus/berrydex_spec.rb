@@ -1,9 +1,5 @@
-# The berry dex plugin. Its list window is the same code in both copies, but the DETAIL screen is not: one
-# ships four pages behind pbShowBattlePage?/pbShowMutationsPage?, the other only two and has neither
-# predicate. Rescuing a missing predicate into "true" would invent two sections the second game does not
-# have, so the section list is built from what the scene actually answers to.
-# The harness loads every plugin reader, so this spec does not pull it in itself: a require on a file
-# already brought in with eval loads it a SECOND time and reassigns its constants.
+# The berry dex plugin: the detail sections follow the page predicates the scene answers (an absent one is a no).
+# Not required here: the harness has loaded the reader, and a second load reassigns its constants.
 
 class FakeBerryWindow
   def initialize(cmds); @commands = cmds; end

@@ -10,11 +10,11 @@ the game as it was.
 
 | | |
 |---|---|
-| Core modules | 133, in `core/manifest.rb` |
-| Game profiles | 16, in `games/` |
-| Plugin readers | 49, in `plugins/` |
+| Core modules | 167, in `core/manifest.rb` |
+| Game profiles | 26, in `games/`: 21 games, the generic one and 4 common profiles |
+| Plugin readers | 74, in `plugins/` |
 | Languages | 6 (`es`, `en`, `fr`, `pt`, `de`, `pl`), in `lang/` |
-| Suite | 2599 (gen-6, static checks included) + 409 (gamedata) |
+| Suite | 5518 (gen-6, static checks included) + 1593 (gamedata) |
 | Ruby | 1.8.7 in the game; the system one in tests |
 
 ## Layers
@@ -74,10 +74,13 @@ Profile manifest format, two accepted shapes:
 
 { :modules => %w[module_a], :plugins => %w[tip_cards] }  # modules + declared plugins
 { :modules => %w[module_a], :plugins => :auto }          # the generic profile only
+{ :imports => %w[saga_common], :modules => %w[module_a] } # loads a common profile first
 ```
 
 A module missing from the manifest **is not loaded** and nothing warns. A declared plugin that does not
 exist is logged and skipped: a half-finished install costs one screen, not the whole mod.
+
+A **common profile** (`games/<name>_common/`) holds what the games of one saga or one author share. It has no entry in `catalog.json`, so it is never detected as a game, and it imports no other. The profile that imports it gets its modules after the plugins and before its own, and its plugins joined to its own. The launcher copies it to `accessibility/common/<name>/`. A missing import is logged and does not stop the boot.
 
 ## Where things are
 
@@ -120,7 +123,11 @@ Essentials API name the shared core calls.
 At the end of a change, not halfway through:
 
 ```bash
-powershell -File installer/install.ps1 -Force
+launcher/target/x86_64-pc-windows-msvc/release/pokeessentialsaccess-launcher.exe local install --yes
 ```
+
+That is the launcher `cargo build --release` builds in `launcher/`; the released one works the same when run from
+inside the repository. `local` takes the mod from the repository; with no game it opens the folder picker, and
+with `all` it reinstalls in every game of the list. The commands are in `launcher/commands.txt`.
 
 Reinstalling on top updates in place and keeps `settings.ini` and the tags.

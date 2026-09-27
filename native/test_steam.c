@@ -29,6 +29,8 @@ static int run_dir(IPLContext ctx, IPLHRTF hrtf, IPLAudioSettings* as,
     return (el + er > 1e-9f);
 }
 
+/* Runs the binaural effect from three directions, then checks that a left-panned source lands louder in the left
+   ear than the right. */
 int main(void) {
     IPLContext ctx = NULL; IPLHRTF hrtf = NULL; IPLBinauralEffect eff = NULL;
     IPLContextSettings cs; IPLHRTFSettings hs; IPLAudioSettings as;
@@ -60,7 +62,6 @@ int main(void) {
     ok &= run_dir(ctx, hrtf, &as, eff, &in, &out,  1.0f, 0.0f, 0.0f, "right");
     ok &= run_dir(ctx, hrtf, &as, eff, &in, &out,  0.0f, 0.0f, -1.0f, "front");
 
-    /* left direction should put more energy in the left ear than the right */
     {
         IPLBinauralEffectParams p; float el, er;
         memset(&p, 0, sizeof(p)); p.direction.x = -1.0f; p.direction.z = 0.0f;

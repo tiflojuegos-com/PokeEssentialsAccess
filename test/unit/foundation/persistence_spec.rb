@@ -1,12 +1,5 @@
-# The user-persistence subsystem (Tags, Marks, MapNames, Settings) -- the only part of the mod whose files
-# are SHARED between players, so a format break silently breaks the community's dictionaries. Runs over the
-# harness's sandbox data dir (Paths::DATA under the test cwd), wiping the files and in-memory stores before
-# and after so no state leaks between suites or into the repo.
-#
-# The three dictionaries sit on one Dictionary plumbing, so what is pinned per store is its own shape (key,
-# record, line) and what is pinned once is the plumbing: import adds only what the store lacks, export
-# counts, and every file is stamped with the game it belongs to -- a file from another game is refused,
-# a file from before the stamp existed still imports.
+# The user-persistence subsystem (Tags, Marks, MapNames, Settings), whose files players share, over the harness's
+# sandbox data dir: each store's shape, and the Dictionary plumbing (import, export, the game stamp) once.
 
 # Every file the three dictionaries can touch.
 def persistence_files
@@ -15,7 +8,7 @@ def persistence_files
   end.flatten
 end
 
-# Deletes every dictionary file and forgets the loaded stores, so a suite starts and ends with nothing.
+# Deletes every dictionary file and reloads the stores empty.
 def persistence_wipe
   persistence_files.each { |f| (File.delete(f) rescue nil) }
   [PokeAccess::Tags, PokeAccess::Marks, PokeAccess::MapNames].each { |m| m.reload! }
@@ -132,8 +125,7 @@ Suite.define("persistence: marks round-trip by tile, list per map in reading ord
   end
 end
 
-# MapNames gained import and export by moving onto the same plumbing; a player who renamed a dungeon can
-# hand the file on, and the merge keeps their own names over the imported ones.
+# MapNames imports and exports like the other dictionaries, the player's own names winning over imported ones.
 Suite.define("persistence: map names import and export like the other dictionaries") do
   persistence_wipe
   begin
@@ -156,10 +148,7 @@ Suite.define("persistence: map names import and export like the other dictionari
   end
 end
 
-# The game stamp: keys are map ids, and a map id means something else in every other game, so a file must
-# know which game it belongs to and an import must refuse a stranger's.
-# A single byte that is not UTF-8 (an ini or a shared tags file saved by an ANSI editor) used to cut the
-# file at that line on the modern engines, and the truncated store was then written back over the original.
+# KVFile reads past a stray non-UTF-8 byte (a file saved by an ANSI editor): every line is read.
 Suite.define("persistence: a stray non-UTF-8 byte costs one character, never the rest of the file") do
   probe = File.join(File.dirname(PokeAccess::Marks::FILE), "kv_probe.txt")
   begin
@@ -172,6 +161,8 @@ Suite.define("persistence: a stray non-UTF-8 byte costs one character, never the
   end
 end
 
+# Each dictionary file carries its game's stamp, since map ids differ per game: a foreign stamp is refused, an
+# unstamped (older) file still imports.
 Suite.define("persistence: every dictionary file is stamped with its game, and a foreign file is refused") do
   persistence_wipe
   begin

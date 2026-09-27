@@ -1,11 +1,5 @@
-# Hooks.variants: registering the same hook across the spellings a class takes across games, and saying so
-# when not one of them bound.
-#
-# The failure it exists to catch leaves no trace of any other kind. An :optional hook whose class is absent
-# is skipped on purpose, because cross-game variance is normal and the alternative would fill the missing
-# list with noise. But a hook written against ONE spelling when the games use another is not variance, it is
-# a bug, and it presents exactly like a screen that has nothing to say: no exception, no missing entry, no
-# failing test. The item-storage title spent its whole life like that in eight of the fourteen games.
+# Hooks.variants registers one hook across the spellings a class takes in different games, and reports the group in
+# unbound when none of them binds.
 Suite.define("hooks: a hook group that binds nowhere is reported, one that binds anywhere is not") do
   h = PokeAccess::Hooks
   before = h.unbound.dup
@@ -31,10 +25,8 @@ Suite.define("hooks: a hook group that binds nowhere is reported, one that binds
   end
 end
 
-# The BES-T compatibility layers alias one spelling to the other with an EMPTY subclass, and the game
-# instantiates whichever side it wrote first. A hook bound on the empty alias never runs for the parent's
-# instances, so the class that owns the method must be the one that binds, whatever order the group lists:
-# Awakening's hall of fame was mute because its alias came first in the list.
+# In a group holding an empty alias subclass, the class that owns the method binds, whatever the listed order (a
+# hook on the alias would miss the parent's instances).
 Suite.define("hooks: a group with an empty alias subclass binds the class that owns the method") do
   h = PokeAccess::Hooks
   Object.const_set(:SpecVarOwner, Class.new { def refresh; :owner; end }) unless defined?(SpecVarOwner)
@@ -54,7 +46,6 @@ end
 # The registrars answer whether they bound, which is what variants counts.
 Suite.define("hooks: the registrars say whether they bound") do
   h = PokeAccess::Hooks
-  # Bound on a class of this spec's own, so no live middleware is left on a window the other suites use.
   Object.const_set(:SpecBindTarget, Class.new { def refresh; :done; end }) unless defined?(SpecBindTarget)
   falsy "an absent class does not bind", h.around_hook("NoSuchClassAtAll", :whatever, :optional => true) { |_s, n, _a| n.call }
   falsy "nor an absent method on a class that exists",

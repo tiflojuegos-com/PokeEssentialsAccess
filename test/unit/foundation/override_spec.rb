@@ -1,7 +1,5 @@
-# Hooks.override: the DECLARED replacement primitive (F-L11-002). It must substitute a mod module's
-# singleton method (the Reminiscencia case) or a game class's instance method, hand the body the
-# original as a callable (wrap instead of substitute), register every installation in overrides (the
-# diag's visibility), and stack: a second override receives the first as its original.
+# Hooks.override replaces a module's singleton method or a class's instance method, hands the body the original,
+# lists every installation in overrides, and stacks: a second override gets the first as its original.
 Suite.define("hooks: override replaces module and instance methods, visibly and stackably") do
   mod = Module.new do
     def self.detail(x); "core:#{x}"; end

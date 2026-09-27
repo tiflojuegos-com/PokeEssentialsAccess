@@ -7,21 +7,27 @@
 #
 #
 # format: Class#method = <profile>, <profile>...
-# surveyed sources (16): africanus, anil, armonia, awakening, emerald, fireash, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, relict, reminiscencia, royal, soulstones2, vanilla
+# surveyed sources (22): africanus, anil, armonia, awakening, desolation, emerald, fireash, infinitefusion, infinitefusion_hoenn, insurgence, opalo, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, royal, soulstones1, soulstones2, uranium, vanilla
 # A row marked NO-DUMP is one no surveyed game defines: it was not checked and found clean, it
 # could not be checked at all. The two used to print identically, which made a sixth of the file
 # read as evidence it was not.
-# after-style hook sites: 206 / blocking somewhere: 0 / no dump defines it: 1
+# after-style hook sites: 328 / blocking somewhere: 1 / no dump defines it: 1
 # after-style sites the extractor cannot resolve (computed class or method): 42
 AdvancedPokedexScene#displayPage = 
 AdvancedPokedexScene#pbStartScene = 
+AdventureItembox#setItemValues = 
+AdventureMapScene#pbUpdateFloor = 
+AdventureMapScene#pbUpdateHearts = 
+AdventureMapScene#pbUpdateKeys = 
 AlbumScene#showPage = 
 Albumfotos#inputs = 
 ArcyContest#updateHearts = 
 BallSelectorInterface#update_display = 
 Battle#pbToggleSpecialActions = 
 Battle::Battler#pbRecoverHP = 
-Battle::Battler#pbReduceHP = 
+Battle::Battler#shieldCount= = 
+Battle::Scene#pbAddEffectsDisplay = 
+Battle::Scene#pbDrawMoveFlagIcons = 
 Battle::Scene#pbDrawTypeEffectiveness = 
 Battle::Scene#pbUpdateBallSelection = 
 Battle::Scene#pbUpdateBattlerInfo = 
@@ -32,18 +38,26 @@ Battle::Scene::MenuBase#index= =
 Battle::Scene::MenuBase#mode= = 
 Battle::Scene::MenuBase#setIndexAndMode = 
 BetterRegionMap#dispose = 
+BlessingsOverlay#updateInfoWindow = 
+BlessingsScene#changeIndex = 
 BookScene#texto = 
+BoundedPokemonEntryScene#pbStartScene = 
+ButtonEventScene#addImage = 
 ButtonEventScene#addLabel = 
 ButtonEventScene#addLabelForScreen = 
 ButtonEventScene#set_up_screen = 
+CharacterSelectMenuPresenter#updateDisplayedName = 
 ColorCodeDoor#handle_input = 
 CommandMenuDisplay#index= = 
 CommandMenuDisplay#setIndexAndMode = 
 CommandMenuDisplay#setTexts = 
 ContactsAppInfoPageScene#showFriendshipIcons = 
 ContactsAppScene#pbStartScene = 
+ControlBindingScene#pbEndScene = 
+ControlBindingScene#pbStartScene = 
 CreadorEventScene#pbStartScene = 
 DP_PauseMenu#update = 
+DatingSimBuildScreen#setWindowSelect = 
 DatingSimMainScreen#setText = 
 DatingSimSupportScreen#updatePoints = 
 DatingSimTaskScreen#setGenderPage = 
@@ -56,22 +70,37 @@ EggMoveLearner_Scene#pbDrawMoveList =
 Ekans_Interface_Hiscores#get_text_pos = 
 Ekans_Interface_Main#draw = 
 EncounterListUI#getEncData = 
+EncounterListUI#loadCurrentPage = 
 EncounterListUI#loadEncounterData = 
+EncounterListUI_withforms#getEncData = 
 EncounterList_Scene#drawAbsent = 
 EncounterList_Scene#drawPresent = 
+EncounterList_Scene#pbMoveDexSel = 
+EquipScreen#pbEndScreen = 
 EquipScreen#update_description = 
+EquipScreen#update_lore_window = 
 FatesMenuPanels#cambio = 
 FatesMenuPanels#initialize = 
 FightMenuDisplay#battler= = 
+FightMenuDisplay#impulseButton= = 
 FightMenuDisplay#setIndexAndMode = 
+FightMenuDisplay#zButton= = 
+FusionQuiz#refresh_streak_ui = 
 FusionQuizAppScene#pbStartScene = 
+GachaScene#dispose = 
 GachaScene#refresh = 
 Game_Picture#erase = 
 Game_Picture#show = 
+Game_Screen#aUpdateRadar = 
 Game_Temp#in_battle= = 
 Game_Temp#in_menu= = 
 GenCustomStyle#initialize = 
+GenFiveStyle#initialize = 
+GenFourStyle#initialize = 
 GenOneStyle#initialize = 
+GenSevenStyle#initialize = 
+GenSixStyle#initialize = 
+GenThreeStyle#initialize = 
 GenTwoStyle#initialize = 
 Glosario_Historia#draw_commands = 
 Glosario_Historia#update_cursor = 
@@ -79,107 +108,194 @@ Glosario_Historia_Secciones#dibujar_lista =
 Glosario_Historia_Secciones#mover_cursor = 
 Glosario_Personajes#dibujar_lista = 
 Glosario_Personajes#mover_cursor = 
+HairMartAdapter#switchVersion = 
+HairMartAdapter#toggleEvent = 
 HallDeLaFama#create_gen5_final_windows = 
 HallDeLaFama#gen5_pokemon_info = 
 HallOfFameScene#moveSprite = 
+HallOfFameScene#pbEndScene = 
 HallOfFameScene#writePokemonDataPC = 
+HallOfFameScene#writeTrainerData = 
+HallOfFameTextWindow#text= = 
+HallOfFameTextWindow#visible= = 
 HallOfFameViewerScene#update_display = 
+Hatcher#dispose = 
 Hatcher#refresh = 
+IconMenu#setActive = 
+Incubadora#dispose = 
 Incubadora#refresh = 
+InfoTarjetasLiga_Scene#pbEndScene = 
+IntroEventScene#open_title_screen = 
 ItemCraft_Scene#pbRedrawItem = 
 ItemCraft_Scene#pbRedrawMenu = 
 ItemCraft_Scene#refreshNumbers = 
-ItemInfog_Scene#pbRedrawMenu = 
+JumpMinigame::Play#drawPoints = 
+JumpMinigame::Play#drawRope = 
 LocationWindow#initialize = 
 Logros_Scene#showTexts = 
+LuckSwapScene#pbUpdate = 
 Mankey#inputs = 
 MapBottomSprite#maplocation= = 
+MapBottomSprite#mapname= = 
 Menu2#pbActualizarIconosMenu = 
+MenuSelector2OpcionesScene#pbEndScene = 
 MiningGameCursor#update = 
+MiningGameScene#pbEndScene = 
 MiningGameScene#pbHit = 
 ModularTitleScreen#initialize = 
 MonotypeMenu::MonotypeMenu_Scene#pbRedrawList = 
+MostrarPokemonAnimado#mostrar_poke_animado = 
 MoveRelearnerScene#pbDrawMoveList = 
 MoveRemember_Scene#pbDrawMoveList = 
 MultiBerrySelection_Scene#pbRefresh = 
 NewBattleBag#update = 
+NewChoiceSel#update = 
+NewCommandWindow#text= = 
+NewCommandWindow#update = 
+NewFightWindow#battler= = 
+NewFightWindow#megaButtonSet = 
+NewFightWindow#update = 
+OutfitSelector#changeToNextClothes = 
+OutfitSelector#changeToNextHairstyle = 
+OutfitSelector#changeToNextHat = 
 Perlita#escogersaquito = 
 PickBlessing#swapCard = 
 PickBlessing#updateCursor = 
 PickDifficulty#update = 
 PlaceDecoration_Scene#pbUpdate = 
+Poffin#announceStart = 
+PokeBattle_Scene#pbDamageAnimation = fireash, infinitefusion, infinitefusion_hoenn
+PokeBattle_Scene#rewriteType = 
 PokeNavAppScene#hover = 
+PokeNavAppScene#pbEndScene = 
 PokeNavAppScene#pbStartScene = 
+PokeRadarAppScene#showWeatherIcon = 
+PokeblockCase_Scene#pbEndScene = 
+PokeblockCondition_Scene#pbDrawPokemonInfo = 
+PokeblockCondition_Scene#pbUpdateConditionBars = 
 PokedexFormScene#pbRefresh = 
+PokedexFormScene#pbUpdate = 
+PokedexSearchSelectionSprite#index= = 
 PokegearButton#selected= = 
+PokemonBag#sort_pocket_alphabetically = 
+PokemonBerryMartScene#drawCurrentBerries = 
+PokemonChallenges_Scene#pbEndScene = 
 PokemonChallenges_Scene#pbUpdate = 
+PokemonContest#showCrowdHearts = 
+PokemonContestResults_Scene#pbShowIntroRoundBars = 
+PokemonContestResults_Scene#pbShowPlaces = 
+PokemonContestResults_Scene#pbShowTalentRoundBars = 
+PokemonContestTalent_Scene#pbMoveShowDetails = 
+PokemonContestTalent_Scene#updateApplauseMeter = 
+PokemonCurrydex_Scene#pbEndScene = 
 PokemonCurrydex_Scene#pbStartScene = 
 PokemonEntryScene2#pbUpdate = 
+PokemonHatView#update = 
 PokemonLoadScene#pbChooseAutoSubFile = 
+PokemonLoadScene#pbMoveSaveSel = 
 PokemonMGift_Scene#pbUpdate = 
+PokemonMenu_Scene#pbEndScene = 
 PokemonMenu_Scene#pbShowMenu = 
 PokemonMenu_Scene#selectButton = 
 PokemonMenu_Scene#update = 
 PokemonNestMapScene#pbStartScene = 
 PokemonOptionPuntos_Scene#pbChangeSelection = 
 PokemonOptionPuntos_Scene#updateDescription = NO-DUMP
+PokemonOption_Scene#updateDescription = 
+PokemonPartyConfirmBattleBeltSprite#selected= = 
+PokemonPartyConfirmCancelSprite#selected= = 
 PokemonPartyPanel#selected= = 
-PokemonParty_Scene#pbChangeSelection = 
+PokemonPartyPanel#text= = 
 PokemonParty_Scene#pbSelect = 
 PokemonPauseMenu_Scene#update_button = 
 PokemonPhone_Scene#pbEndScene = 
 PokemonPhone_Scene#pbStartScene = 
 PokemonPokedexInfo_Scene#drawPage = 
+PokemonPokedexInfo_Scene#pbDrawDataList = 
 PokemonPokedexInfo_Scene#pbDrawDataNotes = 
 PokemonPokedexInfo_Scene#pbDrawSpeciesDataList = 
 PokemonPokedexScene#pbChangeToDexEntry = 
 PokemonPokedexScene#pbRefreshDexSearch = 
+PokemonPokedexScene#pbRefreshMainMenu = 
+PokemonPokedexScene#pbStartRegionScene = 
 PokemonPokedex_Scene#pbRefresh = 
 PokemonPokedex_Scene#pbRefreshDexSearch = 
 PokemonPokedex_Scene#pbRefreshDexSearchParam = 
 PokemonPokegearTheme_Scene#pbUpdate = 
 PokemonPokegear_Scene#pbUpdate = 
+PokemonPokegear_Scene#swap_apps = 
 PokemonReadyMenu_Scene#pbUpdate = 
+PokemonRegionMapScene#endNestScene = 
 PokemonRegionMap_Scene#pbEndScene = 
 PokemonRegionMap_Scene#updateSpeciesInfo = 
-PokemonScreen_Scene#pbChangeSelection = 
-PokemonStarterSelection#gettinginput = 
+PokemonRulesetScene#pbStartScene = 
+PokemonSave#initialize = 
+PokemonScreen_Scene#pbRefresh = 
+PokemonScreen_Scene#update = 
+PokemonStorageScene#pbMarkingSetArrow = 
+PokemonStorageScene#pbSetArrow = 
 PokemonStorageScene#pbSetQuickSwap = 
 PokemonStorageScene#pbUpdateOverlay = 
 PokemonStorageScene#setFusing = 
 PokemonSummaryScene#drawPageOne = 
+PokemonSummaryScene#drawPageSix = 
+PokemonSummaryScene#pbUpdate = 
 PokemonSummary_Scene#pbUpdate = 
+PokemonTrainerCardSceneGBC#changeIndexParty = 
+PokemonTrainerCardSceneGBC#drawSummaryHeader = 
 PokemonTutorNet_Scene#pbChangeSelection = 
 PokemonTutorNet_Scene#update_indicators = 
+PokemonTypeReel#down = 
+PokemonTypeReel#toggleSelect = 
+PokemonTypeReel#up = 
+PokemonTypeSelectionScreen#pbStartScene = 
 Pokemon_Achievements_Scene#update = 
 Pokemonysusgritos#input = 
+PunchBag::Scene#pbDrawStars = 
+PunchBagScene#computeScore = 
+PunchBagScene#pbStartScene = 
 PurifyChamberSetView#refresh = 
+QuestInfo_Scene#pbUpdate = 
 QuestList_Scene#drawOtherInfo = 
 QuestList_Scene#drawQuestDesc = 
 QuestList_Scene#pbStartScene = 
-QuestList_Scene#swapQuestType = 
+QuestLog_Scene#pbSetCommands = 
+QuestLog_Scene#pbStartScene = 
+QuestMap#show_popup = 
+QuestMap#update_text_at_location = 
 Questlog#draw_main_text = 
 Questlog#draw_quest_details = 
 Questlog#move_selection = 
 Questlog#redraw_main_screen = 
 Questlog#show_quest_list = 
 Questlog#switch_button = 
+RSESTarterChoice#pbStartScene = 
 RSESTarterChoice#pbUpdate = 
+Scene_Glosario#refresh = 
+Scene_Leaf#update = 
 Scene_Map#addSprite = 
+Scene_MoveTutor#refreshMoveList = 
 Scene_Pokegear#update = 
+ScreenChooseFileSave#choosePanelInfor = 
+ScreenChooseFileSave#textPanel = 
+ScrollTree#pbEndScene = 
 ScrollTree#positionSelector = 
 ScrollTree#raiseStat = 
+SecretBaseMart_Scene#update = 
 SelectMoveMenu_Scene#refresh_buttons = 
 SlideDay#initialize = 
 SlotMachineReel#update = 
 SlotMachineScene#update = 
 SpeciesTypeMatch_Scene#pbUpdate = 
+SponsorScene#pbRefreshInfo = 
 SpriteWindow_Selectable#update = 
 StarterMenu_Scene#pbRedrawList = 
 StartersSelectionScene#updateStarterSelectionGraphics = 
 Swdfm_Exp_Screen#draw_party = 
 Swdfm_Exp_Screen#redraw_level = 
 TarjetasLiga_Scene#actualizarTarjetasPantalla = 
+TarjetasLiga_Scene#pbEndScene = 
+TeamPreview_Scene#update = 
 TilePuzzleScene#update = 
 TipCardGroups_Scene#pbDrawTip = 
 TipCard_Scene#pbDrawTip = 
@@ -190,7 +306,6 @@ UI::LoadVisuals#set_slot_index =
 UI::MoveReminderVisuals#refresh_on_index_changed = 
 UI::OptionsVisuals#draw_page_tabs = 
 UI::OptionsVisuals#refresh_selected_option = 
-UI::OptionsVisualsList#update = 
 UI::PauseMenuVisuals#set_commands = 
 UI::PauseMenuVisuals#update_visuals = 
 UI::PokemonSummaryVisuals#refresh_move_cursor = 
@@ -202,19 +317,26 @@ UI::TrainerCard#start_screen =
 VideoPoker::Scene#update_all = 
 VideoPoker::Screen#select_wager = 
 VoltseonsPauseMenu#refreshMenu = 
+WeatherIcon#initialize = 
 WindowTextEntryKeyboardPerKey#delete = 
 WindowTextEntryKeyboardPerKey#insert = 
 Window_AdvancedTextPokemon#text= = 
 Window_AdvancedTextPokemonCentro#text= = 
 Window_CommandPokemon_Challenge#commands= = 
 Window_CommandPokemon_Challenge#initialize = 
+Window_ControlBinding#update = 
 Window_DrawableCommand#update = 
+Window_DrawableCommandBag#update = 
+Window_DrawableCommandDex#update = 
+Window_FieldEffectNotes#initialize = 
 Window_InputNumberPokemon#initialize = 
 Window_InputNumberPokemon#update = 
-Window_PokemonOption#update = 
+Window_JukeboxCommand#refresh = 
 Window_PokemonOption_Sky#update = 
 Window_TextEntry#delete = 
+Window_TextEntry#deleteAtCursor = 
 Window_TextEntry#insert = 
+Window_UnformattedTextPokemon#resizeToFit = 
 Window_UnformattedTextPokemon#text= = 
 Window_Wardrobe#initialize = 
 WonderCardAlbumScene#updateCursorPosition = 
@@ -226,40 +348,40 @@ WonderCardScene#pbStartScene =
 # core/battle/v22/battle_v22.rb: PokeAccess::Hooks.after_hook("Battle::Scene::#{name}", meth, :optional => true, &blk)
 # core/battle/v22/pokedex_v22.rb: PokeAccess::Hooks.after_hook("UI::PokedexEntryVisuals", m) do |vis, _ret, _args|
 # core/field/minigame_text.rb: PokeAccess::Hooks.after_hook(cn, :pbUpdateScore, :optional => true) do |scene, _r, _a|
+# core/field/minigame_text.rb: PokeAccess::Hooks.after_hook(cn, :pbOpponentPlaceCard, :optional => true) do |_scene, _r, args|
 # core/input/hooks.rb: def self.read_on_open(cname, meth = :pbStartScene, opts = {}, &blk)
-# core/menus/character_creator.rb: PokeAccess::Hooks.after_hook("CharacterSelectMenuPresenter", meth.to_sym) do |pres, _r, _a|
-# core/menus/gen6/move_relearner_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbDrawMoveList) do |scene, _r, _a|
-# core/menus/load.rb: PokeAccess::Hooks.after_hook(cls, :pbStartScene) do |_s, _r, args|
+# core/menus/gen6/move_relearner_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbDrawMoveList, :optional => true) do |scene, _r, _a|
+# core/menus/gen6/move_relearner_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbRefreshInfo, :optional => true) do |scene, _r, args|
+# core/menus/gen6/move_relearner_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbUpdate, :optional => true,
 # core/menus/load_screen.rb: PokeAccess::Hooks.after_hook(PokeAccess::Engine.scene_class("PokemonLoad_Scene", "PokemonLoadScene").to_s, :pbDrawSaveCommands, :optional => true) do |_s, _r, args|
 # core/menus/load_screen.rb: PokeAccess::Hooks.after_hook(PokeAccess::Engine.scene_class("PokemonLoad_Scene", "PokemonLoadScene").to_s, :pbMoveSaveSel, :optional => true) do |scene, _r, args|
 # core/menus/number_entry.rb: PokeAccess::Hooks.after_hook(cn, :text=) do |w, _r, args|
 # core/menus/option_help.rb: PokeAccess::Hooks.after_hook(cn, meth.to_sym, :optional => true) do |scene, _r, _a|
 # core/menus/save_panel.rb: PokeAccess::Hooks.after_hook(cn, :pbStartScreen, :optional => true) do |scene, _r, _a|
-# core/menus/trainer_card.rb: PokeAccess::Hooks.read_on_open(PokeAccess::TrainerCard::SCENE) { |_s| PokeAccess::TrainerCard.text }
 # core/menus/v21/move_relearner_v21.rb: PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerV21::SCENE, :pbDrawMoveList) do |scene, _r, _a|
-# core/menus/v21/trainer_card_v21.rb: PokeAccess::Hooks.read_on_open(PokeAccess::TrainerCardV21::SCENE) { |_s| PokeAccess::TrainerCardData.text }
 # core/menus/v22/screen_v22.rb: PokeAccess::Hooks.after_hook(class_name, method) do |vis, _ret, _args|
 # core/nav/region_map.rb: PokeAccess::Hooks.after_hook(cn, :pbGetMapLocation) do |s, ret, args|
 # core/nav/region_map.rb: PokeAccess::Hooks.after_hook(cn, :pbEndScene) do |s, _r, _a|
+# core/party/gen6/party_g6.rb: PokeAccess::Hooks.after_hook(party_sel_class, :pbChangeSelection) do |scene, ret, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageOne) do |s, _r, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageOneEgg, :optional => true) do |s, _r, args|
-# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawSelectedRibbon, :optional => true) do |_s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawSelectedRibbon, :optional => true) do |s, _r, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageTwo) do |s, _r, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageThree) do |s, _r, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFour) do |s, _r, args|
-# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFive) do |s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFive, :optional => true) do |s, _r, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawSelectedMove) do |s, _r, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :pbUpdate) do |scene, _r, _a|
-# core/party/v21/ribbons_v21.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :drawSelectedRibbon) do |_s, _r, args|
-# core/party/v21/summary_v21.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :drawPage) do |scene, _r, args|
+# core/party/v21/ribbons_v21.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :drawSelectedRibbon) do |scene, _r, args|
+# core/party/v21/summary_v21.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :pbUpdate, :optional => true) do |scene, _r, _a|
 # core/party/v21/summary_v21.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :drawSelectedMove) do |scene, _r, args|
 # core/party/v22/summary_v22.rb: PokeAccess::Hooks.after_hook("UI::PokemonSummaryVisuals", m) do |vis, _ret, _args|
 # games/awakening/compendium.rb: after(cname, :update) { |s, _r, _a| PokeAccess::AwakeningCompendium.focus(s) }
+# games/infinitefusion_common/character_creator.rb: after("CharacterSelectMenuPresenter", meth, :optional => true) do |pres, _r, _a|
 # games/royal/curry_result.rb: read_on_open("ResultadosCurry_Scene") do |scr|
 # games/royal/curry_result.rb: read_on_open("ResultadosCurryPuntos_Scene") do |scr|
-# games/royal/iconos_leyenda.rb: read_on_open("IconosLeyenda_Scene") { |_s| PokeAccess::RoyalIconLegend::TEXT }
-# games/royal/selectors.rb: after(cls, meth.to_sym) { |_s, _r, _a| PokeAccess.speak(label, true) }
-# games/royal/tarjeta_entrenador.rb: read_on_open("TarjetaEntrenador_Scene") { |_s| PokeAccess::RoyalTrainerCard.text }
+# games/royal/iconos_leyenda.rb: read_on_open("IconosLeyenda_Scene") { |_s| PokeAccess::I18n.t(:royal_icon_legend) }
+# games/royal/selectors.rb: after(cls, meth.to_sym) { |_s, _r, _a| PokeAccess::RoyalSelectors.say(option) }
 # plugins/better_region_map.rb: PokeAccess::Hooks.after_hook("BetterRegionMap", m.to_sym, :optional => true) { |scene, _r, _a| PokeAccess::BetterMap.read(scene) }
-# plugins/hall_of_fame_bw.rb: PokeAccess::Hooks.after_hook("HallDeLaFama", m.to_sym, :optional => true) do |_s, _r, args|
+# plugins/secret_bases.rb: PokeAccess::Hooks.after_hook(cname, :pbEndScene, :optional => true) { |_s, _r, _a| PokeAccess::Info.clear_text }
 # plugins/video_poker.rb: PokeAccess::Hooks.after_hook("VideoPoker::Scene", meth.to_sym, :optional => true) do |scene, _r, _a|

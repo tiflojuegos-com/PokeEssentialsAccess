@@ -1,7 +1,5 @@
-# Reminiscencia's dating-sim minigame. Most screens (task, build, support) use a Window_DrawableCommand
-# subclass already read by the generic hook. The main hub is the exception: it shows its options as icon
-# sprites and writes the focused label to a help window via setText (@commands[@index]). Read that label
-# as the cursor moves. Guarded: a no-op where absent.
+# Reminiscencia's dating-sim minigame: the hub's icon options (their label, from @commands[@index]) and HUD, the
+# results, the day roll, and the task, support and build screens' extras over the generic command windows.
 module PokeAccess
   module ReminDatingSim
     # The hub's focused label, from the same pair the screen draws.
@@ -14,9 +12,7 @@ module PokeAccess
       nil
     end
 
-    # The two HUD windows the hub paints once, in its constructor, and nobody read: the current objective
-    # with the days left, and the day count. Said queued after the focused label as the hub opens; the day
-    # is not audible anywhere else in the mode.
+    # The hub's HUD (objective with days left, day count), queued after the focused label as the hub opens.
     def self.hud(scene)
       %w[nextitem daycount].each do |key|
         w = PokeAccess.sprite(scene, key)
@@ -34,30 +30,69 @@ module PokeAccess
     # the cleanliness the screen shows only as a bar, said as a number.
     def self.results_text(rows)
       t = PokeAccess::PaintCapture.text(rows)
-      clean = ($Trainer.dateSimClean rescue nil)
-      t = PokeAccess::Util.join_parts([t, clean ? "Limpieza: #{clean.to_i} por ciento" : nil])
+      t = PokeAccess::Util.join_parts([t, clean_text])
       t.empty? ? nil : t
     rescue StandardError
       nil
+    end
+
+    # The island's cleanliness, which the screens draw only as a bar, as a percentage; nil without the player.
+    def self.clean_text
+      clean = ($Trainer.dateSimClean rescue nil)
+      clean ? PokeAccess::I18n.t(:rem_clean_pct, :n => clean.to_i) : nil
+    end
+
+    # The day SlideDay rolls to, and whether sleeping sent it back.
+    # param forward false when the day went back
+    def self.day_text(day, forward)
+      PokeAccess::I18n.t(forward == false ? :rem_day_back : :rem_day, :n => day)
+    end
+
+    # The build screen's recipe table, row by row as painted, each have/need count with its own material and the
+    # arrow before the build key said as a colon.
+    def self.build_text(pairs)
+      PokeAccess::PaintCapture.lines(pairs).map { |l| l.gsub(/\s*->\s*/, ": ") }.join(". ")
+    end
+
+    # The build screen's two tabs (@indexTask): every recipe, or only the current objective's.
+    BUILD_TABS = [:rem_build_tab_all, :rem_build_tab_goal]
+
+    # The tab word to say before the next table when the build screen's tab has just changed, or nil; the first
+    # call only records the tab the screen opens on.
+    def self.build_tab_change(scene)
+      tab = PokeAccess.ivar(scene, :@indexTask)
+      last = PokeAccess.ivar(scene, :@access_build_tab)
+      scene.instance_variable_set(:@access_build_tab, tab)
+      return nil if last.nil? || last == tab
+      key = BUILD_TABS[tab.to_i]
+      key ? PokeAccess::I18n.t(key) : nil
+    end
+
+    # The support levels of a pair the list colours (supportWrite): the ones already seen and the ones still to come
+    # (supportCheck), or nil when the pair has none.
+    def self.support_levels(name, partner)
+      all = (supportWrite(name, partner) rescue nil)
+      return nil unless all.is_a?(Array) && !all.empty?
+      pending = (supportCheck(name, partner) rescue nil) || []
+      seen = all.reject { |l| pending.include?(l) }
+      parts = []
+      parts.push(PokeAccess::I18n.t(:rem_dating_levels_seen, :list => seen.join(", "))) unless seen.empty?
+      parts.push(PokeAccess::I18n.t(:rem_dating_levels_pending, :list => pending.join(", "))) unless pending.empty?
+      parts.empty? ? nil : parts.join(". ")
     end
   end
 end
 
 PokeAccess::Game.define("reminiscencia") do
   after("DatingSimMainScreen", :setText) { |s, _r, _a| PokeAccess::ReminDatingSim.focus(s) }
-  # setText covers every MOVE but not the opening: initialize writes the first label straight into the
-  # message window and only then enters the loop, so setText has not run yet and the hub opened silent.
-  # Hooking initialize would not help -- it calls main_loop from inside itself, so an after-hook on it would
-  # not fire until the whole screen closed. before main_loop is the moment the first label already exists
-  # and the loop has not started.
+  # The opening, which setText misses: the first label and the HUD, before main_loop (initialize calls it itself, so
+  # an after-hook there would wait for the close).
   before("DatingSimMainScreen", :main_loop) do |s, _a|
     PokeAccess::ReminDatingSim.focus(s)
     PokeAccess::ReminDatingSim.hud(s)
   end
 
-  # The day's results: drawData paints the title and up to 42 "ITEMxN" rows one by one, hands the items
-  # over as it goes, and draws the cleanliness as a bar whose length is its only trace. Captured around
-  # the whole of it and said once it returns, before the screen waits for a key.
+  # The day's results: drawData's title and "ITEMxN" rows plus its cleanliness bar as a number, said as it returns.
   around("DatingSimResultsScreen", :drawData, :optional => true) do |_s, nxt, _a|
     PokeAccess::PaintCapture.arm(:rem_results)
     begin
@@ -67,30 +102,22 @@ PokeAccess::Game.define("reminiscencia") do
     end
   end
 
-  # Sleeping rolls the day counter to its new value, brown forwards and red backwards, and the number is
-  # said nowhere else. The whole animation runs inside the constructor, so the value is said as it returns.
+  # SlideDay, the day counter sleeping rolls (animated in its constructor): the new day, and if it went back.
   after("SlideDay", :initialize, :optional => true) do |_s, _r, args|
     day = ($Trainer.dateDays rescue nil)
-    PokeAccess.speak("Día #{day}#{args[1] == false ? ', retrocede' : ''}", true) if day
+    PokeAccess.speak(PokeAccess::ReminDatingSim.day_text(day, args[1]), true) if day
   end
 
-  # Task screen: the gender tabs (@indexGender 0 male / 1 female / 2 unknown) are a sprite cursor with no
-  # window; setGenderPage runs when the tab changes, so announce the selected gender there. The command
-  # window with the character names under each tab is read by the generic hook.
-  gender_key = lambda do |g|
-    { 0 => :rem_dating_male, 1 => :rem_dating_female, 2 => :rem_dating_unknown }[g]
-  end
+  # Task screen gender tabs (@indexGender 0 male, 1 female, 2 unknown): on setGenderPage, the tab's sign, or a word
+  # for the third's question mark, which a screen reader drops.
   after("DatingSimTaskScreen", :setGenderPage) do |scene, _r, _a|
     g = PokeAccess.ivar(scene, :@indexGender)
-    k = gender_key.call(g)
-    PokeAccess.speak(PokeAccess::I18n.t(k), true) if k
+    t = PokeAccess::Party.sign(g) || (g == 2 ? PokeAccess::I18n.t(:rem_dating_unknown) : nil)
+    PokeAccess.speak(t, true) if t
   end
 
-  # Support screen: @index selects the left character and @cmdwindow.index the partner; updatePoints runs
-  # on each move of EITHER cursor, repainting both point windows and the "Puntos necesarios" line, so both
-  # indexes join the dedup key and the whole pair (points, required, combined total) is read together --
-  # those numbers are what decide whether the interaction can start at all. The cursor does NOT move with
-  # the arrows: the scene watches two raw scancodes of its own, outside the mod's remapping.
+  # Support screen (@index the left character, @cmdwindow.index the partner): on updatePoints, when either moves,
+  # the character's points, then the partner's with the required and combined totals.
   after("DatingSimSupportScreen", :updatePoints) do |scene, _r, _a|
     chars = PokeAccess.ivar(scene, :@characters)
     idx   = PokeAccess.ivar(scene, :@index)
@@ -108,31 +135,37 @@ PokeAccess::Game.define("reminiscencia") do
       parts.push(PokeAccess::I18n.t(:rem_dating_pair, :name => pname, :n => ppts.to_i,
                                     :req => (req.nil? ? "----" : req),
                                     :tot => (pts.to_i + ppts.to_i)))
+      parts.push(PokeAccess::ReminDatingSim.support_levels(name, pname))
     end
-    txt = parts.join(". ")
+    txt = parts.compact.join(". ")
     PokeAccess.speak_clean(txt, true)
   end
 end
 
-# The build screen's material table: recipe headers and the have/need count per material, repainted by
-# drawDataWindow on every selection or tab change and captured whole -- the rows are the screen's own
-# words and numbers. The green/red the sighted player gets is the count comparison, already in the rows.
+# The build screen's material table (recipe, header, each material beside its have/need count), captured row by row
+# from drawDataWindow; after a tab switch (setWindowSelect), the tab's name leads it.
 PokeAccess::Game.define("reminiscencia") do
+  after("DatingSimBuildScreen", :setWindowSelect, :optional => true) do |scene, _r, _a|
+    tab = PokeAccess::ReminDatingSim.build_tab_change(scene)
+    scene.instance_variable_set(:@access_build_tab_word, tab) if tab
+  end
   around("DatingSimBuildScreen", :drawDataWindow, :optional => true) do |scene, nxt, _a|
     PokeAccess::PaintCapture.arm(:rem_build)
     begin
       nxt.call
     ensure
-      t = PokeAccess::PaintCapture.text(PokeAccess::PaintCapture.take(:rem_build))
-      PokeAccess.speak(t, true) if !t.empty? && PokeAccess::Cursor.changed?(scene, :rem_build, t)
+      t = PokeAccess::ReminDatingSim.build_text(PokeAccess::PaintCapture.take_pairs(:rem_build))
+      tab = PokeAccess.ivar(scene, :@access_build_tab_word)
+      scene.instance_variable_set(:@access_build_tab_word, nil)
+      if !t.empty? && (PokeAccess::Cursor.changed?(scene, :rem_build, t) || tab)
+        PokeAccess.speak(PokeAccess.sentences([tab, t]), true)
+      end
     end
   end
 end
 
-# The build screen's material list (Window_CommandPokemonCraftSim) paints each row twice: the command
-# string on the left and, at a fixed column, how many of that material the dating bag holds -- the
-# quantity is the half the generic reader missed. The window's own translation-key table maps the row to
-# the bag name, with the single-row objective case mirrored from drawItem.
+# The build screen's material list (Window_CommandPokemonCraftSim): each row with the quantity the dating bag holds,
+# keyed by the window's translation list (a single row is the current objective, as in drawItem).
 PokeAccess::Menus.def_extractor("Window_CommandPokemonCraftSim") do |win, i|
   cmds = win.instance_variable_get(:@commands)
   if cmds.is_a?(Array) && cmds[i]

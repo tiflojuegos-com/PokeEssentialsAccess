@@ -1,8 +1,4 @@
-# A command window whose LIST is replaced while the cursor stays put. The reader keyed on the index alone,
-# so that frame looked exactly like a frame in which nothing happened, and it said nothing -- while the row
-# under the cursor now meant something completely different. Fire Ash's battle-swap screen does it on
-# purpose: it puts the rival's team where yours was, index still on the first row, and the player went on
-# believing they were looking at their own team.
+# A command window whose list is replaced, or changes size, under a still cursor speaks its focused row again.
 Suite.define("menus: replacing a window's list under a still cursor is a change, and it speaks") do
   win = Window_DrawableCommand.new(["Charmander", "Squirtle", "Bulbasaur"])
   win.index = 0
@@ -21,10 +17,6 @@ Suite.define("menus: replacing a window's list under a still cursor is a change,
   win.update
   eq "the list swapped under the same index speaks the new row", SpeakCapture.lines, ["Pidgey"]
 
-  # A list that changed SIZE is a different list, even when the focused row still reads the same, and the
-  # reader says it again. Deliberate: the row may now be a different thing under the same words (a filtered
-  # dex, a bag an item just left), and for a blind player a redundant line costs a second while a silent
-  # frame costs the whole meaning of the screen.
   SpeakCapture.clear
   win.instance_variable_set(:@commands, ["Pidgey", "Rattata"])
   win.update

@@ -1,7 +1,5 @@
-# read_on_open: the opening-summary primitive. Its one hard rule is QUEUED speech (interrupt false,
-# always) -- an opening read must never cut the transition or a line already playing; only navigation
-# readers interrupt. Default timing is after the opener; :timing => :before speaks before the original
-# runs (openers that block in their own loop, like OpaloCard's pages). Nil/empty text stays silent.
+# Hooks.read_on_open, the opening summary: always queued, after the opener, or before it with :timing => :before
+# (for openers that block in their own loop); a nil text says nothing.
 Suite.define("hooks: read_on_open speaks queued, before or after the opener") do
   order = []
   klass = Class.new do

@@ -1,13 +1,7 @@
-# Bag extractor with a choose-item filter (v21): in choose-item mode Window_PokemonBag filters the pocket
-# through @filterlist and exposes the mapped id via #item, so the visual index differs from the real pocket
-# index. The extractor must announce the item under the cursor (name + quantity of the RIGHT entry, not a
-# neighbour) and must read the trailing row as "Close bag", never as an item. The fake window mirrors the
-# real v21 API the extractor relies on: #pocket, #index, #item and #itemCount are filterlist-aware, and the
-# raw pocket lives in @bag.pockets. filter keeps pocket indices [1, 3], so visual 0 -> real 1, visual 1 ->
-# real 3, and visual 2 is the close row.
-#
-# The bag window stand-in sits at FILE level: a fixture two suites share belongs to neither of them, and
-# building it inside the first would make any other running order a NameError.
+# The bag's choose-item filter (v21): the item under the cursor is read through @filterlist (visual 0 is real 1,
+# visual 1 real 3, visual 2 the close row), and the trailing row is Close bag, never an item.
+
+# The bag window stand-in, at file level since both suites use it.
 unless Object.const_defined?(:Window_PokemonBag)
   win_klass = Class.new do
     attr_accessor :index
@@ -62,9 +56,7 @@ Suite.define("menus: filtered bag announces the mapped item, not a neighbour") d
          !(not_spoke_close.include?("Caramelo") || not_spoke_close.include?(":"))
 end
 
-# The same extractor with no filter (normal browse) keeps reading the pocket directly by visual index, so the
-# fix does not regress the common path: id and quantity come straight from @bag.pockets[pocket][index] and
-# the trailing row is still Close bag.
+# With no filter the pocket is read directly by visual index, and the trailing row is still Close bag.
 Suite.define("menus: unfiltered bag reads the pocket directly and closes on the last row") do
   bag_klass = Class.new do
     attr_reader :pockets

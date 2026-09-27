@@ -1,9 +1,5 @@
-# Modern-path regression: in v21 the fight menu opens via setIndexAndMode, which assigns @mode DIRECTLY
-# without going through the mode= setter, so the mode= hook never sees the open. Before the fix, @access_mega
-# stayed nil and the FIRST real Mega-Evolution toggle of every battle was swallowed (mega_key(nil, 2) => nil).
-# The setIndexAndMode hook must prime @access_mega from the opening mode so the open stays muted and the first
-# available(1)->registered(2) toggle is voiced. Runs only in the gamedata engine pass (the fork/vanilla v21
-# Battle::Scene is stubbed there); gen-6 uses FightMenuDisplay and is covered separately.
+# v21's setIndexAndMode sets @mode without the mode= setter, so its hook primes @access_mega from the opening mode:
+# the open says no toggle, and the first available (1) to registered (2) toggle is voiced.
 Suite.define("battle (gamedata): first v21 mega toggle sounds after opening via setIndexAndMode") do
   menu = ::Battle::Scene::FightMenu.new
   menu.setIndexAndMode(0, 1)
@@ -15,8 +11,25 @@ Suite.define("battle (gamedata): first v21 mega toggle sounds after opening via 
         /#{Regexp.escape(PokeAccess::I18n.t(:bt_mega_on))}/
 end
 
-# The open with mega hidden (mode 0) primes nothing, and a later reveal is still not spoken (it is not a
-# toggle), but the toggle after it is -- so the guard both stays quiet on the open and never over-announces.
+# Opening with the mechanic available is said, by the name the battle kit gave it (note_special_action) if any.
+Suite.define("battle (gamedata): a fight menu that opens with the mechanic available says so") do
+  menu = ::Battle::Scene::FightMenu.new
+  SpeakCapture.clear
+  PokeAccess::Battle.note_special_action(true)
+  menu.setIndexAndMode(0, 1)
+  eq "plain Mega Evolution", SpeakCapture.lines, [PokeAccess::I18n.t(:bt_mega_ready)]
+  SpeakCapture.clear
+  PokeAccess::Battle.note_special_action(:dynamax)
+  menu.setIndexAndMode(0, 1)
+  eq "the kit's dynamax by its name", SpeakCapture.lines,
+     [PokeAccess::I18n.t(:bt_special_ready, :name => PokeAccess::I18n.t(:bt_m_dynamax))]
+  SpeakCapture.clear
+  menu.setIndexAndMode(0, 0)
+  eq "hidden, nothing", SpeakCapture.lines, []
+  PokeAccess::Battle.note_special_action(nil)
+end
+
+# Toggling back from registered (2) to available (1) is said as off.
 Suite.define("battle (gamedata): mega toggle still deactivates on the second press") do
   menu = ::Battle::Scene::FightMenu.new
   menu.setIndexAndMode(0, 1)

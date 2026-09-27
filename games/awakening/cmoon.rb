@@ -1,8 +1,5 @@
-# The CMoon hub (pbDMoon, script 0221) and the screens it opens: diary, legendaries, compendium, miscellaneous
-# and summon creator. The cursor is a LOCAL variable, so an around-hook holds the screen while its loop runs
-# and a per-frame poll mirrors its navigation (no wrap); the labels are captured from the pbDrawOutlineText
-# calls each screen paints at setup. A STACK of frames rather than one flag, because the hub opens its
-# submenus from INSIDE its own loop and a single flag would leave the hub's mirror armed underneath them.
+# The CMoon hub (pbDMoon) and its submenus, whose cursor is a local variable: a per-frame poll mirrors it (no
+# wrap) over the labels painted by pbDrawOutlineText, with a stack of frames as submenus open inside the hub.
 module PokeAccess
   module AwakeningCMoon
     @entries = nil
@@ -11,9 +8,8 @@ module PokeAccess
     @last = nil
     @stack = []
 
-    # Opens a mirror frame. entries is how many rows the screen holds; nil means a screen this file does not
-    # read -- the summon crafter, announced by its own plugin reader -- whose frame exists only so the screen
-    # underneath stays quiet and stops collecting its labels while it is up.
+    # Opens a mirror frame for a screen of entries rows; nil for a screen read elsewhere, whose frame only keeps
+    # the one underneath quiet.
     def self.open(entries)
       @stack.push([@entries, @labels, @sel, @last])
       @entries = entries
@@ -22,8 +18,7 @@ module PokeAccess
       @last = nil
     end
 
-    # Closes the current frame and restores the one underneath, with its focus forgotten so coming back to it
-    # says where you are instead of leaving a screen that never speaks again.
+    # Closes the current frame and restores the one underneath, its focus forgotten so it speaks again.
     def self.close
       @entries, @labels, @sel, @last = @stack.pop || [nil, [], 0, nil]
       @last = nil
@@ -47,23 +42,15 @@ module PokeAccess
       @last = @sel
       name = @labels[@sel]
       return if name.nil? || name.empty?
-      PokeAccess.speak(PokeAccess::I18n.t(:list_entry, :name => name,
-                                          :n => @sel + 1, :tot => @entries), true)
+      PokeAccess.speak(PokeAccess::Verbosity.list_entry(name, @sel + 1, @entries), true)
     rescue StandardError
       nil
     end
   end
 end
 
-# Row counts come from each screen's own bound in the dump (`select < N` gives N + 1 rows): pbDMoon 0221,
-# pbDMoonb 0224 and pbDMoonc 0225 hold five, pbCompendium 0222 two, pbCallMisc 0223 four.
-#
-# The rest are listed with NO count on purpose. They are screens this file does not read -- each has its own
-# reader, or none yet -- and they are opened from inside a hub loop that has not ended, so without a frame of
-# their own the hub's mirror stays armed underneath: their UP/DOWN moves the hub cursor too and the player
-# hears an entry from the screen behind, while pbDrawOutlineText keeps appending their labels to the hub's
-# list and shifting those wrong entries further with every one. A countless frame is the "somebody else owns
-# this screen, keep quiet" marker.
+# Screen => row count, from each screen's bound in the dump (`select < N` gives N + 1 rows). A nil count marks a
+# screen read elsewhere (or not yet) that opens inside a hub loop: its frame keeps the hub's mirror quiet.
 module PokeAccess
   module AwakeningCMoon
     SCREENS = {
@@ -87,8 +74,7 @@ PokeAccess::Game.define("awakening") do
       end
     end
   end
-  # The same, for the children that are classes rather than top-level functions. Both are opened with .new
-  # and run their whole screen from the constructor, so that is where the frame has to go.
+  # The same quiet frame for the class screens, which run from their constructor.
   [["Fates_Menu_Personajes", :initialize], ["Logros_Scene", :initialize]].each do |cname, meth|
     around(cname, meth) do |_s, nxt, _a|
       PokeAccess::AwakeningCMoon.open(nil)
@@ -99,11 +85,7 @@ PokeAccess::Game.define("awakening") do
       end
     end
   end
-  # FatesCartas.main is a SINGLETON method, and around cannot see one: wrap tests method_defined?, which asks
-  # about instance methods only, so this hook silently bound nothing and logged a phantom typo on every boot.
-  # The frame it was meant to open never opened either, leaving the hub's own row poller armed while the card
-  # screen was up -- and the cards move with UP and DOWN, so every keypress also announced a hub row on top
-  # of them. override resolves the singleton (fates_extra.rb wraps the same method that way).
+  # FatesCartas.main is a singleton method, which around cannot bind (it checks instance methods); override can.
   override("FatesCartas", :main) do |_mod, original, _args|
     PokeAccess::AwakeningCMoon.open(nil)
     begin

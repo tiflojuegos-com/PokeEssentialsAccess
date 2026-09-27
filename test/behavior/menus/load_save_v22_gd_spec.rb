@@ -1,8 +1,5 @@
-# The v22 title screen (Essentials v22 UI::LoadVisuals) and in-game save screen (UI::SaveVisuals). The
-# title screen is the FIRST thing a blind player meets, and it hides a destructive choice: with several
-# saves, LEFT/RIGHT on Continue cycle the slot through set_slot_index, which never touches @index -- so a
-# reader hooked only on the command cursor lets the player load, or overwrite, a save it never named. Both
-# hooks were unasserted. Runs only in the gamedata pass.
+# The v22 title screen (UI::LoadVisuals) and in-game save screen (UI::SaveVisuals): the command, the save it would
+# load, and the slot left/right cycles through set_slot_index, which never touches @index. Gamedata pass.
 
 # A [filename, hash] save entry shaped like the real one: hash[:player] (name + pokedex) and hash[:stats]
 # (play_time in seconds).
@@ -42,9 +39,7 @@ Suite.define("v22 title: the focused command is read, and Continue also summaris
   not_spoke "and a command that loads nothing does not summarise a save", /Ayoub/
 end
 
-# The destructive one: cycling the slot on Continue must name WHICH save is now selected. The number is
-# what the player navigates by, so slot and total are both required, and the summary must follow the slot
-# rather than staying on the one the screen opened with.
+# Cycling the slot on Continue names the slot out of the total and summarises that slot's save.
 Suite.define("v22 title: cycling the save slot names the slot and re-summarises it") do
   saves = load_v22_saves
   vis = UI::LoadVisuals.new({ :continue => "Continuar" }, saves)
@@ -64,8 +59,7 @@ Suite.define("v22 title: cycling the save slot names the slot and re-summarises 
   spoke "with its trainer", /Ayoub/
 end
 
-# The in-game save screen walks the slots by number, and the entry one past the last save is the free slot:
-# it must read as empty rather than repeating the previous save's summary.
+# The save screen summarises each slot; the entry past the last save is the free slot, read as empty.
 Suite.define("v22 save: each slot is summarised and the free slot reads empty") do
   vis = UI::SaveVisuals.new(load_v22_saves)
 

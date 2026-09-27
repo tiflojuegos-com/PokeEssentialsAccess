@@ -1,7 +1,4 @@
-# Hook chaining: several hooks on the same method must all run (an onion), the original's return value is
-# preserved, and hooking a parent then a child that overrides the same method (with super) keeps the child's
-# logic and its super chain intact -- the real game Options-screen case. Targets are defined here; after_hook
-# patches the method when called, so load order does not matter.
+# Several after-hooks on one method all run, and the original's return value is kept.
 Suite.define("hooks: multiple after-hooks chain and keep the result") do
   klass = Class.new { def greet(x); x * 2; end }
   Object.const_set(:HookChainTarget, klass) unless Object.const_defined?(:HookChainTarget)
@@ -13,9 +10,7 @@ Suite.define("hooks: multiple after-hooks chain and keep the result") do
   truthy "both after-hooks on the same method run", log.include?("A:10") && log.include?("B:10")
 end
 
-# Parent + overriding child: a hook on the base and a hook on the child must both fire, and the child's own
-# body plus its super call must still run, in order: child body, base (via super), then the base hook, then
-# the child hook.
+# A hooked base and a hooked overriding child: child body, base via super, base hook, then child hook.
 Suite.define("hooks: parent and overriding child both fire, super intact") do
   log = []
   base = Class.new { define_method(:step) { log << "base" } }
@@ -29,9 +24,8 @@ Suite.define("hooks: parent and overriding child both fire, super intact") do
   eq "child body, super, then both hooks in order", log, ["child", "base", "HB", "HC"]
 end
 
-# The typo detector (Hooks.missing): a binding whose CLASS exists but METHOD does not is recorded (a likely
-# typo -> a permanently dead feature); a binding whose whole class is absent is NOT recorded (normal
-# cross-game variance, handled silently). Unique names so other suites cannot pollute the assertion.
+# Hooks.missing, the typo list: a bind on an absent method of a present class is recorded; one on an absent class
+# (normal variance between games) is not.
 Suite.define("hooks: missing records typo, ignores absent class") do
   target = Class.new { def real_method; end }
   Object.const_set(:HookMissTarget, target) unless Object.const_defined?(:HookMissTarget)
@@ -43,9 +37,7 @@ Suite.define("hooks: missing records typo, ignores absent class") do
         PokeAccess::Hooks.missing.include?("HookNoSuchClassXYZ_pa#whatever")
 end
 
-# :optional declares the METHOD legitimately absent on some games (a plugin variant, a fork rename): the
-# bind is skipped silently, so @missing keeps its exact meaning of "possible typo". Where the method DOES
-# exist, :optional binds normally -- it only changes the absent-method outcome. All four registrars accept it.
+# :optional skips a bind on an absent method without recording it in missing, and binds a present one as usual.
 Suite.define("hooks: :optional skips an absent method silently but still binds a present one") do
   target = Class.new { def present_method; :orig; end }
   Object.const_set(:HookOptTarget, target) unless Object.const_defined?(:HookOptTarget)
@@ -64,14 +56,8 @@ Suite.define("hooks: :optional skips an absent method silently but still binds a
   eq "the optional hook on a present method fired", fired, [:orig]
 end
 
-# wrap_global: the shared helper that replaced six copy-pasted Object-method wraps. :after runs after the
-# original and sees its return value; :before runs first with a nil result; the original's return is
-# preserved; it never double-wraps. Throwaway Object methods stand in for the real (stubbed-away) sites.
-# A SECOND hook on the same function chains onto the first instead of vanishing. An installer that returns
-# early once the alias exists binds nothing for whichever reader registered second, with no entry in missing
-# and nothing in the diagnostic to show for it. The original must still run exactly once, which is what that
-# early return protects and what installing the wrapper once, with the bodies in a list beside it, protects
-# instead.
+# wrap_global: :after sees the original's return value, :before runs first with nil; the original runs once and a
+# second body on the same function chains after the first; a missing function is not defined.
 Suite.define("hooks: wrap_global timing, return value and chained bodies") do
   wg = []
   Object.send(:define_method, :pa_wg_after) { |x| wg.push([:orig, x]); x * 2 }
@@ -82,7 +68,6 @@ Suite.define("hooks: wrap_global timing, return value and chained bodies") do
   eq "the original runs once and BOTH after-bodies run, in order",
      wg, [[:orig, 5], [:after, 5, 10], [:dup, 10]]
 
-  # A broken body must not take its neighbours down with it, nor the function.
   wg3 = []
   Object.send(:define_method, :pa_wg_chain) { |x| x }
   PokeAccess::Hooks.wrap_global("pa_wg_chain", "hook_t5", :after) { |_a, _r| raise "boom" }
@@ -100,9 +85,7 @@ Suite.define("hooks: wrap_global timing, return value and chained bodies") do
   eq "wrapping a missing method creates no alias", Object.method_defined?(:pa_wg_missing_xyz__pa), false
 end
 
-# Failure path: a throwing hook/poller body must be logged-once and SWALLOWED, never propagated -- a reader
-# bug must not crash a wrapped global or the per-frame input loop. Guards the regression where the call sites
-# referenced an undefined log_once (the suite was green because nothing exercised the rescue branch).
+# A throwing wrap_global body or frame poller is logged once and swallowed, never propagated.
 Suite.define("hooks: a throwing body is swallowed, not propagated") do
   truthy "log_once is defined", PokeAccess.respond_to?(:log_once)
   Object.send(:define_method, :pa_wg_raise) { |x| x + 1 }
@@ -115,11 +98,8 @@ Suite.define("hooks: a throwing body is swallowed, not propagated") do
   eq "a throwing per-frame poller does not propagate", poller, :ok
 end
 
-# Reentrancy guard (after-hook path): when an after-hooked method's ORIGINAL synchronously calls a DIFFERENT
-# hooked method, the inner hook is skipped so it cannot speak or consume the outer's dedup -- the OUTER
-# after-hook, running once the original returns, is the authoritative announcer (the real v22 set_party_index
-# -> refresh case). Called on its own (not nested) the inner hook fires normally, proving the guard changes
-# only the nested path.
+# Reentrancy guard: a different hooked method called inside an after-hooked original has its hook skipped, so it
+# cannot take the outer's dedup key; called on its own, its hook fires.
 Suite.define("hooks: a nested different-method hook is skipped and keeps the outer's dedup") do
   klass = Class.new do
     def outer; inner; :outer_done; end
@@ -130,8 +110,6 @@ Suite.define("hooks: a nested different-method hook is skipped and keeps the out
   inner_stole = false
   outer_spoke = []
   holder = HookReentTarget.new
-  # The inner hook competes for the SAME dedup key on the SAME holder the outer uses: if it were allowed to
-  # run nested, it would consume the key and mute the outer -- exactly the v22 summary regression.
   PokeAccess::Hooks.after_hook("HookReentTarget", :inner) do |i, _r, _a|
     inner_fired += 1
     inner_stole = true if PokeAccess::Cursor.changed?(i, :reent_slot, :k1)
@@ -151,16 +129,12 @@ Suite.define("hooks: a nested different-method hook is skipped and keeps the out
   eq "the inner hook fires when it is the top-level call", inner_fired, 1
 end
 
-# hook_container: the escape hatch for a CONTAINER -- a modal loop or scene opener whose original delegates the
-# announcement to hooked methods it drives internally. This is the gen-6 battle command phase: the
-# pbUpdateSelected / command-loop original drives the display's own hooked index setter every frame, and the
-# default reentrancy guard would mute that reader (the real regression where Pokemon Z battles read nothing).
-# Marking the outer hook hook_container: true runs its original UNGUARDED so the nested reader speaks, while the
-# atomic guard above is untouched -- both behaviours coexist.
+# hook_container: an after-hook on a container (a loop or opener that drives other hooked readers, like the gen-6
+# battle command phase) runs its original unguarded, so the nested reader speaks; a plain after-hook mutes it.
 Suite.define("hooks: a hook_container lets its nested reader speak (battle command phase)") do
   klass = Class.new do
-    def loop_update(i); set_index(i); :looped; end   # the container: drives the reader internally
-    def set_index(i); @i = i; :set; end              # the real reader (a hooked display setter)
+    def loop_update(i); set_index(i); :looped; end
+    def set_index(i); @i = i; :set; end
   end
   Object.const_set(:HookContainerTarget, klass) unless Object.const_defined?(:HookContainerTarget)
   read = []
@@ -171,7 +145,6 @@ Suite.define("hooks: a hook_container lets its nested reader speak (battle comma
   holder.loop_update(2)
   eq "the nested reader speaks because the container ran unguarded", read, [2]
 
-  # Contrast: the SAME nested call, but the outer is a plain (atomic) after-hook -> guarded -> reader muted.
   klass2 = Class.new do
     def loop_update(i); set_index(i); :looped; end
     def set_index(i); @i = i; :set; end
@@ -185,20 +158,14 @@ Suite.define("hooks: a hook_container lets its nested reader speak (battle comma
   eq "without hook_container the guard mutes the nested reader", read2, []
 end
 
-# frame_hook: a per-frame DRIVER whose original can synchronously host an ENTIRE nested modal loop. This is
-# the real Pokemon Z wild-battle regression: gen-6 launches the whole battle from inside Game_Player#update
-# (Scene_Map#update -> $game_player.update -> encounter -> the full battle loop), so an atomic after-hook on
-# update would pin :update on the reentrancy stack for the entire fight and skip EVERY battle reader as
-# nested_other? -- total silence in wild battles only (trainer battles run from the interpreter, not the
-# player, so they were unaffected). frame_hook runs the driver's original UNGUARDED so all the readers driven
-# inside the nested battle loop still speak, and runs its own body after (a poller reading post-update state
-# has no lag). The contrast case reproduces the exact silence an atomic after-hook caused.
+# frame_hook: a per-frame driver whose original can host a whole nested loop (gen-6 runs wild battles inside
+# Game_Player#update) runs it unguarded, so the readers inside speak, and its body after; an after-hook mutes them.
 Suite.define("hooks: a frame_hook lets readers inside a nested battle loop speak (wild-battle regression)") do
   klass = Class.new do
-    def update; run_battle; :updated; end          # the per-frame driver that hosts the whole battle
-    def run_battle; show_message; move_cursor; :fought; end  # the nested modal loop
-    def show_message; :msg; end                    # a battle reader (message)
-    def move_cursor; :cur; end                     # another battle reader (command/move cursor)
+    def update; run_battle; :updated; end
+    def run_battle; show_message; move_cursor; :fought; end
+    def show_message; :msg; end
+    def move_cursor; :cur; end
   end
   Object.const_set(:HookFrameDriver, klass) unless Object.const_defined?(:HookFrameDriver)
   spoke = []
@@ -213,7 +180,6 @@ Suite.define("hooks: a frame_hook lets readers inside a nested battle loop speak
   truthy "the nested cursor reader spoke", spoke.include?(:cur)
   truthy "the frame_hook body ran too", spoke.include?(:tick)
 
-  # Contrast: the SAME nested readers, but the driver is a plain (atomic) after-hook -> guarded -> both muted.
   klass2 = Class.new do
     def update; run_battle; :updated; end
     def run_battle; show_message; move_cursor; :fought; end
@@ -230,9 +196,7 @@ Suite.define("hooks: a frame_hook lets readers inside a nested battle loop speak
   eq "an atomic after-hook driver mutes every reader in the nested loop", spoke2, []
 end
 
-# Reentrancy guard must not break around-hook semantics: when the wrapped original raises, the around body's
-# ensure still runs and the exception still propagates (around may legitimately let a failure through). The
-# guard only touches before/after; an around wrapping a throwing original is the case to protect.
+# An around-hook whose original raises still runs its ensure, and the exception propagates.
 Suite.define("hooks: an around-hook runs its ensure and propagates when the original raises") do
   klass = Class.new { def boom; raise "kaboom"; end }
   Object.const_set(:HookAroundEnsure, klass) unless Object.const_defined?(:HookAroundEnsure)
@@ -245,13 +209,8 @@ Suite.define("hooks: an around-hook runs its ensure and propagates when the orig
   eq "the original's exception still propagated out of the around-hook", outcome, "kaboom"
 end
 
-# Reentrancy guard MUST NOT reach the before-hook path. A before_hook commonly wraps a modal loop or a scene
-# opener (pbScene, pbStartScene, main) whose original synchronously drives OTHER announcing hooks -- the
-# pokedex-entry drawPage, the summary drawPageOne, the party panel selected=. Its body already spoke (or, as
-# here, only reset a dedup) BEFORE the original, so nothing it owns is at risk; the nested announcer MUST fire.
-# Guarding the before path muted that whole family (pokedex/summary/party silent on open). This models the
-# real chain: an opener before-hook that only resets, whose original draws via a DIFFERENT after-hook that
-# announces through the just-reset dedup.
+# The reentrancy guard stays off the before-hook path: an opener whose before-hook only resets a dedup lets the
+# announcer its original drives speak through the reset slot.
 Suite.define("hooks: a before-hook opener does not mute the nested announcer its original drives") do
   klass = Class.new do
     def open_scene; draw_page; :opened; end
@@ -260,8 +219,6 @@ Suite.define("hooks: a before-hook opener does not mute the nested announcer its
   Object.const_set(:HookOpenerTarget, klass) unless Object.const_defined?(:HookOpenerTarget)
   drew = []
   holder = HookOpenerTarget.new
-  # The opener's before-body only clears the dedup (as pbScene/pbStartScene reset do); the nested draw_page
-  # after-hook is the actual announcer and must speak through the freshly reset slot.
   PokeAccess::Hooks.before_hook("HookOpenerTarget", :open_scene) do |i, _a|
     PokeAccess::Cursor.reset(i, :opener_slot)
   end
@@ -274,9 +231,7 @@ Suite.define("hooks: a before-hook opener does not mute the nested announcer its
   eq "the nested draw announcer fired while inside the opener's original", drew, [:page]
 end
 
-# The asymmetry, side by side: the SAME nested-announcer method, driven once by an after-hooked caller
-# (guarded -> skipped) and once by a before-hooked caller (unguarded -> fires). Locks that the guard lives on
-# the after path only, so fixing the v22 dedup competition never re-silences an opener.
+# The same nested announcer is skipped under an after-hooked caller and fires under a before-hooked one.
 Suite.define("hooks: the guard applies to the after caller but not the before caller") do
   klass = Class.new do
     def after_caller; announce; :a; end
@@ -297,10 +252,8 @@ Suite.define("hooks: the guard applies to the after caller but not the before ca
   eq "nested announce fires when driven by a before-hooked caller", fired, [:ann]
 end
 
-# One game aliases the modern spellings to the gen-6 ones with EMPTY subclasses (africanvs ships a BES-T
-# compatibility file with nine of them: `class PokemonSummary_Scene < PokemonSummaryScene; end`). Both names
-# resolve, so a group over the two spellings bound both -- and an instance of the subclass then runs the
-# child's wrapper, whose alias calls the parent's wrapper too. A body that SPEAKS would say it twice.
+# Hooks.variants does not bind a spelling that is only an alias (an empty subclass) of another it binds, so an
+# instance of either speaks once.
 Suite.define("hooks: a spelling that is only an alias of another is not bound a second time") do
   Object.const_set(:PaVarBase, Class.new { def paint; :painted; end }) unless defined?(PaVarBase)
   Object.const_set(:PaVarAlias, Class.new(PaVarBase)) unless defined?(PaVarAlias)
@@ -322,15 +275,8 @@ Suite.define("hooks: a spelling that is only an alias of another is not bound a 
         PokeAccess::Hooks.unbound.any? { |u| u =~ /pa_var/ }
 end
 
-# Visibility: the wrapper stands in for the game's own function, so it must be callable exactly where the
-# original was. A top-level def lands public or private depending on how the runtime evaluated the script
-# that defined it, and games differ: Soulstones 2 reaches its own reader as "Kernel.tts(msg)" on every
-# battle message, which only works while tts is public. A blanket private after wrapping would have turned
-# that call into a NoMethodError on the first line of the first battle.
-#
-# And wrap_kernel must ask whether KERNEL owns the function, not whether Kernel responds to it: everything
-# public on Object answers yes to the second question, and wrapping such a function on Kernel leaves every
-# bare call in the game -- which is how the engine calls its own painters -- going straight to the original.
+# wrap_global keeps the function's visibility (a game may call a public one as Kernel.tts); wrap_kernel wraps on
+# Kernel only what Kernel owns, else on Object, where the bare calls go.
 Suite.define("hooks: wrapping a global keeps its visibility and picks the right receiver") do
   Object.send(:define_method, :pa_wg_public) { |x| x }
   Object.send(:public, :pa_wg_public)
@@ -346,7 +292,6 @@ Suite.define("hooks: wrapping a global keeps its visibility and picks the right 
          Object.private_method_defined?(:pa_wg_public__pa) &&
          Object.private_method_defined?(:pa_wg_private__pa)
 
-  # A public Object method that Kernel merely inherits must be wrapped on Object, where the bare calls are.
   seen = []
   Object.send(:define_method, :pa_wk_object) { |x| x }
   Object.send(:public, :pa_wk_object)
@@ -354,7 +299,6 @@ Suite.define("hooks: wrapping a global keeps its visibility and picks the right 
   pa_wk_object(11)
   eq "a bare call to an Object-owned function reaches the wrapper", seen, [11]
 
-  # One Kernel really owns keeps the gen-6 path.
   seen2 = []
   (class << Kernel; self; end).send(:define_method, :pa_wk_kernel) { |x| x }
   PokeAccess::Hooks.wrap_kernel("pa_wk_kernel", "hook_vis4", :before) { |args, _r| seen2.push(args[0]) }

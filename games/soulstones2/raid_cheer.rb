@@ -1,7 +1,5 @@
-# The in-battle half of DBK Raid Battles (an "[Edited]" copy, hence the profile): the cheer menu that
-# replaces Call in a raid, and the boss's barrier. The menu is a 2x2 grid of icon buttons driven by
-# pbChooseCheer's own blocking loop, so its focus is polled; what each button does depends on the cheer
-# LEVEL, so the level opens the menu and every button is read with the kit's own description for it.
+# The in-battle half of Soulstones 2's edited DBK Raid Battles: the boss's barrier, and the cheer menu, whose
+# polled 2x2 buttons are read with their description at the cheer level said as it opens.
 module PokeAccess
   module SS2Cheer
     MAX_LEVEL = 3
@@ -26,13 +24,13 @@ module PokeAccess
       [idx, lambda { line(cheer, (win.cheerLvl rescue 0).to_i) }]
     end
 
-    # The shout on the button, then what it does at this level. The kit's :None placeholder has a name and
-    # no shout.
+    # The shout on the button, then what it does at this level while descriptions are said; the info key keeps
+    # both. The kit's :None placeholder has a name and no shout.
     def self.line(cheer, lvl)
       nm = PokeAccess.clean((cheer.cheer_text rescue nil))
       nm = PokeAccess.clean((cheer.name rescue nil)) if nm.empty?
       desc = PokeAccess.clean((cheer.description(lvl) rescue nil))
-      desc.empty? ? nm : "#{nm}, #{desc}"
+      PokeAccess::Verbosity.info_line(:descriptions, [[nm, :brief], [desc, :full]])
     end
 
     # The bars left on the boss's barrier, or nil. Zero is the kit's own "barrier disappeared" message.

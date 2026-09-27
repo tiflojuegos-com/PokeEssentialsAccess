@@ -1,8 +1,5 @@
-# The v22 party screen (Essentials v22 UI::PartyVisuals). Its panels are passive sprites, so the only
-# thing that voices the cursor is the set_index hook -- and the trailing button row is where it gets
-# engine-specific: index MAX_PARTY_SIZE is Cancel normally but CONFIRM in choose-entry-order mode, where
-# Cancel moves one further along. Confusing those two is the difference between confirming a Battle Tower
-# team and throwing it away, and nothing pinned it. Runs only in the gamedata pass.
+# The v22 party screen (UI::PartyVisuals), voiced only by the set_index hook: the members, and the trailing button,
+# Cancel normally but Confirm in choose-entry-order mode (Cancel one further along).
 
 def party_v22_party
   [Poke.build(:name => "Bulba", :level => 12, :hp => 22, :totalhp => 22, :gender => 0),
@@ -16,7 +13,7 @@ Suite.define("v22 party: the focused member is read with sex, level and HP, once
   vis.set_index(0)
   eq "the focused member is read with name, sex, level and HP fraction", SpeakCapture.lines,
      [PokeAccess::I18n.t(:pty_member, :name => "Bulba",
-                         :sex => " " + PokeAccess::I18n.t(:pk_male),
+                         :sex => " \xE2\x99\x82",
                          :level => 12, :hp => 22, :tot => 22)]
 
   SpeakCapture.clear
@@ -27,17 +24,14 @@ Suite.define("v22 party: the focused member is read with sex, level and HP, once
   vis.set_index(1)
   eq "the next member reads its own sex and carries the fainted flag", SpeakCapture.lines,
      [PokeAccess::I18n.t(:pty_member, :name => "Fainty",
-                         :sex => " " + PokeAccess::I18n.t(:pk_female),
+                         :sex => " \xE2\x99\x80",
                          :level => 9, :hp => 0, :tot => 30) + ", " + PokeAccess::I18n.t(:pk_fainted)]
 
-  # The panel marks a shiny with a star and nothing in the mod used to mention it, so a blind player could
-  # raise one to level 100 without ever being told. Asserted HERE, on the line the screen really speaks,
-  # because the composer can be unit-tested green while the call site that uses it is deleted.
   SpeakCapture.clear
   vis.set_index(2)
   eq "a shiny says so, on the line the screen speaks", SpeakCapture.lines,
      [PokeAccess::I18n.t(:pty_member, :name => "Brilli",
-                         :sex => " " + PokeAccess::I18n.t(:pk_male),
+                         :sex => " \xE2\x99\x82",
                          :level => 30, :hp => 50, :tot => 50) + ", " + PokeAccess::I18n.t(:pk_shiny)]
 end
 
@@ -55,9 +49,6 @@ Suite.define("v22 party: reopening the party re-reads the slot the cursor is on"
   spoke_once "a reopened party screen reads that slot again", /Bulba/
 end
 
-# The button row. In the normal screen index MAX_PARTY_SIZE is the only button and it is Cancel; in
-# choose-entry-order (multi-select) the engine inserts Confirm there and pushes Cancel to MAX+1. Same
-# index, opposite meaning -- which is exactly why both are asserted here against each other.
 Suite.define("v22 party: the trailing button is Cancel normally and Confirm in multi-select") do
   normal = UI::PartyVisuals.new(party_v22_party)
   normal.set_index(6)

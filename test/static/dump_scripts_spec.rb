@@ -1,8 +1,5 @@
-# tools/dump_scripts.rb is the tool every profile is written against, and nothing ever EXECUTED it: the
-# suite only compiled it, so a broken slice, a lost collision or a dropped script would ship silently --
-# and a bad dump makes a profile author conclude the game lacks a class it has. Driven here end to end
-# over a synthetic Data/ tree in the real formats (Marshal + Zlib for Scripts.rxdata, the nested plugin
-# shape for PluginScripts.rxdata).
+# tools/dump_scripts.rb run end to end over a synthetic Data/ tree in the real formats: Marshal + Zlib for
+# Scripts.rxdata, the nested plugin shape for PluginScripts.rxdata.
 Suite.define("static: dump_scripts extracts, orders, sanitises and never drops a script") do
   require "zlib"
   require "stringio"
@@ -44,8 +41,6 @@ Suite.define("static: dump_scripts extracts, orders, sanitises and never drops a
     eq "and its source came through the inflate intact",
        File.read(File.join(out, "0000_Main.rb")), "class Main; end"
 
-    # The documented no-silent-drop contract: two scripts under the SAME final name both survive, the
-    # second with the ~N suffix.
     truthy "the first of a name collision keeps its name", all.include?("0500 Same.rb")
     truthy "and the second survives with the ~N suffix", all.include?("0500 Same~1.rb")
     eq "each with its own code", File.read(File.join(out, "0500 Same~1.rb")), "SAME2 = 2"

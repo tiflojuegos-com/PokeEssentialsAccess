@@ -6,7 +6,9 @@
     location_banner
     album
     dexnav
-    starter_select
+    fly_map
+    follower
+    cutscenes
   ],
-  :plugins => %w[gender_selection summary_habilidades hatcher luka_title]
+  :plugins => %w[gender_selection summary_habilidades hatcher luka_title starter_selection fancy_badges]
 }

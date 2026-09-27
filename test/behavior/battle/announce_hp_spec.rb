@@ -1,7 +1,5 @@
-# announce_hp_change: when a battler's HP changes it is spoken once, as a loss or a gain. The player's own
-# Pokemon (even index) reads its exact HP; a foe (odd index) reads a percentage, since the exact value is
-# hidden in battle. No change and a nil old value speak nothing. A small battler stub supplies the four
-# fields the helper reads (hp / totalhp / index / name); the spoken fragments are matched through I18n.
+# announce_hp_change: a change is spoken once as a loss or a gain, the exact HP on the player's side (even index)
+# and a percentage for a foe (odd index); no change and a nil old value speak nothing.
 class TestBattler
   attr_accessor :hp, :totalhp, :index, :name
 
@@ -32,10 +30,6 @@ Suite.define("battle: an unchanged HP says nothing") do
   PokeAccess::Battle.announce_hp_change(pkmn, 40)
   silent "an unchanged HP says nothing"
 
-  # A nil pkmn or a nil oldhp is silent too, but that is NOT provable here and the assert that claimed it
-  # was empty: the subtraction is already inside a `rescue 0`, so removing announce_hp_change's own
-  # `return unless pkmn && oldhp` changes no observable behaviour. The guard stays as defence in depth --
-  # it would matter the day the rescue goes -- and this spec does not pretend to cover it.
   PokeAccess::Battle.announce_hp_change(pkmn, nil)
   silent "and so is a nil previous value, though by the rescue rather than by the guard"
 end

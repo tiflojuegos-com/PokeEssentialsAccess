@@ -1,10 +1,5 @@
-# The v22 pause menu (Essentials v22 UI::PauseMenuVisuals) is the double-read case in its purest form: its
-# command list is a REAL Window_CommandPokemon living in @sprites[:commands], so the screen's per-frame
-# update_visuals reaches that window's own update -- the very method the generic command reader hooks --
-# while the mod also reads the focused command from the screen itself. Two readers, one window, one frame.
-# The mod keeps them apart with its OWN @access_dedicated flag (never @ignore_input, the engine flag whose
-# collision froze the gen-6 move relearner's cursor), planted by the set_commands hook. Runs only in the
-# gamedata pass.
+# The v22 pause menu (UI::PauseMenuVisuals): its command list is a real Window_CommandPokemon, so set_commands claims
+# it with @access_dedicated (never @ignore_input) and each frame reads the focused command once. Gamedata pass.
 
 def pausemenu_v22_commands
   [[:pokedex, :pokemon, :bag], ["Pokedex", "Pokemon", "Bolsa"]]
@@ -44,8 +39,7 @@ Suite.define("v22 pause menu: a frame reads the focused command exactly once") d
   eq "moving the cursor reads the new command, once", SpeakCapture.lines, ["Bolsa"]
 end
 
-# The dedup ivar hangs on the screen, so a pause menu opened again reads its focused command instead of
-# assuming the player still remembers where the cursor was.
+# The dedup lives on the screen, so a reopened pause menu reads its focused command again.
 Suite.define("v22 pause menu: reopening the menu reads the focused command again") do
   first = UI::PauseMenuVisuals.new
   first.set_commands(pausemenu_v22_commands)

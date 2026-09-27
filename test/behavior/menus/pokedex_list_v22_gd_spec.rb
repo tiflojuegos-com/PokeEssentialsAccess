@@ -1,8 +1,5 @@
-# The v22 Pokedex list (Essentials v22 UI::PokedexVisuals). Three states share one row and only the spoken
-# line tells them apart: caught, merely seen, and never encountered -- and the last one must NOT leak the
-# species name, which is the whole point of an unseen entry. The reader had no assert, so nothing stopped
-# the name slipping into the unknown branch or the caught/seen words swapping. Runs only in the gamedata
-# pass. Swaps $player's pokedex and restores it, since the stub's default dex owns everything.
+# The v22 Pokedex list (UI::PokedexVisuals): caught, seen and never-seen rows each read their own way, the last
+# without the species' name. Gamedata pass; $player's pokedex is swapped and restored.
 def pokedex_v22_dex(owned, seen)
   dex = Object.new
   dex.instance_variable_set(:@owned, owned)

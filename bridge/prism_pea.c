@@ -45,14 +45,8 @@ PEA_API int PeaInitialize(void) {
   return pea_acquire();
 }
 
-/* The teardown half of PeaInitialize, exported for symmetry and for any host that has to release prism
- * inside a process that keeps running. The MOD never calls it, and that is a decision, not an oversight:
- * there is no teardown point to call it from. The game ends by the process dying, so Windows unloads this
- * DLL and reclaims the backend, its COM apartment and every handle -- and tearing a speech backend down
- * while the loader is already unwinding is riskier than letting the OS do it. The two events that look
- * like teardown are not: the mod's enable/disable toggle is a RECONNECT gesture (it re-inits, it never
- * releases), and a script reload leaves this DLL loaded, so PeaInitialize finds g_backend alive and
- * returns at once. Idempotent and safe to call twice, for the host that does want it. */
+/* Releases the backend and the prism context; idempotent. The mod never calls it: the game's process exit
+ * releases everything. */
 PEA_API void PeaShutdown(void) {
   if (g_backend != NULL) {
     prism_backend_free(g_backend);

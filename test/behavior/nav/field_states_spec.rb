@@ -1,12 +1,7 @@
-# Two field mechanics that take control away from the player and say so only through animation. Neither is
-# a screen, so nothing could ever have been hooked to one.
+# FieldStates: two field mechanics shown only through animation, spin tiles and the Lens of Truth.
 
-# The direction is the player's FACING, not the terrain under them. The plugin turns the player toward the
-# arrow and moves them in the same call, so by the first frame any poll runs the player already stands one
-# tile past the tile that decided the turn: its tag names the NEXT tile, and a lone spin tile onto plain
-# floor never named its own direction. The reader before that asked $game_player.pbTerrainTag, which exists
-# only in the modern engines, and neither game with the plugin is one -- the rescue answered nil, the key
-# never carried a direction, and a whole chain of turns was one silent "spinning".
+# Spinning names the player's facing, not the tile underfoot (the plugin turns and moves them in one call), then each
+# redirect and the stop.
 Suite.define("nav/field states: spinning names its direction and every redirect, then the stop") do
   fs = PokeAccess::FieldStates
   prev_dir = $game_player.direction
@@ -29,8 +24,6 @@ Suite.define("nav/field states: spinning names its direction and every redirect,
     fs.spin_poll
     silent "and does not repeat it every frame"
 
-    # The plugin redirects on each further spin tile WITHOUT clearing the flag, so a key that only knew
-    # on/off would announce the first direction and stay quiet through a whole chain of turns.
     $game_player.direction = 6
     fs.spin_poll
     spoke "a redirect mid-spin names the new direction", /#{PokeAccess::I18n.t(:fs_spin_right)}/

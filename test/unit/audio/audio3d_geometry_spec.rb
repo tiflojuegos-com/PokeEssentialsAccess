@@ -1,13 +1,8 @@
-# The geometry half of the positional soundscape (core/audio/audio3d.rb): the raycast that decides whether
-# an emitter is behind a wall, the side rays that place the wind loops, and the clustering that keeps a
-# multi-tile structure from pinging once per tile. None of it touches the dll -- line_clear?/ray read
-# $game_player.passable? and cluster is pure arithmetic -- so every case here runs against the REAL grid
-# harness ('#' wall, '.' floor, '@' player), the same one the pathfinder specs use.
+# The soundscape's geometry (core/audio/audio3d.rb): the wall raycast, the side rays of the wind loops and the
+# clustering, on the real grid harness ('#' wall, '.' floor, '@' player); no dll involved.
 
-# line_clear? is the single test that decides whether an emitter behind a wall is dropped (hide mode) or
-# muffled (occlude mode). If it answered "clear" everywhere, a blind player would hear NPCs through walls
-# and walk into them; if it answered "blocked" everywhere the sonar would go silent in any room. Each case
-# is paired with the same geometry MINUS the wall, so the assert can only pass by reading the wall.
+# line_clear? reads occluded only for a wall on the line: not for walls beside it or the emitter's own tile, and a
+# detour does not count (a ray, not a flood fill).
 Suite.define("audio3d: the wall raycast reports occluded only when a wall really sits on the line") do
   a3d = PokeAccess::Audio3D
 
@@ -17,7 +12,6 @@ Suite.define("audio3d: the wall raycast reports occluded only when a wall really
   $game_map.load_grid(["#########", "#@..#...#", "#########"])
   falsy "the same corridor with one wall tile on it is occluded", a3d.line_clear?(1, 1, 7, 1)
 
-  # Discrimination: walls that merely border the line must not occlude, or every corridor would read blocked.
   $game_map.load_grid(["#########", "#@......#", "##.#.#.##", "#########"])
   truthy "walls beside the line do not occlude it", a3d.line_clear?(1, 1, 7, 1)
 
@@ -26,25 +20,18 @@ Suite.define("audio3d: the wall raycast reports occluded only when a wall really
   $game_map.load_grid(["###", "#@#", "###", "#.#", "###"])
   falsy "the same line with a wall across it", a3d.line_clear?(1, 1, 1, 3)
 
-  # The emitter's OWN tile is never tested: the last step into the target is skipped on purpose, so a clerk
-  # standing on an impassable counter tile stays audible. A counter one tile FURTHER along the line does cut.
   $game_map.load_grid(["#####", "#@C.#", "#####"])
   truthy "an emitter standing on an impassable tile is not self-occluded", a3d.line_clear?(1, 1, 2, 1)
   falsy "but the same counter between player and emitter occludes", a3d.line_clear?(1, 1, 3, 1)
 
-  # It is a straight-ish ray, NOT a flood fill: an emitter reachable only by going around must read occluded
-  # (cheap per emitter per frame). Pinning this stops anyone "improving" it into a pathfind on the audio tick.
   $game_map.load_grid(["#######", "#@#...#", "#.#...#", "#.....#", "#######"])
   falsy "an emitter reachable only by a detour is occluded, not clear", a3d.line_clear?(1, 1, 5, 1)
 
   $game_map.clear_grid
 end
 
-# The raycast walks one tile per iteration with a hard 48-step guard. The guard is what stops a bad
-# target (or a huge configured range) from spinning the audio tick forever, and beyond it the ray FAILS
-# OPEN: it reports "clear". That is only safe while no emitter can ever be that far, so the second assert
-# pins the config bound against the guard -- raising the tiles slider past 48 would silently disable
-# line-of-sight for far emitters instead of failing loudly.
+# The raycast stops at a 48-step guard and past it reports clear, safe only while the farthest configurable emitter
+# (KIND_BOUNDS[:tiles]) stays under 48.
 Suite.define("audio3d: the raycast guard terminates and never cuts a reachable emitter") do
   a3d = PokeAccess::Audio3D
 
@@ -57,7 +44,6 @@ Suite.define("audio3d: the raycast guard terminates and never cuts a reachable e
   $game_map.load_grid(near)
   falsy "the same far target with the wall inside the guard is occluded", a3d.line_clear?(1, 1, 60, 1)
 
-  # A target far outside the loaded grid must resolve on the first blocked step, not walk to the guard.
   $game_map.load_grid(["###", "#@#", "###"])
   falsy "a walled-in listener aiming far away is occluded at once", a3d.line_clear?(1, 1, 1, 50)
 
@@ -67,9 +53,7 @@ Suite.define("audio3d: the raycast guard terminates and never cuts a reachable e
   $game_map.clear_grid
 end
 
-# The four side rays feed the directional wind loops: the distance they return IS the wind volume and the
-# tile the loop is placed on, so an off-by-one puts the wall in the wrong ear or drowns an open side. nil
-# means "no wall within range" and is what silences that side; the suite pins both answers and the range cut.
+# The side rays: the distance to the nearest wall within audio3d_wall_range, nil when open (its wind loop stops).
 Suite.define("audio3d: the side rays measure the distance to the nearest wall, nil when open") do
   a3d = PokeAccess::Audio3D
   prev_range = PokeAccess::Config.audio3d_wall_range
@@ -86,8 +70,6 @@ Suite.define("audio3d: the side rays measure the distance to the nearest wall, n
     eq "a one-tile corridor hugs the player", a3d.instance_variable_get(:@wall),
        { :w => 2, :e => 2, :n => 1, :s => 1 }
 
-    # A side whose wall is beyond wall_range must read nil (open), not the range value: nil is what makes
-    # set_winds STOP that loop, so returning a number here would leave a wind blowing from empty space.
     $game_map.load_grid(["########", "#@.....#", "########"])
     eq "a wall further than wall_range reads open", a3d.ray(1, 1, :e), nil
     eq "while the near side still measures", a3d.ray(1, 1, :w), 1
@@ -103,10 +85,8 @@ Suite.define("audio3d: the side rays measure the distance to the nearest wall, n
   end
 end
 
-# cluster collapses touching tiles that SHARE a sprite into one ping (a wide warp door, a long counter)
-# while leaving two people standing shoulder to shoulder as two emitters. Both halves matter: without the
-# merge a 4-tile door machine-guns four pings, and without the sprite check a crowd collapses into one
-# voice and the player cannot tell there are several. Entries are [x, y, distance, sprite identity].
+# cluster merges 8-connected tiles that share a sprite into one (chained, keeping the nearest tile) and keeps
+# different sprites apart. Entries are [x, y, distance, sprite identity].
 Suite.define("audio3d: cluster merges one structure but never two different sprites") do
   a3d = PokeAccess::Audio3D
   coords = lambda { |out| out.map { |e| [e[0], e[1]] }.sort }
@@ -120,11 +100,9 @@ Suite.define("audio3d: cluster merges one structure but never two different spri
   eq "three tiles of the same door collapse to one", merged.length, 1
   eq "represented by the tile nearest the player", [merged[0][0], merged[0][1]], [5, 3]
 
-  # 8-connected: a diagonal neighbour is still the same structure (a door corner, an L-shaped counter).
   eq "diagonal neighbours of the same sprite merge", a3d.cluster([[3, 3, 5, "c"], [4, 4, 4, "c"]]).length, 1
 
-  # Transitive: the union-find must chain a run, not just compare pairs, or a long counter still double-pings.
-  chain = (0..4).map { |i| [i, 7, 9 - i, "counter"] }
+  chain =(0..4).map { |i| [i, 7, 9 - i, "counter"] }
   eq "a five-tile run chains into one cluster even though its ends are four apart", a3d.cluster(chain).length, 1
 
   apart = [[2, 2, 3, "door"], [6, 2, 5, "door"]]

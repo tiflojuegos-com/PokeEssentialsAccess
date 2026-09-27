@@ -1,6 +1,5 @@
 module PokeAccess
-  # Readable in-game books (a fangame addon's BookScene): the page text is drawn to a
-  # bitmap by `texto` every frame, so the page is read when it changes (deduped on the page index).
+  # Readable in-game books (a fangame addon's BookScene): a page is read when it changes.
 
   # The cleaned text of a book page, or nil when empty/out of range.
   def self.book_text(libro, page)
@@ -10,8 +9,7 @@ module PokeAccess
   end
 end
 
-# Read a book page when it changes (texto redraws every frame, so the page index is the dedup key; the
-# scene dies with the book, so the slot needs no reset).
+# Reads a book page when it changes, deduped on the page index (texto redraws every frame).
 PokeAccess::Hooks.after_hook("BookScene", :texto, :optional => true) do |scene, _r, _a|
   page = scene.instance_variable_get(:@page)
   PokeAccess::Cursor.announce(scene, :book_page, page, true) do

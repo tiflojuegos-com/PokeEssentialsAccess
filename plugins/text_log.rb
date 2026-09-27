@@ -1,35 +1,54 @@
-# Message history (Kyu's TextLog, class Log): a scrollable view of $PokemonGlobal.log painted into a bitmap,
-# with no window the engine knows about.
-#
-# The two copies are the same code organised differently -- one paints in drawLines, the other inlines the
-# painting inside update -- and `update` in both is a loop that returns only when the log is closed. So no
-# method they share fires per scroll. What they do share is that their loops call Input.update every frame,
-# so SceneWatcher holds the instance and reads @pos per frame instead.
-#
-# @pos behaves the same in both: it starts at log.length-1 and the paint loop advances it past what it drew.
+# Message history (Kyu's TextLog, class Log): a painted view of $PokemonGlobal.log whose update loops until
+# closed, so SceneWatcher reads the page each frame, rebuilt from @pos and @lines the way the last move drew it.
 module PokeAccess
   module TextLog
-    # The indices of the entries the page is showing, oldest first, or nil when there is no log.
-    #
-    # A PAGE, not a cursor: the screen paints as many entries as fit and scrolls by pagefuls, so reading one
-    # of them left the rest unheard on a screen whose only purpose is re-reading what was said. @lines is
-    # how many the last paint drew and @pos - 1 is the newest of them.
-    #
-    # Known gap, left on purpose: scrolling down out of log ends with the newest shown at @pos rather than
-    # @pos - 1, and the two cases leave identical state, so the reader cannot tell them apart. Guessing the
-    # other way would name an entry the screen is not showing, which is the worse error.
+    # The indices of the entries the page shows, oldest first, or nil with no log: drawn forward from @pos - @lines
+    # after a move down, else built back from @pos - 1 (the opening page, a move up, or a start past the log).
     def self.page_range(scene)
       pos = PokeAccess.ivar(scene, :@pos)
       log = ($PokemonGlobal.log rescue nil)
       return nil if pos.nil? || !log.is_a?(Array) || log.empty?
-      n = PokeAccess.ivar(scene, :@lines).to_i
-      n = 1 if n < 1
+      lines = PokeAccess.ivar(scene, :@lines).to_i
+      start = pos - lines
+      return forward_page(log, start) if moved_down?(scene, pos, lines) && start >= 0 && start < log.length
+      n = lines < 1 ? 1 : lines
       last = pos - 1
       last = log.length - 1 if last > log.length - 1
       return nil if last < 0
       first = last - n + 1
       first = 0 if first < 0
       (first..last).to_a
+    end
+
+    # Whether the page on screen was drawn by a move down: @pos grows only going down, shrinks only going up, and a
+    # move that leaves it in place is a down that fit no more than one entry when it zeroes @lines. Kept on the scene.
+    def self.moved_down?(scene, pos, lines)
+      prev = scene.instance_variable_get(:@access_log_state)
+      down = prev ? prev[2] : false
+      if prev && pos != prev[0]
+        down = pos > prev[0]
+      elsif prev && lines != prev[1]
+        down = (lines == 0)
+      end
+      scene.instance_variable_set(:@access_log_state, [pos, lines, down])
+      down
+    end
+
+    # The entries a page drawn down from first holds, by the game's rule: each is 32 pixels a line plus INTERPAD
+    # between entries, drawn while it fits the screen less PADY above and below.
+    def self.forward_page(log, first)
+      room = (Graphics.height rescue 384).to_i - 2 * (PokeAccess.const_at("PADY") || 25).to_i
+      pad = (PokeAccess.const_at("INTERPAD") || 4).to_i
+      out = []
+      total = 0
+      k = first < 0 ? 0 : first
+      while total <= room && k < log.length
+        h = 32 * (log[k].is_a?(Array) ? log[k].length : 1)
+        out.push(k) if total + h <= room
+        total += h + pad
+        k += 1
+      end
+      out
     end
 
     # The whole visible page as one spoken line.

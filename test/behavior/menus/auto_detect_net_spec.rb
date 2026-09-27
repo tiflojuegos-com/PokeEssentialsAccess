@@ -1,16 +1,8 @@
-# Regression: the generic auto-detect SAFETY NET must actually bind. The net hooked "Window_Selectable"
-# (menus.rb) and the diagnostic walked :Window_Selectable (input.rb), but NO engine defines that class
-# (gen-6/v21/v22 all use SpriteWindow_Selectable); const_at returned nil and the after_hook fell through
-# hooks.rb (return if k.nil?) WITHOUT even being recorded in Hooks.missing -- a permanently dead feature the
-# old readers_spec never caught, because it exercised only the pure entry_text/generic_focus functions with
-# bare anonymous stubs that never touch the real class chain or the hook. These suites drive the REAL chain
-# (SpriteWindow_Selectable -> SpriteWindow_SelectableEx -> Window_DrawableCommand, from the engine stub) so
-# the net is wired end to end. The fake windows set @index then call update, exactly as the game does on a
-# cursor move.
+# The generic auto-detect safety net, through the engine stub's real chain (SpriteWindow_Selectable ->
+# SpriteWindow_SelectableEx -> Window_DrawableCommand): a window sets @index and updates, as the game does.
 
-# (a) The net binds to the real class and reads a generic selectable that has no dedicated extractor: setting
-# @index and calling update speaks the focused option, introspected from the window's own list (never OCR).
-# Also asserts the dead token is gone: const_at("Window_Selectable") is nil while the real class resolves.
+# The net binds SpriteWindow_Selectable#update (no engine defines Window_Selectable) and says a generic
+# selectable's focused option from the window's own list.
 Suite.define("menus: auto-detect net binds to SpriteWindow_Selectable and reads a generic selectable") do
   truthy "the real selectable class exists in the engine",
          !PokeAccess.const_at("SpriteWindow_Selectable").nil?
@@ -43,9 +35,7 @@ Suite.define("menus: auto-detect net binds to SpriteWindow_Selectable and reads 
   end
 end
 
-# (b) No double read: a Window_DrawableCommand is announced ONCE, by the dedicated command hook -- the net
-# hook also fires (its parent update runs via super, the documented onion) but its is_a?(Window_DrawableCommand)
-# guard makes the body no-op, so the entry is not spoken twice. This is the interaction the fix must preserve.
+# A Window_DrawableCommand is said once, by its own hook: the net also fires through super but skips that class.
 Suite.define("menus: the net does not double-read a Window_DrawableCommand already covered by the sibling") do
   prev = PokeAccess::Config.auto_detect
   PokeAccess::Config.auto_detect = true
@@ -59,9 +49,7 @@ Suite.define("menus: the net does not double-read a Window_DrawableCommand alrea
   end
 end
 
-# (c) The net stays silent when auto-detect is off and over garbage entries (pairs/ids), so turning the
-# feature off is honoured and the reader never voices raw non-text -- the conservative contract, now proven
-# through the live hook rather than only the pure function.
+# The net says nothing with auto_detect off, nor over non-text rows (pairs, ids).
 Suite.define("menus: the net respects the auto_detect flag and stays silent on non-text entries") do
   win = Class.new(SpriteWindow_Selectable) do
     def initialize(items); super(); @items = items; end

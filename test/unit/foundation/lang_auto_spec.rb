@@ -1,8 +1,5 @@
-# The automatic language. :auto is a rule, not a file: the system's language, then the one the game
-# declares it runs in, then English, then Spanish -- the first one the mod ships. The mod's voice is the
-# mod's interface, so the player's own language comes first: an English player hears English whatever
-# the game, a Spanish player Spanish, and neither ever opens the menu. The harness pins :es for every
-# other suite; these switch to :auto and put everything back.
+# The automatic language (:auto): the system's language, then the game's declared one, then English, then Spanish,
+# the first the mod ships. The harness pins :es elsewhere; these suites switch to :auto and restore it.
 
 # Runs the block with the two detectors answering sys and game (game may be a proc, to change its mind
 # mid-block), the setting on :auto and the memo cleared; restores detectors, setting and game object after.
@@ -77,9 +74,7 @@ Suite.define("language: the menu cycle starts at automatic and names what it res
   end
 end
 
-# The ini carries a layout version. One written before version 2 holds the old fixed default, Spanish,
-# whether chosen or never looked at, so it is turned to :auto exactly once; a versioned ini keeps whatever
-# the player chose.
+# An ini without the layout version (before version 2) is turned to :auto once; a versioned ini keeps its language.
 Suite.define("language: auto persists, an old ini migrates to it once, a versioned ini keeps its choice") do
   cfg = PokeAccess::Config
   st = PokeAccess::Settings

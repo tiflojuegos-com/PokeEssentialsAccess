@@ -1,13 +1,8 @@
 module PokeAccess
-  # Multi Save ("Auto Multi Save" and plain "Multi Save"): numbered save slots. The labels are an ordinary
-  # command window the generic reader voices; this reads the detail box beside them, which the plugin
-  # rebuilds every frame from the focused slot -- empty, or the date, map and play time of the save there.
-  #
-  # Queued rather than interrupting, so the detail follows the slot label instead of cutting it. The load
-  # side needs nothing: its outer loop re-calls pbStartScene per slot and core/menus/load reads that.
+  # Multi Save ("Auto Multi Save" and "Multi Save"): the detail box beside the slot list (empty, or the save's date,
+  # map and play time), rebuilt every frame and said queued after the slot label.
   module MultiSave
-    # The box separates its fields with markup, not punctuation (clean_fields turns that into the pause the
-    # layout implied).
+    # Says the slot's detail box, its markup-separated fields turned into pauses (clean_fields).
     def self.slot_info(scene, text)
       t = PokeAccess.clean_fields(text)
       return if t.empty?
@@ -17,16 +12,25 @@ module PokeAccess
       nil
     end
 
-    # Whether the cursor just moved, which is what separates "same text, different slot" from "same slot,
-    # redrawn" -- every empty slot renders one byte-identical string.
-    #
-    # The plugin's loop calls this hook, reads input, then moves the cursor, so on the frame the box first
-    # shows the new slot the press that caused it is still live. The four keys the list answers to: it is a
-    # Window_CommandPokemonEx, vertical, and its update also pages with JUMPUP and JUMPDOWN. The index is a
-    # local of the plugin's loop and never reaches here, so holding a direction at either end still
-    # re-describes the same slot.
+    # Arms or disarms the slot submenu's question: the first message window slotSelectCommands lays out is its own.
+    def self.asking(on); @asking = on; end
+
+    # Says, queued ahead of the slot list, the question the submenu opens its message window with ("Which slot to
+    # save in?", each copy in its own words); only the first window laid out after asking.
+    def self.question(text)
+      return unless @asking
+      @asking = false
+      t = PokeAccess.clean(text.to_s)
+      PokeAccess.speak(t, false) unless t.empty?
+    rescue StandardError
+      nil
+    end
+
+    # The keys the slot list moves on (a vertical Window_CommandPokemonEx that also pages with JUMPUP/JUMPDOWN).
     KEYS = [:UP, :DOWN, :JUMPUP, :JUMPDOWN]
 
+    # Whether the cursor just moved (one of KEYS pressed this frame), which tells a new slot from a redraw, since
+    # every empty slot reads alike (the index is a local of the plugin's loop).
     def self.moving?
       KEYS.any? do |name|
         k = (Input.const_get(name) rescue nil)
@@ -38,22 +42,23 @@ module PokeAccess
   end
 end
 
-# The dedup lives on the scene, which is built fresh per opening, so reopening describes the focused slot
-# again instead of inheriting the previous visit's.
-#
-# The reset rides the slot SUBMENU (slotSelectCommands, the one method all five copies share -- only anil
-# has pbClearSlotInfo), on both edges: its loop repaints the detail per frame through pbUpdateSlotInfo, so
-# entering re-reads the focused entry's info under the question, and leaving re-arms the list detail --
-# including the "exit without saving?, no" path, which re-enters this method with the text unchanged and
-# used to come back mute.
+# The slot submenu (slotSelectCommands, shared by every copy) resets the dedup on entry and exit, so the detail is
+# read again under its question and back on the list; the question is armed to be said as its window is laid out.
 PokeAccess::Hooks.around_hook("PokemonSaveScreen", :slotSelectCommands, :optional => true) do |screen, nxt, _a|
   scene = PokeAccess.ivar(screen, :@scene)
   PokeAccess::Cursor.reset(scene, :ams_slot) if scene
+  PokeAccess::MultiSave.asking(true)
   begin
     nxt.call
   ensure
+    PokeAccess::MultiSave.asking(false)
     PokeAccess::Cursor.reset(scene, :ams_slot) if scene
   end
+end
+
+# Every copy lays its question window out with pbBottomLeftLines as soon as it is built.
+PokeAccess::Hooks.wrap_kernel("pbBottomLeftLines", "multi_save_question", :before) do |args, _r|
+  PokeAccess::MultiSave.question((args[0].text rescue nil))
 end
 
 PokeAccess::Hooks.before_hook("PokemonSave_Scene", :pbUpdateSlotInfo, :optional => true) do |scene, args|

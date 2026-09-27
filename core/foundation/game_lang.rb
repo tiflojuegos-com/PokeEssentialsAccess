@@ -1,13 +1,9 @@
 module PokeAccess
-  # The language the GAME runs in, which is not the language the mod speaks: a game shipped as per-language
-  # builds (Pokemon Z: es, en, fr) paints different words in each, and a transcription must say what THIS
-  # build painted. Asked of the game: Essentials' LANGUAGES table indexed by $PokemonSystem.language. An empty
-  # table means an untranslated build -- nil here, and the profile says what it was authored in.
+  # The language the game runs in (not the one the mod speaks), from Essentials' LANGUAGES table indexed by
+  # $PokemonSystem.language, for per-language builds; nil for an untranslated build.
   module GameLang
-    # Declared names to language codes. The author writes these by hand, so the English and the native
-    # spelling both appear in the wild, and the ACCENT-STRIPPED spellings are here as their own keys:
-    # under 1.8.7 a String is bytes, downcase touches ascii only, and the lookup key drops everything
-    # outside a-z -- so "Francais" with a cedilla arrives as "franais", not as "francais".
+    # Declared language names (English and native) to codes. Keys hold a-z only, as code strips the rest, so an
+    # accented spelling has its own key ("Francais" with a cedilla arrives as "franais").
     NAMES = {
       "english" => :en, "ingles" => :en,
       "spanish" => :es, "espanol" => :es, "espaol" => :es, "castellano" => :es,
@@ -26,12 +22,8 @@ module PokeAccess
       t.is_a?(Array) ? t : nil
     end
 
-    # A LANGUAGES entry only counts when the message file it names actually ships: the Essentials template
-    # comes with ["English","english.dat"] rows and lazy forks leave them in without ever shipping the
-    # file (infinitefusion_hoenn declares en+fr over a lone messages.dat). The file's absence is what
-    # separates a declaration the game lives by from template residue -- reminiscencia's index 0 names a
-    # spanish.dat nobody ships (its base text is already Spanish) while its English entry's file is real,
-    # and the game itself only changes language when the file loads.
+    # Whether a LANGUAGES entry's message file ships (Data/<f>, or messages_<f>[_core|_game].dat for a bare
+    # name); forks leave template rows naming files they never ship.
     def self.message_file?(f)
       return false if f.nil? || f.to_s.empty?
       return true if File.exist?("Data/#{f}")
@@ -42,9 +34,8 @@ module PokeAccess
       false
     end
 
-    # The name the game declares for the language it is running in, or nil when it declares none (or the
-    # declared entry's message file does not ship). Reads $PokemonSystem.language live, so a game with an
-    # in-game language switch is followed as the player flips it.
+    # The declared name of the running language, or nil when there is none or its message file does not ship.
+    # Read live, so an in-game language switch is followed.
     def self.declared_name
       table = languages_table
       return nil unless table && !table.empty?
@@ -60,9 +51,8 @@ module PokeAccess
       nil
     end
 
-    # The running build's language code (:en, :fr, ...), or nil when the game declares none or names a
-    # language this table does not know. A prefix match catches the qualified spellings ("English (UK)",
-    # "Espanol latino") without listing every one.
+    # The running build's language code (:en, :fr...), or nil when undeclared or unknown; a prefix match covers
+    # qualified names ("English (UK)").
     def self.code
       n = declared_name
       return nil unless n
@@ -74,9 +64,7 @@ module PokeAccess
       nil
     end
 
-    # Picks the entry matching the running build from a language-keyed hash, falling back to the language
-    # the strings were authored in. A plain value passes straight through, so a game shipped as a single
-    # build needs no hash at all.
+    # The running build's entry of a language-keyed hash, else the fallback's; a plain value passes through.
     def self.pick(value, fallback)
       return value unless value.is_a?(Hash)
       c = code

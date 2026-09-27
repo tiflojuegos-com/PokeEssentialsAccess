@@ -1,29 +1,28 @@
-# Two Reminiscencia screens the generic readers cannot see, both driven by their own blocking loops.
-# ScrollTree is the endless mode's stat-upgrade tree: @selec picks one of five stats and the trainer keeps
-# [cost, percent] pairs in buffStatFriend / buffStatEnemy. AyudasUI is the in-game help: its menu entries are
-# pictures, but each section's content is painted with pbDrawTextPositions, captured only while this screen
-# is up. The Hoopa gacha's prize is not read here: pbAddPokemonRNG prints it itself (and its refusal when
-# the boxes are full), which the message reader already speaks; its balance line lives in hoopa.rb.
+# Reminiscencia's upgrade tree (ScrollTree: @selec picks one of five stats, $Trainer.buffStatFriend holds [cost,
+# percent] pairs), its help screen (AyudasUI) and the world map's place panel (OpenWorldMap).
 module PokeAccess
   module ReminExtras
     STATS = [:rem_st_atk, :rem_st_spatk, :rem_st_def, :rem_st_spdef, :rem_st_speed]
     @help = nil
 
-    # Voices the focused stat of the upgrade tree with its current bonus and what the next level costs.
-    #
-    # The ROW is in the dedup key, not the cursor position. Buying an upgrade bumps the percentage and the
-    # price in place and redraws, without moving the cursor -- so keyed on the index alone the one thing the
-    # player pressed the button to hear, the numbers changing, was the one thing that stayed silent. The
-    # failure path already speaks, through the game's own message.
-    def self.scroll_tree(scene)
+    # Voices the focused stat, its bonus and the next level's cost (marked when the coins fall short), again after a
+    # purchase; the coins come with the opening read and with a purchase.
+    # param purchase true after raiseStat
+    def self.scroll_tree(scene, purchase = false)
       idx = PokeAccess.ivar(scene, :@selec)
       return unless idx.is_a?(Integer) && idx >= 0 && idx < STATS.length
       key = [idx, ($Trainer.buffStatFriend[idx].dup rescue nil)]
+      first = PokeAccess::Cursor.pending?(scene, :rem_tree)
       PokeAccess::Cursor.announce(scene, :rem_tree, key, true) do
         row = ($Trainer.buffStatFriend[idx] rescue nil)
         name = PokeAccess::I18n.t(STATS[idx])
+        coins = ($PokemonBag.pbQuantity(:COIN) rescue nil)
         if row.is_a?(Array)
-          PokeAccess::I18n.t(:rem_tree, :name => name, :pct => row[1].to_i, :cost => row[0].to_i)
+          parts = [[name, :brief], [PokeAccess::I18n.t(:rem_tree_bonus, :pct => row[1].to_i), :medium],
+                   [PokeAccess::I18n.t(:rem_tree_cost, :cost => row[0].to_i), :brief]]
+          parts.push([PokeAccess::I18n.t(:rem_tree_short), :brief]) if coins && row[0].to_i > coins.to_i
+          parts.push([PokeAccess::I18n.t(:rem_coins, :n => coins.to_i), :brief]) if coins && (first || purchase)
+          PokeAccess::Verbosity.info_line(:shop_item, parts)
         else
           name
         end
@@ -32,13 +31,8 @@ module PokeAccess
       nil
     end
 
-    # Turns the text capture on while a capturing screen runs, and off again when it closes. The world map
-    # reuses it for the same reason as the help screen: its drawInfo already composes the focused place's
-    # name (or "???" when unvisited) and paints it, so capturing that call is both the simplest and the most
-    # faithful reading -- it says exactly what a sighted player sees, including the unvisited placeholder.
-    # Armed while one of the two capturing screens is painting. The dedup slot is cleared on entry, so
-    # opening the same help section twice in a row still reads it, while a repeat INSIDE one painting pass
-    # does not.
+    # Arms the capture while AyudasUI or OpenWorldMap paints (the map's drawInfo paints the focused place, "???"
+    # when unvisited); the dedup is cleared on entry, so reopening a section reads it again.
     def self.help_on(scene)
       @help = scene
       PokeAccess::Cursor.reset(scene, :rem_help_info)
@@ -49,22 +43,15 @@ module PokeAccess
       @help = nil
     end
 
-    # The section list is held rather than hooked: its update IS the screen's loop, so an after-hook would
-    # only fire on the way out. The loop pumps input every frame, which is what the poll rides.
+    # The help screen's section list, held during its update (the screen's loop) and read by the per-frame poll.
     @list = nil
 
     def self.list_on(scene); @list = scene; end
     def self.list_off; @list = nil; end
     def self.list_poll; help_section(@list) if @list; end
 
-    # The body of a help section. AyudasUI writes the paragraph the player opened the section for through
-    # drawTextEx, whose text is argument 5, and its footer (and, in the controls section, its ten body lines)
-    # through pbDrawTextPositions. Both are captured; queued rather than interrupting, so they follow each
-    # other in the order the screen paints them.
-    #
-    # Only what is painted onto the help screen's OWN panel counts. One section opens a text-entry prompt
-    # from inside the help loop, and that window draws through the same function -- so without this the help
-    # read out the engine's "Enter text using the keyboard" instruction, in English, as if it were the help.
+    # A help section's paragraph (drawTextEx, text in argument 5), queued; only what is painted on the help's own
+    # "desc" panel, not a text-entry prompt drawn through the same function.
     def self.help_body(bitmap, text)
       return unless @help && bitmap
       panel = (PokeAccess.sprite(@help, "desc") rescue nil)
@@ -76,35 +63,32 @@ module PokeAccess
       nil
     end
 
-    # The section list of the help screen: ten unlabelled images, or a padlock where the section has not
-    # been unlocked, so there is no text on screen to read. Each entry is named after the tag the section
-    # checks before it will open -- the only word the game itself attaches to them -- and the padlock is
-    # reported as the game reports it, by refusing to open with a buzzer.
+    # The help screen's ten image-only sections: [tag the section checks before opening (nil: always open), label].
     HELP_SECTIONS = [[nil, :rem_help_controls], ["pokemon", :rem_help_pokemon], ["objetos", :rem_help_items],
                      ["capturas", :rem_help_catching], ["phione", :rem_help_phione],
                      ["ubicaciones", :rem_help_places], ["auxilio", :rem_help_rescue],
                      ["alarmado", :rem_help_alarm], ["cartas", :rem_help_blessings],
                      ["cartas", :rem_help_upgrades]]
 
-    # Speaks the focused section on every move, with its position and whether it is still locked.
+    # Speaks the focused section on every move, with its position and whether it is still locked; a section past the
+    # ones the player has unlocked is painted "???" (HelpUI/unknown), said as the word for an unknown one.
     def self.help_section(scene)
       idx = PokeAccess.ivar(scene, :@index)
       total = (numeroOpcionesAyudas rescue HELP_SECTIONS.length)
       return unless idx.is_a?(Integer) && idx >= 0 && idx < HELP_SECTIONS.length
       tag, key = HELP_SECTIONS[idx]
       open = tag.nil? || ($Trainer.ayudasUI.include?(tag) rescue true)
-      name = PokeAccess::I18n.t(key)
+      hidden = (idx > $Trainer.ayudasUI.length - 1 rescue false)
+      name = PokeAccess::I18n.t(hidden ? :rem_help_unknown : key)
       name = "#{name}, #{PokeAccess::I18n.t(:rem_help_locked)}" unless open
       PokeAccess::Cursor.announce(scene, :rem_help_list, idx, true) do
-        PokeAccess::I18n.t(:list_entry, :name => name, :n => idx + 1, :tot => total)
+        PokeAccess::Verbosity.list_entry(name, idx + 1, total)
       end
     rescue StandardError
       nil
     end
 
-    # True when the bitmap is the held screen's own text panel: AyudasUI paints every row batch onto
-    # "desc", OpenWorldMap onto "info". Same fence as help_body -- without it any window drawing through
-    # the shared function while the screen is up (the text-entry prompt) leaked into the reading.
+    # True when the bitmap is the held screen's own text panel: "desc" (AyudasUI) or "info" (OpenWorldMap).
     def self.own_panel?(bitmap)
       return false unless bitmap
       ["desc", "info"].any? do |n|
@@ -113,6 +97,8 @@ module PokeAccess
       end
     end
 
+    # Speaks what the held screen paints on its own panel; the world map's "???" for a place never visited is said as
+    # the word for it, since a screen reader drops the question marks.
     def self.help_text(bitmap, rows)
       return unless @help && rows.is_a?(Array)
       return unless own_panel?(bitmap)
@@ -120,6 +106,7 @@ module PokeAccess
       rows.each do |r|
         t = (r.is_a?(Array) ? r[0] : nil)
         t = PokeAccess.clean(t.to_s) if t
+        t = PokeAccess::I18n.t(:rem_map_unvisited) if t =~ /\A\?+\z/
         lines.push(t) if t && !t.empty?
       end
       return if lines.empty?
@@ -132,13 +119,11 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("reminiscencia") do
-  # positionSelector, not makeloop. makeloop IS the screen's blocking loop, so an after-hook on it fired once
-  # -- on the way out -- and the five permanent upgrades were silent to navigate. positionSelector runs on
-  # every UP/DOWN with @selec already updated, and once more at setup before the loop starts, so it covers
-  # both the opening read and each move. Dropping the makeloop hook also un-suppresses raiseStat: it is
-  # called from inside that loop, so the reentrancy guard was discarding it as nested.
+  # The upgrade tree after positionSelector (at setup and on every move) and raiseStat (a purchase); makeloop is the
+  # blocking loop, which an after-hook would only reach on the way out. Its row leaves the info key at pbEndScene.
   after("ScrollTree", :positionSelector) { |s, _r, _a| PokeAccess::ReminExtras.scroll_tree(s) }
-  after("ScrollTree", :raiseStat) { |s, _r, _a| PokeAccess::ReminExtras.scroll_tree(s) }
+  after("ScrollTree", :raiseStat) { |s, _r, _a| PokeAccess::ReminExtras.scroll_tree(s, true) }
+  after("ScrollTree", :pbEndScene, :optional => true) { |_s, _r, _a| PokeAccess::Info.clear_text }
 
   [["AyudasUI", :chosenOption], ["OpenWorldMap", :drawInfo]].each do |cname, meth|
     around(cname, meth) do |scene, nxt, _a|
@@ -154,9 +139,8 @@ PokeAccess::Game.define("reminiscencia") do
     PokeAccess::ReminExtras.list_on(s)
     begin; nxt.call; ensure; PokeAccess::ReminExtras.list_off; end
   end
-  # Both screens run whole from their constructor, called from INSIDE the pause menu's own loop and
-  # registered nowhere in ReminMenu's stack -- so leaving them must nudge the menu into saying where the
-  # cursor is again (the world map gets this for free by being a registered frame).
+  # AyudasUI and ScrollTree run whole inside their constructor, from the pause menu's loop: declared so that leaving
+  # one says the menu's focus again.
   [["AyudasUI", :initialize], ["ScrollTree", :initialize]].each { |cname, meth| PokeAccess::MenuReturn.bare(cname, meth) }
   poll_each_frame { PokeAccess::ReminExtras.list_poll }
   kernel("pbDrawTextPositions", :before) { |args, _r| PokeAccess::ReminExtras.help_text(args[0], args[1]) }

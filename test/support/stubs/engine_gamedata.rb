@@ -1,19 +1,12 @@
-# Stand-ins for the GameData-era engine (Essentials v17+, Ruby-modern): GameData::* and UI::* present,
-# $player instead of $Trainer, so the modern-path readers (v21/v22 triggers, gamedata_trainer_info) load
-# and run. Shares the generic engine stubs (Win32/Graphics/Input/Game_*) with the gen-6 file but flips the
-# data API on. Selected by PA_ENGINE=gamedata.
+# Stand-ins for the GameData-era engine (v17+): GameData::* and UI::* present, $player instead of $Trainer.
+# Selected by PA_ENGINE=gamedata.
 #
 # Known divergences from the real engine (a spec relying on these tests the stub, not the game):
-#   - GameData::Move.try_get NEVER returns nil (it always constructs); the real try_get returns nil for an
-#     unknown id, so no spec here can exercise a reader's missing-move fallback. MapMetadata.try_get is the
-#     opposite extreme: always nil.
-#   - Input.trigger?/press? always return false: nothing input-driven ever fires on its own; specs must
-#     call the handler they want to exercise directly.
-#   - No surf/waterfall terrain model at all (the gen-6 stub at least has PBTerrain without the waterfall
-#     tags 8-9); water-dependent behaviour is out of scope in this engine's specs.
-#   - The v22 UI:: screens (see the UI section below) carry no sprite layer, no graphics and no input loop:
-#     each class keeps ONLY the state its reader reads plus the CALL ORDER the dedup/reentrancy contracts
-#     depend on. Divergences are listed there, class by class.
+#   - GameData::Move.try_get never returns nil (the real one does for an unknown id); MapMetadata.try_get always
+#     returns nil.
+#   - Input.trigger?/press? always return false: specs call the handler they exercise directly.
+#   - No surf/waterfall terrain model.
+#   - The v22 UI:: screens keep only the state their readers read and the call order the dedup relies on (see below).
 
 class Win32API
   def initialize(*a); end
@@ -27,8 +20,7 @@ module Audio
   def self.bgm_play(*a); end
 end
 
-# The engine's sound-effect function, as every era defines it. Records what was asked to play, so a filter
-# in front of it (the game-bump mute) can be pinned by what does and does not arrive here.
+# pbSEPlay records what it was asked to play in $se_played, so a filter in front of it can be pinned.
 def pbSEPlay(param, volume = nil, pitch = nil)
   ($se_played ||= []).push(param)
 end
@@ -58,16 +50,14 @@ end
 
 def pbGetMessage(type, id); "msg#{id}"; end
 def pbGetMessageFromHash(type, id); "place#{id}"; end
+# The Poke Radar's search: the patches it shook are whatever a spec left in the radar's state.
+def pbPokeRadarHighlightGrass(_showmessage = true); nil; end
 
-# The modern message entry, a bare top-level function as Essentials v19+ defines it (private on Object):
-# the dialogue reader must wrap THIS one here, and the gen-6 stub's Kernel singleton there.
+# The modern message entry: a bare top-level function (private on Object), as v19+ defines it.
 def pbMessageDisplay(msgwindow, message, letterbyletter = true, commandProc = nil); message; end
 module MessageTypes; REGION_LOCATION_NAMES = 13; end
 
-# MapInfos for Locator.map_name, same shape and same synthetic ids as the gen-6 stub so both engines can be
-# held to the same expectations. pbLoadRxData is deliberately ABSENT: v19+ replaced it with pbLoadMapInfos,
-# six of the thirteen games have only the latter, and a stub that offered both would keep hiding a reader
-# that asks for the gen-6 loader -- which is exactly how every modern game ended up with no map name at all.
+# MapInfos with the gen-6 stub's ids; pbLoadRxData is absent on purpose, as in v19+ (pbLoadMapInfos replaced it).
 class TestMapInfo; attr_reader :name; def initialize(id, name = nil); @name = name || "Mapa #{id}"; end; end
 MAPINFO_IDS = [1, 35, 40, 999]
 def pbLoadMapInfos
@@ -80,6 +70,12 @@ class Table; def self._load(s); allocate; end; def _dump(d); ""; end; end
 class Color; def self._load(s); allocate; end; def _dump(d); ""; end; end
 class Tone;  def self._load(s); allocate; end; def _dump(d); ""; end; end
 
+# Battler effect ids: Illusion (its value is the Pokemon imitated) and Type3 (a type a move added on top).
+module PBEffects
+  Illusion = 42
+  Type3 = 43
+end
+
 module GameData
   class Move
     def self.get(id); new(id); end
@@ -89,15 +85,13 @@ module GameData
     def power; 40; end
     def accuracy; 100; end
     def type; :TYPE1; end
+    def category; 0; end
     def description; "desc#{@id}"; end
   end
   class Type;    def self.get(i); new(i); end; def initialize(i); @i = i; end; def name; "Type#{@i}"; end; end
 
-  # The slice of GameData::Item the bag and mart readers touch. There is no PBS here, so the two traits
-  # that change what is SPOKEN are decided by the id, by convention (documented so a spec never has to
-  # guess): an id starting with KEY is an important item (show_quantity? false -> the bag reads no "xN"),
-  # and an id starting with TM is a machine (display_name appends the taught move, as the real one does
-  # for TMs -- the case that makes display_name differ from name). Prices are fixed: 500 money, 12 BP.
+  # The slice of GameData::Item the bag and mart readers touch; traits by id: KEY* is important (no "xN"),
+  # KEYQTY* is important but shows its count, TM* is a machine (display_name adds the move). Prices: 500, 12 BP.
   class Item
     def self.get(i); new(i); end
     def self.try_get(i); new(i); end
@@ -109,7 +103,7 @@ module GameData
     def description; "idesc#{@i}"; end
     def is_machine?; (@i.to_s =~ /\ATM/) ? true : false; end
     def is_important?; (@i.to_s =~ /\AKEY/) ? true : false; end
-    def show_quantity?; !is_important?; end
+    def show_quantity?; (@i.to_s =~ /\AKEYQTY/) ? true : !is_important?; end
     def move; :THUNDERBOLT; end
     def display_name; is_machine? ? "#{name} #{GameData::Move.get(move).name}" : name; end
     def price; 500; end
@@ -117,9 +111,7 @@ module GameData
     def sell_price; 250; end
   end
 
-  # A bag pocket's spoken name is its own id ("Medicine"), not a decorated "PocketMedicine": the reader
-  # already wraps it in the bag_pocket string, and a readable assertion is worth more than symmetry with
-  # the other stand-ins here.
+  # A bag pocket's name is its own id ("Medicine"), undecorated, for readable assertions.
   class BagPocket; def self.get(i); new(i); end; def initialize(i); @i = i; end; def name; @i.to_s; end; def auto_sort; false; end; end
   class Species
     def self.get(i); new(i); end
@@ -127,6 +119,7 @@ module GameData
     def name; "Species#{@i}"; end
     def category; "cat#{@i}"; end
     def pokedex_entry; "dex#{@i}"; end
+    def types; [:TYPE1]; end
   end
   class Ability; def self.get(i); new(i); end; def initialize(i); @i = i; end; def name; "Ability#{@i}"; end; end
   class Nature;  def self.get(i); new(i); end; def initialize(i); @i = i; end; def name; "Nature#{@i}"; end; end
@@ -134,11 +127,17 @@ module GameData
   class Stat;    def self.get(i); new(i); end; def initialize(i); @i = i; end; def name; "Stat#{@i}"; end; end
   class Ribbon;  def self.get(i); new(i); end; def initialize(i); @i = i; end; def name; "Ribbon#{@i}"; end; def description; "rdesc#{@i}"; end; end
   class MapMetadata; def self.try_get(i); nil; end; end
+  # Trainer classes, looked up only through try_get: an id the game does not have answers nil.
+  class TrainerType
+    NAMES = { :AQUAGRUNT_M => "Recluta Aqua", :TECHWIZARD => "Mago tecnico" }
+    def self.try_get(i); NAMES[i] ? new(i) : nil; end
+    def initialize(i); @i = i; end
+    def name; NAMES[@i]; end
+  end
 end
 
-# Minimal stand-in for the v22 summary visuals (Essentials v22: UI::PokemonSummaryVisuals) so the real
-# summary_v22 hooks register and can be driven. It reproduces the one behaviour the reader ordering depends
-# on: set_party_index mutates the shown Pokemon and then calls refresh INTERNALLY (reentrant hook order).
+# The v22 summary visuals: set_party_index changes the shown Pokemon and then calls refresh itself (reentrant hook
+# order), the one behaviour the reader's ordering depends on.
 module UI
   class PokemonSummaryVisuals
     attr_accessor :party, :party_index, :pokemon, :page
@@ -169,34 +168,81 @@ module UI
   end
 end
 
-# MAX_PARTY_SIZE is the one engine constant the v22 party reader reads directly (to tell the trailing
-# Cancel/Confirm buttons from a party slot); the real Settings module carries it, so provide it rather than
-# leaving the reader on its `rescue 6` fallback. Nothing else in the toolkit reads a bare Settings.
+# Settings::MAX_PARTY_SIZE, which the v22 party reader reads to tell the trailing buttons from a party slot.
 module Settings; MAX_PARTY_SIZE = 6; end
 
+# The v19-v21 party screen: a panel per member and a button row of non-panel sprites. The real choose loop sets
+# selected= on every sprite itself; move_cursor, an invented name, stands for that loop body.
+class PokemonPartyConfirmCancelSprite
+  attr_reader :selected
+  def initialize(text = "", x = 0, y = 0, narrowbox = false, viewport = nil); @text = text; @selected = false; end
+  def selected=(value); @selected = value; end
+end
+class PokemonPartyCancelSprite < PokemonPartyConfirmCancelSprite; end
+class PokemonPartyConfirmSprite < PokemonPartyConfirmCancelSprite; end
+class PokemonPartyCancelSprite2 < PokemonPartyConfirmCancelSprite; end
+
+class PokemonPartyPanel
+  attr_reader :selected
+  def initialize(pokemon, index = 0, viewport = nil); @pokemon = pokemon; @text = nil; @selected = false; end
+  def selected=(value); @selected = value; end
+  def text=(value); @text = value; end
+end
+
+class PokemonParty_Scene
+  def initialize(party, multiselect = false)
+    @party = party
+    @sprites = {}
+    party.each_with_index { |pk, i| @sprites["pokemon#{i}"] = PokemonPartyPanel.new(pk, i) }
+    if multiselect
+      @sprites["pokemon#{Settings::MAX_PARTY_SIZE}"] = PokemonPartyConfirmSprite.new
+      @sprites["pokemon#{Settings::MAX_PARTY_SIZE + 1}"] = PokemonPartyCancelSprite2.new
+    else
+      @sprites["pokemon#{Settings::MAX_PARTY_SIZE}"] = PokemonPartyCancelSprite.new
+    end
+  end
+
+  # The opening a spec scripts: every game's pbStartScene sets the help line and then marks the first member.
+  attr_accessor :on_start
+  def pbStartScene(*_a); @on_start.call if @on_start; end
+
+  def pbSetHelpText(helptext); @helptext = helptext; end
+
+  def pbSelect(item)
+    @activecmd = item
+    @sprites.each { |k, s| s.selected = (k == "pokemon#{item}") }
+  end
+
+  def move_cursor(item)
+    @activecmd = item
+    @sprites.each { |k, s| s.selected = (k == "pokemon#{item}") }
+  end
+
+  # The choose loop's entry, re-entered after every command with the cursor where it was, or on initialsel;
+  # on_choose stands for what the player does inside the loop before the choice is taken.
+  attr_accessor :on_choose
+  def pbChoosePokemon(_switching = false, initialsel = -1, _canswitch = 0)
+    @activecmd = initialsel if initialsel.is_a?(Integer) && initialsel >= 0
+    @on_choose.call if @on_choose
+    @activecmd
+  end
+end
+
 # ===================================================================================================
-# The v22 UI:: rework (Essentials v22, Data/Scripts/016_UI/*). Every screen owns a *Visuals object whose
-# list windows are PASSIVE (created active = false), so the generic active-window reader never sees them:
-# the mod instead hooks each Visuals' own cursor callback (see core/menus/v22/screen_v22.rb). These
-# stand-ins reproduce, per class, only the state the readers read plus the call order the dedup and
-# reentrancy contracts depend on.
+# The v22 UI:: rework. Each screen's *Visuals list windows are passive, so the mod hooks each Visuals' own cursor
+# callback (core/menus/v22/screen_v22.rb); these stand-ins keep only the state the readers read and the call order.
 #
-# Divergences from the real engine assumed here (a spec relying on these tests the stub, not the game):
-#   - No @sprites layer. The real BagVisuals/MartVisuals delegate index/item to @sprites[:item_list];
-#     here the pocket/stock array IS the list and @index indexes it. An index past the last entry is the
-#     trailing "CLOSE BAG" / "Quit shopping" row (item => nil), which is what the real list reports too.
-#   - No navigate loop. UI::BaseVisuals#navigate (009_Scenes/003_UI_base.rb) runs
-#     `refresh_on_index_changed(old) if index != old` after update_input; a spec that needs that follow-up
-#     call makes it itself, which is exactly what the engine does on the same frame.
-#   - No animation loops. go_to_next_box / go_to_previous_box / show_party_panel / hide_party_panel drop
-#     the Graphics + System.uptime slide and keep only the bookkeeping the reader observes.
-#   - The held Pokemon lives on @sprites[:cursor] in the real screen (set by pick_up_pokemon); here
-#     PokemonStorageVisuals#hold_pokemon sets it directly. That method is the only invented name below.
-#   - Bag/Mart initialize does NOT announce, matching the real ones (neither calls set_pocket/set_index).
+# Divergences from the real engine (a spec relying on these tests the stub, not the game):
+#   - No @sprites layer: the pocket/stock array is the list and @index indexes it; an index past the end is the
+#     trailing close row (item => nil), as in the real list.
+#   - No navigate loop: a spec calls refresh_on_index_changed itself where the engine would after update_input.
+#   - No animation loops: the box and party-panel slides keep only the bookkeeping the reader observes.
+#   - PokemonStorageVisuals#hold_pokemon, the only invented name, sets the held Pokemon (the real one lives on
+#     @sprites[:cursor]).
+#   - Bag/Mart initialize does not announce, as in the real ones.
 module UI
-  # The common base: every *Visuals exposes #index, its @sprites hash and an (empty by default) cursor
-  # callback, and update_visuals updates every sprite it owns -- the real one via pbUpdateSpriteHash, which
-  # is how a screen's per-frame tick reaches its command window's own update (and thus the generic reader).
+  # The common base: #index, @sprites, an empty cursor callback, and update_visuals updating every sprite it owns, as
+  # the real one does through pbUpdateSpriteHash.
   class BaseVisuals
     attr_reader :index, :sprites
 
@@ -208,8 +254,8 @@ module UI
     end
   end
 
-  # 016_UI/007_UI_Bag.rb. item navigation goes through refresh_on_index_changed; a pocket change goes
-  # through set_pocket, which does NOT fire it (it calls refresh) -- the split the bag reader is built on.
+  # Item moves go through refresh_on_index_changed; a pocket change goes through set_pocket, which calls refresh
+  # instead (the split the bag reader is built on).
   class BagVisuals < BaseVisuals
     attr_reader :pocket
 
@@ -245,14 +291,13 @@ module UI
     end
   end
 
-  # 016_UI/020_UI_PokeMart.rb. BagSellVisuals really is a BagVisuals subclass whose own
-  # refresh_on_index_changed calls super -- which is why BOTH the bag hook and the sell hook fire on one
-  # cursor move, and only the reader's dedup keeps the line from being spoken twice.
+  # A BagVisuals subclass whose refresh_on_index_changed calls super, as the real one: both the bag hook and the sell
+  # hook fire on one cursor move, and only the reader's dedup keeps the line from being said twice.
   class BagSellVisuals < BagVisuals
     def refresh_on_index_changed(old_index); super; end
   end
 
-  # 016_UI/020_UI_PokeMart.rb price wrappers: the unit belongs to the wrapper, not to the reader.
+  # The mart's price wrapper: the unit belongs to the wrapper, not to the reader.
   class MartStockWrapper
     def initialize(stock); @stock = stock; end
     def length; @stock.length; end
@@ -262,7 +307,7 @@ module UI
     def sell_price(item); item.nil? ? 0 : GameData::Item.get(item).sell_price; end
   end
 
-  # 016_UI/021_UI_BattlePointShop.rb: same list, Battle Points instead of money.
+  # The BP shop's wrapper: the same list in Battle Points instead of money.
   class BPShopStockWrapper < MartStockWrapper
     def buy_price(item); item.nil? ? 0 : GameData::Item.get(item).bp_price; end
     def buy_price_string(item); "#{buy_price(item)} BP"; end
@@ -282,12 +327,11 @@ module UI
     def refresh_on_index_changed(old_index); end
   end
 
-  # BPShopVisuals deliberately does NOT redefine the cursor callback: the real one inherits it, so the
-  # single hook on MartVisuals must cover the BP shop too.
+  # Inherits the cursor callback, as the real one does, so the one hook on MartVisuals covers the BP shop.
   class BPShopVisuals < MartVisuals; end
 
-  # 016_UI/003_UI_Pokedex_Main.rb. The species list is passive: the screen exposes the focused species id
-  # (real: @sprites[:dex_list].species_id) and set_index chains to the cursor callback the reader hooks.
+  # The Pokedex's passive species list: species is the focused id, and set_index chains to the cursor callback the
+  # reader hooks.
   class PokedexVisuals < BaseVisuals
     def initialize(dex_list, index = 0); super(); @dex_list = dex_list; @index = index; end
 
@@ -301,9 +345,8 @@ module UI
     def refresh_on_index_changed(old_index); end
   end
 
-  # 016_UI/005_UI_Party.rb. set_index is the reliable hook (both navigate loops call it) and it does NOT
-  # chain to refresh_on_index_changed. index MAX_PARTY_SIZE is Cancel, or Confirm in multi-select mode
-  # (choose_entry_order), where Cancel moves to MAX_PARTY_SIZE + 1.
+  # The party: set_index (which both navigate loops call) does not chain to refresh_on_index_changed. Index
+  # MAX_PARTY_SIZE is Cancel, or Confirm in :choose_entry_order mode, where Cancel is MAX_PARTY_SIZE + 1.
   class PartyVisuals < BaseVisuals
     def initialize(party, mode = :normal)
       super()
@@ -316,10 +359,8 @@ module UI
     def set_index(new_index); @index = new_index; end
   end
 
-  # 016_UI/001_UI_PauseMenu.rb. @commands is [[ids], [names]] and the visible list is a real command window
-  # in @sprites[:commands], so the screen's per-frame update_visuals reaches that window's OWN update --
-  # the one the generic command reader hooks. Divergence: the real set_commands seeds the cursor from
-  # $game_temp.menu_last_choice, which the stubbed Game_Temp leaves nil, so it falls back to 0.
+  # The pause menu: @commands is [[ids], [names]], shown in a real command window in @sprites[:commands] that
+  # update_visuals updates (the one the generic reader hooks). The cursor starts on menu_last_choice, or 0.
   class PauseMenuVisuals < BaseVisuals
     def initialize
       super
@@ -336,11 +377,9 @@ module UI
     end
   end
 
-  # 016_UI/013_UI_Load.rb (title screen). @commands is a HASH {:continue => "Continue", ...} and @index is
-  # one of its KEYS (a symbol, not a number); @save_data is an array of [filename, save hash]. On :continue
-  # LEFT/RIGHT cycle the save slot through set_slot_index, which never touches @index -- the split the load
-  # reader is built on. The index wrap and the unchanged-slot early return are kept because they are what
-  # decides whether the original runs at all.
+  # The title screen: @commands is a hash {:continue => "Continue", ...} and @index one of its keys; @save_data is
+  # [[filename, save hash], ...]. set_slot_index cycles the save slot without touching @index, and keeps the wrap
+  # and the unchanged-slot early return that decide whether the original runs.
   class LoadVisuals < BaseVisuals
     attr_reader :slot_index, :save_data
 
@@ -366,8 +405,7 @@ module UI
     end
   end
 
-  # 016_UI/014_UI_Save.rb (in-game save). @index is a numeric slot; the wrap allows one extra entry past the
-  # last save (the empty "new slot"), which is why an index of save_data.length is legal and reads as empty.
+  # The in-game save: @index is a numeric slot, and the wrap allows one past the last save, the empty new slot.
   class SaveVisuals < BaseVisuals
     def initialize(save_data, current_save_data = nil, default_index = 0)
       super()
@@ -385,9 +423,8 @@ module UI
     end
   end
 
-  # 016_UI/017_UI_PokemonStorage.rb. index -1 box name, -2 party button, -3 close, 0+ a slot; box is -1
-  # while the party panel is up, else the box number. initialize really does end in set_index(@index), so
-  # constructing the screen announces the focused slot -- which is what re-arms the read on a reopen.
+  # The PC: index -1 box name, -2 party button, -3 close, 0+ a slot; box is -1 while the party panel is up, else the
+  # box number. initialize ends in set_index(@index), as the real one does, so opening announces the focused slot.
   class PokemonStorageVisuals < BaseVisuals
     attr_reader :box
 
@@ -436,11 +473,9 @@ module UI
   end
 end
 
-# The player-owned containers the v22 screens are constructed with. Kept out of UI:: because that is the
-# engine's namespace and these are the game objects (Bag / PokemonStorage / PokemonBox) it hands them.
+# The game objects the v22 screens are built with (Bag, PokemonStorage, PokemonBox), outside the engine's UI::.
 
-# Stand-in for Bag: pockets is {pocket_symbol => [[item_id, quantity], ...]}, the shape the real pockets
-# have, and quantity sums the item across every pocket as the real Bag#quantity does.
+# Bag: pockets is {pocket => [[item_id, quantity], ...]}; quantity sums an item over every pocket, as the real one.
 class TestBag
   attr_accessor :last_viewed_pocket
   attr_reader :pockets
@@ -471,8 +506,7 @@ class TestBox
   def length; @slots.length; end
 end
 
-# Stand-in for PokemonStorage: storage[box] is the box, storage[box, i] the slot in it, storage.party the
-# party column of the PC (mirroring the real PokemonStorage#[] arity switch).
+# PokemonStorage: storage[box] is the box, storage[box, i] a slot in it, storage.party the PC's party column.
 class TestStorage
   attr_accessor :currentBox
   attr_reader :party
@@ -491,11 +525,8 @@ class TestStorage
   end
 end
 
-# Minimal stand-in for the v21.1 battle menus (Essentials Battle::Scene::MenuBase + FightMenu) so the real
-# battle_v21 hooks register and can be driven. It reproduces the one behaviour the mega-toggle cue depends
-# on: setIndexAndMode assigns @mode DIRECTLY (never through the mode= setter), which is exactly why the open
-# must prime @access_mega for the first real toggle to be voiced. battler returns nil so read_menu no-ops
-# (no move to read), keeping the spec's spoken log to just the mega cue.
+# The v21.1 battle menus (MenuBase, FightMenu): setIndexAndMode assigns @mode directly, never through mode= (the
+# mega-toggle cue depends on it); battler is nil, so read_menu reads no move.
 module Battle
   class Scene
     class MenuBase
@@ -521,13 +552,57 @@ module Battle
     class FightMenu < MenuBase
       def battler; nil; end
     end
+
+    # The databox, reduced to the images its refresh draws: the shiny icon and, for a caught foe (owned, a test
+    # seam), draw_owned_icon's icon_own, or a Deluxe Battle Kit style's from its own folder (style_path); extra lists
+    # the Graphics/UI/Battle names a plugin's or a game's box draws after them.
+    class PokemonDataBox
+      attr_accessor :owned, :style_path, :extra
+      def initialize(battler); @battler = battler; @owned = false; @style_path = nil; @extra = []; end
+
+      def refresh
+        imagepos = [["Graphics/UI/Battle/icon_shiny", 0, 0]]
+        imagepos.push(["#{@style_path || 'Graphics/UI/Battle'}/icon_own", 8, 36]) if @owned
+        @extra.each { |name| imagepos.push(["Graphics/UI/Battle/#{name}", 219, 4]) }
+        pbDrawImagePositions(nil, imagepos)
+        :refreshed
+      end
+    end
+
+    def pbDisplayMessage(msg, _brief = false); msg; end
+
+    # The Enhanced Battle UI's closing of its panels (Confirm, Cancel and Shift of the fight menu).
+    def pbHideInfoUI; @enhancedUIToggle = nil; end
+  end
+
+  # The battler's two HP entry points, returning the amount moved; on_reduce, a test seam, runs inside pbReduceHP,
+  # where a plugin (a boss shield, a disguise) shows its own messages.
+  class Battler
+    attr_accessor :name, :hp, :totalhp, :index, :battle, :on_reduce
+
+    def initialize(name, hp, totalhp, index = 0)
+      @name = name; @hp = hp; @totalhp = totalhp; @index = index
+    end
+
+    def opposes?; @index.odd?; end
+
+    def pbReduceHP(amt, _anim = true, _register = true, _any_anim = true)
+      amt = @hp if amt > @hp
+      @hp -= amt
+      @on_reduce.call(self) if @on_reduce
+      amt
+    end
+
+    def pbRecoverHP(amt, _anim = true, _any_anim = true)
+      amt = @totalhp - @hp if amt > @totalhp - @hp
+      @hp += amt
+      amt
+    end
   end
 end
 
-# UI::BaseScreen, the root every v22 screen inherits from. It was ABSENT, which made Engine.has?(:ui_rework)
-# false in both engines -- so the four in-screen message hooks of menus/v22/screen_v22 never registered in
-# any test run, and neither did anything gated on the Sky fork. The four methods are here because a hook
-# binds per method: with only one of them present the other three would still be invisible.
+# UI::BaseScreen, the root of every v22 screen (Engine.has?(:ui_rework) checks it), with the four message methods
+# menus/v22/screen_v22 hooks.
 module UI
   class BaseScreen
     def show_message(text); text; end
@@ -550,29 +625,25 @@ class Game_Player
 end
 
 class TestEvent
-  attr_accessor :id, :name, :x, :y, :character_name, :direction, :blocking
+  attr_accessor :id, :name, :x, :y, :character_name, :direction, :blocking, :through
   def initialize(id, name, x, y); @id = id; @name = name; @x = x; @y = y; @character_name = "npc"; @direction = 2; @blocking = false; end
 end
 
-# Reproduces the surface Terrain/Pathfinder read for one-way ledges: it maps a jump direction to the tileset
-# passage byte the real engine would carry (the side OPPOSITE the jump is the only one left open, matching
-# Pathfinder::LEDGE_OPP_BIT), and it exposes @passages/@terrain_tags/data[x,y,i] so ledge_passage resolves.
+# The tileset surface Terrain and Pathfinder read for one-way ledges: a jump direction's passage byte leaves only the
+# side opposite the jump open, as Pathfinder::LEDGE_OPP_BIT expects.
 module TestLedge
-  # RMXP passage bit blocked per direction (0x01 down, 0x02 left, 0x04 right, 0x08 up); the byte of a ledge
-  # leaves only the side opposite the jump open, so ledge_dir_ok? permits exactly that jump direction.
+  # RMXP passage bits (0x01 down, 0x02 left, 0x04 right, 0x08 up): each hop direction maps to its opposite side's.
   OPP_BIT = { 2 => 0x08, 8 => 0x01, 4 => 0x04, 6 => 0x02 }
   TILE_BASE = 1000
 
-  # The synthetic tileset tile id for a ledge whose hop direction is dir (a distinct id per direction so each
-  # carries its own passage byte).
+  # The synthetic tile id of a ledge hopped in dir, one per direction so each has its own passage byte.
   def self.tile_id(dir); TILE_BASE + dir; end
 
   # The passage byte of a ledge with hop direction dir: every side blocked except the one opposite the jump.
   def self.passage(dir); 0x0F & ~(OPP_BIT[dir] || 0); end
 end
 
-# A stand-in for RMXP's map data Table (data[x,y,layer]): returns the ledge tile id on layer 0 of a ledge
-# tile, 0 elsewhere, which is exactly what ledge_passage walks.
+# RMXP's map data Table (data[x,y,layer]): the ledge tile id on layer 0 of a ledge tile, 0 elsewhere.
 class TestMapData
   def initialize(ledges); @ledges = ledges; end
   def [](x, y, layer)
@@ -594,29 +665,27 @@ class Game_Map
   # True while (x,y) is inside the map bounds; ledge_jump needs it to accept a landing tile.
   def valid?(x, y); x >= 0 && y >= 0 && x < @width && y < @height; end
 
-  # Registers a one-way ledge at (x,y) whose hop direction is dir (2/4/6/8): opt-in and mirroring the real
-  # engine, the tile is passable ONLY when entered moving in dir (from the high side), reads terrain tag 1,
-  # and carries the passage byte that makes ledge_dir_ok? permit exactly dir. Returns self.
+  # Places a one-way ledge at (x,y) hopped in dir (2/4/6/8): passable only when entered moving in dir, terrain tag 1,
+  # and the passage byte that lets ledge_dir_ok? permit exactly dir. Returns self.
   def place_ledge(x, y, dir)
     @ledges[[x, y]] = dir
     tid = TestLedge.tile_id(dir)
     @terrain_tags[tid] = 1
     @passages[tid] = TestLedge.passage(dir)
+    (PokeAccess::Terrain.forget_map_memo rescue nil)
     self
   end
 
-  # Clears all placed ledges (the reset calls this so a ledge never leaks between suites).
+  # Clears all placed ledges (the reset calls it between suites).
   def clear_ledges; init_ledges; end
 
-  # True if a blocking event occupies (x,y) (a solid event makes its tile impassable, as in the real engine).
+  # True if a blocking event, not through, occupies (x,y).
   def blocking_event_at?(x, y)
-    @events.each_value { |e| return true if e.respond_to?(:blocking) && e.blocking && e.x == x && e.y == y }
+    @events.each_value { |e| return true if e.respond_to?(:blocking) && e.blocking && !(e.respond_to?(:through) && e.through) && e.x == x && e.y == y }
     false
   end
 
-  # Passability of a one-step move from (x,y) in dir. A ledge tile is passable only when approached moving in
-  # its hop direction (high side); a blocking event blocks the destination; otherwise open (modern stub has
-  # no grid harness).
+  # Passability of a step from (x,y) in dir: a ledge only in its hop direction, a blocking event never, else open.
   def passable?(x, y, dir)
     dx = (dir == 6 ? 1 : (dir == 4 ? -1 : 0)); dy = (dir == 2 ? 1 : (dir == 8 ? -1 : 0))
     nx = x + dx; ny = y + dy
@@ -626,8 +695,8 @@ class Game_Map
     true
   end
 
-  # Exposes the passage/terrain-tag tables the real Game_Map carries, so ledge_passage can read them.
-  def init_ledges; @ledges = {}; @passages = {}; @terrain_tags = {}; @data = TestMapData.new(@ledges); end
+  # Resets the ledges and the passage and terrain-tag tables the real Game_Map carries (ledge_passage reads them).
+  def init_ledges; @ledges = {}; @passages = {}; @terrain_tags = {}; @data = TestMapData.new(@ledges); (PokeAccess::Terrain.forget_map_memo rescue nil); end
   def data; @data; end
 end
 
@@ -635,12 +704,8 @@ class Game_Temp;   attr_accessor :in_menu, :message_window_showing, :in_battle, 
 class Game_System; def map_interpreter; @i ||= Object.new.tap { |o| def o.running?; false; end }; end; end
 class Scene_Map;   def update(*a); end; end
 
-# The selectable-window chain the mod's generic auto-detect net and the command hook bind to, reproduced
-# minimally but with the SAME shape as every engine (gen-6/v21/v22): Window_DrawableCommand descends from
-# SpriteWindow_Selectable, only the base and the leaf own an #update, and the middle class inherits it. This
-# lets menus.rb wrap the real navigation update at load (so the net is not a no-op) and lets specs drive a
-# cursor move by setting @index then calling update, exactly as the game does. #index/#active are the
-# accessors the net reads. A spec that needs a filtered pocket adds #pocket on a subclass.
+# The selectable-window chain the generic net and the command hook bind to, shaped as in every engine: only the base
+# and the leaf own an #update. Specs move a cursor by setting @index and calling update, as the game does.
 class SpriteWindow_Base
   attr_accessor :active, :visible, :index
   def initialize; @active = true; @visible = true; @index = 0; end
@@ -656,12 +721,11 @@ class Window_DrawableCommand < SpriteWindow_SelectableEx
   def update(*a); old = self.index; super; refresh if self.index != old; @index; end
   def refresh; end
 end
-# The concrete command window every modern screen instantiates (the v22 pause menu keeps one in
-# @sprites[:commands]); it adds nothing the readers need beyond its Window_DrawableCommand base.
+# The concrete command window modern screens instantiate (the v22 pause menu keeps one in @sprites[:commands]).
 class Window_CommandPokemon < Window_DrawableCommand; end
 
-# The two numeric option kinds as modern Essentials declares them: SIBLING classes with lowest_value /
-# highest_value. A NumberOption paints "Type value/total"; a SliderOption paints ONLY its value, over a bar.
+# Two sibling numeric option kinds (lowest_value, highest_value): NumberOption paints "Type value/total",
+# SliderOption only its value, over a bar.
 class NumberOption
   attr_reader :name, :lowest_value, :highest_value
   def initialize(name, lo, hi); @name = name; @lowest_value = lo; @highest_value = hi; end
@@ -677,18 +741,92 @@ class EnumOption
   def initialize(name, values); @name = name; @values = values; end
 end
 
-# The Pokedex list window. Its rows are HASHES here (the modern shape), carrying :shift for the regional
+# An options row that opens a submenu: a name over a constant value.
+class ButtonOption
+  attr_reader :name
+  def initialize(name); @name = name; end
+  def get; 0; end
+end
+
+# The options list: options, their values, and drawItem painting each row's name, the last row's being exit_word, and
+# after a NumberOption's name its value in number_format ("Type %d/%d" as v21 paints it); a value set repaints.
+class Window_PokemonOption < Window_DrawableCommand
+  attr_accessor :exit_word, :number_format
+  def initialize(options, exit_word = "Close")
+    super([])
+    @options = options
+    @values = Array.new(options.length, 0)
+    @exit_word = exit_word
+    @number_format = "Type %d/%d"
+  end
+  def [](i); @values[i]; end
+  def []=(i, v); @values[i] = v; refresh; end
+  def drawItem(index, _count, _rect)
+    o = @options[index]
+    pbDrawShadowText(nil, 0, 0, 0, 0, o.nil? ? @exit_word : o.name, nil, nil)
+    return unless o.is_a?(NumberOption)
+    pbDrawShadowText(nil, 0, 0, 0, 0, format(@number_format, o.lowest_value + self[index], o.highest_value - o.lowest_value + 1), nil, nil)
+  end
+  def refresh; (@options.length + 1).times { |i| drawItem(i, @options.length + 1, nil) }; end
+end
+
+# The options screen, reduced to its closing: a submenu is one of these opened from a row of another.
+class PokemonOption_Scene
+  def pbEndScene; end
+end
+
+# The Pokegear's selection loop, rerun after every app it opens: each pass selects the focused button.
+class PokegearButton
+  attr_reader :name
+  def initialize(name); @name = name; @selected = false; end
+  def selected=(v); @selected = v; end
+end
+class PokemonPokegear_Scene
+  attr_accessor :index
+  def initialize(names); @buttons = names.map { |n| PokegearButton.new(n) }; @index = 0; end
+  def pbUpdate; @buttons.each_with_index { |b, i| b.selected = (i == @index) }; end
+  def pbStartScene(_commands = nil); pbUpdate; end
+  def pbScene; pbUpdate; -1; end
+end
+
+# The Pokedex list window. Its rows are hashes here (the modern shape), carrying :shift for the regional
 # offset the screen subtracts before painting the number.
 class Window_Pokedex < Window_DrawableCommand; end
 
-# The engine's two text-painting functions. Every game has them and the mod wraps both to feed PaintCapture;
-# with neither in the harness the whole capture path -- arm, note, take -- ran in no test at all, which is
-# how a capture hook bound to a class name no modern game uses went eight games unnoticed.
+# The pause menu scene, reduced to its opening, its command loop and the info box the Safari and the
+# Bug-Catching Contest fill (pbShowInfo, called before the commands are shown).
+class PokemonPauseMenu_Scene
+  attr_reader :info
+  def pbStartScene; end
+  def pbShowInfo(text); @info = text; end
+  def pbShowCommands(_commands); 0; end
+end
+
+# The save screen's scene, reduced to the summary panel its pbStartScreen builds and pbEndScreen disposes.
+class PokemonSave_Scene
+  def pbStartScreen
+    panel = "<ac><c3=209808,90F090>Ruta 5</c3></ac>Player<r><c3=0070F8,78B8E8>Ceniza</c3><br>" +
+            "Time<r>3h 12m<br>Badges<r>3<br>"
+    @sprites = { "locwindow" => Struct.new(:text).new(panel) }
+  end
+  def pbEndScreen; @sprites = {}; end
+end
+
+# The engine's text painters (drawTextEx here, pbDrawTextPositions below), which the mod wraps to feed PaintCapture.
 def drawTextEx(_bitmap, _x, _y, _width, _lines, text, _base = nil, _shadow = nil); text; end
 
-# The modal panel the engine blocks on until the confirm key, used for the level-up stat gains. The
-# modern signature takes an optional scene the gen-6 one does not have.
+# The modal panel the engine blocks on until the confirm key (level-up stat gains); the modern one takes a scene.
 def pbTopRightWindow(text, scene = nil); [text, scene]; end
+
+# The EV Allocator plugin's full-description panel (an ability's or a move's whole text), so its watch binds at load.
+def pbFullAbilityWindow(text, scene = nil); [text, scene]; end
+
+# The game's translation call: the text untranslated, each {n} replaced by its argument, as the engine does.
+def _INTL(text, *args)
+  t = text.to_s.dup
+  args.each_with_index { |a, i| t.gsub!("{#{i + 1}}", a.to_s) }
+  t
+end
 
 def pbDrawTextPositions(_bitmap, textpos)
   textpos
@@ -698,15 +836,37 @@ def drawFormattedTextEx(_bitmap, _x, _y, _width, text, _base = nil, _shadow = ni
   text
 end
 
-# The item storage screen under the name every v18-and-later game gives it. Same shape as the gen-6 stub's,
-# so both spellings of the capture hook are pinned, each in the engine pass that has that spelling.
-class ItemStorage_Scene
-  def initialize(title = "Withdraw
-Item"); @title = title; end
+# The row painter of the command lists; PaintCapture samples it for one row's word.
+def pbDrawShadowText(_bitmap, _x, _y, _width, _height, string, _base = nil, _shadow = nil, _align = 0)
+  string
+end
 
-  # The real order, checked in all eleven games that have this screen: the item LIST refreshes first,
-  # through pbDrawTextPositions, and only then does pbRefresh draw the title with drawTextEx. A stub that
-  # painted the title first made "take the first row" look correct when it was reading the first item.
+# The icon painter: the trainer card's badges are icons, which PaintCapture.icons counts.
+def pbDrawImagePositions(_bitmap, images)
+  images
+end
+
+# The HGSS trainer card, reduced to its two faces: the front writes its badge count as text beside the
+# icons, and the special key turns it to the back.
+class PokemonTrainerCard_Scene
+  def pbStartScene; pbDrawTrainerCardFront; end
+  def pbDrawTrainerCardFront
+    pbDrawTextPositions(nil, [["NOMBRE", 272, 54], ["Rojo", 480, 54], ["MEDALLAS", 32, 214], ["2", 304, 214],
+                              ["Pulsa [D] para girar la tarjeta.", 16, 350]])
+  end
+  def pbDrawTrainerCardBack
+    pbDrawTextPositions(nil, [["DEBUT HALL DE LA FAMA", 32, 22], ["Combates Online", 32, 134], ["4", 350, 134]])
+    pbDrawImagePositions(nil, [["Graphics/UI/Trainer Card/badges0", 36, 234, 0, 0, 48, 48],
+                               ["Graphics/UI/Trainer Card/badges0", 92, 234, 48, 0, 48, 48]])
+  end
+end
+
+# The item storage screen under its v18+ name, shaped as the gen-6 stub's, so each spelling's capture hook is pinned.
+class ItemStorage_Scene
+  def initialize(title = "Withdraw\nItem"); @title = title; end
+
+  # The real order: the item list paints first, through pbDrawTextPositions, and then pbRefresh draws the title with
+  # drawTextEx.
   def pbStartScene(*a)
     pbDrawTextPositions(nil, [["Potion", 98, 14], ["Repel", 98, 46]])
     drawTextEx(nil, 0, 4, 200, 2, @title)
@@ -716,6 +876,12 @@ Item"); @title = title; end
 end
 class WithdrawItemScene < ItemStorage_Scene; end
 
+# The egg hatch scene under its modern name: the hatchling in @pokemon, and pbMain running the animation.
+class PokemonEggHatch_Scene
+  def initialize(pokemon = nil); @pokemon = pokemon; end
+  def pbMain; :hatched; end
+end
+
 # A window that just holds text, as the phone's standing information windows do.
 class FakeTextWin
   attr_accessor :text, :visible
@@ -723,14 +889,8 @@ class FakeTextWin
 end
 
 
-# The two shop screens with standing information windows beside their list. The mart is every game's; the
-# Battle Point shop is five of them. Both are HERE and not in the spec because core declares its watches at
-# load: a class that appears afterwards is a reader bound to nothing.
-#
-# Their LIFECYCLES differ and that is the point of reproducing them: the Battle Point shop has the engine's
-# pbStartScene/pbEndScene, and the mart has neither -- it names both ends after the mode, pbStartBuyScene /
-# pbEndBuyScene and the sell pair, in all fifteen games. pbRefresh is what rewrites the windows, on every
-# change of the focused item and after every purchase.
+# The two shop screens with standing information windows, here because core declares its watches at load. The Battle
+# Point shop has pbStartScene/pbEndScene; the mart has neither, only pbStartBuyScene/pbEndBuyScene and the sell pair.
 class BattlePointShop_Scene
   attr_reader :sprites
 
@@ -743,7 +903,7 @@ class BattlePointShop_Scene
   def pbStartScene(*a); self; end
   def pbEndScene(*a); nil; end
 
-  # description, bag count and points, exactly as the shop rebuilds them when the focus moves.
+  # Sets the description, bag count and points as the shop rebuilds them when the focus moves.
   def focus(item, in_bag, points)
     @item = item
     @sprites["itemtextwindow"].text = item ? "Raises the Attack of one Pokemon." : "Quit shopping."
@@ -753,11 +913,7 @@ class BattlePointShop_Scene
   end
 end
 
-# The ordinary mart is the same screen with money in place of points, and gets the same two windows. Its
-# LIFECYCLE is the thing to reproduce faithfully: in all fifteen games it is pbStartBuyScene/pbEndBuyScene
-# (and the sell pair), and there is no pbStartScene and no pbEndScene anywhere on the class. A stand-in
-# given the engine's usual pair would let a watch bind that binds nothing in a real game -- which is exactly
-# how this reader shipped dead the first time.
+# The mart: the same windows with money for points, and no pbStartScene or pbEndScene, as the real one.
 class PokemonMart_Scene
   attr_reader :sprites
 
@@ -787,7 +943,22 @@ class PokemonMart_Scene
   end
 end
 
-# The phone under the modern spelling: it does keep its two windows here too.
+# The secret bases' decoration shop (Secret Bases Remade and Royal's fork), here because its plugin reader binds at
+# load: the prompts it writes in its own help window, and the frame update each of its loops runs.
+class SecretBaseMart_Scene
+  attr_reader :sprites
+
+  def initialize(money = "$1.500")
+    @sprites = { "moneywindow" => FakeTextWin.new("Dinero:\r\n<r>#{money}") }
+  end
+
+  def pbDisplay(msg, _brief = false); msg; end
+  def pbDisplayPaused(msg); msg; end
+  def pbConfirm(_msg); true; end
+  def update; :updated; end
+end
+
+# The phone under the modern spelling, with its two windows.
 class PokemonPhone_Scene
   attr_reader :sprites
   def initialize; @sprites = { "bottom" => FakeTextWin.new, "info" => FakeTextWin.new }; end
@@ -795,34 +966,57 @@ class PokemonPhone_Scene
   def pbEndScene(*a); nil; end
 end
 
-# The modern dex list, which has NO header windows at all: it paints seen, owned and the search notice
-# straight onto its overlay from pbRefresh. Shaped after the real one, so the capture reader is what gets
-# exercised here and the window watcher is what gets exercised in the gen-6 pass.
-# The dex ENTRY screen. drawPage paints the focused page and the mod arms a capture around it, so what is
-# exercised here is that the capture is taken on EVERY page and not left armed for whoever comes next.
+# The dex entry screen: drawPage paints the focused page inside a capture the mod arms, taken on every page.
 class PokemonPokedexInfo_Scene
   attr_accessor :cursor
   def initialize; @species = 25; @page = 2; @cursor = :general; end
+  # Paints what a spec hands it in @paint, else the two rows the area specs expect.
   def drawPage(page)
-    drawTextEx(nil, 0, 0, 200, 1, "Area unknown")
-    drawTextEx(nil, 0, 20, 200, 1, "Kanto")
+    if @paint
+      @paint.call
+    else
+      drawTextEx(nil, 0, 0, 200, 1, "Area unknown")
+      drawTextEx(nil, 0, 20, 200, 1, "Kanto")
+    end
     page
   end
 
-  # The MUI data page. Its own rule is "cursor = @cursor if !cursor", so an argument WINS over the ivar --
-  # which is what the reader has to follow, or it names whichever section the cursor happens to sit on.
+  # The MUI data page: a cursor argument wins over @cursor, as in the game's "cursor = @cursor if !cursor". A spec
+  # hands the section's paragraphs as [text, x, y] in @notes_paint (the stats box paints seven).
   def pbDrawDataNotes(cursor = nil)
     cursor = @cursor if !cursor
-    drawFormattedTextEx(nil, 0, 0, 400, "Texto de #{cursor}.")
+    if @notes_paint
+      @notes_paint.each { |t, x, y| drawFormattedTextEx(nil, x, y, 400, t) }
+    else
+      drawFormattedTextEx(nil, 0, 0, 400, "Texto de #{cursor}.")
+    end
     cursor
+  end
+
+  # The MUI species sub-list: the focused cell's name and the page ("1/2") as positions, then the box beneath as
+  # the paragraphs a spec hands in @list_paint ([text, x, y]), as the game paints them.
+  def pbDrawSpeciesDataList(list, index, page, maxpage, _cursor = nil)
+    pbDrawTextPositions(nil, [[list[page * 12 + index].to_s, 256, 248], ["#{page + 1}/#{maxpage + 1}", 51, 249]])
+    (@list_paint || []).each { |t, x, y| drawFormattedTextEx(nil, x, y, 446, t) }
+    :list_drawn
+  end
+
+  # The MUI move sub-list: a command window of bare names in @sprites["movecmds"], the list on show picked
+  # by @moveListIndex, its title painted first in the batch. A spec fills the lists and the window.
+  def pbDrawMoveList
+    title = ["LEVEL-UP", "TM/TUTOR", "INHERIT", "Z-MOVES"][@moveListIndex.to_i]
+    pbDrawTextPositions(nil, [[title, 130, 51], ["PP", 144, 120]])
+  end
+  def pbChooseMove; end
+  def pbChooseSpeciesDataList(_cursor = nil); end
+  def pbCurrentMoveID
+    sel = @moveList[@sprites["movecmds"].index]
+    @moveListIndex == 0 ? sel[1] : sel
   end
 end
 
-# The modern pokedex list, as the nine games of that era really build it: no seen/owned/dexname windows at
-# all, one pbDrawTextPositions batch carrying the dex name, the FOCUSED SPECIES and the totals, and an open
-# that reaches pbRefresh through pbRefreshDexList (emerald/295_UI_Pokedex_Main.rb:264, :295, :414). That
-# chain is the point: an ordinary after-hook on the opener runs its original under the reentrancy guard and
-# skipped the pbRefresh hook whole, so the header was mute on open in all nine.
+# The modern Pokedex list: no header windows, one pbDrawTextPositions batch with the dex name, the focused species
+# and the totals, and an open that reaches pbRefresh through pbRefreshDexList, nested in the opener.
 class PokemonPokedex_Scene
   attr_reader :sprites
   def initialize
@@ -840,12 +1034,41 @@ class PokemonPokedex_Scene
   end
   def seen_total=(n); @seen_total = n; end
   def focus_species=(id); @sprites["pokedex"].species = id; end
+
+  # The search screen: the grid repaints on opening and after a filter changes, a cursor move only sets the cursor
+  # sprite's index; moves, an invented name, stands for the loop's arrow presses.
+  def pbDexSearch(moves = [])
+    @orderCommands = ["Numerical", "A to Z"]
+    @nameCommands = ["A", "B"]
+    params = [0, 1, -1, -1, -1, -1, -1, -1, -1, -1]
+    @sprites["searchcursor"] = PokedexSearchSelectionSprite.new
+    pbRefreshDexSearch(params, 0)
+    moves.each { |i| @sprites["searchcursor"].index = i }
+    :searched
+  end
+  def pbRefreshDexSearch(params, index); [params, index]; end
+  def pbRefreshDexSearchParam(mode, _cmds, _sel, index); [mode, index]; end
 end
 
-# The dex's own icon sprite, which is where the screen keeps the species the list is focused on.
+# The search screen's cursor, shared by the grid (mode -1) and the filter sub-screens.
+class PokedexSearchSelectionSprite
+  attr_reader :index
+  def initialize; @index = 0; @mode = -1; end
+  def index=(value); @index = value; end
+  def mode=(value); @mode = value; end
+end
+
+# The dex's icon sprite, where the screen keeps the focused species.
 class DexIconSprite
   attr_accessor :species
   def initialize(id); @species = id; end
+end
+
+# The formatted text window: its constructor sets the text through text=, as the real one does.
+class Window_AdvancedTextPokemon
+  attr_reader :text
+  def initialize(text = ""); self.text = text; end
+  def text=(value); @text = value; end
 end
 
 class HallOfFame_Scene
@@ -856,6 +1079,14 @@ class HallOfFame_Scene
   end
   def writeWelcome; drawTextEx(nil, 0, 60, 200, 1, "Congrats! Records Logged!"); end
   def pbStartSceneEntry(*a); end
+  # The v21 closing box (each row closed with <br> after its _INTL) and the congratulation it waits on.
+  def writeTrainerData
+    @sprites = { "messagebox" => Window_AdvancedTextPokemon.new("Name<r>Tester<br>ID No.<r>12345<br>" \
+                                                                "Time<r>1h 23m<br>Pokédex<r>10/20<br>") }
+    @sprites["msgwindow"] = Window_AdvancedTextPokemon.new
+    @sprites["msgwindow"].text = "League champion!\nCongratulations!"
+    PokeAccess.say_dialogue("League champion!\nCongratulations!")
+  end
 end
 
 # A silent clone: same methods, paints nothing. Bound by the spec through HallOfFame.bind, as a profile does.
@@ -865,20 +1096,15 @@ class Duet_Scene
   def pbStartSceneEntry(*a); end
 end
 
-# The other shape a clone comes in: Fire Ash's team viewer, which has no entry animation at all and takes no
-# record number, so every draw of it is the player browsing.
+# A clone with no entry animation and no record number (Fire Ash's team viewer): every draw is the player browsing.
 class Challenge_Scene
   def writePokemonData(pk)
     drawTextEx(nil, 0, 0, 200, 1, "#{pk ? pk.name : '?'} Lv. #{pk ? pk.level : 0}")
   end
 end
 
-# The v21.1 summary scene, which is what NINE of the fifteen surveyed games ship (anil, awakening, emerald,
-# Fire Ash, both Infinite Fusions, Relict, Royal, Soulstones 2). Absent until now, so every hook in
-# core/party/v21/summary_v21.rb resolved to the empty class name and bound nothing: the whole reader was
-# untested, which is how the egg page could go mute in it without a single assertion turning red.
-#
-# drawPage dispatches, and takes the egg branch FIRST, exactly as emerald/298_UI_Summary.rb:303-307 does.
+# The v21.1 summary scene the core/party/v21/summary_v21.rb hooks bind to; drawPage takes the egg branch first, as
+# the real one does.
 class PokemonSummary_Scene
   attr_accessor :pokemon, :party
   def initialize(pk = nil); @pokemon = pk; end
@@ -887,14 +1113,16 @@ class PokemonSummary_Scene
     @pokemon = party ? party[partyindex] : @pokemon
     drawPage(1)
   end
+  # on_draw, if a spec sets it, runs inside the draw with the page, for a page that opens a screen of its own.
+  attr_accessor :on_draw
   def drawPage(page)
     return drawPageOneEgg if @pokemon && (@pokemon.egg? rescue false)
     drawTextEx(nil, 0, 0, 200, 1, "Page #{page}")
+    @on_draw.call(page) if @on_draw
     page
   end
 
-  # What the page really paints: the memo label and the item through the positions batch, the nickname and
-  # the hatch paragraph as free text -- the last being the only thing anyone opens the page for.
+  # The egg page: the memo label and the item through the positions batch, the hatch paragraph as free text.
   def drawPageOneEgg
     pbDrawTextPositions(nil, [["TRAINER MEMO", 26, 22], ["Item", 66, 324], ["None", 16, 358]])
     drawFormattedTextEx(nil, 232, 86, 268,
@@ -904,38 +1132,76 @@ class PokemonSummary_Scene
   def drawSelectedMove(_move_to_learn, _selected); end
   def pbChooseMoveToForget(_move_to_learn); end
 
-  # The action menu takes the command list FIRST and no message (anil/303_UI_Summary.rb:268; every game with
-  # this class has it, the eight modern ones and Awakening), and the ribbons page redraws the focused ribbon
-  # through drawSelectedRibbon: the id itself in vanilla, (filter, index, page, maxpage) under the Improved
-  # Mementos plugin.
+  # The action menu takes the command list first and no message; drawSelectedRibbon gets the ribbon id in vanilla,
+  # (filter, index, page, maxpage) under the Improved Mementos plugin.
   def pbShowCommands(commands, index = 0); [commands, index]; end
   def drawSelectedRibbon(*args); args; end
   # The per-frame call every one of this scene's loops makes, and the seam a reader uses to see a cursor
   # the game keeps in a local (the EV allocator's).
   def pbUpdate; :updated; end
+
+  # The marking screen, a loop whose locals hold the cursor and the marks; its frames are the spec's marking_loop,
+  # run in the scene.
+  MARK_HEIGHT = 16
+  attr_accessor :marking_loop
+  def pbMarking(pokemon); instance_exec(pokemon, &@marking_loop); end
 end
 
-# The opening's controls help, vanilla Essentials (016_UI/001_Non-interactive UI/002_UI_Controls.rb) and
-# present with these same two signatures in ten of the surveyed games. Its paragraphs never touch a window:
-# addLabelForScreen compiles each one straight into a bitmap, which is why the reader collects them here.
+# The v19+ PC box scene: pbMark runs the spec's marking_loop, and pbMarkingSetArrow moves the arrow over the grid,
+# the one place its cursor is not a local. The box cursor readers hook pbUpdateOverlay and pbSelectBoxInternal.
+class PokemonStorageScene
+  MARK_HEIGHT = 16
+  attr_accessor :marking_loop
+  def initialize(storage = nil); @storage = storage; end
+  def pbMark(selected, heldpoke); instance_exec(selected, heldpoke, &@marking_loop); end
+  def pbMarkingSetArrow(arrow, selection); [arrow, selection]; end
+  def pbUpdateOverlay(*a); end
+  def pbSelectBoxInternal(*a); end
+  # Infinite Fusion's splicers inside the PC: the box cursor armed to fuse, or back to normal.
+  def setFusing(on); @fusing = on; end
+
+  # The arrow's move, which the multi-select plugin (Storage System Utilities) follows.
+  def pbSetArrow(*_a); :arrow; end
+
+  # Anil's PC search in its order: the jump to the chosen box, then the frames of the fade, which a spec
+  # hands in as on_search_frame.
+  attr_accessor :on_search_frame
+  def pbSearch(box = 0); pbJumpToBox(box); @on_search_frame.call if @on_search_frame; :searched; end
+  def pbJumpToBox(_box); :jumped; end
+end
+
+# The opening's controls help: addLabelForScreen compiles each paragraph straight into a bitmap, with no window, so
+# the reader collects them there.
 class ButtonEventScene
   def addLabelForScreen(number, x, y, width, text); [number, x, y, width, text]; end
   def set_up_screen(number); number; end
 end
 
-# The "Hall de la Fama BW" ceremony in the gen-5 style both games that ship the plugin run
-# (HallDeLaFama_GEN = 5): the card and the finale are painted straight onto bitmaps from these two seams
-# (royal/_PluginScripts/Hall de la Fama BW/007_hall_of_fame_gen5.rb:650 and :826), with no window to read.
+# The "Hall de la Fama BW" ceremony in the gen-5 style (HallDeLaFama_GEN = 5): the card and the finale are painted
+# straight onto bitmaps from these two seams, with no window to read.
 HallDeLaFama_REGION = "KANTO"
 class HallDeLaFama
   def gen5_pokemon_info(pokemon, party_index); [pokemon, party_index]; end
   def create_gen5_final_windows; :final; end
   def get_play_time_formatted; "3:07"; end
+  # Every text window is built hidden unless asked otherwise.
+  def create_text_window(text, visible = false)
+    w = HallOfFameTextWindow.new(text)
+    w.visible = visible
+    w
+  end
 end
 
-# The team photo camera of the "Fotos del equipo" plugin, cut down to its loop (royal/_PluginScripts/Fotos
-# del equipo/001_Party Picture Script.rb:71): each arrow pans one pbScrollMap(dir, 1) up to the two MAX
-# constants, and at the edge it bumps instead. The arrows come from $pa_photo_keys, one per pass.
+# The ceremony's text window, with its own text= and visible=.
+class HallOfFameTextWindow
+  attr_reader :visible
+  def initialize(text); @text = text; @visible = false; end
+  def text=(t); @text = t; end
+  def visible=(v); @visible = v; end
+end
+
+# The "Fotos del equipo" plugin's team photo camera, cut down to its loop: each arrow from $pa_photo_keys pans one
+# pbScrollMap(dir, 1) up to the MAX constants, and bumps at the edge.
 class PartyPicture
   MAX_HORIZONTAL_MOVEMENT = 4
   MAX_VERTICAL_MOVEMENT = 2
@@ -1002,10 +1268,11 @@ $PokemonGlobal = Object.new
 def $PokemonGlobal.surfing; false; end
 def $PokemonGlobal.diving; false; end
 def $PokemonGlobal.bridge; 0; end
+# The v21 name of the ice-slide flag (sliding before v21), raised while a slide carries the player.
+def $PokemonGlobal.ice_sliding; @ice_sliding ? true : false; end
+def $PokemonGlobal.ice_sliding=(v); @ice_sliding = v; end
 
-# Pictures. Every RMXP game has this pair and the mod hooks Game_Picture#show to narrate picture-only
-# screens (a new-game character slider is nothing but this), so a stub without it left that whole family
-# bound to nothing and untestable.
+# Game_Picture, whose show the mod hooks to narrate picture-only screens (a new-game character slider).
 class Game_Picture
   attr_reader :number, :name, :x, :y
   def initialize(number = 1); @number = number; @name = ""; @x = 0; @y = 0; end

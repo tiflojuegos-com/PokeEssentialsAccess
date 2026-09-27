@@ -1,7 +1,5 @@
-# register_diag_section: the extension point that lets a PROFILE contribute a section to the
-# diagnostic dump (the reason the core carries no game-specific diag anymore). The registered block
-# must run inside diag_build, join DIAG_ALL and its debug-menu group, and fail as a guarded ERR line
-# without losing the rest of the dump.
+# register_diag_section, which lets a profile add a section to the diagnostic dump: the block runs in diag_build,
+# joins DIAG_ALL and its debug-menu group, and a raise becomes a guarded ERR line.
 Suite.define("diag: profile-registered sections run, group, and fail guarded") do
   k = PokeAccess::Keys
   k.register_diag_section(:spec_section, :perf) { |o| o.push("spec_section: alive") }
@@ -27,10 +25,7 @@ Suite.define("diag: profile-registered sections run, group, and fail guarded") d
   end
 end
 
-# The caps list on the engine line. It walks CAPABILITIES rather than a hand-written set of pushes, where a
-# capability registered later would be absent from every recording until somebody remembered this file --
-# the same forget-and-it-is-silent failure the registry exists to avoid. What the spec pins is not the exact
-# contents, which change, but that the list COMES FROM the registry.
+# The caps list on the engine line comes from Engine::CAPABILITIES, leaving out what the line already states.
 Suite.define("diag: the caps line is built from the capability registry, not a hand list") do
   d = PokeAccess::Keys
   caps = PokeAccess::Engine::CAPABILITIES
@@ -51,8 +46,6 @@ Suite.define("diag: the caps line is built from the capability registry, not a h
     caps.delete(:spec_cap_absent)
   end
 
-  # kind= and fork= already state these on the very same line; repeating them is noise in a report a blind
-  # player has to read aloud.
   shown = d.visible_caps(PokeAccess::Engine)
   eq "the ones the engine line already states are not repeated",
      shown.select { |c| ["gamedata", "gen6", "sky_fork"].include?(c) }, []

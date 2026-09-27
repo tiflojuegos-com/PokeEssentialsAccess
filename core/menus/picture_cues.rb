@@ -1,25 +1,17 @@
 module PokeAccess
-  # Picture-based screens with no readable text. Games register picture-name => text in TEXTS (read when
-  # shown), and/or observer procs via register (for screens whose selection is not a single highlighted
-  # picture). Skips the immediate duplicate the engine may re-show.
-  #
-  # A value may instead be a hash of build language => transcription, for a game shipped as several
-  # per-language builds that paint different words into the same picture file; GameLang picks the one the
-  # running build shows. These are TRANSCRIPTIONS of what is on screen, not mod prose, so they follow the
-  # build and never the reader's language setting.
+  # Picture-based screens with no readable text: games register picture name => text in TEXTS (read when shown,
+  # skipping an immediate re-show) or observers via register. A text may be a {build language => transcription}
+  # hash, picked by the running build (GameLang), never the reader's language.
   module PictureCues
     TEXTS = {}
     HANDLERS = []
-    # The language each game's picture strings were authored in, by profile, for the fallback when a build
-    # declares a language nobody transcribed.
+    # Picture name => the language its profile authored it in; the fallback for an untranscribed build language.
     BASE_LANG = {}
 
     # Registers an observer called as (name, show_args) on every picture shown.
     def self.register(&blk); HANDLERS.push(blk); end
 
-    # True when a registered picture screen is on screen (a picture-based menu like the difficulty/
-    # nuzlocke selectors or the alchemy book). These run outside the normal menu/interpreter state, so
-    # busy? cannot detect them; checking for any shown picture whose name is registered is game-neutral.
+    # True while any shown picture (slots 1-50) is a registered one: a picture menu busy? cannot detect.
     def self.menu_showing?
       return false if TEXTS.empty?
       return false unless defined?($game_screen) && $game_screen
@@ -33,20 +25,26 @@ module PokeAccess
       false
     end
 
+    # The text registered for a picture name, a build's transcription picked from a Hash; nil when there is none.
+    def self.text_for(name)
+      n = name.to_s
+      t = TEXTS[n]
+      t = PokeAccess::GameLang.pick(t, BASE_LANG[n] || :es) if t.is_a?(Hash)
+      t ? PokeAccess::I18n.t(t) : nil
+    end
+
     # Narrates a registered picture and notifies observers.
     def self.on_picture(name, args)
       n = name.to_s
-      t = TEXTS[n]
-      if t && n != @last
+      if TEXTS[n] && n != @last
         @last = n
-        t = PokeAccess::GameLang.pick(t, BASE_LANG[n] || :es) if t.is_a?(Hash)
-        PokeAccess.speak(PokeAccess::I18n.t(t), true) if t
+        t = text_for(n)
+        PokeAccess.speak(t, true) if t
       end
       HANDLERS.each { |h| (h.call(n, args) rescue nil) }
     end
 
-    # Clears the dedup so a re-shown picture speaks again (called when one is erased), so a reference
-    # card opened repeatedly (e.g. the berry chart) is read every time.
+    # Clears the dedup, so a picture shown again after an erase speaks again.
     def self.reset_last; @last = nil; end
   end
 end
@@ -60,8 +58,7 @@ PokeAccess::Hooks.after_hook("Game_Picture", :erase) do |_p, _r, _a|
   PokeAccess::PictureCues.reset_last
 end
 
-# New-game character selection reads its gender from the shown boy/girl portrait, via the single picture
-# hook (Appearance gates it to the selection, before $Trainer exists).
+# The new-game character selection's portrait gender (Appearance gates it to the selection).
 PokeAccess::PictureCues.register do |name, _args|
   (PokeAccess::Appearance.on_picture(name) rescue nil) if defined?(PokeAccess::Appearance)
 end

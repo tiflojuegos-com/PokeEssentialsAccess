@@ -1,13 +1,5 @@
-# The state of a minigame in progress, which both boards repaint constantly and neither said.
-#
-# Voltorb Flip: the coins won so far are the whole decision of the game. Flipping a 2 or a 3 multiplies the
-# round's takings and every flip sounds alike, so with the total unspoken a player has nothing to weigh
-# "one more card" against, and cannot tell a board they are winning from one already lost.
-#
-# Triple Triad: the scoreboard. A turn in which the opponent flips three cards changes who is winning
-# without a word, and the only other way to know is to walk all nine cells.
-#
-# Both ship in all fourteen surveyed games, so both are core.
+# Minigame state. Voltorb Flip says its level on arrival and the coins when they change; a new board (cursor back on
+# the first cell, takings at zero) says its level and first row and column counts again.
 Suite.define("minigames: Voltorb Flip says the level on arrival and the coins whenever they move") do
   scene = Object.new
   scene.instance_variable_set(:@index, [0, 0])
@@ -41,9 +33,6 @@ Suite.define("minigames: Voltorb Flip says the level on arrival and the coins wh
   falsy "and moving with the takings unchanged does not say them again",
         SpeakCapture.lines.first.include?(PokeAccess::I18n.t(:mg_coins, :n => 24))
 
-  # A Voltorb (or a cleared board) makes the game build a NEW board from inside its input loop, cursor back
-  # on the first cell and takings at zero. Read against the old memo it was a step onto a cell already
-  # described, so neither the level nor the row and column counts of the new board were said.
   SpeakCapture.clear
   scene.instance_variable_set(:@squares, Array.new(25) { 0 })
   scene.instance_variable_set(:@index, [0, 0])
@@ -55,6 +44,8 @@ Suite.define("minigames: Voltorb Flip says the level on arrival and the coins wh
   truthy "and of its first column", line.include?(PokeAccess::I18n.t(:mg_col))
 end
 
+# Triple Triad says the score when it changes, counted off the board, plus the cards each side still holds under the
+# "countunplayed" rule, as the scoreboard counts them.
 Suite.define("minigames: Triple Triad says the score when it moves, counted off the board itself") do
   cell = Class.new do
     attr_accessor :owner
@@ -83,16 +74,14 @@ Suite.define("minigames: Triple Triad says the score when it moves, counted off 
   board[1].owner = 1
   SpeakCapture.clear
   tt.score(scene)
-  eq "a flip in the opponent's turn is announced", SpeakCapture.lines,
-     [PokeAccess::I18n.t(:triad_score, :you => 3, :foe => 0)]
+  eq "a flip is announced, the square that turned before the score it made", SpeakCapture.lines,
+     ["#{PokeAccess::I18n.t(:triad_captures, :list => PokeAccess::I18n.t(:triad_cell, :row => 1, :col => 2))}. " \
+      "#{PokeAccess::I18n.t(:triad_score, :you => 3, :foe => 0)}"]
 
   SpeakCapture.clear
   tt.score(Object.new)
   silent "a scene with no board at all is not an error"
 
-  # Under the "countunplayed" rule the scoreboard adds the cards each side still holds, so the board alone
-  # is NOT the score (Essentials 017_Minigames/002_Minigame_TripleTriad.rb:576-579). Counting only the cells
-  # there announced a number the screen was not showing.
   def battle.countUnplayedCards; true; end
   scene.instance_variable_set(:@cardIndexes, [1, 2])
   scene.instance_variable_set(:@opponentCardIndexes, [7])
@@ -102,10 +91,8 @@ Suite.define("minigames: Triple Triad says the score when it moves, counted off 
      [PokeAccess::I18n.t(:triad_score, :you => 5, :foe => 1)]
 end
 
-# Triple Triad writes its help window TWO ways: through pbDisplay, which the mod hooks, and by assigning
-# straight to the sprite -- eight of those across four methods, none of them hooked. Among them the line
-# that says the confirm key opens the rival's hand: a feature the mod can read and the player had no way of
-# knowing was there.
+# Triple Triad's poll reads each prompt the game assigns straight to its help window (bypassing pbDisplay) once while
+# it stays up, past the half-second message dedup, and only while its loop runs.
 Suite.define("minigames: Triple Triad reads the prompts it writes straight into its help window") do
   tt = PokeAccess::TripleTriad
   scene = Object.new
@@ -133,8 +120,6 @@ Suite.define("minigames: Triple Triad reads the prompts it writes straight into 
     eq "the line that says the rival's hand can be opened is read too", SpeakCapture.lines,
        ["Elige una carta, o mira al rival con Z."]
 
-    # The window keeps its prompt for the whole loop, and the poll runs every frame: the message path's own
-    # half-second window let the same line back in twice a second for as long as the player took to choose.
     PokeAccess.instance_variable_set(:@last_say_t, nil)
     SpeakCapture.clear
     tt.poll
@@ -153,13 +138,8 @@ Suite.define("minigames: Triple Triad reads the prompts it writes straight into 
   silent "and with no loop running the window is nobody's business"
 end
 
-# The DECK selector, where the player picks which cards to duel with. Its list is a plain command window, so
-# the generic reader already says "Bulbasaur x3" -- but the four side numbers, which are the ONLY thing that
-# decides which card to take, are a picture. They were said later, in hand, when the choice is already made.
-#
-# The window class is the one half the game's menus use, so the extractor has to be transparent everywhere
-# else. It especially must not return nil: focused_text does not fall back to the generic on nil, only on an
-# exception, so a nil here would silence every command window in the game.
+# The deck selector's rows add the card's type and four sides; elsewhere deck_row answers as the generic reader does
+# (a stray nil would silence every command window: focused_text falls back only on an exception).
 Suite.define("minigames: the Triple Triad deck list adds the four sides, and is transparent elsewhere") do
   tt = PokeAccess::TripleTriad
   win = Class.new do
@@ -175,7 +155,8 @@ Suite.define("minigames: the Triple Triad deck list adds the four sides, and is 
     tt.start_deck(Object.new, [[1, 3], [4, 1]])
     line = tt.deck_row(w, 0)
     match "inside it, the row still says the species and how many are left", line, /Bulbasaur x3/
-    match "and the four sides follow", line,
+    match "the card's type follows", line, /#{Regexp.escape(PokeAccess::I18n.t(:mv_type, :t => PBTypes.getName(1)))}/
+    match "and the four sides", line,
           /#{PokeAccess::I18n.t(:triad_sides, :n => 1, :e => 1, :s => 1, :w => 1).gsub(/\d+/, '\\d+')}/
     w.index = 1
     truthy "the next row reads its own card", tt.deck_row(w, 1) != line
@@ -190,9 +171,8 @@ Suite.define("minigames: the Triple Triad deck list adds the four sides, and is 
   eq "and once the loop is over it is the generic reader again", tt.deck_row(w, 0), before
 end
 
-# The mining wall. The game ends at 49 hits in all six games that ship the screen, and the only thing that
-# says how close that is is a bar of cracks drawn across the top: a blind player dug until the roof fell in,
-# losing whatever was still buried.
+# The mining wall says the blows left (the game ends at 49 hits) once per block of cracks the bar draws, in hammer
+# blows (two hits each) with the hammer in hand.
 Suite.define("minigames: the mining wall says how much is left, at the rate the bar is drawn") do
   mg = PokeAccess::Minigames
   crack = Object.new
@@ -223,7 +203,6 @@ Suite.define("minigames: the mining wall says how much is left, at the rate the 
   mg.mining_wall(scene)
   eq "the next block does", SpeakCapture.lines, [PokeAccess::I18n.t(:mg_wall_left, :n => 37)]
 
-  # The hammer costs two hits a blow: thirty-one hits of wall are sixteen hammer blows, not thirty-one.
   cursor = Object.new
   cursor.instance_variable_set(:@mode, 1)
   scene.instance_variable_get(:@sprites)["cursor"] = cursor
@@ -238,4 +217,57 @@ Suite.define("minigames: the mining wall says how much is left, at the rate the 
   SpeakCapture.clear
   mg.mining_wall(scene)
   silent "and once the wall is gone there is nothing left to count"
+end
+
+# A mining wall square: layer is how much rock is left on it.
+class MineTileStub
+  attr_accessor :layer
+  def initialize(layer); @layer = layer; end
+end
+
+Suite.define("minigames: each mining square says what it shows, and a blow says what it uncovered") do
+  mg = PokeAccess::Minigames
+  t = PokeAccess::I18n
+  scene = Object.new
+  tiles = {}
+  (0...130).each { |i| tiles["tile#{i}"] = MineTileStub.new(3) }
+  cursor = Object.new
+  cursor.instance_variable_set(:@position, 0)
+  cursor.instance_variable_set(:@mode, 0)
+  def cursor.position; @position; end
+  tiles["cursor"] = cursor
+  scene.instance_variable_set(:@sprites, tiles)
+  def scene.pbIsItemThere?(pos); [1, 2].include?(pos); end
+  def scene.pbIsIronThere?(pos); pos == 14; end
+  begin
+    mg.mine_scene = scene
+    mg.mining_cursor(cursor)
+    eq "the first square: where it is, its rock, the tool", SpeakCapture.lines,
+       [[t.t(:mg_rowcol, :row => 1, :col => 1), t.t(:mg_rock, :n => 3), t.t(:mg_pick)].join(", ")]
+
+    tiles["tile1"].layer = 0
+    SpeakCapture.clear
+    cursor.instance_variable_set(:@position, 1)
+    mg.mining_cursor(cursor)
+    eq "a dug square over an item says so", SpeakCapture.lines,
+       [[t.t(:mg_rowcol, :row => 1, :col => 2), t.t(:mg_tile_item)].join(", ")]
+
+    tiles["tile14"].layer = 0
+    SpeakCapture.clear
+    cursor.instance_variable_set(:@position, 14)
+    mg.mining_cursor(cursor)
+    match "one over iron says iron", SpeakCapture.lines.join(" "), /#{t.t(:mg_tile_iron)}\z/
+
+    tiles["tile14"].layer = 0
+    tiles["tile2"].layer = 0
+    SpeakCapture.clear
+    mg.mining_after_hit(scene, false)
+    eq "a blow that uncovers a new piece says so, then the square under the cursor", SpeakCapture.lines,
+       [[t.t(:mg_item_peek), t.t(:mg_tile_iron)].join(", ")]
+    SpeakCapture.clear
+    mg.mining_after_hit(scene, false)
+    eq "a blow that uncovers nothing new only reports the square", SpeakCapture.lines, [t.t(:mg_tile_iron)]
+  ensure
+    mg.mine_scene = nil
+  end
 end

@@ -1,11 +1,5 @@
-# The HGSS Dex List plugin replaces the Pokedex list window with a sprite (PokedexListSprite), which no
-# generic reader can see.
-#
-# It reopens PokemonPokedex_Scene, a class every game has, so the hook alone proves nothing: what says the
-# plugin is installed is the list sprite answering to species/dexlist, which a vanilla Window_Pokedex does
-# not. Asking the sprite is both the read and the gate, so this file stays inert on a stock Pokedex.
-#
-# pbRefresh repaints on every cursor move and page turn, which is the read point.
+# The HGSS Dex List plugin's list sprite (PokedexListSprite), read on every pbRefresh; the sprite answering to
+# dexlist and index is what tells it from a stock Pokedex.
 module PokeAccess
   module HGSSDexList
     # The list sprite, only when it is the plugin's (the stock one answers to neither of these).
@@ -18,26 +12,47 @@ module PokeAccess
       nil
     end
 
-    # The focused row: its dex number and species, or that the slot is still unknown.
-    #
-    # The A-Z, weight and height orders do not filter unseen species, and the panel prints "?????" for
-    # those, so the name goes through the same seen? gate the panel uses.
+    # The focused row as its square shows it: the painted number and the species (unknown when unseen), from
+    # medium owned or seen, in full shiny where the number is gold; the info key keeps the whole row.
     def self.text(spr)
       list = (spr.dexlist rescue nil)
       i = (spr.index rescue nil)
       return nil unless list.is_a?(Array) && i.is_a?(Integer) && i >= 0 && i < list.length
       row = list[i]
       return nil unless row.is_a?(Hash)
-      num = row[:number]
-      nm = seen?(row[:species]) ? (PokeAccess::Data.species_name(row[:species]) rescue nil) : nil
-      return PokeAccess::I18n.t(:dexlist_unknown, :num => num) if nm.nil? || nm.to_s.empty?
-      PokeAccess::I18n.t(:dexlist_entry, :num => num, :name => nm)
+      num = row[:number].to_i
+      num -= 1 if row[:shift]
+      sp = row[:species]
+      nm = seen?(sp) ? (PokeAccess::Data.species_name(sp) rescue nil) : nil
+      if nm.nil? || nm.to_s.empty?
+        PokeAccess::Info.set_info(:text, PokeAccess::I18n.t(:dexlist_unknown, :num => num))
+        return PokeAccess::I18n.t(:dexlist_unknown, :num => num)
+      end
+      mine = owned?(sp)
+      parts = [[PokeAccess::I18n.t(:dexlist_entry, :num => num, :name => nm), :brief],
+               [PokeAccess::I18n.t(mine ? :dex_caught : :dex_seen), :medium]]
+      parts.push([PokeAccess::I18n.t(:pk_shiny), :full]) if mine && gold?(sp)
+      PokeAccess::Verbosity.info_line(:dex_entry, parts)
     rescue StandardError
       nil
     end
 
-    # Whether the player has seen this species, asked the same way the panel asks it. A copy with no pokedex
-    # to ask answers yes, so a missing accessor cannot silence the whole list.
+    # Whether the player owns this species, asked the way the square asks it (the ball and the full sprite).
+    def self.owned?(species)
+      ($player.owned?(species) rescue false) ? true : false
+    end
+
+    # Whether the square paints its number in gold: an owned species whose last seen form was shiny, in a
+    # plugin set to mark those.
+    def self.gold?(species)
+      return false unless (PokedexListSprite::USE_GOLD_NUMBER_FOR_SHINY rescue false)
+      form = ($player.pokedex.last_form_seen(species) rescue nil)
+      form.is_a?(Array) && form[2] ? true : false
+    rescue StandardError
+      false
+    end
+
+    # Whether the player has seen this species, as the panel asks it; true when there is nothing to ask.
     def self.seen?(species)
       return true if species.nil?
       ($player.seen?(species) rescue true) ? true : false
@@ -45,10 +60,7 @@ module PokeAccess
       true
     end
 
-    # Speaks the focused entry when it changes, deduped per scene.
-    #
-    # The row's own text is in the key, not just the index: a search or an order change rebuilds the list
-    # under a cursor that has not moved, so an index-only key left the new first entry unspoken.
+    # Speaks the focused entry when it changes, keyed on its text too (a search or a reorder keeps the index).
     def self.read(scene)
       spr = list(scene)
       return if spr.nil?
@@ -64,8 +76,7 @@ PokeAccess::Hooks.after_hook("PokemonPokedex_Scene", :pbRefresh, :optional => tr
   PokeAccess::HGSSDexList.read(scene)
 end
 
-# Returning from a species entry repaints via pbRefresh on the SAME restored index, and the slot hangs off
-# the scene, which outlives the entry -- so the way back forgets it, and the focused row is read again.
+# Back from a species entry, pbRefresh repaints the same row: the slot is reset so it is read again.
 PokeAccess::Hooks.around_hook("PokemonPokedex_Scene", :pbDexEntry, :optional => true) do |scene, nxt, _a|
   begin
     nxt.call

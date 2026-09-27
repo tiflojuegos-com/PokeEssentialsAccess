@@ -1,17 +1,38 @@
-# Luka S.J.'s Modern Title Screen for gen-6 games (Scene_Intro with GenOneStyle, GenTwoStyle or
-# GenCustomStyle, chosen by SCREENSTYLE), in eight of the surveyed games: splashes, then a logo and a
-# blinking "press start" picture over a loop that waits for a key -- no text anywhere, so the mod's first
-# word came in the load screen and nothing said the game was up and waiting. Each style builds itself in
-# its constructor, right before that loop; the prompt goes there. One hook per style, written out, so the
-# plugin census and the arity census see each of them.
+# Luka S.J.'s Modern Title Screen (gen-6): the splash images cyclePics shows, by the profile's transcription, then
+# the prompt each style's constructor says, queued behind that transcription, before its wait for a key (one hook per
+# style, for the censuses).
+PokeAccess::Hooks.before_hook("Scene_Intro", :cyclePics, :optional => true) do |s, _args|
+  PokeAccess::TitleScreen.splash(PokeAccess.ivar(s, :@pics))
+end
+
 PokeAccess::Hooks.after_hook("GenOneStyle", :initialize, :optional => true) do |_s, _r, _a|
-  PokeAccess.speak(PokeAccess::I18n.t(:title_press_start), true)
+  PokeAccess.speak(PokeAccess::TitleScreen.prompt, false)
 end
 
 PokeAccess::Hooks.after_hook("GenTwoStyle", :initialize, :optional => true) do |_s, _r, _a|
-  PokeAccess.speak(PokeAccess::I18n.t(:title_press_start), true)
+  PokeAccess.speak(PokeAccess::TitleScreen.prompt, false)
 end
 
 PokeAccess::Hooks.after_hook("GenCustomStyle", :initialize, :optional => true) do |_s, _r, _a|
-  PokeAccess.speak(PokeAccess::I18n.t(:title_press_start), true)
+  PokeAccess.speak(PokeAccess::TitleScreen.prompt, false)
+end
+
+PokeAccess::Hooks.after_hook("GenThreeStyle", :initialize, :optional => true) do |_s, _r, _a|
+  PokeAccess.speak(PokeAccess::TitleScreen.prompt, false)
+end
+
+PokeAccess::Hooks.after_hook("GenFourStyle", :initialize, :optional => true) do |_s, _r, _a|
+  PokeAccess.speak(PokeAccess::TitleScreen.prompt, false)
+end
+
+PokeAccess::Hooks.after_hook("GenFiveStyle", :initialize, :optional => true) do |_s, _r, _a|
+  PokeAccess.speak(PokeAccess::TitleScreen.prompt, false)
+end
+
+PokeAccess::Hooks.after_hook("GenSixStyle", :initialize, :optional => true) do |_s, _r, _a|
+  PokeAccess.speak(PokeAccess::TitleScreen.prompt, false)
+end
+
+PokeAccess::Hooks.after_hook("GenSevenStyle", :initialize, :optional => true) do |_s, _r, _a|
+  PokeAccess.speak(PokeAccess::TitleScreen.prompt, false)
 end

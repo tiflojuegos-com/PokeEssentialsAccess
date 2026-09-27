@@ -1,14 +1,5 @@
-# The Battle Point shop (BattlePointShop_Scene, five of the surveyed games): a list of item ids beside three
-# standing windows. Two of them are read -- how many of the focused item are in the bag, and how many points
-# are left -- and the description box is not: the row files the focused item, so the info key reads it there
-# the way it does in the mart.
-#
-# The stand-in is the game's own pbRefresh, key for key. The bag box is HIDDEN on the Cancel row while
-# keeping the last item's count written in it, which is why a reader that watched only the text announced a
-# count for a box nobody could see.
-#
-# Both scenes live in the engine stubs, where core can find them at load: a class that appears only in a
-# spec file is declared to a reader that has already gone looking and bound nothing.
+# The Battle Point shop: the bag count and points left are read, the description is left to the info key, and on
+# Cancel the hidden bag box's stale count is not. Both scenes are engine stubs, so core binds to them at load.
 Suite.define("bp shop: the two number windows are read, the description is left to the info key") do
   iw = PokeAccess::InfoWindow
   prev_live = iw.live
@@ -28,7 +19,6 @@ Suite.define("bp shop: the two number windows are read, the description is left 
     iw.tick
     silent "and standing on it says nothing more"
 
-    # The Cancel row: the bag box is hidden there with a stale count still written in it.
     scene.focus(nil, 2, 120)
     SpeakCapture.clear
     iw.tick
@@ -70,4 +60,33 @@ Suite.define("mart: the bag count and the money are read, entered by its own buy
   ensure
     iw.enter(prev_live)
   end
+end
+
+# The row price in the window's currency: Soulstones 2's Achievement Points shop keeps @useBP on the window and passes
+# it to the adapter as a third argument that defaults to BP.
+class BPShopRowWindow
+  def initialize(stock, adapter, use_bp = nil)
+    @stock = stock; @adapter = adapter
+    @useBP = use_bp unless use_bp.nil?
+  end
+end
+
+class BPShopTwoCurrencyAdapter
+  def getDisplayName(item); item.to_s; end
+  def getDisplayPrice(_item, _selling = false, use_bp = true); use_bp ? "4 BP" : "3 AP"; end
+end
+
+class BPShopVanillaAdapter
+  def getDisplayName(item); item.to_s; end
+  def getDisplayPrice(_item, _selling = false); "12 BP"; end
+end
+
+Suite.define("bp shop rows: the price is read in the currency the window is selling for") do
+  ap = BPShopRowWindow.new([:MASTERBALL], BPShopTwoCurrencyAdapter.new, false)
+  eq "an Achievement Points shop reads the AP price", PokeAccess::Shops.row(ap, 0), "MASTERBALL, 3 AP"
+  bp = BPShopRowWindow.new([:MASTERBALL], BPShopTwoCurrencyAdapter.new, true)
+  eq "the same window in Battle Points reads the BP price", PokeAccess::Shops.row(bp, 0), "MASTERBALL, 4 BP"
+  plain = BPShopRowWindow.new([:PROTEIN], BPShopVanillaAdapter.new)
+  eq "a shop with one currency and a two-argument adapter still reads its price", PokeAccess::Shops.row(plain, 0),
+     "PROTEIN, 12 BP"
 end

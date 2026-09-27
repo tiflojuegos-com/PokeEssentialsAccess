@@ -1,25 +1,10 @@
-# Module-held dedup state outlives every screen: nothing disposes a module, so a "@last" that only ever
-# fills up makes the SECOND visit silent -- the reader compares the fresh screen against a key kept from
-# the previous one and concludes nothing changed. Readers shipped that way speak perfectly on every first
-# visit, which is why no play session catches them; the reset path is the whole difference, so its absence
-# is what this check hunts.
-#
-# Four rules, all heuristic, all aimed at the ABSENCE family only (a reset that restores a stale key, as
-# a stack pop can, is beyond a static scan):
-#   1. a file that speaks and guards on a module ivar named like dedup state (@last*/@prev*/@seen*) must
-#      also assign nil to that ivar somewhere INSIDE a method. The module-body initializer does not count:
-#      it runs once per process, which is exactly the lifetime being guarded against.
-#   2. a Cursor call on the module-wide table (holder nil, literal slot) must have a matching
-#      Cursor.reset(nil, slot) or UIV21.reset(slot) somewhere in the tree, unless the key on that same
-#      line self-invalidates per screen (__id__ / object_id).
-#   3. every literal speak_changed tag needs a UIV21.reset of that tag somewhere: those tags reach the
-#      module-wide table through a VARIABLE slot, which rule 2 cannot see.
-#   4. every INSTANCE-held Cursor slot must either have a reset somewhere or sit in SELF_SCOPED below.
-#      The list is the claim, made explicit: this slot's holder is born and dies with the screen it
-#      serves (or its key self-invalidates), so no reset is needed. A scene that HOSTS sub-screens
-#      outlives them -- the family that muted the Pokedex search and the PC grid -- and a new slot on
-#      such a scene must ship a reset, not a new line here.
-# Files where a missing reset IS the design carry their justification in ALLOW.
+# Module-held dedup state outlives every screen, so it needs a reset path or the second visit is silent. Heuristics:
+#   1. a speaking file guarding on a module @last*/@prev*/@seen* ivar assigns it nil inside some method;
+#   2. a Cursor call on the module-wide table (holder nil, literal slot) has a Cursor.reset(nil, slot) or
+#      UIV21.reset(slot) somewhere, unless the key on its line self-invalidates (__id__ / object_id);
+#   3. every literal speak_changed tag has a UIV21.reset of that tag;
+#   4. every instance-held Cursor slot has a reset or sits in self_scoped (its holder lives and dies with its screen).
+# Files where a missing reset is the design go in allow, with their reason.
 Suite.define("static/dedup: el estado de modulo tiene camino de reset") do
   root = File.expand_path("../..", File.dirname(__FILE__))
   files = Dir[File.join(root, "{core,games,plugins}", "**", "*.rb")].sort
@@ -29,8 +14,7 @@ Suite.define("static/dedup: el estado de modulo tiene camino de reset") do
   # dialogue.rb: @last_say pairs with @last_say_t, a clock -- the time window is the reset.
   allow = ["core/dialogue/dialogue.rb"]
 
-  # True when iv is assigned nil on a line inside a def (one-liner defs count; the def/end tracker keys on
-  # indentation, which the formatter keeps disciplined). Module-body assignments never satisfy it.
+  # True when iv is assigned nil inside a def (one-liners count), tracked by def/end indentation.
   reset_in_method = lambda do |lines, iv|
     stack = []
     found = false
@@ -96,15 +80,23 @@ Suite.define("static/dedup: el estado de modulo tiene camino de reset") do
 
   # Rule 4. Each entry asserts: the holder is born and dies with its screen, or the key self-invalidates.
   self_scoped = %w[
-    afr_archer afr_tables album_state arcky_species auto_focus awk_ach awk_ball awk_comp awk_evs
+    afr_archer afr_tables afr_kick afr_race_count afr_race_lap afr_race_half afr_race_bend afr_race_place afr_race_hp
+    afr_race_turbo album_state arcky_species auto_focus pach awk_ball awk_binfo awk_comp awk_evs
     awk_glos awk_hist_section awk_lore awk_talisman bdx_page cc_dots charcreate dex_page
     gacha gacha_banner gender_sel hatch hof hof_pk if2_challenge if2_door if2_starter if_fusion
     list_entry ls_autosub mgift_card mono_type move_idx opt_tab pchm_ring place_idx place_row pm
     rea_baya rea_mankey rea_morse rea_postre_col rea_ppt rea_timon rea_timon_dir ready_last rem_build
     rem_tree ribbon_idx rse_starter sb_place slot_wager starter_sel sum_key sumkey support tl tm_name
     vp_msg wardrobe_row opt_val tp_cell pnav_hearts bb_key mbs_sel ck_target mm_help mm_sel mg_score
-   triad_score hof_welcome dex_header voltseon_entry summary_egg mine_wall pc_mode ss2_boxpick ss2_boxset ss2_tutor showcase ev_alloc
-   book_page rea_hof_slide]
+   triad_score hof_welcome dex_header voltseon_entry mine_wall pc_mode ss2_boxpick ss2_boxset ss2_boxpin su_block arcky_mode arcky_preview ss2_tutor showcase ev_alloc
+   book_page hofbw6_slide party_help enc_cursor cc_timer pbk_cond ss2_adv_overlay ss2_adv_hearts ss2_adv_keys
+   ss2_adv_floor hof_text ev_value adv_dex bdx_header zud_raid_row gacha_counts rem_limits reb_tutor
+   ura_bag_list ura_dex rj_achievement rj_blessing rj_luckswap rv_tw_frame deso_quest_page ss2_hof_view zball_hint
+   if_hat if_hat_pos ins_leaf rem_pokocho ura_bmart_berries ura_ctrl ura_opt_help ura_dex_search
+   ura_pod_info move_list_title charcreate_name rea_baile_demo rea_baile_turn rea_baile_grade rea_ppt_start
+   rea_ppt_timeout rea_morse_keys rea_morse_guide rea_timon_keys rea_timon_chart rea_pesca_foe hofbw6_keys hofbw6_card
+   rea_credits hofbw6_record if2_ct_applause if2_quiz_streak if2_nav_zone if2_qm_popup if2_radar_weather
+   sb_mart_desc fl_roulette_coins rj_dex_head rj_map rv_tutor]
   scene_missing = scene_slots.reject { |slot, _f| cursor_resets[slot] || self_scoped.include?(slot) }
   eq("slots de instancia sin reset y sin declaracion en SELF_SCOPED",
      scene_missing.map { |slot, f| "#{f}: :#{slot}" }.sort, [])

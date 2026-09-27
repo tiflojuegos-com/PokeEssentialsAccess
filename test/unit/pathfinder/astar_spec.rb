@@ -1,6 +1,4 @@
-# A* over REAL walls via the grid harness: load_grid makes passable?/counter?/events mirror an ASCII map,
-# so these exercise the actual flood, reachable? and A* against geometry rather than only in-game.
-# '#' wall, '.' floor, 'C' counter, '@' player, a letter = an npc event.
+# A* and reachable? over an ASCII map (load_grid): '#' wall, '.' floor, 'C' counter, '@' player, letter = npc event.
 Suite.define("pathfinder: A* and reachability over real walls") do
   PokeAccess::Config.route_cache = false
   PokeAccess::Config.route_reach = 128

@@ -1,12 +1,5 @@
-# Keyboard routes for realidea's mouse-only minigames. Each screen reads $mouse against a DISCRETE set
-# of sprites and keeps its game logic in mouse-free methods, so the mod replaces the per-frame input
-# method wholesale (around, never calling through): arrows move a mod-owned cursor, the game's own
-# virtual accept/cancel buttons drive the same logic calls the click handlers made, and the keys the
-# original input DID read (B close, A reset) are replicated. The engine's virtual buttons respect the
-# player's own key mapping. Poketch is not here: the game ships it entirely inside a =begin block.
-#
-# Spoken labels are mod prose (the states exist on screen only as pictures); realidea is a declared
-# single-language Spanish game, so the two literals mirrored from its code stay as the game wrote them.
+# Keyboard routes for Realidea's mouse-only minigames: each input method is replaced whole (around, never
+# calling through), with arrows moving a mod cursor and the accept key making the calls the clicks made.
 module PokeAccess
   module ReaMouse
     # ---- Cockteles: four bottles, mix two, match the shown cocktail; 9 rounds. ----
@@ -133,6 +126,7 @@ module PokeAccess
     # ---- Menuminior: already keyboard-driven, only mute. Difficulty rows are pictures. ----
     MM_ROWS = [:rmg_mm_easy, :rmg_mm_normal, :rmg_mm_hard]
 
+    # Menuminior after its own input: the help overlay when it opens, else the difficulty row on a change.
     # param painted the rows the game's input painted this frame (the help overlay, on the frame it opens)
     def self.mm_after(scene, painted = nil)
       if scene.instance_variable_get(:@info).to_i == 1
@@ -205,11 +199,8 @@ module PokeAccess
     end
 
 
-    # ---- Perlita: a shell game. Three identical bags shuffle and the player must follow WHERE the
-    # asked pearl's bag ended up. Selecting by bag NAME would dissolve the game, so the route mirrors
-    # the sighted challenge exactly: the round announces which pearl goes where BEFORE the bags close
-    # (the screen shows that too), every shuffle is spoken as a POSITION crossing, and the pick is by
-    # position -- the tracking stays in the player's head, where the game put it. ----
+    # ---- Perlita: a shell game. The layout is said before the bags close, each shuffle as the two positions
+    # that swap, and the pick is by position, never by bag, so the player tracks the pearl. ----
     PL_BAGS = { "sacoazul" => ["azul", :rmg_pl_azul], "sacoamarillo" => ["amarilla", :rmg_pl_amarilla],
                 "sacorojo" => ["roja", :rmg_pl_roja] }
     PL_POS = [:rmg_pl_left, :rmg_pl_center, :rmg_pl_right]
@@ -248,8 +239,7 @@ module PokeAccess
       nil
     end
 
-    # Shell game by keyboard: LEFT/RIGHT walk the three bags by POSITION (the shuffle was announced as swaps, so
-    # the player tracks where the pearl went), C opens the focused bag.
+    # Shell game by keyboard: LEFT/RIGHT walk the three bags by position, C opens the focused bag.
     def self.pl_input(scene)
       scene.instance_variable_get(:@sprites)["bocadillo"].visible = true
       scene.instance_variable_get(:@sprites)["bolabocadillo"].visible = true
@@ -282,9 +272,8 @@ module PokeAccess
       nil
     end
 
-    # ---- Unowngame: a balance of Roman-numeral Unown; equalise both sides. The game drags with the
-    # mouse, but only the SIDE of the split matters, so the keyboard route moves a piece across in one
-    # atomic frame (pick, relocate, score) and the drag never enters into it. ----
+    # ---- Unowngame: a balance of Roman-numeral Unown to equalise; only a piece's side matters, so the
+    # keyboard moves it across in one frame (pick, relocate, score). ----
     UNOWN = [["M", 3, 1000], ["D", 4, 500], ["C", 4, 100], ["L", 2, 50], ["X", 1, 10], ["V", 2, 5], ["I", 2, 1]]
 
     def self.un_pieces(scene)
@@ -311,8 +300,8 @@ module PokeAccess
                                           :side => PokeAccess::I18n.t(side)), true)
     end
 
-    # Unown puzzle by keyboard: LEFT/UP and RIGHT/DOWN walk the pieces, C picks up or drops the focused piece,
-    # and the score is recomputed after a move.
+    # Unown puzzle by keyboard: left/up and right/down walk the pieces, C moves the focused one to the other side
+    # and says both scores, A says them again.
     def self.un_input(scene)
       pieces = un_pieces(scene)
       return if pieces.empty?

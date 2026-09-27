@@ -1,13 +1,10 @@
 module PokeAccess
-  # gen-6 game tick rate (fps). The unit the frame-shaped tunables are written in: a cooldown of "16" means
-  # 16 gen-6 frames, and dividing by this turns it into the seconds PokeAccess.clock speaks (freq_to_seconds,
-  # the bump cooldown). It is a fixed design constant, not a reading of the running game -- the clock itself
-  # is wall time, so a game at another frame rate keeps the same real-world cadence.
+  # The gen-6 frame rate that frame-counted tunables are written in; dividing by it gives the wall-clock seconds
+  # the cues pace by (freq_to_seconds, the bump cooldown). A fixed constant, not the running game's rate.
   FPS = 40.0
 
-  # Engine defaults, overridden per game in games/<game>/constants.rb. User-facing settings live in
-  # SCHEMA (key, default, kind, group, label, help) so adding one is a single row; Settings and
-  # ConfigMenu both derive from it. Numeric kinds take their range from KIND_BOUNDS.
+  # Engine defaults, overridden per game in games/<game>/constants.rb. SCHEMA rows are [key, default, kind, group,
+  # label, help]; Settings and ConfigMenu derive from them, numeric kinds take their range from KIND_BOUNDS.
   module Config
     SCHEMA = [
       [:language,            :auto, :lang, :general,    :lbl_language,         :help_language],
@@ -20,6 +17,9 @@ module PokeAccess
       [:puzzle_assist,        false, :flag, :general,    :lbl_puzzle_assist,    :help_puzzle_assist],
       [:auto_detect,          true,  :flag, :general,    :lbl_auto_detect,      :help_auto_detect],
       [:read_help,            true,  :flag, :general,    :lbl_read_help,        :help_read_help],
+      [:dialogue_pages,       false, :flag, :general,    :lbl_dialogue_pages,   :help_dialogue_pages],
+      [:history_size,         300,   :msgs, :general,    :lbl_history_size,     :help_history_size],
+      [:verbosity,            :full, :verbosity, :verbosity, :lbl_verbosity,    :help_verbosity],
       [:straight_routes,     false, :flag,  :pathfinder_adv, :lbl_straight,     :help_straight],
       [:guide_refresh,       1,     :sec,   :pathfinder_adv, :lbl_guide_refresh, :help_guide_refresh],
       [:route_reach,         128,   :reach, :pathfinder_adv, :lbl_reach,        :help_reach],
@@ -69,26 +69,26 @@ module PokeAccess
       [:audio3d_desk_range,  2,     :desk,  :audio3d_walls, :lbl_desk_range,   :help_desk_range],
       [:audio3d_range,       12,    :sonar, :audio3d_adv, :lbl_sonar_range,   :help_sonar_range],
       [:audio3d_alt_dist,    5,     :tiles, :audio3d_adv, :lbl_alt_dist,      :help_alt_dist],
-      [:transfer_active_page_only, true, :flag, :debug, :lbl_transfer_active_only, :help_transfer_active_only]
+      [:transfer_active_page_only, true, :flag, :debug, :lbl_transfer_active_only, :help_transfer_active_only],
+      [:defer_target_rebuild, true, :flag, :debug, :lbl_defer_rebuild, :help_defer_rebuild]
     ]
 
-    # Numeric setting bounds by kind: [min, max, step, spoken-unit key or nil]. The single source for
-    # clamping (Settings) and stepping (ConfigMenu); non-numeric kinds are handled separately.
+    # Numeric setting bounds by kind: [min, max, step, spoken-unit key or nil], for clamping (Settings) and
+    # stepping (ConfigMenu).
     KIND_BOUNDS = {
       :vol   => [0, 100, 10, nil],
       # A tone: 50 plays the recording and each step of 5 is a tenth of an octave either way (tone_to_pitch).
       :tone  => [0, 100, 5, nil],
       :sec   => [1, 10, 1, :secs],
       :tiles => [1, 20, 1, :tiles_unit],
-      # The sonar's own range, apart from :tiles because it is the only one the player has a reason to
-      # push out: the wall probe and the alternation distance are short by design and widening them with
-      # it would be a silent side effect of a slider that says "sonar".
+      # The sonar's range; its own kind so widening it leaves the wall probe and alternation distance alone.
       :sonar => [1, 30, 1, :tiles_unit],
       :astar => [1000, 10000, 500, nil],
       :ms    => [2, 40, 2, :ms_unit],
       :gdist => [1, 6, 1, :tiles_unit],
       :reach => [32, 1024, 32, :tiles_unit],
-      :desk  => [0, 3, 1, :tiles_unit]
+      :desk  => [0, 3, 1, :tiles_unit],
+      :msgs  => [100, 2000, 100, :msgs_unit]
     }
 
     CATEGORIES = [
@@ -98,7 +98,7 @@ module PokeAccess
     ]
 
     # Internal/structural config (not user settings, not in the menu).
-    OTHER = [:keys, :bump_cooldown, :rebinds, :rebind_labels, :categories,
+    OTHER = [:keys, :bump_cooldown, :rebinds, :rebind_labels, :key_hint_letters, :categories,
              :status_names, :weather_names, :field_weather_names, :gender_numbers, :money_label, :trainer_parts]
 
     class << self
@@ -108,25 +108,24 @@ module PokeAccess
     # Apply the schema defaults.
     SCHEMA.each { |row| send("#{row[0]}=", row[1]) }
 
-    # The schema rows in a group, in order. Used by Settings and ConfigMenu.
+    # The schema rows in a group, in order.
     def self.schema_group(group); SCHEMA.select { |row| row[3] == group }; end
 
     # The schema row for a key, or nil.
     def self.schema_row(key); SCHEMA.find { |row| row[0] == key }; end
 
-    # The keys of every setting of a given kind. Used by Settings to persist them.
+    # The keys of every setting of a given kind.
     def self.keys_of_kind(kind); SCHEMA.select { |row| row[2] == kind }.map { |row| row[0] }; end
 
     #--- non-schema defaults ---
 
-    # Mod hotkeys: action => Windows virtual-key code. Kept as a frozen table of shipped defaults AND a
-    # working copy, because the two are needed for different things: the remap menu restores ONE key from
-    # the defaults (a mod key has no native fallback the way a game button does -- cleared, it would simply
-    # stop working), and settings.rb only writes to the ini the ones the player actually changed.
+    # Mod hotkeys: action => Windows virtual-key code. The frozen defaults let the remap menu restore one key and
+    # settings.rb save only the changed ones; :verbosity ships unbound (every letter is some game's).
     KEY_DEFAULTS = {
       :next => 0x4C, :prev => 0x4A, :where => 0x4B, :route => 0x49,
       :info => 0x54, :hp => 0x48, :coords => 0x4D, :field => 0x47,
-      :config => 0x4F, :shift => 0x10, :ctrl => 0x11
+      :config => 0x4F, :shift => 0x10, :ctrl => 0x11,
+      :hist_prev => 0x24, :hist_next => 0x23, :verbosity => nil
     }.freeze
     self.keys = KEY_DEFAULTS.dup
     # Wall-cue cooldown in frames.
@@ -135,6 +134,8 @@ module PokeAccess
     # Key remap (action => VK code, from settings.ini) and per-game button relabels; empty = native input.
     self.rebinds       = {}
     self.rebind_labels = {}
+    # The letters a game paints in its key hints and the buttons they stand for (KeyHints); empty = hints untouched.
+    self.key_hint_letters = {}
     # Per-game override for picture-based gender selection (option number => label); empty = the default.
     self.gender_numbers = {}
     # i18n key for the spoken money amount; a game with a different currency overrides it.
@@ -154,10 +155,8 @@ module PokeAccess
       1 => :w_sun, 2 => :w_rain, 3 => :w_sandstorm, 4 => :w_hail,
       5 => :w_harsh_sun, 6 => :w_heavy_rain, 7 => :w_strong_winds, 8 => :w_shadow_sky
     }
-    # Overworld weather is a SEPARATE enum from battle weather (PBFieldWeather in gen-6), and its vanilla
-    # range lives in Battle::FIELD_WEATHER. This table holds only what a game adds on top, consulted first,
-    # because fangames extend the enum with entries that clash: 8 is ShadowSky in one game and Charco in
-    # another, so a single shared table could not be right for both. Empty means "vanilla only".
+    # Per-game overworld weather names (PBFieldWeather, not the battle enum), consulted before the vanilla
+    # Battle::FIELD_WEATHER, since fangames give the same number different weathers. Empty = vanilla only.
     self.field_weather_names = {}
   end
 end

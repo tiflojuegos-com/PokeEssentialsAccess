@@ -1,8 +1,5 @@
-# Under 1.8.7 every object answers respond_to?(:id): Object#id is the old alias of object_id. The locator
-# told events from synthetic targets (surfaces, marks, map edges) by that answer, so on the seven gen-6 games
-# a surface passed as taggable -- Shift+K filed a label under an object_id no event has, Ctrl+K "hid"
-# nothing -- and its fixed number sorted by whatever id the GC handed out, changing between two presses of
-# the same key. The stand-in below gives a surface that answer, as 1.8.7 does.
+# A synthetic target (surface, mark, map edge) has no event id even where every object answers to id, as under Ruby
+# 1.8.7 (Object#id aliases object_id): it sorts by its tile and takes no tag.
 Suite.define("locator: a synthetic target has no event id, even where every object answers to id") do
   loc = PokeAccess::Locator
   surf = PokeAccess::Locator::SurfaceTarget.new(4, 9, "Agua", :surf_water)

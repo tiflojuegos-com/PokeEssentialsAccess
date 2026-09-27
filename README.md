@@ -19,6 +19,7 @@ adds sound navigation and pathfinding. It does not modify the game's scripts and
 - **Navegación sonora**: sonar 3D binaural que sitúa a tu alrededor personas, objetos, puertas,
   teletransportes, agua y paredes.
 - **Búsqueda de rutas**: eliges un objetivo y el mod calcula la ruta y te guía con un sonido.
+- **Verbosidad** en tres niveles e **historial de mensajes**.
 - **Remapeo de teclas**, glosario de sonidos y grabador de sesiones.
 
 **Instalar:** descarga `pokeessentialsaccess-launcher.exe` de la
@@ -39,6 +40,7 @@ ventana de controles nativos de Windows, manejable con lector de pantalla.
 - **Sound navigation**: a binaural 3D sonar placing people, objects, doors, warps, water and walls around
   you.
 - **Pathfinding**: pick a target and the mod works out the route and guides you there with a sound.
+- **Verbosity** in three levels and a **message history**.
 - **Key remapping**, a sound glossary and a session recorder.
 
 **Install:** download `pokeessentialsaccess-launcher.exe` from the

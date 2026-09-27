@@ -1,9 +1,5 @@
-# The keyboard routes for realidea's mouse-only minigames (games/realidea/mouse_minigames.rb). Each
-# handler replaces the game's per-frame input wholesale, so the stubs' always-false Input would leave every
-# branch unexercised: ReaKeys overrides Input.trigger? for the duration of one call, which is exactly how a
-# keypress reaches the handler in the game (one frame, one edge). The fake scenes carry the ivars and the
-# logic methods each dump keeps mouse-free, so the tests pin the contract the readers rely on: which ivar
-# holds the cursor, which method resolves an action, and what is spoken when.
+# Keyboard routes for Realidea's mouse-only minigames (games/realidea/mouse_minigames.rb): which ivar holds the
+# cursor, which game method resolves an action, and what is said when.
 require File.expand_path("../../../games/realidea/mouse_minigames", File.dirname(__FILE__))
 
 module ReaKeys
@@ -50,8 +46,8 @@ class ReaSpecCockteles
     @sprites = {}
   end
 
-  # The dump's colorescopa: one bottle only fills the glass; two resolve the round, count it and pick the
-  # next cocktail. The mix table is reduced to the one pair the test pours.
+  # The game's colorescopa, its mix table cut to the one pair the test pours: two bottles resolve and count the round
+  # and pick the next cocktail.
   def colorescopa
     return if @player.length < 2
     hit = @player.sort == ["azul", "rojo"] && @seleccion == "morado"

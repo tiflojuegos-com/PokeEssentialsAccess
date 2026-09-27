@@ -5,7 +5,8 @@
     pausemenu
     minigames
     tablas
-    extras
+    cuadrigas
+    pictures
   ],
-  :plugins => %w[easy_questing logros luka_title]
+  :plugins => %w[easy_questing logros luka_title fancy_badges]
 }

@@ -1,9 +1,7 @@
-# Triple Triad on the modern path. Same reader, same scene ivars, but species are symbols instead of
-# integers here, and the slot-versus-species confusion reads differently: in gen-6 it named a wrong Pokemon,
-# in the GameData era a slot number is not a species at all, so the line degraded to a bare "1" or "2".
-# Both eras ship this minigame, so the fix has to hold in both -- the gen-6 half lives in triple_triad_spec.
+# Triple Triad in the gamedata pass, where species are symbols: the hand names the species at the focused slot, never
+# the slot number.
 
-# See the gen-6 twin: slots = @cardIndexes (sprite slots in hand order), cards = @playerCards BY SLOT.
+# A TriadScene stand-in: slots = @cardIndexes (sprite slots in hand order), cards = @playerCards by slot.
 def triad_hand(slots, cards)
   s = Object.new
   s.instance_variable_set(:@cardIndexes, slots)

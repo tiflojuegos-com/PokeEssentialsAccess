@@ -1,38 +1,55 @@
-# gen-6 party / storage / pause triggers. The spoken content is the agnostic PokeAccess::Party
-# (party_storage.rb at the module root); this file only wires the classic-Essentials scenes, so the
-# version-specific hooks live under gen6/ as the module-first layout intends.
+# Classic-Essentials party, PC storage and pause-menu hooks; what they say lives in PokeAccess::Party
+# (party_storage.rb).
 
-# Party selection on classic Essentials: PokemonScreen_Scene#pbChangeSelection both moves the cursor and
-# reports where it landed, where the GameData-era scene reports through PokemonPartyPanel#selected= (read in
-# core/menus/v21/ui_v21.rb). The split is by WHICH object reports the move, so no era gate is needed. Bound
-# to the class that OWNS pbChangeSelection (an alias on an empty compatibility bridge never runs for the
-# parent's instances), and only where that bridge exists, or a GameData game would speak every move twice.
+# The party cursor where pbChangeSelection reports the move (GameData-era scenes report through
+# PokemonPartyPanel#selected=, in ui_v21.rb). Bound to the class that owns the method, since an alias on an empty
+# compatibility bridge never runs; PokemonParty_Scene only beside that bridge, or GameData games speak twice.
 party_sel_owner = lambda do |cn|
   k = PokeAccess.const_at(cn)
   k && (k.instance_methods(false).any? { |m| m.to_s == "pbChangeSelection" } rescue false)
 end
-if party_sel_owner.call("PokemonScreen_Scene")
-  PokeAccess::Hooks.after_hook("PokemonScreen_Scene", :pbChangeSelection) do |scene, ret, args|
+party_sel_class = if party_sel_owner.call("PokemonScreen_Scene")
+                    "PokemonScreen_Scene"
+                  elsif PokeAccess::Engine.has?("PokemonScreen_Scene#pbChangeSelection") && party_sel_owner.call("PokemonParty_Scene")
+                    "PokemonParty_Scene"
+                  end
+if party_sel_class
+  PokeAccess::Hooks.after_hook(party_sel_class, :pbChangeSelection) do |scene, ret, args|
     PokeAccess::Party.announce_party(scene, scene.instance_variable_get(:@party), ret, args[1])
   end
-elsif PokeAccess::Engine.has?("PokemonScreen_Scene#pbChangeSelection") && party_sel_owner.call("PokemonParty_Scene")
-  PokeAccess::Hooks.after_hook("PokemonParty_Scene", :pbChangeSelection) do |scene, ret, args|
-    PokeAccess::Party.announce_party(scene, scene.instance_variable_get(:@party), ret, args[1])
+  # The member the cursor rests on when the list takes a choice (on opening, preselected, back from a sub-menu),
+  # which no move reports; queued behind the help line.
+  PokeAccess::Hooks.before_hook(party_sel_class, :pbChoosePokemon, :optional => true) do |scene, args|
+    sel = args[1].is_a?(Integer) && args[1] >= 0 ? args[1] : scene.instance_variable_get(:@activecmd)
+    PokeAccess::Party.announce_member(scene, scene.instance_variable_get(:@party), sel)
   end
 end
 
-# PC storage cursor (pbUpdateOverlay runs whenever the focused slot changes).
+# PC storage cursor (pbUpdateOverlay runs on every slot change), with what the overlay paints: the modern PC
+# writes its buttons there.
+PokeAccess::Hooks.before_hook("PokemonStorageScene", :pbUpdateOverlay) do |_scene, _a|
+  PokeAccess::PaintCapture.arm(:pc_overlay)
+end
 PokeAccess::Hooks.after_hook("PokemonStorageScene", :pbUpdateOverlay) do |scene, _r, args|
-  PokeAccess::Party.announce_pc(scene, args[0], args[1])
+  PokeAccess::Party.announce_pc(scene, args[0], args[1], PokeAccess::PaintCapture.take_pairs(:pc_overlay))
 end
 
-# The PC's cursor MODE (normal, quick swap, and one plugin's multi-select), shown by nothing but the colour
-# of the arrow. Read from the scene's ivars rather than the argument, because the cycling form ignores what
-# it is passed; interrupting, because it answers the key just pressed.
+# Keeps the word a party button is built with, painted and stored nowhere else, for Party.button_label.
+["PokeSelectionConfirmCancelSprite", "PokemonPartyConfirmCancelSprite"].each do |cn|
+  PokeAccess::Hooks.before_hook(cn, :initialize, :optional => true) do |sprite, args|
+    sprite.instance_variable_set(:@access_label, args[0].to_s)
+  end
+end
+
+# The PC's cursor mode (normal, quick swap, a plugin's multi-select), shown only by the arrow's colour. Read from
+# the scene's ivars, not the argument, which the cycling form ignores; said interrupting.
 module PokeAccess
   module StorageModes
-    def self.say(scene)
-      k = if PokeAccess.ivar(scene, :@multi) then :pc_mode_multi
+    # Says the PC cursor mode when it changes.
+    # param key the mode's i18n key when a game names its modes; nil reads the scene's flags
+    def self.say(scene, key = nil)
+      k = if key then key
+          elsif PokeAccess.ivar(scene, :@multi) then :pc_mode_multi
           elsif PokeAccess.ivar(scene, :@quickswap) then :pc_mode_quick
           else :pc_mode_normal
           end
@@ -48,18 +65,16 @@ PokeAccess::Hooks.after_hook("PokemonStorageScene", :pbSetQuickSwap, :optional =
   PokeAccess::StorageModes.say(scene)
 end
 
-# Every (re)entry to the selection loop forgets the dedup key: the outer PC loop calls this again after
-# each command menu, and its header repaints via pbUpdateOverlay, so coming back from Withdraw/Summary/
-# Exit re-reads the focused slot instead of staying quiet on an unchanged key.
-PokeAccess::Hooks.before_hook("PokemonStorageScene", :pbSelectBoxInternal) do |scene, _a|
-  PokeAccess::Cursor.reset(scene, :pc_key)
+# Entering the box grid or party column loop forgets the dedup key, so the focused slot is re-read on return;
+# not while its line is still the last spoken (pc_still_heard?).
+["pbSelectBoxInternal", "pbSelectPartyInternal"].each do |m|
+  PokeAccess::Hooks.before_hook("PokemonStorageScene", m.to_sym, :optional => m == "pbSelectPartyInternal") do |scene, _a|
+    PokeAccess::Cursor.reset(scene, :pc_key) unless PokeAccess::Party.pc_still_heard?(scene)
+  end
 end
 
-# Trainer info via the info key when the classic pause menu opens (so the info key reads the trainer, not a
-# stale :pokemon left over from the party screen or a previous battle).
-# hook_container: this body only STORES, it never speaks, and pbStartScene calls selectButton -- whose hook is
-# the one that announces. Guarded, that opening read is dropped as nested_other? and the screen opens
-# in silence; the guard is only useful when the outer hook is itself the announcer.
+# The info key reads the trainer once the classic pause menu opens. hook_container: this body only stores, and
+# the selectButton hook inside pbStartScene speaks (a guarded outer hook would drop it as nested_other?).
 PokeAccess::Hooks.after_hook("PokemonMenu_Scene", :pbStartScene, :hook_container => true) do |_s, _r, _a|
   PokeAccess::Info.set_info(:trainer, nil)
 end

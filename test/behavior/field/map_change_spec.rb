@@ -1,6 +1,4 @@
-# Regression: the map name was spammed forever by a cache/event loop (the :map_changed reset cleared
-# @last_map_id, which made announce_map_change see a change again next frame). It must announce ONCE per
-# real map change, and again only when the map id actually changes.
+# The map name is announced once per map change, and again only when the map id changes.
 Suite.define("field: map name announced once per map, not spammed") do
   $game_map.map_id = 35
   PokeAccess::Locator.forget_map
@@ -13,20 +11,14 @@ Suite.define("field: map name announced once per map, not spammed") do
   spoke_once "new map announced once after the id changes", /Mapa 40/
 end
 
-# The stub MapInfos only carries the ids the specs visit, so the no-entry path is reachable: an id with no
-# MapInfos row (and no persisted override) must yield nil, never a fabricated name.
+# map_name of an id with no MapInfos row and no saved override is nil.
 Suite.define("field: map_name of an unknown id falls back to nil") do
   eq "unknown map id has no name", PokeAccess::Locator.map_name(999999), nil
   eq "a known id still resolves from MapInfos", PokeAccess::Locator.map_name(35), "Mapa 35"
 end
 
-# Loading a save can land on the very map the player was already on, and then the id has not changed. That
-# is not only a missing announcement: announce_map_change is the ONLY trigger for :map_changed, so no cache
-# was reset either and the previous run's emitters and targets carried over.
-#
-# A load screen calling forget_map is not what these drive, and a spec calling it BY HAND would never test
-# the wiring: only the two classic screens do it, while v22 loads through UI::LoadVisuals. What identifies
-# a load is that $game_map is a new object.
+# A load onto the same map id is announced and resets every cache through announce -> :map_changed ->
+# Caches.reset_all, with no load screen involved: a new $game_map object is what marks a load.
 Suite.define("field: loading re-announces even on the same map") do
   PokeAccess::Locator.forget_map
   $game_map.map_id = 35
@@ -37,10 +29,6 @@ Suite.define("field: loading re-announces even on the same map") do
   3.times { PokeAccess::Locator.announce_map_change }
   silent "standing still on it says nothing more"
 
-  # A load: same id, rebuilt object. No load screen is involved, which is the point. The probe rides on the
-  # cache registry rather than the event bus so the whole chain is driven -- announce -> :map_changed ->
-  # Caches.reset_all -> this reset -- and because registering the same name twice replaces it, the spec can
-  # take its own probe back out and not leak into later suites.
   SpeakCapture.clear
   reset_runs = 0
   PokeAccess::Caches.register(:spec_load_probe) { reset_runs += 1 }
@@ -63,8 +51,7 @@ Suite.define("field: loading re-announces even on the same map") do
   spoke "forget_map still works for the classic screens that call it", /Mapa 35/
 end
 
-# MapInfos names are the editor's and carry its control codes -- FireAsh names every house "\PN's house" --
-# so the name a player hears goes through the speech cleaner: the code becomes the player's name.
+# A map name goes through the speech cleaner: a \PN control code becomes the player's name.
 Suite.define("field: a map name with a control code is spoken cleaned") do
   who = (defined?($player) && $player) ? $player : $Trainer
   eq "the player-name code becomes the player's name", PokeAccess::Locator.map_name(36), "Casa de #{who.name}"

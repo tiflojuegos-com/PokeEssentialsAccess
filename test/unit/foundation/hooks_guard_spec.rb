@@ -1,8 +1,5 @@
 
-# The guard's suppressions must be VISIBLE. Dropping a nested reader is silent by design -- no error, no
-# log, no failing test -- so a hook wrongly put on a container silences whatever it drives and the only
-# symptom is a screen that went quiet. That is precisely what a blind player cannot debug, so the engine
-# records every outer>inner pair it drops and the diagnostic reports them.
+# The reentrancy guard records every outer>inner pair it silences in Hooks.suppressed, for the diagnostic.
 Suite.define("hooks: the guard records what it silences, so a mute screen leaves evidence") do
   klass = Class.new do
     define_method(:outer_drive) { inner_read }

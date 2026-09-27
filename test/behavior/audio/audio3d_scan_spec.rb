@@ -1,12 +1,8 @@
-# The per-tile emitter scan (Audio3D.rescan / refresh_movers): what the soundscape decides to sound at all.
-# It runs on every tile change, so its three cuts -- the range, the nearest-few cap and the line-of-sight
-# drop -- are what stands between a readable soundscape and a wall of noise. None of it touches the dll:
-# rescan only reads $game_map.events, the classifier and the raycast, and writes the @emitters table the
-# ping loop later plays from, so these suites assert that table directly.
+# The per-tile emitter scan (Audio3D.rescan, refresh_movers). No dll involved: the suites assert the @emitters
+# table the ping loop plays from.
 
-# Bucketing, the range cut, the NEAR_MAX cap and clustering, all in one scan. The cap is asserted through
-# four adjacent people with four different sprites: they must stay four emitters (so the cap has something
-# to cut) and the scan must keep the three NEAREST, not the first three the event hash happens to yield.
+# Bucketing, the range cut, the NEAR_MAX cap (the nearest three of four adjacent people with distinct sprites) and
+# clustering, in one scan.
 Suite.define("audio3d: rescan buckets by type, keeps the nearest few and merges one structure") do
   a3d = PokeAccess::Audio3D
   prev_range = PokeAccess::Config.audio3d_range
@@ -38,9 +34,7 @@ Suite.define("audio3d: rescan buckets by type, keeps the nearest few and merges 
   end
 end
 
-# Line of sight is only applied in HIDE mode; hear and occlude keep the emitter and let the dll muffle it.
-# Getting this backwards either deletes half the map's cues or lets the player hear through every wall, and
-# the same grid with the same events proves which mode did what.
+# Line of sight drops emitters only in hide mode; hear and occlude keep them.
 Suite.define("audio3d: only hide mode drops the emitters behind a wall") do
   a3d = PokeAccess::Audio3D
   prev_occ = PokeAccess::Config.audio3d_occlusion
@@ -74,9 +68,8 @@ Suite.define("audio3d: only hide mode drops the emitters behind a wall") do
   end
 end
 
-# The Pokemon Center case: the nurse is behind an impassable counter, so hide mode would delete the most
-# important emitter on the map. The bypass must save HER and nobody else -- the ordinary shopper one tile
-# further behind the same counter must still be cut, or the exception has swallowed the rule.
+# Hide mode keeps a service-desk clerk behind her counter (within the desk range) and cuts an ordinary person
+# behind the same counter.
 Suite.define("audio3d: hide mode keeps the counter clerk but not the person behind her") do
   a3d = PokeAccess::Audio3D
   prev_occ = PokeAccess::Config.audio3d_occlusion
@@ -108,13 +101,8 @@ Suite.define("audio3d: hide mode keeps the counter clerk but not the person behi
   end
 end
 
-# The water loop follows the nearest WATER tile within the sonar range: a map's grass must not start it,
-# and a shore further out than the range must stop it. @near[:water] is the one value set_loop reads, so a
-# wrong nil here is a loop that never stops (or never starts).
-#
-# The sonar looks for its own water rather than reusing the locator's surface list, which would scan a
-# 61-tile box for eleven surface kinds to throw ten away and then re-filter by the range that should have
-# bounded the scan. That is why this drives real terrain tags instead of stubbing the locator out.
+# @near[:water], where the water loop plays: the nearest water tile within the sonar range (a waterfall counts),
+# read from real terrain tags.
 Suite.define("audio3d: the water loop follows the nearest water surface only") do
   a3d = PokeAccess::Audio3D
   prev_range = PokeAccess::Config.audio3d_range
@@ -127,8 +115,6 @@ Suite.define("audio3d: the water loop follows the nearest water surface only") d
     a3d.rescan(5, 5)
     eq "a shore in range positions the loop", a3d.instance_variable_get(:@near)[:water], [8, 5]
 
-    # Nearer water wins, and it is the manhattan distance that decides -- the rings must not report a tile
-    # simply because it was reached first in some scan order.
     $game_map.set_terrain(5, 3, 7)
     a3d.rescan(5, 5)
     eq "and the nearest of two shores wins", a3d.instance_variable_get(:@near)[:water], [5, 3]
@@ -147,8 +133,6 @@ Suite.define("audio3d: the water loop follows the nearest water surface only") d
     a3d.rescan(5, 5)
     eq "and a surface that is not water never starts it", a3d.instance_variable_get(:@near)[:water], nil
 
-    # A waterfall has always counted as water for this cue, and the tile beyond the map edge has never
-    # been asked about: both are behaviour the rewrite had to carry over rather than decide afresh.
     $game_map.set_terrain(4, 5, 8)
     a3d.rescan(5, 5)
     eq "a waterfall still counts as water", a3d.instance_variable_get(:@near)[:water], [4, 5]
@@ -164,9 +148,7 @@ Suite.define("audio3d: the water loop follows the nearest water surface only") d
   end
 end
 
-# Movers (the ship sharpedos) drift while the player stands still, so their tiles go stale between tile
-# changes. refresh_movers is the cheap partial rescan that retracks them -- and it must leave every other
-# bucket ALONE: rebuilding them all on a timer is what the tile-change scan exists to avoid.
+# refresh_movers retracks the puzzle movers between tile changes and leaves every other bucket alone.
 Suite.define("audio3d: refresh_movers retracks the movers and touches nothing else") do
   a3d = PokeAccess::Audio3D
   prev_range = PokeAccess::Config.audio3d_range
@@ -201,9 +183,7 @@ Suite.define("audio3d: refresh_movers retracks the movers and touches nothing el
   end
 end
 
-# On a map change the scan state MUST die (otherwise the previous map's people keep pinging from tiles that
-# no longer exist, so a blind player walks toward nothing), while the engine and its loaded channels MUST
-# survive (re-opening the audio device on every door would stutter the game and mute the music).
+# A map change (Caches.reset_all) drops the scan state and keeps the booted engine with its loaded channels.
 Suite.define("audio3d: a map change drops the scan state but never the loaded engine") do
   a3d = PokeAccess::Audio3D
   keep = [:@emitters, :@wall, :@near, :@scan_pos, :@ready, :@ch]
@@ -226,5 +206,105 @@ Suite.define("audio3d: a map change drops the scan state but never the loaded en
     eq "with its channels still loaded", a3d.instance_variable_get(:@ch), { :npc => 0 }
   ensure
     saved.each { |k, v| a3d.instance_variable_set(k, v) }
+  end
+end
+
+# The engine's player passable?, counted: every (x, y, d) it is asked, in order.
+def with_asked_steps
+  asked = []
+  class << $game_player; alias_method :asked_spec_passable?, :passable?; end
+  $game_player.define_singleton_method(:passable?) { |x, y, d| asked.push([x, y, d]); asked_spec_passable?(x, y, d) }
+  yield asked
+ensure
+  class << $game_player; remove_method :passable?, :asked_spec_passable?; end
+end
+
+# Five people east of the player in a two-row corridor: their rays share their first steps.
+def sonar_corridor
+  $game_map.load_grid(["############",
+                       "#@.........#",
+                       "#..........#",
+                       "############"])
+  World.clear_events
+  [[4, 1, "ana"], [6, 1, "bea"], [8, 1, "cid"], [5, 2, "dan"], [9, 2, "eva"]].each_with_index do |(x, y, s), i|
+    World.event(:kind => :trainer, :id => i + 1, :x => x, :y => y).character_name = s
+  end
+end
+
+# Inside one_answer_per_step the rays of a scan ask the engine once per step and keep what they kept without it.
+Suite.define("audio3d: with the step memo a scan asks each step once and finds the same") do
+  a3d = PokeAccess::Audio3D
+  prev_range = PokeAccess::Config.audio3d_range
+  prev_occ = PokeAccess::Config.audio3d_occlusion
+  begin
+    PokeAccess::Config.audio3d_range = 12
+    PokeAccess::Config.audio3d_occlusion = :hide
+    sonar_corridor
+    with_asked_steps do |asked|
+      a3d.rescan(1, 1)
+      a3d.update_walls(1, 1)
+      plain = [a3d.instance_variable_get(:@emitters), a3d.instance_variable_get(:@wall)]
+      plain_asks = asked.length
+      asked.clear
+      a3d.one_answer_per_step do
+        a3d.rescan(1, 1)
+        a3d.update_walls(1, 1)
+      end
+      eq "the same emitters and walls as without the memo",
+         [a3d.instance_variable_get(:@emitters), a3d.instance_variable_get(:@wall)], plain
+      eq "each step was asked once", asked.length, asked.uniq.length
+      truthy "fewer questions than the rays make on their own (#{asked.length} against #{plain_asks})",
+             asked.length < plain_asks
+      falsy "and the memo is closed afterwards", a3d.instance_variable_get(:@step_memo)
+    end
+  ensure
+    PokeAccess::Config.audio3d_range = prev_range
+    PokeAccess::Config.audio3d_occlusion = prev_occ
+    World.clear_events
+    $game_map.clear_grid
+  end
+end
+
+# A whole tick scans under the memo, and the next tick asks the engine afresh: a rock pushed onto the rays between
+# two ticks hides the people behind it.
+Suite.define("audio3d: a tick asks each step once, and the next tick asks again") do
+  a3d = PokeAccess::Audio3D
+  ivars = [:@ready, :@ch, :@active, :@emitters, :@near, :@wall, :@scan_pos, :@ptime, :@ping_idx, :@last_ping_any,
+           :@last_ping_pos, :@mover_time, :@gates, :@bgm_restored, :@master_sent, :@air_sent, :@basic_silenced]
+  saved = ivars.inject({}) { |h, k| h[k] = a3d.instance_variable_get(k); h }
+  prev_trainer = $Trainer
+  prev_range = PokeAccess::Config.audio3d_range
+  prev_occ = PokeAccess::Config.audio3d_occlusion
+  begin
+    $Trainer = Object.new
+    chans = {}
+    a3d::CHANNEL_FILES.each_with_index { |row, i| chans[row[0]] = i }
+    a3d.instance_variable_set(:@ready, true)
+    a3d.instance_variable_set(:@ch, chans)
+    a3d.instance_variable_set(:@scan_pos, nil)
+    PokeAccess::Config.sound_nav = :full
+    PokeAccess::Config.audio3d_range = 12
+    PokeAccess::Config.audio3d_occlusion = :hide
+    sonar_corridor
+    rock = World.event(:id => 9, :x => 3, :y => 1)
+    rock.character_name = ""
+    with_asked_steps do |asked|
+      a3d.tick
+      truthy "the tick scanned the corridor", asked.length > 0
+      eq "and asked the engine once per step", asked.length, asked.uniq.length
+      eq "the nearest people ping", a3d.instance_variable_get(:@emitters)[:npc].first, [4, 1]
+      rock.blocking = true
+      a3d.instance_variable_set(:@scan_pos, nil)
+      a3d.tick
+      falsy "the next tick sees the rock across the rays", (a3d.instance_variable_get(:@emitters)[:npc] || []).include?([4, 1])
+      falsy "and holds no memo between ticks", a3d.instance_variable_get(:@step_memo)
+    end
+  ensure
+    PokeAccess::Config.audio3d_range = prev_range
+    PokeAccess::Config.audio3d_occlusion = prev_occ
+    $Trainer = prev_trainer
+    saved.each { |k, v| a3d.instance_variable_set(k, v) }
+    World.clear_events
+    $game_map.clear_grid
   end
 end

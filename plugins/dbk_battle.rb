@@ -1,8 +1,6 @@
 module PokeAccess
-  # DBK (Deluxe Battle Kit, bundled by La Base de Sky) battle-mechanic toggle. The special mechanic
-  # (mega / dynamax / tera / z-move...) is chosen with Battle#pbToggleSpecialActions(idxBattler, cmd) and
-  # shown only as an icon, so a blind player misses it; announce whether the mechanic named by cmd just
-  # turned on or off. Gated by method existence, so non-DBK and gen-6 games never bind.
+  # Deluxe Battle Kit mechanic toggle: after Battle#pbToggleSpecialActions(idxBattler, cmd), says whether the
+  # mechanic (mega, dynamax, tera, Z-move...) turned on or off; the hook is optional, as only the kit has it.
   module DBKBattle
     MECH = { :mega => :dbk_mega, :dynamax => :dbk_dynamax, :tera => :dbk_tera,
              :zmove => :dbk_zmove, :ultra => :dbk_ultra, :style => :dbk_style }
@@ -23,3 +21,22 @@ PokeAccess::Hooks.after_hook("Battle", :pbToggleSpecialActions, :optional => tru
   t = PokeAccess::DBKBattle.toggle_text(battle, args[0], args[1])
   PokeAccess.speak(t, true)
 end
+
+# A styled databox draws the player's side with the Pokemon's own sex sign (not Illusion's) and level, a foe with
+# its name alone; the hp and info keys say the same.
+PokeAccess::Hooks.override(PokeAccess::Battle, :shown_sex, :tag => "dbk_battle") do |_mod, original, args|
+  b = args[0]
+  if PokeAccess::Battle.styled_box(b)
+    s = (b.index.even? rescue false) ? PokeAccess::Party.sign((b.gender rescue nil)) : nil
+    s ? " #{s}" : ""
+  else
+    original.call
+  end
+end
+PokeAccess::Hooks.override(PokeAccess::Battle, :shown_level, :tag => "dbk_battle") do |_mod, original, args|
+  b = args[0]
+  PokeAccess::Battle.styled_box(b) && !(b.index.even? rescue false) ? nil : original.call
+end
+
+# The icon the kit's databox draws beside a Shadow Pokemon in Hyper Mode.
+PokeAccess::Battle.icon_mark(/\Aicon_hyper_mode\z/i, :dbk_mark_hyper)

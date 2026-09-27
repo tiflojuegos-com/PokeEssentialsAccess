@@ -1,18 +1,13 @@
-# Audio3D.type_of is the decision that answers "WHICH sound does this event make". It is a projection of
-# the locator's classification onto the sound vocabulary, and its ORDER of tests is the contract: the first
-# rule that matches wins, so moving one line turns a door into an object or silences a puzzle control. A
-# blind player learns these cues by heart, so a swap is worse than silence -- they walk into the wrong tile.
-# None of this needs the dll: type_of only reads event data through Locator/Puzzles/Tags.
+# Audio3D.type_of, the cue each event makes: the first matching rule wins, so the order is the contract. Needs no
+# dll (it reads event data through Locator, Puzzles and Tags).
 
-# The base readings, each against a near-identical event that must read differently. The pairs are chosen so
-# that only ONE input changes between them (the sprite, or whether the event answers the action button).
+# The base readings, each against a near-identical event that differs in one input (the sprite or the command list).
 Suite.define("audio3d: type_of gives each kind of event the cue the player learned") do
   a3d = PokeAccess::Audio3D
   World.clear_events
 
   eq "a warp door is a door", a3d.type_of(World.event(:kind => :door, :id => 1, :x => 4, :y => 5)), :door
 
-  # Same transfer event, only the sprite differs: a warp-pad graphic must not sound like a hinged door.
   plain = World.event(:kind => :door, :id => 2, :x => 5, :y => 4)
   plain.character_name = "boy"
   pad = World.event(:kind => :door, :id => 3, :x => 6, :y => 4)
@@ -22,14 +17,10 @@ Suite.define("audio3d: type_of gives each kind of event the cue the player learn
 
   eq "a talkable person is an npc", a3d.type_of(World.event(:kind => :trainer, :id => 4, :x => 7, :y => 5)), :npc
 
-  # Same person-shaped event, object sprite: the "objects" cue exists so the player can tell furniture from
-  # people without asking, and event_category keys that on the sprite alone.
   thing = World.event(:kind => :trainer, :id => 5, :x => 8, :y => 5)
   thing.character_name = "objeto3"
   eq "the same event with an object sprite is an object", a3d.type_of(thing), :object
 
-  # The phantom-NPC guard: a graphic alone must not ping, or every decorative sprite becomes a person the
-  # player walks over to and cannot interact with. Only the command list differs between these two.
   quiet_pg = TestPage.new(:trigger => 0, :sprite => "hiker")
   quiet = TestGameEvent.new(:id => 6, :x => 9, :y => 5, :pages => [quiet_pg], :active_page => quiet_pg)
   talky_pg = TestPage.new(:trigger => 0, :sprite => "hiker", :list => [TestCmd.new(101, ["Hola"])])
@@ -37,16 +28,12 @@ Suite.define("audio3d: type_of gives each kind of event the cue the player learn
   eq "a decorative sprite that answers nothing is not an emitter", a3d.type_of(quiet), nil
   eq "the same sprite that talks back is an npc", a3d.type_of(talky), :npc
 
-  # Signs are read by the locator, not pinged: they have no graphic, and a soundscape full of sign pings
-  # would drown the people and doors the player is actually navigating by.
   eq "a bare sign makes no sound", a3d.type_of(World.event(:kind => :sign, :id => 8, :x => 4, :y => 6)), nil
 
   World.clear_events
 end
 
-# The player's own override (Ctrl+K) is the escape hatch for a game whose events the automatic reading gets
-# wrong. It is checked FIRST for a reason: if any automatic rule could outrank it, the player would retag an
-# event, hear no change, and have no way to fix their map. Hiding must silence the emitter outright.
+# A player tag (Ctrl+K) is checked before any automatic reading; a hidden event is silenced outright.
 Suite.define("audio3d: a player tag outranks every automatic reading of an event") do
   a3d = PokeAccess::Audio3D
   tags_wipe = lambda do
@@ -82,10 +69,8 @@ Suite.define("audio3d: a player tag outranks every automatic reading of an event
   end
 end
 
-# Puzzle readings come before the generic ones: a moving hazard on a ship deck IS a person-sized sprite, so
-# if the sprite reading won first the player would hear "person" for the thing about to shove them off the
-# map. Each case is asserted twice -- with the puzzle registered and with it gone -- so the assert can only
-# pass by honouring the puzzle, not by accident.
+# Puzzle obstacles and controls outrank the sprite and transfer readings; each case is asserted with the puzzle
+# registered and again without it.
 Suite.define("audio3d: puzzle obstacles and controls outrank the sprite reading") do
   a3d = PokeAccess::Audio3D
   begin
@@ -95,8 +80,6 @@ Suite.define("audio3d: puzzle obstacles and controls outrank the sprite reading"
     block = World.event(:kind => :trainer, :id => 2, :x => 7, :y => 5)
     block.character_name = "roca_gigante"
 
-    # A crank that ALSO carries a map transfer: the control cue must win, or the player hears "door" for the
-    # lever that solves the room and never finds it.
     pg = TestPage.new(:trigger => 0, :sprite => "", :list => [TestCmd.new(122, [132, 132, 0, 0, 1]),
                                                               TestCmd.new(201, [0, 5, 1, 1])])
     crank = TestGameEvent.new(:id => 3, :x => 8, :y => 5, :pages => [pg], :active_page => pg)
@@ -124,10 +107,8 @@ Suite.define("audio3d: puzzle obstacles and controls outrank the sprite reading"
   end
 end
 
-# Registered hazard sprites (a game's lasers/beams) and invisible conveyor tiles both get their own cue
-# because both HURT: one damages, the other silently shoves the player off their route. The conveyor test
-# runs on its own map id because push tiles are cached per map, and it is paired with a wandering NPC's own
-# move route -- the shape that must NOT be mistaken for a conveyor, or every walking NPC would boing.
+# A registered hazard sprite and an invisible tile that moves the player keep their own cues; an NPC moving itself
+# is no conveyor. The conveyor case uses its own map id (push tiles are cached per map).
 Suite.define("audio3d: registered hazards and conveyor tiles keep their own cues") do
   a3d = PokeAccess::Audio3D
   saved_hazards = PokeAccess::Locator::HAZARDS.dup
@@ -159,9 +140,8 @@ Suite.define("audio3d: registered hazards and conveyor tiles keep their own cues
   end
 end
 
-# The warp vocabulary is what the surveyed games paint their pads with: their map data holds Hoopa rings,
-# vortexes and umbrals on transfer events that sounded like hinged doors. A name one game alone uses
-# (Realidea's temple lights) is registered from its profile, the way hazards are.
+# A transfer drawn as a warp pad (Hoopa rings, vortexes, umbrals) is a teleporter; a sprite name only one game uses
+# is registered from its profile.
 Suite.define("audio3d: the warp vocabulary and a profile-registered pad both take the teleporter cue") do
   a3d = PokeAccess::Audio3D
   saved = PokeAccess::Locator::TELEPORTERS.dup
@@ -193,10 +173,7 @@ Suite.define("audio3d: the warp vocabulary and a profile-registered pad both tak
   end
 end
 
-# desk_bypass is the exception that keeps a Pokemon Center usable with line-of-sight ON: the nurse stands
-# behind an impassable counter, so the raycast calls her occluded and hide mode would delete the single most
-# important emitter on the map. It is deliberately narrow -- only service desks, only within the configured
-# range -- so the exception cannot be abused to leak every object through walls.
+# desk_bypass?: a service-desk clerk stays audible through a wall in hide mode within audio3d_desk_range (0: off).
 Suite.define("audio3d: only a near service desk bypasses line of sight") do
   a3d = PokeAccess::Audio3D
   prev_desk = PokeAccess::Config.audio3d_desk_range
@@ -220,10 +197,7 @@ Suite.define("audio3d: only a near service desk bypasses line of sight") do
   end
 end
 
-# The optional "only what the keys can reach" filter. The two classifiers agree on everything with a
-# dedicated predicate (doors, hazards, controls, tags) and disagree on exactly one shape: an event drawn
-# with a TILE graphic and a touch trigger, which pings here but is in no locator category. Those fire on
-# contact, so the default keeps pinging them; the filter is for a player who wants the two lists to match.
+# The sonar_only_locatable filter silences what pings but is in no locator category (a tile-graphic touch event).
 Suite.define("audio3d: the locatable filter silences only the events the keys cannot reach") do
   a3d = PokeAccess::Audio3D
   prev = PokeAccess::Config.sonar_only_locatable
@@ -248,8 +222,7 @@ Suite.define("audio3d: the locatable filter silences only the events the keys ca
   end
 end
 
-# The census the diagnostic prints. It must count with the filter OFF: a player who turns the filter on and
-# then opens the diagnostic needs to see how big the gap IS, not zero because they just silenced it.
+# reach_census (printed by the diagnostic) counts with the filter off and leaves the player's setting as it was.
 Suite.define("audio3d: the reach census measures the gap with the filter off") do
   a3d = PokeAccess::Audio3D
   prev = PokeAccess::Config.sonar_only_locatable

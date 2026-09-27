@@ -1,6 +1,5 @@
-# Data resolution on the gen-6 harness: the PB* provider is the active one and each resolver maps an
-# id to its name or basic field, with move power/accuracy coming from PBMoveData (not PBMove). This is the
-# engine-agnostic contract the shared readers rely on; the modern equivalent lives in provider_modern_gd_spec.
+# Data resolution on the gen-6 harness: the PB* provider is active and maps each id to its name or field, move
+# power and accuracy from PBMoveData (the modern half is provider_modern_gd_spec).
 Suite.define("data: gen-6 provider resolves ids") do
   eq "gen-6 provider is active", PokeAccess::Data.active, PokeAccess::DataG6
   eq "move_name", PokeAccess::Data.move_name(7), "Mov7"
@@ -18,10 +17,16 @@ Suite.define("data: gen-6 provider resolves ids") do
   def pkt.type1; 1; end
   def pkt.type2; 2; end
   eq "pokemon_types gen-6", PokeAccess::Data.pokemon_types(pkt), ["Tipo1", "Tipo2"]
+  eq "species_types from the dex data", PokeAccess::Data.species_types(4), ["Tipo1", "Tipo2"]
+  eq "a species of one type names it once", PokeAccess::Data.species_types(25), ["Tipo13"]
+  eq "trainer_type_name by number", PokeAccess::Data.trainer_type_name(65), "Posadera"
+  eq "and by its constant", PokeAccess::Data.trainer_type_name("HIKER"), "Montanero"
+  truthy "a constant the game lacks is nil", PokeAccess::Data.trainer_type_name("AQUAGRUNT_M").nil?
+  truthy "and so is a name that cannot be one", PokeAccess::Data.trainer_type_name("hiker").nil?
+  eq "none of which is a provider error", PokeAccess::Data.errors.grep(/trainer_type_name|species_types/), []
 end
 
-# The toolkit boots cleanly under the harness and exposes its core submodules; a regression here means a
-# manifest entry or a require chain broke before any reader could run.
+# The toolkit boots under the harness with its core submodules defined.
 Suite.define("data: core submodules present after load") do
   %w[Config Hooks Keys Info Menus Battle Party Summary Locator Pathfinder Spatial
      ConfigMenu Settings Audio3D Pokedex Tags Appearance Data].each do |m|

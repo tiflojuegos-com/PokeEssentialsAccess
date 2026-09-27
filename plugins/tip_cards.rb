@@ -1,13 +1,8 @@
 module PokeAccess
-  # Tip Cards (a fangame tutorial-card addon): pbDrawTip draws the focused card as bitmap
-  # text, so a screen reader gets nothing. These read the focused card when shown or changed; the
-  # title/body are localization tokens resolved through the game's own _INTL and cleaned of markup.
+  # Tip Cards (a fangame tutorial-card addon), which draws its cards as bitmap text: the focused card and its group,
+  # their texts resolved through the game's own _INTL and cleaned. Royal's menu of the groups seen is its own.
 
-  # The spoken title + body of the focused tip card, plus which of the set it is, or nil.
-  #
-  # The position is the one thing the card itself does not carry: the screen paints "n/m" under it and it is
-  # the only sign there is more to read. @pages is the screen's own count, which is not always the length of
-  # the tip list, so it wins where it exists.
+  # The focused tip card's title and body, with its position among several (@pages when kept), or nil.
   def self.tip_card_text(scene)
     tips = PokeAccess.ivar(scene, :@tips)
     idx = PokeAccess.ivar(scene, :@index)
@@ -20,25 +15,24 @@ module PokeAccess
       v = (info[k] rescue nil)
       next if v.nil? || v.to_s.empty?
       s = (_INTL(v) rescue v).to_s
-      parts.push(clean(s)) unless s.empty?
+      parts.push(PokeAccess::KeyHints.localize(clean(s), nil, true)) unless s.empty?
     end
     return nil if parts.empty?
     n = (idx.to_i + 1)
     tot = (PokeAccess.ivar(scene, :@pages) || (tips.is_a?(Array) ? tips.length : nil)).to_i
-    (tot > 1) ? PokeAccess::I18n.t(:list_entry, :name => parts.join(". "), :n => n, :tot => tot) : parts.join(". ")
+    (tot > 1) ? PokeAccess::Verbosity.list_entry(parts.join(". "), n, tot) : parts.join(". ")
   rescue StandardError
     nil
   end
 
-  # Holds the grouped browser while its loop runs, so the group-list popup below can tell it is being
-  # called from inside this screen and not from an ordinary dialogue choice.
+  # Holds the grouped browser while its loop runs, so the group-list popup hook knows it runs inside that screen.
   module TipCards
     def self.group_on(s); @group = s; end
     def self.group_off; @group = nil; end
     def self.group_scene; @group; end
   end
 
-  # The spoken title of the focused tip-card GROUP (the grouped browser), or nil.
+  # The spoken title of the focused tip-card group (the grouped browser), or nil.
   def self.tip_group_title(scene)
     groups = PokeAccess.ivar(scene, :@groups)
     sec = PokeAccess.ivar(scene, :@section)
@@ -57,9 +51,7 @@ PokeAccess::Hooks.after_hook("TipCard_Scene", :pbDrawTip, :optional => true) do 
   PokeAccess.speak(t, true)
 end
 
-# Grouped tip-card browser (TipCardGroups_Scene): a group change calls pbDrawGroup (which calls pbDrawTip),
-# and a page change calls pbDrawTip directly, so hooking pbDrawTip catches both. Prepend the group title
-# when the group changed. (The group-list popup uses a command window, already read by the generic hook.)
+# Grouped tip-card browser: pbDrawTip runs on each group or page change; the group title leads when it changed.
 PokeAccess::Hooks.after_hook("TipCardGroups_Scene", :pbDrawTip, :optional => true) do |scene, _r, _a|
   sec = PokeAccess.ivar(scene, :@section)
   parts = []
@@ -73,10 +65,7 @@ PokeAccess::Hooks.after_hook("TipCardGroups_Scene", :pbDrawTip, :optional => tru
   PokeAccess.speak(parts.join(". "), true) unless parts.empty?
 end
 
-# The SPECIAL group-list popup goes through the global pbShowCommands, and when the player picks the group
-# they were already in, the screen redraws nothing at all -- no pbDrawGroup, no pbDrawTip, no sound. The
-# card is re-read as the popup closes so the return to it is audible; a changed group speaks right after
-# through the pbDrawTip hook, interrupting, and a same-group pick has only this line.
+# Holds the grouped browser for the group-list popup below while its loop runs.
 PokeAccess::Hooks.around_hook("TipCardGroups_Scene", :pbScene, :optional => true) do |scene, nxt, _a|
   PokeAccess::TipCards.group_on(scene)
   begin
@@ -86,9 +75,8 @@ PokeAccess::Hooks.around_hook("TipCardGroups_Scene", :pbScene, :optional => true
   end
 end
 
-#
-# Wrapped only where the plugin's own switch turns the popup on (TIP_CARDS_GROUP_LIST): a game that ships
-# it off never opens the popup, and a wrap around every pbShowCommands in that game would serve nothing.
+# The group-list popup (pbShowCommands) redraws nothing when the same group is picked, so the card is re-read as it
+# closes; not wrapped where the plugin's TIP_CARDS_GROUP_LIST turns the popup off.
 unless PokeAccess.const_at("TIP_CARDS_GROUP_LIST") == false
   PokeAccess::Hooks.wrap_kernel("pbShowCommands", "hook_tipcards_grouplist", :around) do |_args, nxt|
     ret = nxt.call
@@ -98,19 +86,5 @@ unless PokeAccess.const_at("TIP_CARDS_GROUP_LIST") == false
       PokeAccess.speak(t, true)
     end
     ret
-  end
-end
-
-# Tip-card group MENU (TipMenu_Scene): the screen you pick a group from. pbRedrawList redraws the focused
-# group title as bitmap on each cursor move; read it, deduped by index. @elementos are the group keys.
-PokeAccess::Hooks.after_hook("TipMenu_Scene", :pbRedrawList, :optional => true) do |scene, _r, _a|
-  idx = PokeAccess.ivar(scene, :@index)
-  if idx && idx != PokeAccess.ivar(scene, :@access_tipmenu_idx)
-    scene.instance_variable_set(:@access_tipmenu_idx, idx)
-    els = PokeAccess.ivar(scene, :@elementos)
-    el = (els.is_a?(Array) ? els[idx] : nil)
-    g = (el ? (::Settings::TIP_CARDS_GROUPS[el] rescue nil) : nil)
-    t = (g && g[:Title]) ? (_INTL(g[:Title]) rescue g[:Title]).to_s : nil
-    PokeAccess.speak_clean(t, true)
   end
 end

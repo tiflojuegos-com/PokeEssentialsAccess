@@ -1,8 +1,5 @@
-# Realidea's loot box (games/realidea/gacha.rb): each draw's prize message names the item but not its
-# rarity, which the box only shows as a coloured frame. The reader says the rarity first, from the game's
-# own tier lists, and only while the box is open. The stub box hands its draws out the way the real one
-# does: Kernel.pbReceiveItem for an item, pbAddPokemon for a Pokémon, each voicing its message through the
-# dialogue reader as the game's own message would, so the log shows the order and who interrupts whom.
+# Realidea's loot box (games/realidea/gacha.rb): the rarity, from the game's own tier lists, is said before each
+# prize and only while the box is open; the stubs say each prize's message through the dialogue reader.
 Object.const_set(:COMUNES, [101, 102, 103]) unless Object.const_defined?(:COMUNES)
 Object.const_set(:RAROS, [201, 202, 203]) unless Object.const_defined?(:RAROS)
 Object.const_set(:LEGENDARIOS, [301, 302]) unless Object.const_defined?(:LEGENDARIOS)

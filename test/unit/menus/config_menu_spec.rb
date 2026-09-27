@@ -1,6 +1,4 @@
-# Config menu structure: a top list of categories, each opening a submenu of its settings. Verifies the
-# groups, the per-mode rows, the nested "advanced navigation" and the unified audio menu layout (sound_nav
-# above the positional submenus). The menu mode is an internal ivar driven here to inspect each submenu.
+# The config menu's categories and submenus, each inspected by setting its @mode.
 Suite.define("config menu: category structure and submenus") do
   top = PokeAccess::ConfigMenu.items
   truthy "top list has pathfinder and audio categories",
@@ -31,9 +29,7 @@ Suite.define("config menu: category structure and submenus") do
   PokeAccess::ConfigMenu.instance_variable_set(:@mode, :top)
 end
 
-# Cyclers and clamps via adjust_setting: a multi-value cycler (sound_nav off/basic/full and the language
-# toggle) wraps around, and a numeric setting clamps to its bounds. adjust_setting is the single edit path
-# the menu uses; the numeric bounds come from the shared Config::KIND_BOUNDS table.
+# adjust_setting, the menu's one edit path: a cycler (sound_nav, the language) wraps around, a number clamps.
 Suite.define("config menu: cyclers and clamps") do
   PokeAccess::Config.sound_nav = :full
   PokeAccess::ConfigMenu.adjust_setting(PokeAccess::Config.schema_row(:sound_nav), 1)
@@ -49,10 +45,7 @@ Suite.define("config menu: cyclers and clamps") do
   eq "guide_refresh clamps at 10", PokeAccess::Config.guide_refresh, 10
   PokeAccess::Config.guide_refresh = 4
 
-  # The language toggle is data-driven off lang/*.txt, so this walks whatever ships instead of pinning
-  # two names: the automatic entry opens the cycle, every language is visited exactly once and the cycle
-  # wraps. The floor pins the six that ship today (es, en, fr, pt, de, pl) so a lost file fails loudly.
-  langs = PokeAccess::I18n.available_languages
+  langs =PokeAccess::I18n.available_languages
   truthy "at least the six shipped languages are discovered", langs.length >= 6
   PokeAccess::Config.language = :es
   seen = []
@@ -66,8 +59,7 @@ Suite.define("config menu: cyclers and clamps") do
   PokeAccess::Config.language = :es
 end
 
-# The numeric dispatch table (Config::KIND_BOUNDS) feeds BOTH Settings (clamp on load) and ConfigMenu (step
-# + clamp on adjust); both paths must honour the same bounds and the default step grid.
+# Config::KIND_BOUNDS bounds both Settings on load and the menu's steps on adjust.
 Suite.define("config menu: shared numeric bounds for Settings and adjust") do
   PokeAccess::Settings.set_numeric(:audio3d_volume, "150", :vol)
   eq "Settings clamps volume to 100", PokeAccess::Config.audio3d_volume, 100
@@ -85,10 +77,7 @@ Suite.define("config menu: shared numeric bounds for Settings and adjust") do
   PokeAccess::Config.route_reach = 128
 end
 
-# step() asks for the list two or three times on EVERY frame of the modal loop. Since the dictionaries got
-# their own screens that list builds one Hash per mark, per tag and per renamed map each time -- thousands
-# of allocations a second for a list that only changes when the player changes it. Memoised, but keyed on
-# the dictionaries' own write counters so a stale list is impossible by construction.
+# The menu's list is memoised per state, keyed on the dictionaries' write counters and the recorder's state.
 Suite.define("config menu: the list is built once per state, and rebuilt the moment a dictionary moves") do
   cm = PokeAccess::ConfigMenu
   saved_mode = cm.instance_variable_get(:@mode)
@@ -98,7 +87,7 @@ Suite.define("config menu: the list is built once per state, and rebuilt the mom
     first = cm.items
     truthy "the same state hands back the very same list, not an equal copy", cm.items.equal?(first)
 
-    cm.instance_variable_set(:@mode, :tags)
+    cm.instance_variable_set(:@mode, :personal)
     truthy "a different screen builds its own", !cm.items.equal?(first)
 
     cm.instance_variable_set(:@mode, :list_marks)
@@ -111,9 +100,7 @@ Suite.define("config menu: the list is built once per state, and rebuilt the mom
     falsy "and deleting it takes it out again",
           cm.items.any? { |r| r[:kind] == :entry && r[:key] == [1, 4, 4] }
 
-    # The debug row's label is the recorder's state, so the memo has to follow it too: starting a recording
-    # from that row left the menu saying "record" for as long as the recording ran.
-    rec = PokeAccess::Recorder
+    rec =PokeAccess::Recorder
     was_on = rec.instance_variable_get(:@on)
     cm.instance_variable_set(:@mode, :debug)
     rec.instance_variable_set(:@on, false)

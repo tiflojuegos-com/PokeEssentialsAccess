@@ -1,17 +1,13 @@
-# Standalone pathfinder benchmark. Does NOT touch the shipped pathfinder; it reimplements the same
-# A*/flood and the candidate optimizations (#1 skip-flood-when-near, #2 skip-2nd-pass-no-ledges,
-# #3 fewer allocations, #5 flood-pruned A*, plus a map-load passability cache) and measures, per
-# scenario, the engine-independent work metric (passable? calls) and wall-clock time. passable?
-# carries a tunable simulated cost to model the real engine call being far heavier than a lookup.
-# Run: ruby test/pathfinder_bench.rb
+# Standalone pathfinder benchmark, apart from the shipped one: the same A*/flood under candidate optimizations
+# (#1 skip the flood when near, #2 skip the second pass without ledges, #5 flood-pruned A*), measured per scenario
+# in passable? calls and ms; PASS_COST simulates the engine call's weight. Run: ruby test/bench/pathfinder_bench.rb
 
 W = 120; H = 90
 REACH = 512
 ASTAR_MAX = 5000
 PASS_COST = (ENV["PASS_COST"] || "0").to_i   # busy iterations per passable? to model engine cost
 
-# build a large map: border walls, scattered rectangular buildings, and a water strip on the right
-# third (for the surf scenario). walkable[y][x] = land you can stand on.
+# A large map: border walls, scattered buildings, water on the right third; $walk[y][x] is land to stand on.
 $walk = Array.new(H) { Array.new(W, true) }
 $water = Array.new(H) { Array.new(W, false) }
 (0...H).each { |y| (0...W).each { |x| $walk[y][x] = false if x == 0 || y == 0 || x == W - 1 || y == H - 1 } }
@@ -55,9 +51,7 @@ end
 
 def pkey(x, y); x * 100000 + y; end
 
-# A*; prune=set restricts expansion to flood-reachable tiles (variant #5). A "#3 light" variant
-# (lighter heap nodes) once threaded a flag through here, but its two branches had ended up identical
-# -- it measured nothing, so it was removed rather than kept as a lying row.
+# A*; prune (a flood set) restricts expansion to flood-reachable tiles (variant #5).
 def astar(px, py, tx, ty, prune = nil)
   return nil if (px - tx).abs + (py - ty).abs > REACH
   h = [[((px - tx).abs + (py - ty).abs), px, py]]
@@ -122,7 +116,6 @@ def find_path(px, py, tx, ty, opts, has_ledges)
   prune = (opts[:prune] && set) ? set : nil
   r = astar(px, py, tx, ty, prune)
   return r if r
-  # second pass (ledge): skipped by #2 when the map has no ledges (same result)
   return nil if opts[:no_ledges] && !has_ledges
   astar(px, py, tx, ty, prune)
 end

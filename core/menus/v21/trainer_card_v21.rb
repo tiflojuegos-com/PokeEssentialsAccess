@@ -1,13 +1,11 @@
-# Classic trainer card (PokemonTrainerCard_Scene): a static panel drawn once on open, read all on arrival
-# (nothing to navigate). The spoken content is the agnostic TrainerCardData; this only wires the scene.
-#
-# Gated on the data API, not on the class name: a gen-6 fork can declare this same class name (Awakening's
-# BES-T compatibility layer) and TrainerCardData reads the modern accessors, so it would answer with a card
-# missing the ID, the Pokedex tally and the play time. There the gen-6 card in menus/trainer_card wins.
+# The v21 trainer card (PokemonTrainerCard_Scene), read as it paints itself through TrainerCard.read_face, with
+# TrainerCardData as fallback; era_scene leaves a gen-6 fork declaring the same class to menus/trainer_card.
 module PokeAccess
   module TrainerCardV21
     SCENE = PokeAccess::Engine.era_scene(:gamedata, "PokemonTrainerCard_Scene", "PokemonTrainerCardScene")
   end
 end
 
-PokeAccess::Hooks.read_on_open(PokeAccess::TrainerCardV21::SCENE) { |_s| PokeAccess::TrainerCardData.text }
+PokeAccess::Hooks.around_hook(PokeAccess::TrainerCardV21::SCENE, :pbDrawTrainerCardFront, :optional => true) do |scene, nxt, _a|
+  PokeAccess::TrainerCard.read_face(scene, true, lambda { PokeAccess::TrainerCardData.text }) { nxt.call }
+end

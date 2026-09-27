@@ -1,26 +1,17 @@
 import os, re, glob, subprocess, sys
-# 1.8.7 compatibility checks. core/ loads in BOTH engines (gen-6 Ruby 1.8.7 and modern 3.1) and the
-# gen-6 game profiles run on 1.8.7, so their code must be 1.8.7-safe. Only the profiles of games that RUN
-# on Ruby 3.x are exempt -- MODERN below: anil, fireash, royal, relict, soulstones2, emerald, infinitefusion
-# and infinitefusion_hoenn (GameData-era engines on an mkxp-z built against Ruby 3.x). GEN-6 (linted):
-# pokemon_z, opalo, armonia (Essentials 16.3), awakening, realidea, africanus (their mkxp-z carries
-# $KCODE='U' and Ruby 1.8.7 linked in), reminiscencia (gen-6 scripts, though its mkxp-z runs Ruby 3.1.3;
-# linted anyway, conservatively), and generic/unknown (conservative).
-# The version folders of core/ are deliberately NOT exempt: core/manifest.rb is a flat list with no engine
-# condition, so every one of them is loaded in the 1.8.7 games too, and a file that does not parse there
-# lands in loader_error.txt on every boot. Exempting them assumed a gate that does not exist.
+# Ruby 1.8.7 checks for the code that loads in the 1.8.7 games: all of core/ (its manifest loads every file in
+# both engines), loader/, plugins/ and every game profile except MODERN, whose games run Ruby 3.x (a common only
+# those games import included).
 MODERN = ("games/anil/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
-          "games/infinitefusion_hoenn/", "games/infinitefusion/",
-          "games/emerald/")
+          "games/infinitefusion_hoenn/", "games/infinitefusion/", "games/infinitefusion_common/",
+          "games/emerald/", "games/skyflyer_common/")
 def is_modern(path):
     p = path.replace("\\", "/")
     return any(m in p for m in MODERN)
 
-# (1) block-level rescue: valid in modern Ruby, SYNTAX ERROR in 1.8.7. a `rescue` clause whose
-# matching opener (same indentation) is a do/brace block, not a begin/def/class/module.
+# (1) A rescue whose owner is a do/brace block: valid in modern Ruby, a syntax error in 1.8.7.
 def indent(s): return len(s) - len(s.lstrip(" "))
-# The trailing comment goes first: the opener is recognised by what it ENDS with, so `items.each do |i| # x`
-# read as "not a block" and the rescue under it went unflagged.
+# The line without a trailing # comment (a #{ interpolation is kept).
 def strip_comment(s):
     return re.sub(r"\s+#(?!\{).*$", "", s)
 def is_opener_block(line):
@@ -32,10 +23,8 @@ def is_opener_safe(line):
     s = line.strip()
     return bool(re.match(r"(begin|def |class |module |ensure\b)", s)) or s == "begin"
 
-# The owner of a rescue at line i: walk upward for the nearest OPENER line. A plain statement found at
-# <= the current indent is not the owner -- it lowers the bar and the walk continues, which is what
-# catches the orphan shape (a rescue indented like the block BODY, whose owner is the block itself) that
-# the old "first line at <= indent wins" rule read as harmless.
+# The line that owns the rescue at line i: the nearest opener above it at or below its indent; a plain
+# statement at or below that indent lowers the bar and the walk goes on.
 def find_opener(lines, i):
     n = indent(lines[i])
     for j in range(i - 1, -1, -1):
@@ -47,19 +36,11 @@ def find_opener(lines, i):
             n = indent(p)
     return ""
 
-# (1b) leading-dot method chaining: valid in 1.9+, SYNTAX ERROR in 1.8.7 (the dot must trail the
-# previous line). Caught in the wild: a chained SCAN_CODES literal killed config_menu.rb, and with the
-# module missing map_poll raised every frame -- muting footsteps, guide and locator keys in gen-6.
+# (1b) A line that starts with a method-call dot: 1.9+, a syntax error in 1.8.7.
 LEADING_DOT = re.compile(r"^\s*&?\.[A-Za-z_]")
 
-# (1c) shapes that do not PARSE in 1.8.7. Unlike the runtime list below, one of these anywhere in core/
-# means the whole mod fails to load in the seven gen-6 games -- total silence, not a degraded screen. They
-# were missing because the system Ruby that runs the suite accepts all three happily.
-#
-# Every entry carries the line it MUST flag and a 1.8.7-safe line it must NOT, checked by self_test below
-# before anything is scanned. A blacklist whose entries are never exercised is a list of hopes: nulling all
-# of these with (?!) once gave numbers identical to a clean pass, so a typo in any one would have disarmed
-# it for good without a single test going red.
+# (1c) Shapes that do not parse in 1.8.7. Every entry of these lists carries a line it must flag and a
+# 1.8.7-safe line it must not, checked by self_test before the scan.
 SYNTAX19 = [
     (re.compile(r"[{,(]\s*[a-z_]\w*:\s"),          "1.9 hash literal key: value (use :key => value)",
      "h = { foo: 1 }", "h = { :foo => 1 }"),
@@ -71,8 +52,7 @@ SYNTAX19 = [
      "def f(**opts)", "def f(*args)"),
 ]
 
-# (2) runtime APIs that exist in Ruby 1.9+ but NOT 1.8.7 -> a missing-method / ArgumentError at
-# runtime in gen-6 (e.g. Float#round(2) crashed the diag). curated and conservative to avoid noise.
+# (2) Methods and constants that are missing or behave differently in 1.8.7.
 RUNTIME = [
     (re.compile(r"\.(round|ceil|floor)\(\s*[^)\s]"), "round/ceil/floor with argument (1.8.7 takes none)",
      "n = x.round(2)", "n = x.round"),
@@ -100,13 +80,6 @@ RUNTIME = [
      "a.tally", "a.uniq"),
     (re.compile(r"\.filter_map\b"),                   "Enumerable#filter_map (Ruby 2.7+)",
      "a.filter_map { |x| x }", "a.map { |x| x }.compact"),
-    # Cada una de estas se probo antes contra el interprete 1.8.7 real (NoMethodError alli) y se midio
-    # contra el arbol actual: 0 coincidencias, asi que ninguna nace gritando. Tres candidatas se quedaron
-    # FUERA por ruidosas, y conviene saber cuales: .sample choca con Recorder.sample, .key( con metodos
-    # propios llamados key, y .select no distingue un Hash de un Array por el receptor -- ese ultimo
-    # importa, porque Hash#select devuelve Array en 1.8.7 y Hash desde 1.9 (los sitios del arbol son Array
-    # o Range salvo uno, berrydex, que sigue con un map sobre los pares y lee igual en los dos). La regla de
-    # mas abajo caza solo la forma que si rompe: un metodo de Hash encadenado al resultado.
     (re.compile(r"\.flat_map\b"),                     "Enumerable#flat_map (Ruby 1.9+)",
      "a.flat_map { |x| x }", "a.map { |x| x }.flatten(1)"),
     (re.compile(r"\.rotate\b"),                       "Array#rotate (Ruby 1.9+)",
@@ -141,13 +114,8 @@ RUNTIME = [
      "a.chunk_while { |x, y| true }", "a.inject([]) { |acc, x| acc }"),
     (re.compile(r"keyword_init"),                     "Struct keyword_init (Ruby 2.5+)",
      "Struct.new(:a, :keyword_init => true)", "Struct.new(:a)"),
-    # Devuelve el BYTE en 1.8.7 y el caracter desde 1.9: no lanza, contesta false para siempre.
     (re.compile(r"\[\s*0\s*\]\s*==\s*[\"']"),         "s[0] == \"x\" (1.8.7 devuelve un Fixnum, no un caracter)",
      'if line[0] == "#"', 'if line[0, 1] == "#"'),
-    # Lo que el 1.8.7 real hace distinto y no se ve leyendo: un Hash literal itera en orden de bucket (los
-    # efectos de campo del combate salian barajados). Debajo, el resto de reglas comprobadas contra ese
-    # interprete, que si lanzan: "".to_sym da ArgumentError, Hash#select devuelve un Array de pares, y las
-    # constantes 1.9+ dan NameError.
     (re.compile(r"=>[^{}]*\}\s*\.each(?:_pair)?\s*(?:do|\{)\s*\|\w+,\s*\w+\|"),
      "Hash literal iterado en sitio: orden arbitrario en 1.8.7 (usa un Array de pares)",
      "{ :a => 1 }.each do |k, v|", "rows.each do |k, v|"),
@@ -181,16 +149,12 @@ RUNTIME = [
     (re.compile(r"\bKeyError\b|\bEncoding\b|\bRandom\.|\bFiddle\b|\bEnumerator\b"),
      "constante 1.9+ (NameError en 1.8.7; Hash#fetch lanza IndexError alli)",
      "rescue KeyError", "rescue IndexError"),
-    # Object#id existe en 1.8.7 (alias viejo de object_id, con aviso): un Struct, un Fixnum, cualquier cosa
-    # contesta true, y el localizador etiquetaba superficies bajo un object_id. Se admite solo junto a una
-    # guarda por clase (is_a?/kind_of?/instance_of?) en la misma linea; una guarda ajena en esa linea tambien
-    # la acalla, limite asumido a cambio de no leer el arbol.
     (re.compile(r"^(?!.*\b(?:is_a|kind_of|instance_of)\?).*respond_to\?\(?\s*:id\b"),
      "respond_to?(:id) es true para TODO objeto en 1.8.7 (Object#id, alias de object_id): decide por clase",
      "tag = (tag.respond_to? :id) ? tag.id : tag", "if !t.is_a?(Integer) && t.respond_to?(:id)"),
 ]
 
-# The two rules that are not a regex get their cases here, in the same shape.
+# Cases for the two checks that are not a regex, in the same shape.
 SHAPE_CASES = [
     ("leading-dot chain", lambda s: bool(LEADING_DOT.match(s)), "  .strip", "  x.strip"),
     ("block opener", lambda s: is_opener_block(s), "items.each do |i|", "n = 1"),
@@ -201,10 +165,7 @@ SHAPE_CASES = [
     ("def is a safe opener", lambda s: is_opener_safe(s), "def foo", "foo.each do"),
 ]
 
-# The WALK itself, on whole snippets: which line owns a rescue. This is the only part of rule (1) the
-# per-line cases above cannot reach, and the mutation sweep showed it was defended by the shape of the
-# tree, not by a test (flipping `<=` to `<` only failed by turning eight legitimate nested begins into
-# false positives). Each case is (label, snippet, does rule (1) flag it).
+# Cases for the opener walk of rule (1): (label, snippet, whether a rescue in it is flagged).
 WALK_CASES = [
     ("rescue in a do-block is flagged",
      "items.each do |i|\n  risky\nrescue\nend", True),
@@ -231,9 +192,7 @@ def walk_flags(snippet):
     lines = snippet.split("\n")
     return any(block_rescue_at(lines, i) is not None for i in range(len(lines)))
 
-# Runs every pattern against the line it exists to catch and against a 1.8.7-safe twin. A pattern that stops
-# matching its own case, or starts matching the safe one, fails HERE -- loudly and before the scan, instead
-# of quietly passing every file for the rest of the project's life.
+# Stops the run when a pattern misses its own case or flags its 1.8.7-safe twin.
 def self_test():
     bad = []
     for rx, label, must, must_not in SYNTAX19 + RUNTIME:
@@ -256,18 +215,14 @@ def self_test():
 self_test()
 
 flagged = []
-# Lint the files passed as arguments, or the whole dual/gen-6 tree when none are given.
-# Anchored to the repo, not to the caller's directory. Relative globs scanned NOTHING when the suite was
-# started from anywhere but the repo root, and said OK about it: the real-interpreter pass below is absolute
-# and still ran, so the only thing silently lost was the pattern list -- the half that catches code which
-# parses fine under 1.8.7 and behaves differently.
+# The files given as arguments, else every file under core/, games/, plugins/ and loader/ of the repo.
 REPO = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 def tree(pat):
     return glob.glob(os.path.join(REPO, pat), recursive=True)
 paths = sys.argv[1:] or (tree("core/**/*.rb") + tree("games/**/*.rb") + tree("plugins/**/*.rb") + tree("loader/**/*.rb"))
 
-# Floor for the sweep itself: every core/manifest.rb entry must be among the scanned files, and none of
-# the roots may match zero files. A glob that goes quiet must fail here, not report a smaller OK.
+# With no arguments, fails when a core/manifest.rb entry is not among the scanned files or a root matches
+# no file.
 if not sys.argv[1:]:
     _man = os.path.join(REPO, "core", "manifest.rb")
     try:
@@ -300,18 +255,14 @@ for f in paths:
     for i, ln in enumerate(lines):
         s = ln.strip()
         if s.startswith("#"): continue
-        # (1) block-rescue
         opener = block_rescue_at(lines, i)
         if opener is not None:
             flagged.append("%s:%d  block-rescue (1.8.7 syntax error) -> %r" % (f, i + 1, opener.strip()))
-        # (1b) leading-dot chain
         if LEADING_DOT.match(ln):
             flagged.append("%s:%d  leading-dot chain (1.8.7 syntax error) -> %r" % (f, i + 1, s[:72]))
-        # (1c) shapes that do not parse in 1.8.7 at all
         for rx, label, _m, _n in SYNTAX19:
             if rx.search(ln):
                 flagged.append("%s:%d  %s -> %r" % (f, i + 1, label, s[:72]))
-        # (2) 1.9+ runtime APIs, matched on the code with any trailing comment cut off
         code = strip_comment(ln)
         for rx, label, _m, _n in RUNTIME:
             if rx.search(code):
@@ -322,9 +273,8 @@ if flagged:
     for x in flagged: print("  " + x)
     sys.exit(1)
 
-# When a REAL 1.8.7 interpreter is around (RUBY187 env var, or the tools/ checkout next to the repo),
-# parse every dual/gen-6 file with it via check187_real.rb -- the parser knows ALL the syntax, the
-# pattern list above only what it was taught. Absent interpreter (e.g. GitHub CI) just notes it.
+# With a real 1.8.7 interpreter (RUBY187, or tools/ruby-1.8.7-*/bin/ruby.exe two levels up), every file is
+# also parsed by it through check187_real.rb; without one the result is PARCIAL, with exit code 0.
 here = os.path.dirname(os.path.abspath(__file__))
 ruby187 = os.environ.get("RUBY187") or next(
     iter(glob.glob(os.path.join(here, "..", "..", "tools", "ruby-1.8.7-*", "bin", "ruby.exe"))), None)
@@ -335,16 +285,6 @@ if ruby187 and os.path.isfile(ruby187):
     if real.returncode != 0:
         sys.exit(1)
 else:
-    # Not "OK". The patterns are a curated blacklist and a blacklist is never complete: a probe of twenty
-    # 1.8.7-hostile constructs put eight of them past this file, three of those hard SyntaxErrors. Saying OK
-    # here claimed a guarantee only a real parse can give, and the runner printed "ruby187: OK" on the back
-    # of it. The exit code stays 0 so the absence of an optional tool does not block the suite -- but the
-    # word is PARCIAL, and run_all prints it verbatim.
-    #
-    # Locally this branch is NOT the one that runs: the interpreter lives in the SIBLING of the mod root,
-    # tiflojuegos/tools/ruby-1.8.7-p374-i386-mingw32 (the glob climbs two levels, not one), and 194 files
-    # parse under it. Copy the mod root alone to a scratch folder and you land here instead -- worth knowing
-    # before concluding from a copy that the real parse never happens.
     print("PARCIAL: sin errores de patron, pero NO verificado con un interprete 1.8.7 real "
           "(instala tools/ruby-1.8.7-*/bin/ruby.exe o exporta RUBY187).")
     sys.exit(0)

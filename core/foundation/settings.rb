@@ -1,30 +1,18 @@
 module PokeAccess
-  # User settings persisted to a plain key=value ini (no JSON: Ruby 1.8.7 has no json gem). Boot applies
-  # these after the per-game constants so the user's choices win; a missing file is created with defaults.
+  # User settings in a key=value settings.ini, applied after the per-game constants so the player's choices win;
+  # a missing file is created with the current values.
   module Settings
     FILE = "#{PokeAccess::Paths::DATA}/settings.ini"
-    # The ini layout version, stamped into every ini written. A file from before a version is brought up
-    # to date once, then the player's choices are kept as written. Version 2 (0.4.6) turns the language to
-    # :auto, for every ini written before it. The vast majority carry the old fixed default, Spanish,
-    # chosen by nobody, and :auto resolves to Spanish for a Spanish system anyway while it hands an
-    # English player the English they never got. The few who HAD picked a language by hand are moved
-    # too, which costs them one trip through the menu: an ini from before the stamp cannot say which
-    # of the two it is.
+    # The ini layout version, stamped into every ini written; an older file is migrated once. Version 2 (0.4.6)
+    # sets the language to :auto, since an ini from before cannot tell a chosen Spanish from the old default.
     VERSION = 2
-    # Setting kinds by how they persist: numeric (clamped via Config::KIND_BOUNDS), flag, and symbol.
-    # NUMERIC derives from KIND_BOUNDS, so a new numeric kind needs only its bounds row.
+    # Setting kinds by how they persist: numeric (clamped by Config::KIND_BOUNDS), flag and symbol.
     NUMERIC = PokeAccess::Config::KIND_BOUNDS.keys
-    SYMS    = [:lang, :algo, :occ, :navmode]
+    SYMS    = [:lang, :algo, :occ, :navmode, :verbosity]
     FLAGS   = PokeAccess::Config.keys_of_kind(:flag)
 
-    # Loads the ini (if any) over Config; creates it with current values otherwise. After applying, the
-    # ini is rewritten once if this mod version knows keys the file lacks, so a new setting is editable by
-    # hand right after updating rather than only once the config menu has been opened. The user's values
-    # just applied are serialised back unchanged.
-    #
-    # Mod hotkeys are read as overrides: only the moved ones are in the file, so each OVERWRITES its
-    # default and the rest keep theirs. An unknown action name is ignored rather than added -- the ini must
-    # not be able to invent hotkeys the mod does not have.
+    # Loads the ini over Config (creating it when missing), then rewrites it when it is older or lacks a known
+    # key. key_* lines override only the mod's own hotkeys; an unknown action is ignored.
     def self.apply
       data = read
       if data.empty?
@@ -37,11 +25,15 @@ module PokeAccess
       rb = {}
       data.each { |k, v| rb[$1.to_sym] = v.to_i if k =~ /\Abind_(\w+)\z/ && v.to_i > 0 }
       PokeAccess::Config.rebinds = rb unless rb.empty?
+      set = {}
       data.each do |k, v|
         next unless k =~ /\Akey_(\w+)\z/ && v.to_i > 0
         sym = $1.to_sym
-        PokeAccess::Config.keys[sym] = v.to_i if PokeAccess::Config::KEY_DEFAULTS.has_key?(sym)
+        next unless PokeAccess::Config::KEY_DEFAULTS.has_key?(sym)
+        PokeAccess::Config.keys[sym] = v.to_i
+        set[sym] = true
       end
+      drop_taken_defaults(set)
       ver = data["settings_version"].to_i
       PokeAccess::Config.language = :auto if ver < 2
       write if ver < VERSION || schema_keys.any? { |k| !data.has_key?(k) }
@@ -49,10 +41,18 @@ module PokeAccess
       PokeAccess.write_marker("settings apply: #{e.message}\n")
     end
 
-    # Every settings key this version persists (the write serialisation, minus the per-user bind_* lines),
-    # in SCHEMA order, which is the menu's and the same under both Rubies: grouping by kind followed the
-    # order of a Hash's keys, which gen-6 shuffles. Built on a DUP of NUMERIC: one game's scripts turn
-    # Array#+ into a mutator, and the constant is read again on the next save.
+    # Unbinds each mod key still on its default that a saved binding already uses (a default new in this version on
+    # a key the player gave to something else), so the saved binding keeps working; the remap menu can bind it again.
+    # param set the mod keys the ini sets itself
+    def self.drop_taken_defaults(set)
+      keys = PokeAccess::Config.keys
+      taken = (PokeAccess::Config.rebinds || {}).values
+      keys.each { |s, c| taken.push(c) if set[s] }
+      keys.keys.each { |s| keys[s] = nil if !set[s] && !keys[s].nil? && taken.include?(keys[s]) }
+    end
+
+    # Every schema key the ini persists, in SCHEMA order (the same under both Rubies). Built by dup and push,
+    # not Array#+, which one game's scripts turn into a mutator.
     def self.schema_keys
       kinds = NUMERIC.dup
       kinds.push(:flag)
@@ -87,10 +87,8 @@ module PokeAccess
       {}
     end
 
-    # Writes the current Config values to the ini (see schema_keys for the key list and order). Of the mod
-    # hotkeys only the ones the player actually MOVED are written: writing all eleven would freeze today's
-    # defaults into every ini, so a future version could never change one without every existing player
-    # keeping the old key forever.
+    # Writes the current Config values to the ini (keys and order from schema_keys), plus the rebinds and only
+    # the mod hotkeys moved off their defaults, so a later default change still reaches every player.
     def self.write
       File.open(FILE, "w") do |f|
         f.write("# Configuracion del mod de accesibilidad\n")

@@ -1,8 +1,6 @@
 module PokeAccess
-  # A tiny rolling profiler for the per-frame hooks, so a real in-game hotspot (e.g. a gym that lags) can be
-  # measured from the diagnostic key instead of guessed at. measure() accumulates sum/max/count per label;
-  # the diag prints avg/max ms and then resets the window. Overhead is two clock reads per frame.
-  # 1.8.7-safe (sprintf, never Float#round(n)).
+  # A rolling profiler for the per-frame hooks: measure() accumulates sum, max and count per label, and the
+  # diagnostic prints avg/max ms and resets the window.
   module Perf
     @stats = {}
 

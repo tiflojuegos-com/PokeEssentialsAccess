@@ -1,15 +1,7 @@
-# Pokemon Z's 3rd gym, "Bastion Pokemon" (maps 87 and 89). The room is walled off by electric barriers and
-# opened by floor plates, and the plates carry NO graphic on the page that reacts to being stepped on --
-# so nothing but the switch their commands write can find them. Declared with barriers and no watch list,
-# which is how it shipped, the player heard walls all around and there was nothing to walk to: the plates
-# were not emitters, not locator targets, and the info key had nothing to read.
-#
-# The switch numbers are the ones on the maps and differ between the two floors, which is the reason this
-# pins them: one shared list of switches would be right on one floor and quietly wrong on the other.
+# Pokemon Z's 3rd gym (maps 87 and 89): the sprite-less floor plates are found by the switch they write, each floor
+# with its own switch numbers.
 
-# The reset between suites wipes the registered puzzles, so the profile file is loaded here the way the
-# harness loads one: this repo's real file, by absolute path, which is what makes the switch numbers below
-# the shipped ones and not a copy that can drift.
+# Evaluates the shipped games/pokemon_z/puzzles.rb as the harness loads a profile; returns the puzzle definitions.
 def load_z_puzzles
   path = File.join(Harness::ROOT, "games", "pokemon_z", "puzzles.rb")
   eval(File.read(path), TOPLEVEL_BINDING, path)
@@ -32,14 +24,13 @@ Suite.define("z 3rd gym: both floors declare their own plates, by the switch eac
         defs[87][:solved]
 end
 
-# The whole point of the declaration, driven through the real machinery: a plate is found by what it does.
+# Through the real machinery, on a plate built as the map has it (no graphic, player touch, a self-switch page that
+# clears the switch again): it is a control and a pathfinder target, and its flip is spoken.
 Suite.define("z 3rd gym: a plate with no sprite is a control, is locatable, and its flip is spoken") do
   pz = PokeAccess::Puzzles
   shipped = load_z_puzzles[87]
   World.clear_events
   begin
-    # The plate as the map really has it: no graphic, player-touch, page 0 sets the switch and page 1
-    # (self-switch gated) clears it again.
     on_pg = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(121, [142, 142, 0])])
     off_pg = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(121, [142, 142, 1])],
                           :condition => { :self_switch_valid => true, :self_switch_ch => "A" })
@@ -89,10 +80,8 @@ Suite.define("z 3rd gym: a plate with no sprite is a control, is locatable, and 
   end
 end
 
-# The obstacle list is derived from each event's CURRENT page graphic, and a puzzle switch swaps exactly
-# that page: one barrier vanishes and another appears. Cached on the map alone it froze the room as it
-# stood when the player walked in, so a barrier raised behind them never warned and one lowered went on
-# warning forever -- on this map, where every switch does both at once, that is every barrier in the room.
+# The obstacle list follows each event's current page graphic: forget_obstacles and the end of the event that flipped
+# the switch refresh it.
 Suite.define("puzzles: the obstacle list follows the page swap, it does not freeze at the door") do
   pz = PokeAccess::Puzzles
   loc = PokeAccess::Locator

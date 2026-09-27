@@ -1,27 +1,20 @@
 module PokeAccess
-  # Binaural soundscape: drives PA3D_steam.dll (Steam Audio HRTF + miniaudio) for true 3D audio. It is
-  # the single audio engine, so footsteps and wall bumps also go through it. Config.sound_nav :full is
-  # the whole soundscape (npc/object/door pings, a water loop, a wind loop per wall); :basic keeps only
-  # the footsteps and wall bumps; :off silences everything, this engine included -- tick returns before
-  # boot, so nothing is even started.
+  # Binaural soundscape through PA3D_steam.dll (Steam Audio HRTF + miniaudio), which also plays footsteps and bumps.
+  # Config.sound_nav: :full plays everything (emitter pings, a water loop, a wind loop per wall); :basic only the
+  # footsteps and bumps; :off nothing (tick returns before boot).
   module Audio3D
     DIR = PokeAccess::Paths::SOUNDS
     RANGE = 12
     WALL_RANGE = 3
-    # Tile-to-engine scale: one map tile is this many Steam Audio world units. Positions are multiplied by
-    # it before being passed to the dll so the HRTF distance model matches the on-screen layout.
+    # Steam Audio world units per map tile; every position sent to the dll is scaled by it.
     TILE_UNITS = 100
-    # RPG Maker direction code => [dx, dy] one tile that way, for placing a cue toward a facing/step.
-    DIR_DELTA = { 2 => [0, 1], 4 => [-1, 0], 6 => [1, 0], 8 => [0, -1] }
     # Wall-side symbol => its RPG Maker direction code, for raycasting toward that side.
     SIDE_DIR = { :w => 4, :e => 6, :n => 8, :s => 2 }
-    # How many nearest emitters of each type to keep (so a close one does not mask the rest), and the
-    # window (seconds) after a ping during which emitters within alt_dist of it stay quiet; farther
-    # ones may still ping inside the window (HRTF panning already tells them apart).
+    # Nearest emitters kept per type, and the window (seconds) after a ping during which emitters within alt_dist
+    # of it stay quiet.
     NEAR_MAX = 3
     PING_GAP = 0.25
-    # Moving obstacles (e.g. ship sharpedos) move while you stand still, so their tiles go stale between
-    # tile-change rescans. Re-read just the movers on this cadence (seconds), only on maps that declare them.
+    # Seconds between re-reads of the moving obstacles, on maps that declare them.
     MOVER_SECONDS = 1.0
     # Wall side => [wind channel, dx, dy] for the four directional wind loops.
     WIND_SIDES = { :w => [:wind_w, -1, 0], :e => [:wind_e, 1, 0],
@@ -43,8 +36,7 @@ module PokeAccess
     # How much a source behind a wall is muffled, 0-100, when the occlusion mode is "occlude".
     OCCLUDE_AMOUNT = 80
 
-    # Per-rate sound sets: the engine opens the device at its native rate, so assets are loaded already at
-    # that rate to avoid runtime resampling. 44100 lives in sounds/, 48000 in sounds/48000/.
+    # The 48000 Hz copies of the sounds (the 44100 originals live in DIR), used when the device runs at 48000.
     SND48 = "#{DIR}/48000"
 
     # Discrete emitter => the config frequency key that paces its ping.
@@ -76,8 +68,7 @@ module PokeAccess
     # Wall/wind detection range in tiles, user-tunable.
     def self.wall_range; (PokeAccess::Config.audio3d_wall_range rescue WALL_RANGE).to_i; end
 
-    # How close (tiles) two emitters must be for their pings to alternate rather than sound at once;
-    # farther apart they ping freely (HRTF panning already tells them apart). User-tunable.
+    # Distance (tiles) within which two emitters take turns to ping rather than sound together; user-tunable.
     def self.alt_dist; (PokeAccess::Config.audio3d_alt_dist rescue 5).to_i; end
 
     # What to do with emitters behind a wall: :hear (normal), :occlude (muffled) or :hide (dropped).
@@ -105,10 +96,7 @@ module PokeAccess
       (CHAN.call("#{wav(name)}\0", loop) rescue -1)
     end
 
-    # Every positional channel: [symbol, sound file, 1 when it loops]. A table rather than a run of
-    # load_ch calls because it is also the ANSWER to "which file does this cue play?" -- the sound
-    # glossary previews these same sounds, and a spec cross-checks it against this list, so renaming a
-    # wav here can never leave the glossary teaching a sound the engine no longer plays.
+    # Every positional channel: [symbol, sound file, 1 when it loops]; the sound glossary previews these same files.
     CHANNEL_FILES = [
       [:npc, "pa3d_npc.wav", 0], [:object, "pa3d_object.wav", 0], [:door, "pa3d_door.wav", 0],
       [:teleporter, "pa3d_teleporter.wav", 0], [:hazard, "pa3d_hazard.wav", 0],
@@ -118,23 +106,21 @@ module PokeAccess
       [:water, "pa3d_water.wav", 1], [:wind_w, "pa3d_wind_w.wav", 1], [:wind_e, "pa3d_wind_e.wav", 1],
       [:wind_n, "pa3d_wind_n.wav", 1], [:wind_s, "pa3d_wind_s.wav", 1],
       [:step, "pa_step.wav", 0], [:grass, "pa_grass.wav", 0], [:fstep_water, "pa_water.wav", 0],
-      [:guide, "pa_guide_c.wav", 0]
+      [:guide, "pa_guide_c.wav", 0], [:guide_hold, "pa3d_guide_hold.wav", 1]
     ]
 
-    # Channel => the tone setting that pitches it. A channel follows the family whose VOLUME it follows:
-    # objects and their hazard/trap/control/push cues share one tone, the interact bump plays at the wall
-    # volume so it takes the wall tone, and the four winds are one wind.
+    # Channel => the tone setting that pitches it: the tone of the family whose volume it plays at.
     TONE_KEYS = {
       :npc => :audio3d_tone_npc, :object => :audio3d_tone_object, :hazard => :audio3d_tone_object,
       :trap => :audio3d_tone_object, :control => :audio3d_tone_object, :push => :audio3d_tone_object,
       :door => :audio3d_tone_door, :teleporter => :audio3d_tone_teleporter, :water => :audio3d_tone_water,
       :mark => :audio3d_tone_mark, :wind_w => :audio3d_tone_wind, :wind_e => :audio3d_tone_wind, :wind_n => :audio3d_tone_wind,
       :wind_s => :audio3d_tone_wind, :wall => :wall_tone, :interact => :wall_tone,
-      :step => :footstep_tone, :grass => :footstep_tone, :fstep_water => :footstep_tone, :guide => :guide_tone
+      :step => :footstep_tone, :grass => :footstep_tone, :fstep_water => :footstep_tone, :guide => :guide_tone,
+      :guide_hold => :guide_tone
     }
 
-    # Initialises the engine and its channels once (a missing dll/wav must not re-init every frame).
-    # Returns whether it is ready.
+    # Boots the engine and loads its channels, trying only once; returns whether it is ready.
     def self.boot
       return @ready if @ready
       return false if @boot_tried
@@ -156,10 +142,7 @@ module PokeAccess
       false
     end
 
-    # Tallies why each tick either played or fell silent. The soundscape is built of LOOPS that only get
-    # (re)positioned on a tile change, so a gate that is shut most frames leaves them muted and they are
-    # only heard for the instant a step reopens it -- "it sounds when I walk and goes quiet when I stand
-    # still". A count per reason turns that into a number the diagnostic can name.
+    # Counts, per reason, why each tick played or fell silent, for the diagnostic.
     def self.gate(reason)
       @gates ||= {}
       @gates[reason] = (@gates[reason] || 0) + 1
@@ -183,18 +166,15 @@ module PokeAccess
       nil
     end
 
-    # Stops the soundscape AND forgets where it was built, for a screen that takes over without the map loop
-    # running. tick's busy branch does exactly this pair, and both halves matter: silence_all alone would
-    # leave the ambience muted after the screen closes, because only the "player reached a new tile" branch
-    # ever starts the looping emitters again.
+    # Silences the soundscape and drops the scan position, so the loops come back without waiting for a step; for a
+    # screen that takes over without the map loop running.
     def self.suspend
       return unless @active
       silence_all
       @scan_pos = nil
     end
 
-    # Drops the per-map scan state (emitters, wall cache, near set, scan cursor) so a new map starts clean
-    # and never inherits the previous map's emitters. The audio channels and engine boot state are kept.
+    # Drops the per-map scan state (emitters, walls, nearest water, scan position); channels and boot state stay.
     def self.reset_map_state
       @emitters = {}
       @wall = {}
@@ -225,13 +205,11 @@ module PokeAccess
       100
     end
 
-    # Sends every channel whose tone changed its new rate, once: the dll keeps the value and the setting
-    # only moves from the config menu, so this is one comparison per channel per frame and a native call
-    # almost never. The guide channel is left out because its chime sets its own pitch per direction.
+    # Sends the dll each channel's tone pitch when it changed; the guide's channels set their own pitch.
     def self.sync_tones
       return unless PITCH
       @ch.each do |sym, ch|
-        next if sym == :guide || ch.nil? || ch < 0
+        next if TONE_KEYS[sym] == :guide_tone || ch.nil? || ch < 0
         p = tone_pitch(sym)
         next if @tone_sent[sym] == p
         PITCH.call(ch, p)
@@ -249,9 +227,8 @@ module PokeAccess
       @master_sent = v
     end
 
-    # Plays one channel centred on the player at a volume and pitch: the config menu's audition of a volume
-    # or tone row, through the engine the field uses so the whole octave is audible (a flat SE tops out at
-    # 150). False when the engine is down or the channel failed to load, so the caller plays the flat sample.
+    # Plays one channel on the player at a volume and pitch, the config menu's audition of a volume or tone row;
+    # false when the engine is down or the channel did not load.
     def self.preview(sym, vol, pitch)
       return false unless @ready && $game_player
       ch = @ch[sym]
@@ -275,8 +252,7 @@ module PokeAccess
       nil
     end
 
-    # Whether a bump would go through the positional engine (bump answering true), on its interact channel
-    # when interact and its wall one otherwise, so the engine's master volume decides whether anyone hears it.
+    # Whether bump would play: the engine is ready and active and the interact (or wall) channel loaded.
     def self.bump_ready?(interact = false)
       ch = @ch[interact ? :interact : :wall]
       !!(@ready && @active && ch && ch >= 0)
@@ -287,7 +263,7 @@ module PokeAccess
     def self.bump(dir, interact = false)
       return false unless bump_ready?(interact) && $game_player
       ch = @ch[interact ? :interact : :wall]
-      dx, dy = DIR_DELTA[dir] || [0, 0]
+      dx, dy = PokeAccess::DIR_DELTA[dir] || [0, 0]
       vol = (PokeAccess::Config.wall_volume rescue 80).to_i
       SET.call(ch, ($game_player.x + dx) * TILE_UNITS, ($game_player.y + dy) * TILE_UNITS, vol, 1)
       true
@@ -295,20 +271,49 @@ module PokeAccess
       false
     end
 
-    # Plays the guide cue gd tiles left or right of the player so HRTF pans it. Ahead and behind are not
-    # taken on purpose: on plain stereo headphones HRTF cannot place front and back, so those two stay on
-    # the flat pitched cue (high = ahead, low = behind) where the caller keeps them. The guide tone shifts
-    # left and right by the same factor as that flat pair, so the four directions never drift apart. Works
-    # in any sound-nav mode (the guide is explicit navigation). Returns true if handled.
+    # Plays the guide chime guide_distance tiles left or right of the player; true if handled. Ahead and behind are
+    # left to the caller's flat cue on purpose: HRTF cannot place front and back on stereo headphones.
     def self.guide(dir, vol)
       return false unless @ready && $game_player && (dir == 4 || dir == 6)
       ch = @ch[:guide]
       return false unless ch && ch >= 0
       PITCH.call(ch, (100 * PokeAccess::Spatial.guide_tone_factor).round) if PITCH
-      gd = (PokeAccess::Config.guide_distance rescue 3).to_i
-      gd = 1 if gd < 1
-      bx, by = DIR_DELTA[dir] || [0, 0]
+      gd = guide_distance
+      bx, by = PokeAccess::DIR_DELTA[dir] || [0, 0]
       SET.call(ch, ($game_player.x + bx * gd) * TILE_UNITS, ($game_player.y + by * gd) * TILE_UNITS, vol.to_i, 1)
+      true
+    rescue StandardError
+      false
+    end
+
+    # Keeps the held-key guide loop sounding toward dir at a pitch, or stops it when dir is nil; true if handled.
+    # Left and right sit guide_distance tiles off, ahead and behind on the player (told apart by pitch).
+    def self.guide_hold(dir, vol = 0, pitch = 100)
+      ch = @ch[:guide_hold]
+      return false unless @ready && $game_player && ch && ch >= 0
+      if dir.nil?
+        SET.call(ch, 0, 0, 0, 0)
+        return true
+      end
+      side = (dir == 4 || dir == 6) ? guide_distance : 0
+      dx, dy = PokeAccess::DIR_DELTA[dir] || [0, 0]
+      PITCH.call(ch, pitch) if PITCH
+      SET.call(ch, ($game_player.x + dx * side) * TILE_UNITS, ($game_player.y + dy * side) * TILE_UNITS, vol.to_i, 1)
+      true
+    rescue StandardError
+      false
+    end
+
+    # How many tiles to the side the guide's cues sound (at least one).
+    def self.guide_distance
+      [(PokeAccess::Config.guide_distance rescue 3).to_i, 1].max
+    end
+
+    # Puts the listener on the player's tile at once, so what the map frame places from a new tile (the footstep,
+    # the guides' cues) is heard from where the player stands, however long the frame's work before tick; true if set.
+    def self.follow_player
+      return false unless @ready && $game_player
+      LIS.call($game_player.x * TILE_UNITS, $game_player.y * TILE_UNITS)
       true
     rescue StandardError
       false
@@ -328,12 +333,10 @@ module PokeAccess
     # True when sound navigation is in full mode (all emitters); other modes keep only footsteps/bumps.
     def self.nav_full?; (PokeAccess::Config.sound_nav rescue :full) == :full; end
 
-    # True when sound navigation is fully off: nothing plays and the engine is never even booted.
+    # True when sound navigation is off: tick silences everything and does not boot the engine.
     def self.nav_off?; (PokeAccess::Config.sound_nav rescue :full) == :off; end
 
-    # Stops the looping and discrete emitters while keeping the engine active, which is what :basic
-    # means: no pings, no ambience, but footsteps and wall bumps still play (and still panned). In :off
-    # the engine never boots at all, so nothing reaches here.
+    # Stops the pings and ambience loops but keeps the engine for footsteps and bumps: sound_nav :basic.
     def self.silence_emitters
       emitter_channels.each do |k|
         c = @ch[k]
@@ -343,26 +346,25 @@ module PokeAccess
       @scan_pos = nil
     end
 
-    # Every channel that carries an emitter: the discrete ping types and the ambience loops. Read off the
-    # same tables the scan and the loops use, so a family added to PING_DEFS is silenced in basic mode
-    # without anyone remembering a second list.
+    # Every emitter channel: the ping types of PING_DEFS, the water loop and the winds.
     def self.emitter_channels
       PING_DEFS.keys + [:water] + WIND_SIDES.values.map { |side| side[0] }
     end
 
-    # One frame: keeps the listener on the player, re-scans emitters, walls and the water and wind loops on
-    # a tile change, and pings the discrete emitters on a timer. Called from the Game_Player#update hook.
-    # Opening the audio device mutes the game's BGM until the next map change, so the first frame after a
-    # successful boot replays it.
-    #
-    # Going busy forgets WHERE the soundscape was built as well as silencing it: only the "moved to a new
-    # tile" branch starts the looping emitters, so keeping the scan position would leave the ambience muted
-    # until the player took a step.
+    # One frame: keeps the listener on the player, rescans emitters, walls, winds and water on a tile change, and
+    # pings emitters on a timer. Replays the BGM once booted (opening the device mutes it until the next map change).
+    # Going busy or mod-off also drops the scan position, so the loops come back without waiting for a step.
     def self.tick
       gate(:total)
       unless $game_map && $game_player
         gate(:no_map)
         silence_all if @active
+        return
+      end
+      unless (PokeAccess::Keys.enabled rescue true)
+        gate(:mod_off)
+        silence_all if @active
+        @scan_pos = nil
         return
       end
       if (nav_off? rescue false)
@@ -403,9 +405,17 @@ module PokeAccess
         return
       end
       @basic_silenced = false
+      one_answer_per_step { scan_and_ping(px, py) }
+    rescue StandardError => e
+      log3d(:tick, e)
+    end
+
+    # The tick's scan and ping: on a tile change the emitters, walls, winds and water; else the moving obstacles when
+    # due; then one ping.
+    def self.scan_and_ping(px, py)
       key = [px, py, $game_map.map_id]
       now = PokeAccess.clock
-      if @scan_pos != key
+      if @scan_pos != key && !slide_hold?
         @scan_pos = key
         step3d(:rescan) { rescan(px, py) }
         step3d(:walls)  { update_walls(px, py) }
@@ -418,21 +428,50 @@ module PokeAccess
         step3d(:movers) { refresh_movers(px, py) }
       end
       step3d(:ping) { ping_types }
-    rescue StandardError => e
-      log3d(:tick, e)
     end
 
-    # Runs one scan step in isolation: a failure in a single step (e.g. a game whose event structure the
-    # classifier chokes on) is logged once and never aborts the others, so walls and wind keep working even
-    # if the emitter rescan throws -- the old blanket rescue silenced the whole soundscape with no trace.
+    # Runs a block with the engine's passability asked once per step (step_open?): nothing the game runs can change it
+    # within one tick, and a scan's rays share most of their steps.
+    def self.one_answer_per_step
+      @step_memo = {}
+      yield
+    ensure
+      @step_memo = nil
+    end
+
+    # The offset that keeps a step's memo key positive for a ray starting at the map's edge.
+    STEP_EDGE = 1024
+
+    # True if the engine lets the player step from (x,y) in direction d, an error reading as open; asked once per
+    # step within one_answer_per_step.
+    def self.step_open?(x, y, d)
+      memo = @step_memo
+      return engine_step_open?(x, y, d) if memo.nil?
+      k = ((x + STEP_EDGE) * 4096 + (y + STEP_EDGE)) * 16 + d
+      v = memo[k]
+      return v unless v.nil?
+      memo[k] = engine_step_open?(x, y, d)
+    end
+
+    # The engine's own answer for a step, as the rays have always read it: an error counts as open.
+    def self.engine_step_open?(x, y, d)
+      ($game_player.passable?(x, y, d) rescue true) ? true : false
+    end
+
+    # Whether the rescan waits for the end of an ice slide (route cache on), to run once where it stops.
+    def self.slide_hold?
+      return false unless (PokeAccess::Config.route_cache rescue false)
+      (PokeAccess::Locator.sliding? rescue false) ? true : false
+    end
+
+    # Runs one scan step so its failure is logged without aborting the other steps.
     def self.step3d(key)
       yield
     rescue StandardError => e
       log3d(key, e)
     end
 
-    # Writes the first failure of each scan step to the diagnostic marker (deduped per step) so a silent
-    # spatial-audio outage becomes traceable instead of an empty soundscape with no clue.
+    # Writes the first failure of each scan step to the diagnostic marker.
     def self.log3d(key, e)
       @logged3d ||= {}
       return if @logged3d[key]
@@ -442,9 +481,7 @@ module PokeAccess
       nil
     end
 
-    # Re-reads only the moving obstacles (movers) near the player and replaces their cached tiles, so the
-    # boop tracks them while you stand still. Mirrors rescan's trap filter; called on MOVER_SECONDS only
-    # when the current puzzle declares movers.
+    # Re-reads the moving obstacles in range and replaces the cached trap tiles, so the boop follows them.
     def self.refresh_movers(px, py)
       r = range
       hide = occlusion_mode == :hide
@@ -462,12 +499,8 @@ module PokeAccess
       nil
     end
 
-    # Classifies an event into a soundscape channel, or nil when it is not an emitter. A PROJECTION of the
-    # locator's classification onto the sound vocabulary: the rules live in Locator and this only maps them
-    # to channels, so the two cannot diverge. Do not re-derive event kinds here.
-    #
-    # Only an interactable event pings as npc or object -- a graphic alone would make every decorative
-    # sprite a phantom NPC -- and a player tag override wins over all of it.
+    # The soundscape channel of an event, or nil when it does not ping: a tag override first, then the locator's and
+    # puzzles' kinds mapped onto channels (derive no kinds here); npc and object need an interactable event.
     def self.type_of(ev)
       return nil if (PokeAccess::Locator.tag_hidden?(ev) rescue false)
       ov = (PokeAccess::Locator.tag_override(ev) rescue nil)
@@ -491,23 +524,14 @@ module PokeAccess
       ((PokeAccess::Locator.event_category(ev) rescue :objects) == :people) ? :npc : :object
     end
 
-    # Whether this event passes the optional "only what the keys can reach" filter.
-    #
-    # The two classifiers disagree on one shape only: an event with a TILE graphic and a touch trigger pings
-    # here, while the locator's :all wants a character sprite or a trigger-0 examine. Those fire on CONTACT,
-    # so the sonar is how they are used and the default keeps pinging them.
-    #
-    # Asked at this point and not earlier: doors, hazards, traps, controls, pushes, teleporters and tagged
-    # events all return above this line and each has its own locator category, so the filter can never
-    # silence something the keys would reach.
+    # Whether the event passes the optional sonar_only_locatable filter (only what the locator keys reach); type_of
+    # asks it last, so it can only drop a plain npc or object.
     def self.reachable_by_keys?(ev)
       return true unless (PokeAccess::Config.sonar_only_locatable rescue false)
       (PokeAccess::Locator.in_category?(ev, :all) rescue true)
     end
 
-    # How many events on this map ping, and how many of those the locator keys cannot reach: the size of the
-    # gap the filter above exists for, measured on the map in front of the player instead of guessed.
-    # Counted with the filter forced OFF, so the number does not change when the player turns it on.
+    # How many events on this map ping and how many the locator keys cannot reach, counted with the filter off.
     def self.reach_census
       return "sin mapa" unless $game_map
       pings = 0
@@ -531,10 +555,8 @@ module PokeAccess
       (PokeAccess::Config.sonar_only_locatable = prev rescue nil)
     end
 
-    # True if a straight-ish path from the player to a tile is not blocked by a wall. A cheap direct
-    # raycast (walks one tile at a time toward the target on whichever axis has more distance left,
-    # checking each move with the engine's passable?), NOT a flood-fill, so it is cheap per emitter per
-    # frame. Used to drop emitters behind a wall. Fail-safe: errors read as "clear".
+    # True if no wall blocks a straight-ish walk from (x0, y0) to (x1, y1), stepping on the axis with more distance
+    # left (a raycast, not a path search); errors read as clear.
     def self.line_clear?(x0, y0, x1, y1)
       x = x0; y = y0; guard = 0
       until x == x1 && y == y1
@@ -549,7 +571,7 @@ module PokeAccess
           break
         end
         break if nx == x1 && ny == y1
-        return false unless ($game_player.passable?(x, y, d) rescue true)
+        return false unless step_open?(x, y, d)
         x = nx; y = ny
       end
       true
@@ -557,9 +579,8 @@ module PokeAccess
       true
     end
 
-    # Merges emitter tiles that touch (8-connected) AND share the same sprite identity into one cluster,
-    # represented by the tile nearest the player -- so a multi-tile structure (a wide warp door, a long
-    # counter) pings once, but distinct NPCs standing together stay separate and still alternate.
+    # Merges emitter tiles that touch (8-connected) and share a sprite into their tile nearest the player, so a
+    # multi-tile structure pings once.
     def self.cluster(list)
       n = list.length
       return list if n <= 1
@@ -569,16 +590,15 @@ module PokeAccess
       groups.map { |idxs| idxs.map { |i| list[i] }.min_by { |e| e[2] } }
     end
 
-    # Whether a counter NPC (nurse/mart/PC) stays audible through a wall in hide mode, so the player can
-    # still find the clerk across a desk. Gated by audio3d_desk_range: 0 disables it, 1-3 keeps it within that range.
+    # Whether a service desk NPC within audio3d_desk_range tiles (0 = off) is heard through walls in hide mode.
     def self.desk_bypass?(ev, d)
       dk = (PokeAccess::Config.audio3d_desk_range rescue 2).to_i
       return false if dk <= 0 || d > dk
       (PokeAccess::Locator.service_desk?(ev) rescue false)
     end
 
-    # Scans events within range for emitter tiles by type, plus the nearest water surface, caching per
-    # player tile. With line-of-sight on, emitters behind a wall are skipped (unless a near service desk).
+    # Rebuilds the nearest emitter tiles per type (events and marks in range) and the nearest water; in hide mode
+    # emitters behind a wall are skipped, save a near service desk.
     def self.rescan(px, py)
       lists = {}
       r = range
@@ -598,9 +618,8 @@ module PokeAccess
       @near = { :water => nearest_water(px, py, r) }
     end
 
-    # The player's marks within reach as emitter tiles. A mark is a tile the player named, not an event, so
-    # the event scan above never meets one; they get the same reach and the same line-of-sight rule. Each
-    # carries its own name so two marks side by side stay two pings and are not merged as one structure.
+    # The player's marks in range as emitter tiles, under the same line-of-sight rule; each carries its name so two
+    # adjacent marks are not clustered into one.
     def self.mark_emitters(px, py, r, hide)
       out = []
       PokeAccess::Marks.on_map($game_map.map_id).each do |x, y, name|
@@ -614,27 +633,22 @@ module PokeAccess
       []
     end
 
-    # Drops the scan cursor so the next tick re-scans where the player stands: a mark just set, renamed or
-    # removed would otherwise wait for the player to step before it sounded (or stopped).
+    # Drops the scan position so the next tick rescans where the player stands.
     def self.forget_scan
       @scan_pos = nil
     end
 
-    # The nearest water tile within r, or nil. Its own scan and not the locator's surface targets: the two
-    # answer different questions -- the sonar hears what is close (audio3d_range), the menu lists where the
-    # player can walk to (route_reach) -- and sharing meant scanning a box for eleven surface kinds and
-    # throwing ten away on every step.
-    #
-    # By rings, so the first hit IS the nearest: water underfoot costs a handful of lookups instead of a
-    # full box, and the walk outward stops at r whatever the map size.
+    # The nearest water tile within r, or nil, searched ring by ring outward so the first hit is the nearest.
     def self.nearest_water(px, py, r)
       mw = ($game_map.width rescue 0); mh = ($game_map.height rescue 0)
+      memo = water_memo
+      bit = PokeAccess::Terrain.bridge_height > 0 ? 1 : 0
       d = 0
       while d <= r
         ring_offsets(d).each do |off|
           x = px + off[0]; y = py + off[1]
           next if x < 0 || y < 0 || x >= mw || y >= mh
-          return [x, y] if water_at?(x, y)
+          return [x, y] if water_kept?(x, y, memo, bit)
         end
         d += 1
       end
@@ -643,8 +657,32 @@ module PokeAccess
       nil
     end
 
-    # Water as the sonar has always defined it: whatever surface label mentions water, which takes in
-    # still water, deep water and the foot of a waterfall.
+    # water_at? for a tile inside the map, kept in memo (water_memo) per bridge state bit, as the terrain it is read
+    # from is; asked afresh with no memo.
+    def self.water_kept?(x, y, memo, bit)
+      return water_at?(x, y) if memo.nil?
+      k = (x * 65536 + y) * 2 + bit
+      v = memo[k]
+      return v unless v.nil?
+      memo[k] = water_at?(x, y)
+    end
+
+    # The sonar's water answers for this map: a fresh table whenever the terrain memo they are read from is a fresh one
+    # (a new map, an event's end, the route cache switched on again), none while there is no terrain memo.
+    def self.water_memo
+      tm = PokeAccess::Terrain.map_memo
+      if tm.nil?
+        @water_owner = nil
+        return (@water_memo = nil)
+      end
+      unless @water_owner.equal?(tm)
+        @water_owner = tm
+        @water_memo = {}
+      end
+      @water_memo
+    end
+
+    # Water for the sonar: any surface label containing "water" (still, deep, the foot of a waterfall).
     def self.water_at?(x, y)
       lbl = PokeAccess::Terrain.label(x, y)
       !lbl.nil? && !lbl.to_s.index("water").nil?
@@ -652,8 +690,7 @@ module PokeAccess
       false
     end
 
-    # The offsets at exactly manhattan distance d. Memoized: the rings never change and d never exceeds
-    # the sonar range, so the whole table is a few hundred pairs built once.
+    # The offsets at exactly manhattan distance d, memoized.
     def self.ring_offsets(d)
       @rings ||= {}
       return @rings[d] if @rings[d]
@@ -671,10 +708,8 @@ module PokeAccess
       @rings[d] = out
     end
 
-    # Fires at most one discrete emitter per call. Within PING_GAP of the last ping only candidates within
-    # alt_dist of it are held back, since HRTF panning already separates a farther one. Among the types
-    # whose timer is due it fires the MOST OVERDUE, so a high-frequency type cannot monopolise every slot,
-    # and within a type it round-robins its nearest few.
+    # Pings at most one emitter per call: of the due types, the most overdue, round-robin over its nearest tiles;
+    # within PING_GAP of the last ping, a tile within alt_dist of it is held back.
     def self.ping_types
       now = PokeAccess.clock
       due = []
@@ -708,8 +743,7 @@ module PokeAccess
       end
     end
 
-    # Sets a channel's occlusion before it pings: muffled when the emitter sits behind a wall and the
-    # mode is "occlude", clear otherwise (one raycast for the emitter about to sound).
+    # Sets a channel's occlusion before it pings: muffled behind a wall in occlude mode, clear otherwise.
     def self.set_occlusion(ch, pos)
       return unless OCCL && $game_player
       occ = 0
@@ -732,13 +766,11 @@ module PokeAccess
       dir = SIDE_DIR[side]
       (1..wall_range).detect do |i|
         cx = px + dx * (i - 1); cy = py + dy * (i - 1)
-        !($game_player.passable?(cx, cy, dir) rescue true)
+        !step_open?(cx, cy, dir)
       end
     end
 
-    # Positions and plays/stops the four wind loops at their walls. Volume falls off with distance so a
-    # wall beside you dominates and a one-tile gap (which pushes the wall further away) drops the level,
-    # making narrow openings audible. Steepness is user-tunable: v = vol / dist**(falloff/50).
+    # Plays each wind loop at its wall at vol / dist**(falloff / 50), or stops it when no wall is in range.
     def self.set_winds(px, py)
       vol = (PokeAccess::Config.audio3d_wind rescue 55).to_i
       exp = (PokeAccess::Config.audio3d_wall_falloff rescue 50).to_f / 50.0
@@ -769,25 +801,18 @@ module PokeAccess
   end
 end
 
-# Per-frame driver; hooks Game_Player#update so the whole feature lives in this one file. frame_hook (not
-# after_hook) because gen-6 runs a whole wild battle inside Game_Player#update: guarding it would pin the
-# reentrancy stack for the entire fight and mute every battle reader.
+# Per-frame driver on Game_Player#update. A frame_hook, not an after_hook: gen 6 runs a whole wild battle inside
+# that method, and a guarded hook would mute every battle reader for the fight.
 PokeAccess::Hooks.frame_hook("Game_Player", :update) do |_p, _a|
   PokeAccess::Perf.measure(:audio3d) { PokeAccess::Audio3D.tick }
 end
 
-# Battle suspends the map scene, so the looping channels would sound through the fight.
-#
-# suspend and not silence_all: silence_all leaves @scan_pos set, and the resume path only rebuilds the
-# soundscape when that position CHANGES, so the wind and the water would stay off until the player stepped.
+# Suspends the soundscape when a battle starts (suspend rather than silence_all, so the loops return without a step).
 PokeAccess::Hooks.after_hook("Game_Temp", :in_battle=) do |_t, _r, args|
   PokeAccess::Audio3D.suspend if args[0]
 end
 
-# Same for a menu, off the FLAG rather than waiting for tick to notice. tick only runs from
-# Game_Player#update, which a menu reaches only if its own loop calls pbUpdateSceneMap every frame -- and a
-# custom grid menu with an empty update never does, so the ambience would play straight over it. Scene_Map
-# sets the flag in every one of these games, so this needs no cooperation from the menu.
+# Same when a menu opens, off the flag Scene_Map sets: tick does not run under a menu that never updates the map.
 PokeAccess::Hooks.after_hook("Game_Temp", :in_menu=) do |_t, _r, args|
   PokeAccess::Audio3D.suspend if args[0]
 end
@@ -795,6 +820,5 @@ end
 # Drop the previous map's emitter/wall scan state on map change or load (Caches.reset_all).
 PokeAccess::Caches.register(:audio3d) { PokeAccess::Audio3D.reset_map_state }
 
-# A player override changed (a mark set or removed, an object hidden or shown): re-scan on the next frame
-# instead of waiting for a step, so the soundscape answers the change at once.
+# Rescans on the next frame when a mark or tag override changes.
 PokeAccess::Events.on(:tags_changed) { (PokeAccess::Audio3D.forget_scan rescue nil) }

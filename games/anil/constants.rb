@@ -1,8 +1,10 @@
-# Pokemon Anil 4.0 constants. Anil runs on a modern Essentials base (Battle::Scene, the UI:: namespace,
-# GameData::*, ruby 3.1), unlike Z/Opalo (1.8.7) and Reminiscencia. The mod keys are physical virtual-key
-# codes, so the core defaults apply; battle and summary content is read by anil-specific files that use
-# the modern GameData API instead of the gen-6 PB* tables.
+# Pokemon Anil 4.0 constants: a modern Essentials base (GameData, Battle::Scene, Ruby 3.1), core key defaults.
 module PokeAccess
   module Config
   end
+end
+
+# Anil's hints name RPG Maker XP's default letter keys ("[S] Volar", "Pulsa [D]"), and Alt, the remappable turbo.
+PokeAccess::Game.define("anil") do
+  key_hints PokeAccess::KeyHints::RGSS_LETTERS.merge("Alt" => :alt)
 end

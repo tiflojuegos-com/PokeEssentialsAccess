@@ -1,15 +1,9 @@
 module PokeAccess
-  # Marin's Diamond/Pearl Pause Menu (DP_PauseMenu: anil ships it as PauseMenuDP, Pokemon Z as its
-  # "Menu Mejorado"): a sprite menu, not a Window_CommandPokemon, so the generic command hook never sees
-  # it. Its loop calls update every frame and keeps the cursor in @option and the entries (each
-  # [label, ...]) in @options.
+  # Marin's Diamond/Pearl Pause Menu (DP_PauseMenu; Pokemon Z's "Menu Mejorado"), a sprite menu: its update runs
+  # each frame with the cursor in @option and the entries, each [label, ...], in @options.
   module DPMenu
-    # Reads the focused entry on cursor change, deduped per menu instance (a reopened menu is a fresh
-    # instance, so it reads its first option without any explicit reset), and keeps the contextual
-    # trainer info current so the info key answers with the trainer while the menu is open.
-    #
-    # Labels go through Menus.button_label, which names the trainer card where the menu labels it with the
-    # player's name -- the DP convention, and shared with the two sprite-button menus.
+    # Speaks the focused entry on cursor change (deduped per menu instance) through Menus.button_label, sets the info
+    # key's trainer answer, and says the panel once.
     def self.read(menu)
       PokeAccess::Info.set_info(:trainer, nil)
       list = PokeAccess.ivar(menu, :@options)
@@ -18,8 +12,16 @@ module PokeAccess
       PokeAccess::Cursor.announce(menu, :dpmenu, idx) do
         PokeAccess::Menus.button_label(list[idx][0])
       end
+      panel(list)
     rescue StandardError
       nil
+    end
+
+    # The panel the menu painted while it was built (level cap, money, shortcut keys...), said through PausePanel.
+    def self.panel(list)
+      return unless PokeAccess::PaintCapture.pending?(:dp_panel)
+      labels = list.map { |o| o.is_a?(Array) ? o[0] : o }
+      PokeAccess::PausePanel.say(PokeAccess::PausePanel.lines(PokeAccess::PaintCapture.take_pairs(:dp_panel), labels))
     end
 
     @menu = nil
@@ -27,13 +29,8 @@ module PokeAccess
     def self.watch(menu); @menu = menu; end
     def self.unwatch; @menu = nil; end
 
-    # Coming back from a submenu. Every entry is a proc the loop calls inline and then carries on; the loop's
-    # redraw block only runs when the cursor MOVED, so the menu reappeared on the same icon and said nothing.
-    # Clearing the slot makes the next update place the player again.
-    #
-    # MenuReturn covers both kinds of entry (the fade of the ones that leave the screen, the message box of
-    # the ones that only put up a dialogue); gated on the menu's own loop being held, so nothing happens
-    # while it is closed.
+    # Back from a submenu (MenuReturn), while the menu's loop is held: resets the dedup, so the next update says the
+    # focused entry again.
     def self.returned
       PokeAccess::Cursor.reset(@menu, :dpmenu) if @menu
     rescue StandardError
@@ -42,6 +39,8 @@ module PokeAccess
   end
 end
 
+# The menu paints its panel while being built, before main: armed here, taken on the first update.
+PokeAccess::Hooks.before_hook("DP_PauseMenu", :initialize, :optional => true) { |_m, _a| PokeAccess::PaintCapture.arm(:dp_panel) }
 PokeAccess::Hooks.after_hook("DP_PauseMenu", :update, :optional => true) { |menu, _r, _a| PokeAccess::DPMenu.read(menu) }
 
 PokeAccess::Hooks.around_hook("DP_PauseMenu", :main, :optional => true) do |menu, nxt, _a|
@@ -52,6 +51,5 @@ end
 
 PokeAccess::MenuReturn.on_return { PokeAccess::DPMenu.returned }
 
-# Pokemon Z opens its DexNav list (EncounterListUI) from INSIDE the menu loop, and that screen touches
-# none of the three return seams -- so coming back left the menu mute until the cursor moved.
+# Pokemon Z's DexNav list (EncounterListUI) opens inside the menu loop without any return seam.
 PokeAccess::MenuReturn.bare("EncounterListUI", :initialize, :optional => true)

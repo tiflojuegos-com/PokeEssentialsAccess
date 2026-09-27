@@ -1,6 +1,5 @@
-# Spatial.earcon: the named non-positional cue vocabulary. A name must resolve through EARCONS to its
-# file and default pitch, an explicit pitch must override the default (the minigame tick), zero volume
-# must stay silent (cue's contract), and an unknown name must be a safe no-op.
+# Spatial.earcon, the named flat cues: a name resolves through EARCONS to its file and default pitch, an explicit
+# pitch overrides it, and zero volume or an unknown name play nothing.
 Suite.define("spatial: earcon resolves names, honours pitch override, skips silence") do
   played = []
   Audio.instance_eval do

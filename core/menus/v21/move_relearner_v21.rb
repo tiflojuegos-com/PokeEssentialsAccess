@@ -1,8 +1,6 @@
-# Vanilla v21.1 Move Relearner (MoveRelearner_Scene), for games without the BetterMoveRelearner plugin. The
-# focused move's detail is hand-drawn in pbDrawMoveList, so the generic bare-name read is muted and the shared
-# MoveList.detail is spoken on each redraw. hook_container: this body only STORES, and pbStartScene calls
-# pbDrawMoveList, whose hook is the announcer. Gated on the data API rather than the class name, since a
-# gen-6 fork can declare the same class with gen-6 internals.
+# The v21 Move Relearner (MoveRelearner_Scene): mutes the list's bare-name read and speaks MoveList.detail on each
+# pbDrawMoveList. The open hook is a container, since pbStartScene calls pbDrawMoveList, whose hook speaks.
+# era_scene keeps it off a gen-6 fork that declares the same class.
 module PokeAccess
   module MoveRelearnerV21
     SCENE = PokeAccess::Engine.era_scene(:gamedata, "MoveRelearner_Scene", "MoveRelearnerScene")

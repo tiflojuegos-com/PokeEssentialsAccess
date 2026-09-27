@@ -1,7 +1,4 @@
-# The modern message path: Essentials v19+ dropped the Kernel prefix, so dialogue flows through a bare
-# top-level pbMessageDisplay. The toolkit must wrap THAT one, and never mistake the singleton its own gen-6
-# wrap would create by aliasing for the engine's entry: that mistake left six GameData games mute with the
-# whole suite green, because nothing drove this path. Runs only in the gamedata pass.
+# The modern message path (v19+): the bare top-level pbMessageDisplay is wrapped, and no Kernel singleton is made up.
 Suite.define("dialogue: the modern bare pbMessageDisplay is hooked and no Kernel singleton is invented") do
   PokeAccess.instance_variable_set(:@last_say, nil)
   PokeAccess.instance_variable_set(:@last_say_t, nil)
@@ -19,8 +16,7 @@ Suite.define("dialogue: the modern bare pbMessageDisplay is hooked and no Kernel
   silent "the engine re-showing the same line within the window is not read twice"
 end
 
-# The diag counters on the modern engine: the bare function is the wrapped form, and the Kernel singleton
-# is neither defined nor claimed.
+# The diag counters on the modern engine name the bare function as the only wrapped form.
 Suite.define("dialogue: on the modern engine the diag names the bare function as the wrapped entry") do
   eq "the bare function is the wrap", PokeAccess.dialogue_wraps, [:bare]
   eq "and the forms the game defines say bare only", PokeAccess::Keys.dialogue_forms, [:bare]

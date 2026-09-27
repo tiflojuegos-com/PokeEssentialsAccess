@@ -1,11 +1,7 @@
-# Shared body of transfer_script_spec (gen-6 pass) and transfer_script_gd_spec (gamedata pass): a door that
-# transfers by calling a function of the GAME's own, which is core and happens in both eras. What is pinned:
-# the two Essentials patterns still answer exactly as before, a registered pattern makes such an event an
-# exit and names it by the map it captures, one that captures nothing is no transfer, and the registry is
-# additive (the shipped two stay first, so a profile can never displace them).
+# Shared cases of transfer_script_spec and transfer_script_gd_spec: a registered pattern makes a door of a game call
+# and names it by the map it captures, even split over 355 and 655 lines; one that captures nothing is no transfer.
 module TransferCases
-  # Snapshot/restore of the pattern list, a mutable constant: a leaked pattern would rewrite what counts as
-  # a door for every suite after this one.
+  # Snapshot and restore of TRANSFER_SCRIPTS, a mutable constant a leaked pattern would change for every later suite.
   def self.snapshot; PokeAccess::Locator::TRANSFER_SCRIPTS.dup; end
 
   def self.restore(saved)
@@ -15,8 +11,7 @@ module TransferCases
     PokeAccess::Locator.clear_verdicts
   end
 
-  # An event whose active page is a sprite-less touch tile running one script call, the shape of every
-  # Reminiscencia dungeon entrance (and of the tile the player was standing next to when this was found).
+  # A sprite-less touch tile whose active page runs one script call, like a Reminiscencia dungeon entrance.
   def self.script_tile(script, id = 91, name = "size(3,1)")
     page = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(355, [script])])
     ev = TestGameEvent.new(:id => id, :x => 6, :y => 8, :name => name, :pages => [page], :active_page => page)
@@ -25,8 +20,7 @@ module TransferCases
     ev
   end
 
-  # The same tile with its call split the way the editor stores a long one: the first line a 355 command
-  # and every line after it a 655 continuation.
+  # The same tile with its call split as the editor stores a long one: a 355 command, then 655 continuation lines.
   def self.split_tile(lines, id = 93)
     cmds = [TestCmd.new(355, [lines[0]])] + lines[1..-1].map { |l| TestCmd.new(655, [l]) }
     page = TestPage.new(:trigger => 1, :sprite => "", :list => cmds)
@@ -70,8 +64,6 @@ def define_transfer_script_suites
       ev = TransferCases.script_tile("getToDungeon(dungeonmaps[selec])")
       falsy "a call whose destination is a variable captures nothing, so it is no transfer", loc.transfer_event?(ev)
 
-      # A pattern with NO capture group at all. nil.to_i is 0, so the tile used to announce itself as an
-      # exit to map 0 -- a map no game has, named after nothing, and a pathfinder target pointing at it.
       loc.register_transfer_script(/\bteleportHome\b/)
       PokeAccess::Locator.clear_verdicts
       ev = TransferCases.script_tile("teleportHome")
@@ -86,10 +78,6 @@ def define_transfer_script_suites
     end
   end
 
-  # Realidea writes 1388 script calls, every pbTransferWithTransition it has over 1297 pages, as the call on
-  # one line and the map id on the continuation line under it. Scanned line by line, neither half matched
-  # the shipped pbTransfer pattern, so those tiles were neither listed, nor routed to, nor heard; only the
-  # three hundred doors it opens with a Transfer command survived.
   Suite.define("transfer by script: a call split across a 355 line and its 655 continuations is read whole") do
     loc = PokeAccess::Locator
     saved = TransferCases.snapshot

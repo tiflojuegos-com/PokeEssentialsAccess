@@ -1,14 +1,9 @@
 module PokeAccess
-  # Arcky's Region Map, extended preview: a paged grid of the species found on the focused map, one grid per
-  # encounter type, with a panel below naming the species.
-  #
-  # The cell cursor is a local inside the preview's loop, but updateSpeciesInfo(index, pageInfo) receives it
-  # on every move, so the argument is read rather than the @extIndex mirror.
+  # Arcky's Region Map: the extended preview's species grid (the cell index is updateSpeciesInfo's argument), the
+  # map mode and the location preview.
   module ArckyRegionMap
-    # The focused species. The name is in the dedup key as well as the index, since leaving the grid or
-    # switching encounter type rebuilds the list at index 0. The panel's own detail (type, catch rate, chance
-    # per level band) goes to the info key. The same redraw feeds the bottom-bar reader, whose slot is marked
-    # with the text it is about to see so it stays quiet here without being disabled.
+    # The focused species, keyed on index and name (a new list restarts at 0), its panel detail on the info key;
+    # the bottom-bar reader's slot is marked with the text it is about to see, so it stays quiet.
     def self.species(scene, index)
       list = PokeAccess.ivar(scene, :@list)
       i = index.to_i
@@ -16,7 +11,7 @@ module PokeAccess
       name = species_name(list[i])
       return if name.nil? || name.empty?
       spoken = PokeAccess::Cursor.on_change(scene, :arcky_species, [i, name]) do
-        PokeAccess::I18n.t(:list_entry, :name => name, :n => i + 1, :tot => list.length)
+        PokeAccess::Verbosity.list_entry(name, i + 1, list.length)
       end
       return if spoken.nil? || spoken.empty?
       PokeAccess.speak(spoken, true)
@@ -26,8 +21,7 @@ module PokeAccess
       nil
     end
 
-    # The panel beside the grid, rebuilt from the same table the screen paints it from: the entry keyed by
-    # species in the focused encounter table.
+    # The panel's detail (type, catch rate, chance per level band) from the focused encounter table's species entry.
     def self.panel_detail(scene, species)
       table = PokeAccess.ivar(scene, :@tableData)
       idx = PokeAccess.ivar(scene, :@tableIndex)
@@ -43,8 +37,7 @@ module PokeAccess
       nil
     end
 
-    # A chance as the plugin prints it: its convertIntegerOrFloat drops the decimal of a whole-number Float,
-    # so the screen says 12% where the raw value is 12.0.
+    # A chance as the plugin prints it: a whole-number Float without its decimal (12.0 as 12).
     def self.pct(n)
       (n.is_a?(Float) && n.to_i == n) ? n.to_i : n
     end
@@ -73,6 +66,60 @@ module PokeAccess
       ""
     end
 
+    # Says the map's mode when it changes: the painted text that is one of the plugin's mode names.
+    def self.mode(scene, rows)
+      names = mode_names(scene)
+      t = Array(rows).map { |r| PokeAccess.clean(r.to_s) }.reverse.find { |r| names.include?(r) }
+      return if t.nil? || !PokeAccess::Cursor.changed?(scene, :arcky_mode, t)
+      PokeAccess.speak(PokeAccess::I18n.t(:arm_mode, :m => t), false)
+    end
+
+    # The names the corner can show, from the table of modes the plugin builds before painting one.
+    def self.mode_names(scene)
+      info = PokeAccess.ivar(scene, :@modeInfo)
+      return [] unless info.respond_to?(:values)
+      info.values.map { |d| PokeAccess.clean((d[:text] rescue nil).to_s) }.reject { |s| s.empty? }
+    rescue StandardError
+      []
+    end
+
+    # The directions of the preview panel, by the icon each exit is painted after.
+    DIRECTIONS = { "north" => :dir_n, "northEast" => :dir_ne, "east" => :dir_e, "southEast" => :dir_se,
+                   "south" => :dir_s, "southWest" => :dir_so, "west" => :dir_o, "northWest" => :dir_no }
+
+    # Starts collecting the location preview (getLocationInfo), painted with the plugin's own drawText; built with
+    # the panel closed, it is an opening, said even if it repeats the last one.
+    def self.preview_start(scene)
+      @preview = []
+      PokeAccess::Cursor.reset(scene, :arcky_preview) if preview_closed?(scene)
+    end
+
+    # Whether the preview panel is closed (the plugin's PreviewState at :hidden).
+    def self.preview_closed?(scene)
+      box = PokeAccess.ivar(scene, :@previewBox)
+      box ? ((box.isHidden rescue false) ? true : false) : false
+    end
+
+    # Collects one text the panel paints, each exit's direction icon said as its word.
+    def self.preview_note(text)
+      return unless @preview
+      t = text.to_s.gsub(/<icon=(\w+)>/) do
+        k = DIRECTIONS[$1]
+        k ? "#{PokeAccess::I18n.t(k)}: " : ""
+      end
+      t = PokeAccess.clean(t.gsub(/\s{2,}/, ". "))
+      @preview.push(t) unless t.empty? || @preview.include?(t)
+    end
+
+    # Says the built panel when it says something new (the plugin rebuilds it on every move while open).
+    def self.preview_end(scene)
+      rows = @preview || []
+      @preview = nil
+      line = rows.map { |r| r =~ /[.!?]\z/ ? r : "#{r}." }.join(" ")
+      return if line.empty? || !PokeAccess::Cursor.changed?(scene, :arcky_preview, line)
+      PokeAccess.speak(line, true)
+    end
+
     # The species name, through the shared data layer so the reader does not care which era resolves it.
     def self.species_name(sp)
       return nil if sp.nil?
@@ -88,8 +135,28 @@ PokeAccess::Hooks.after_hook("PokemonRegionMap_Scene", :updateSpeciesInfo, :opti
   PokeAccess::ArckyRegionMap.species(scene, args[0])
 end
 
-# The panel's detail lives on the info key while the grid is open, and only then: once the screen closes the
-# key would answer for a map square with the data of a species no longer on screen.
+# The panel's detail leaves the info key when the screen closes.
 PokeAccess::Hooks.after_hook("PokemonRegionMap_Scene", :pbEndScene, :optional => true) do |_s, _r, _a|
   PokeAccess::Info.clear_text
+end
+
+PokeAccess::Hooks.around_hook("PokemonRegionMap_Scene", :mapModeSwitchInfo, :optional => true) do |scene, nxt, _a|
+  PokeAccess::PaintCapture.arm(:arcky_mode)
+  begin
+    nxt.call
+  ensure
+    PokeAccess::ArckyRegionMap.mode(scene, PokeAccess::PaintCapture.take(:arcky_mode, :positions))
+  end
+end
+
+PokeAccess::Hooks.around_hook("PokemonRegionMap_Scene", :getLocationInfo, :optional => true) do |scene, nxt, _a|
+  PokeAccess::ArckyRegionMap.preview_start(scene)
+  begin
+    nxt.call
+  ensure
+    PokeAccess::ArckyRegionMap.preview_end(scene)
+  end
+end
+PokeAccess::Hooks.before_hook("PokemonRegionMap_Scene", :drawText, :optional => true) do |_scene, args|
+  PokeAccess::ArckyRegionMap.preview_note(args[5])
 end

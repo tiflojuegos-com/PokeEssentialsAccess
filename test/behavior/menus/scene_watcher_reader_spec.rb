@@ -1,8 +1,5 @@
-# SceneWatcher.reader: the one-call form for held-scene pollers. The returned holder must speak the
-# block's text when the key changes, stay silent on an unchanged key, consume a key with nil text
-# silently, skip nil (not-readable-yet) frames without consuming, and reset its dedup on watch/unwatch
-# so reopening on the same entry re-reads. The scene class here does not exist, so the wiring self-gates
-# and the holder is driven directly, exactly as a game's blocking loop would.
+# SceneWatcher.reader: its holder speaks on a key change, consumes a key with nil text silently, skips nil frames,
+# and resets its dedup on watch and unwatch; the scene class is absent, so the holder is driven by hand.
 Suite.define("scene_watcher: reader dedups by key, speaks on change, resets on rewatch") do
   holder = PokeAccess::SceneWatcher.reader("SwReaderNoSuchScene_pa", :main, :sw_spec) do |s|
     v = s.instance_variable_get(:@v)
@@ -16,9 +13,6 @@ Suite.define("scene_watcher: reader dedups by key, speaks on change, resets on r
   end
   scene = World.stub_scene
 
-  # With no scene held the block must not run AT ALL: a reader whose block assumes a scene would raise on
-  # every idle frame otherwise, and the swallow would hide it. Silence alone did not prove that -- the
-  # block returning nil is silent too -- so this counts the calls.
   calls = 0
   probe = PokeAccess::SceneWatcher.reader("SwProbeNoSuchScene_pa", :main, :sw_probe) { |_s| calls += 1; nil }
   probe.poll
@@ -56,8 +50,6 @@ Suite.define("scene_watcher: reader dedups by key, speaks on change, resets on r
   holder.poll
   spoke "a change after a muted key speaks again", /item 2/
 
-  # Text that lands a frame after the key: the un-burn contract. Without it the empty frame consumed the
-  # key and the row stayed mute until the cursor moved somewhere else and back.
   SpeakCapture.clear
   scene.instance_variable_set(:@v, :late)
   scene.instance_variable_set(:@late_text, nil)
@@ -83,9 +75,6 @@ Suite.define("scene_watcher: reader dedups by key, speaks on change, resets on r
   holder.poll
   spoke "rewatching resets the dedup so the same LAST-CONSUMED key re-reads", /item 2/
 
-  # unwatch resets the slot as well, and that half IS observable: poll on a re-held scene is not the only
-  # way back in, because a reader can be driven while the holder is watching a DIFFERENT scene. Closing on
-  # a key and reopening on the same one must read -- which is the whole point of resetting on both edges.
   holder.unwatch
   SpeakCapture.clear
   other = World.stub_scene
@@ -96,10 +85,7 @@ Suite.define("scene_watcher: reader dedups by key, speaks on change, resets on r
   holder.unwatch
 end
 
-# A cursor sits still. The player picks an entry and stays on it, so on 39 frames out of 40 the key matches
-# and whatever text the block built gets thrown away unread. Free for "item #{v}"; not free for the readers
-# that ask the game a question to word themselves -- Awakening's outfit list calls into Fates_Utilities, the
-# photo album stats a file for its date. Returning something callable defers that to the frames that speak.
+# A reader's text may be a callable, built only on the frames that speak; a callable that raises is logged, not said.
 Suite.define("scene watcher: text that costs something is only built when it will be heard") do
   builds = 0
   holder = PokeAccess::SceneWatcher.reader("SwLazyNoSuchScene_pa", :main, :sw_lazy) do |s|
@@ -125,9 +111,7 @@ Suite.define("scene watcher: text that costs something is only built when it wil
   eq "once, not twice", builds, 2
   holder.unwatch
 
-  # A callable that blows up must behave like a block that blows up: no speech, no crash, one log line. By
-  # then the key is already consumed, so without the marker it would be a reader that died quietly forever.
-  logged = lambda { |key| !!(PokeAccess.instance_variable_get(:@logged_once) || {})[key] }
+  logged =lambda { |key| !!(PokeAccess.instance_variable_get(:@logged_once) || {})[key] }
   boom = PokeAccess::SceneWatcher.reader("SwLazyBoomNoSuchScene_pa", :main, :sw_lazy_boom) do |_s|
     [:k, lambda { raise "texto roto" }]
   end
@@ -137,4 +121,24 @@ Suite.define("scene watcher: text that costs something is only built when it wil
   silent "a raising callable does not speak and does not take the loop down"
   truthy "but it is recorded", logged.call("cursor_sw_lazy_boom")
   boom.unwatch
+end
+
+# A reader that adds to what another says on the same move (a reward's description under the list that names
+# the reward) is always queued, its later reads too, so it never cuts the name.
+Suite.define("scene_watcher: a queued reader never cuts what was said before it") do
+  holder = PokeAccess::SceneWatcher.reader("SwQueuedNoSuchScene_pa", :main, :sw_queued, :queued => true) do |s|
+    v = s.instance_variable_get(:@v)
+    v ? [v, "desc #{v}"] : nil
+  end
+  scene = World.stub_scene(:@v => 1)
+  holder.watch(scene)
+  begin
+    holder.poll
+    scene.instance_variable_set(:@v, 2)
+    SpeakCapture.clear
+    holder.poll
+    eq "a later read is queued as well", SpeakCapture.log, [["desc 2", false]]
+  ensure
+    holder.unwatch
+  end
 end

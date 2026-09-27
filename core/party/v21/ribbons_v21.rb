@@ -1,13 +1,8 @@
 module PokeAccess
-  # Modern summary ribbons page: reads the focused ribbon as the cursor moves over it. The text itself is
-  # Summary.ribbon_text, shared with the one gen-6 game (Awakening) that keeps the same cursor over
-  # PBRibbons; what is modern here is the shape of the redraw call.
+  # Modern summary ribbons page: the focused ribbon as the cursor moves (Summary.ribbon_cell_text).
   module RibbonsV21
-    # The ribbon the cursor is on, from either shape of the redraw. Vanilla passes the id itself. The
-    # Improved Mementos plugin turns the page into a paged grid and passes (filter, index, page, maxpage),
-    # where the focused entry is filter[page * PAGE_SIZE + index]. Handing that whole filter Array to
-    # GameData::Ribbon.get raised, the rescue swallowed it, and the page said nothing on any cursor move.
-    # With no PAGE_SIZE to read, the index alone still resolves the first page rather than nothing.
+    # The ribbon under the cursor: the id itself, or from Improved Mementos' (filter, index, page, maxpage) the
+    # entry filter[page * PAGE_SIZE + index] (the index alone without PAGE_SIZE).
     def self.focused_id(args)
       return args[0] if args.length < 2
       filter = args[0]
@@ -17,11 +12,16 @@ module PokeAccess
     rescue StandardError
       nil
     end
+
+    # The line for the ribbon cell the cursor is on: the ribbon's name and description, and where the cell is.
+    # A plugin whose grid paints more about the focused entry replaces this.
+    def self.focused_text(scene, args)
+      PokeAccess::Summary.ribbon_cell_text(scene, focused_id(args))
+    end
   end
 end
 
 # Summary ribbons page: drawSelectedRibbon is called once per cursor move over the focused ribbon.
-PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :drawSelectedRibbon) do |_s, _r, args|
-  t = PokeAccess::Summary.ribbon_text(PokeAccess::RibbonsV21.focused_id(args))
-  PokeAccess.speak(t, true)
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :drawSelectedRibbon) do |scene, _r, args|
+  PokeAccess.speak(PokeAccess::RibbonsV21.focused_text(scene, args), true)
 end

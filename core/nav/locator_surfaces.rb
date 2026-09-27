@@ -2,8 +2,7 @@ module PokeAccess
   # Locator part 2 of 4: terrain surfaces as navigation targets. Scans tiles around the player for
   # interesting surfaces and exposes the nearest of each as a synthetic SurfaceTarget, cached per tile.
   module Locator
-    # A synthetic target standing for a map tile of a given surface, so navigation works on terrain like
-    # on events. key is the language-neutral surface symbol (:surf_water...) for type matching.
+    # A synthetic target for a map tile; key is its surface symbol (:surf_water...), :mark, or nil for a map edge.
     SurfaceTarget = Struct.new(:x, :y, :name, :key) do
       def character_name; ""; end
     end
@@ -13,10 +12,8 @@ module PokeAccess
       PokeAccess::Terrain::LABEL
     end
 
-    # Nearest reachable tile of each interesting surface, as synthetic targets, cached per player tile. The
-    # pathfinder's flood answers rather than a box around the player (reusing the one shared with the
-    # unreachable filter and its route_reach limit); the sonar keeps its own short range. The border ring
-    # keeps water on the list: the flood never enters it, but the player can stand beside it.
+    # The nearest tile of each surface in or beside the pathfinder's flood, as synthetic targets, cached per player
+    # tile (the ring beside the flood keeps water the player can stand next to).
     def self.surface_targets
       pos = [$game_player.x, $game_player.y, ($game_map.map_id rescue 0)]
       return @surface_cache if @surface_cache && @surface_cache_pos == pos
@@ -45,16 +42,56 @@ module PokeAccess
         look.call(x, y)
         pf::DIRS.each { |dir| look.call(x + dir[0], y + dir[1]) }
       end
+      dive = dive_spots(px, py)
+      best.delete(:surf_deepwater) if dive[:surf_dive]
+      best.merge!(dive)
       best.map { |lbl, info| SurfaceTarget.new(info[1], info[2], PokeAccess::I18n.t(lbl), lbl) }
     rescue StandardError
       []
     end
 
-    # The connections involving a map, across engines. Two shapes answer to the same method name, so the
-    # shape is probed and never assumed: gen-6 returns ONE flat list, each entry a connection row, while
-    # both Infinite Fusion games return an array INDEXED BY MAP ID whose entries are the lists touching that
-    # map, with nil in every unused id and no eachConnectionForMap to give the shape away. Read flat, that
-    # compares a nested list against an integer and raises on the nil holes.
+    # The nearest places to dive and to come up, as { label => [distance, x, y] }: deep water over a dive map (unless
+    # the party surely cannot dive), and underwater tiles under the upper map's deep water.
+    def self.dive_spots(px, py)
+      pf = PokeAccess::Pathfinder
+      mid = ($game_map.map_id rescue 0)
+      out = {}
+      if PokeAccess::MapMeta.dive_map(mid) && PokeAccess::FieldMoves.can?(:DIVE) != false
+        set = ($PokemonGlobal.surfing rescue false) ? pf.reachable_set : pf.amphibious_set
+        nearest_where(set, px, py, out, :surf_dive) { |x, y| PokeAccess::Terrain.deep?(PokeAccess::Terrain.raw(x, y)) }
+      end
+      up = ($PokemonGlobal.diving rescue false) ? PokeAccess::MapMeta.surface_map(mid) : nil
+      if up && !surface_anywhere?
+        nearest_where(pf.reachable_set, px, py, out, :surf_surface) do |x, y|
+          PokeAccess::Terrain.deep?(PokeAccess::MapMeta.terrain_on(up, x, y))
+        end
+      end
+      out
+    rescue StandardError
+      {}
+    end
+
+    # Records in out[label] the tile of the set nearest (px,py) that the block accepts.
+    def self.nearest_where(set, px, py, out, label)
+      stride = PokeAccess::Pathfinder::PKEY_STRIDE
+      (set || {}).each_key do |k|
+        x = k / stride; y = k % stride
+        next unless yield(x, y)
+        d = (x - px).abs + (y - py).abs
+        out[label] = [d, x, y] if out[label].nil? || d < out[label][0]
+      end
+    end
+
+    # True when the game lets the player come up from anywhere underwater, so no surfacing spot is listed.
+    def self.surface_anywhere?
+      return Settings::DIVING_SURFACE_ANYWHERE ? true : false if defined?(Settings) && Settings.const_defined?(:DIVING_SURFACE_ANYWHERE)
+      defined?(DIVINGSURFACEANYWHERE) && DIVINGSURFACEANYWHERE ? true : false
+    rescue StandardError
+      false
+    end
+
+    # The connections involving a map: eachConnectionForMap where it exists, else getMapConnections, a flat list on
+    # gen-6 but indexed by map id in both Infinite Fusion games (probed by indexed?).
     def self.connections_for(id)
       if MapFactoryHelper.respond_to?(:eachConnectionForMap)
         list = []
@@ -68,16 +105,14 @@ module PokeAccess
       []
     end
 
-    # True when the connection table is indexed by map id: its entries are lists OF connection rows rather
-    # than connection rows themselves.
+    # True when the connection table is indexed by map id: its entries are lists of connection rows.
     def self.indexed?(table)
       table.any? { |e| e.is_a?(Array) && e[0].is_a?(Array) }
     rescue StandardError
       false
     end
 
-    # The map id reached by stepping onto off-map (ox, oy) via a connection, or nil. Uses the engine's
-    # own connection math, so it agrees exactly with where the game would transfer the player.
+    # The map id reached by stepping onto off-map (ox, oy) via a connection, or nil, by the engine's connection math.
     def self.connection_dest(conns, id, ox, oy)
       conns.each do |conn|
         if conn[0] == id
@@ -93,12 +128,8 @@ module PokeAccess
       nil
     end
 
-    # Synthetic exit targets for map-EDGE connections (walk off the edge into the next map): keeps the
-    # nearest border tile per destination, labelled "salida a <map>". Without this, edge exits are
-    # invisible to the locator (engines without MapFactoryHelper get none).
-    # One exit target per connected destination. Cached per map_id (the cache self-invalidates when the
-    # player changes map, since id then differs): the border scan below is O(perimeter x connections) and
-    # otherwise ran on EVERY rebuild_targets (each event-end) -- the source of the occasional map_poll spike.
+    # Synthetic exit targets for map-edge connections, one per destination map ("exit to <map>"), cached per map id;
+    # none without MapFactoryHelper.
     def self.connection_targets
       return [] unless defined?(MapFactoryHelper) && $game_map && $game_player
       id = $game_map.map_id
@@ -107,31 +138,52 @@ module PokeAccess
       @conn_targets = build_connection_targets(id)
     end
 
-    # Builds the per-map exit targets, choosing one representative border tile per destination relative to
-    # the map centre (the cache is per-map, not per-player-position, and any tile on a connected edge is a
-    # valid exit for pathfinding).
+    # Builds the per-map exit targets: per destination, the border tile nearest the map centre, with every border tile
+    # leading there kept for aim_connection.
     def self.build_connection_targets(id)
+      @conn_edges = {}
       conns = connections_for(id)
       return [] if conns.empty?
       w = ($game_map.width rescue 0); h = ($game_map.height rescue 0)
       return [] if w <= 0 || h <= 0
       cx = w / 2; cy = h / 2
       best = {}
+      edges = {}
       check = lambda do |tx, ty, ox, oy|
         dest = (connection_dest(conns, id, ox, oy) rescue nil)
         return unless dest
+        (edges[dest] ||= []).push([tx, ty])
         d = (tx - cx).abs + (ty - cy).abs
         best[dest] = [d, tx, ty] if best[dest].nil? || d < best[dest][0]
       end
       (0...w).each { |x| check.call(x, 0, x, -1); check.call(x, h - 1, x, h) }
       (0...h).each { |y| check.call(0, y, -1, y); check.call(w - 1, y, w, y) }
       best.map do |dest, info|
+        @conn_edges[[info[1], info[2]]] = edges[dest]
         nm = (map_name(dest) rescue nil)
         label = nm ? PokeAccess::I18n.t(:loc_exit_to, :map => nm) : PokeAccess::I18n.t(:loc_exit)
         SurfaceTarget.new(info[1], info[2], label, nil)
       end
     rescue StandardError
       []
+    end
+
+    # A map-edge exit moved to its reachable border tile nearest the player when its own tile is unreachable; left as
+    # it is when the flood is incomplete.
+    def self.aim_connection(t)
+      edges = (@conn_edges || {})[[t.x, t.y]]
+      return t if edges.nil? || edges.length <= 1
+      pf = PokeAccess::Pathfinder
+      return t unless (pf.reachable_set_complete? rescue false)
+      set = pf.reachable_set
+      return t if set[pf.pkey(t.x, t.y)]
+      px = $game_player.x; py = $game_player.y
+      open = edges.select { |x, y| set[pf.pkey(x, y)] }
+      return t if open.empty?
+      x, y = open.min_by { |ex, ey| (ex - px).abs + (ey - py).abs }
+      SurfaceTarget.new(x, y, t.name, t.key)
+    rescue StandardError
+      t
     end
   end
 end

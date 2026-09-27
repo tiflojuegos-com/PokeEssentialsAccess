@@ -1,7 +1,5 @@
-# The v22 summary's egg page (:egg_memo). Its screen paints where the egg came from and how close it is to
-# hatching (draw_egg_memo) and never the nature or the species, which it keeps until the egg hatches. The
-# reader once routed the page to the hatched memo builder, which says the nature; then to nothing at all,
-# leaving the page as its bare name; now it has a builder of its own on the same two facts the page shows.
+# The v22 summary's egg page (:egg_memo): where the egg came from and how close it is to hatching, as draw_egg_memo
+# paints them, never the nature or the species.
 Suite.define("summary v22: the egg page says where the egg came from and how close it is, and no more") do
   egg = Poke.build(:name => "Egg")
   def egg.egg?; true; end

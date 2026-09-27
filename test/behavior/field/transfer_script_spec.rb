@@ -1,15 +1,10 @@
-# The script-transfer registry under the gen-6 stubs; the shared cases live in transfer_script_cases.rb.
-# Below, the two things that are gen-6 only: Reminiscencia's profile really declaring its door pattern, and
-# the summary-page gate (both screens are gen-6 shapes).
+# The script-transfer registry under the gen-6 stubs (cases in transfer_script_cases.rb), plus two gen-6-only suites:
+# Reminiscencia's door pattern and the summary pages.
 require File.expand_path("transfer_script_cases", File.dirname(__FILE__))
 define_transfer_script_suites
 
-# The dungeon doors of Reminiscencia are sprite-less touch tiles whose only command is getToDungeon(<map>),
-# so before the profile declared that pattern they were not exits, not pathfinder targets and, having no
-# sprite to fall back on, not even a sonar ping: one verdict feeds all three. Driven through the REAL
-# constants.rb, because the wiring is the thing that was missing, not the pattern's shape. Everything that
-# file touches is restored, the pattern list included: leaked, it would rewrite what counts as a door for
-# every suite after this one.
+# Reminiscencia's constants.rb (this repo's own file, evaluated as is) declares its getToDungeon(<map>) pattern, so
+# the sprite-less tile becomes an exit, named and pinged as a door; everything the file touches is restored.
 Suite.define("reminiscencia: a getToDungeon tile is an exit, is named, and pings as a door") do
   loc = PokeAccess::Locator
   patterns = TransferCases.snapshot
@@ -21,7 +16,6 @@ Suite.define("reminiscencia: a getToDungeon tile is an exit, is named, and pings
     eq "and to the soundscape", PokeAccess::Audio3D.type_of(ev), nil
 
     path = File.join(Harness::ROOT, "games", "reminiscencia", "constants.rb")
-    # eval is the harness's own loading mechanism (test/support/harness.rb): this repo's file, by absolute path.
     eval(File.read(path), TOPLEVEL_BINDING, path)
     PokeAccess::Locator.clear_verdicts
 
@@ -42,12 +36,8 @@ Suite.define("reminiscencia: a getToDungeon tile is an exit, is named, and pings
   end
 end
 
-# The four pages beyond the first, which every one of the fifteen surveyed games has -- the one that redrew
-# its summary as a single page reopened the class and left the old page methods standing, so they are there
-# too. The stub used to carry page one alone, which made these four readers untestable and parked their
-# names in Hooks.missing, the list that by contract holds only typos.
-#
-# Asserted against the builders rather than against words, so the spec holds in whatever language is loaded.
+# Summary pages two to five are each read as the player turns to them, and none of their hooks sits in Hooks.missing,
+# the typo list.
 Suite.define("summary pages: each page of the summary is read as the player turns to it") do
   s6 = PokeAccess::SummaryGen6
   scene = PokemonSummaryScene.new

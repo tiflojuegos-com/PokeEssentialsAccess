@@ -1,10 +1,5 @@
-# The trainer card panel, shared by the classic v21 card and the v22 UI card. It had no coverage at all,
-# which matters because of HOW it broke: a gen-6 fork can declare the modern class name as an empty
-# subclass alias, the modern card binds instead of the gen-6 one, and the panel then reads the trainer
-# through the modern accessors -- which silently drop the ID, the Pokedex tally and the play time. The
-# card still talks, so nothing looks broken; it just stops saying three of the six things it is for.
-#
-# So this asserts the CONTENT, field by field, rather than that a string came out.
+# The trainer card panel (TrainerCardData), shared by the classic v21 and the v22 card: every field by its content,
+# the ID, the Pokedex tally and the play time included.
 Suite.define("trainer card: the panel names every field, not just the ones that survive an alias") do
   eng = PokeAccess::Engine
   saved = eng.method(:player)
@@ -33,19 +28,13 @@ Suite.define("trainer card: the panel names every field, not just the ones that 
     truthy "the money is in it", t.index("5000")
     truthy "the Pokedex tally is in it -- one of the three an alias mismatch drops",
            t.index("42") && t.index("90")
-    # Matched as whole phrases, not as loose digits: "01234" alone contains a 1, a 2 and a 3, so digit
-    # spotting passes with the badge count and the play time both missing.
-    truthy "the badge count is in it", t.index("3 medallas")
+    truthy "the badge count is in it", t.index(PokeAccess::I18n.t(:tr_badges, :n => 3))
     truthy "and the play time, split into hours and minutes -- 3720 seconds is 1h 2m",
-           t.index("1 horas") && t.index("2 minutos")
+           t.index(PokeAccess::I18n.t(:tr_playtime, :h => 1, :m => 2))
 
-    # No player at all is the boot case (the card can be opened from a menu before a save is loaded on
-    # some forks): it must answer nothing rather than raise into the scene.
     eng.define_singleton_method(:player) { nil }
     eq "with no trainer there is nothing to say, and no exception", PokeAccess::TrainerCardData.text, nil
 
-    # A trainer whose pokedex accessor is absent still gets the rest of the card. Degrading to silence
-    # here would be the same bug from the other side.
     bare = Object.new
     def bare.name; "Sin dex"; end
     def bare.money; 10; end
@@ -55,5 +44,49 @@ Suite.define("trainer card: the panel names every field, not just the ones that 
   ensure
     eng.define_singleton_method(:player, saved)
     $stats = had_stats
+  end
+end
+
+# With no $stats (v19, Fire Ash) the play time comes from the frame count, as gen-6's does; every card also says the
+# day the save was started.
+Suite.define("trainer card: the time is found in any era, and the start day is said") do
+  eng = PokeAccess::Engine
+  saved = eng.method(:player)
+  had_stats = $stats
+  had_fc = Graphics.respond_to?(:frame_count) ? Graphics.method(:frame_count) : nil
+  start_had = ($PokemonGlobal.respond_to?(:startTime) ? $PokemonGlobal.method(:startTime) : nil)
+  begin
+    who = Object.new
+    def who.name; "Ayoub"; end
+    def who.money; 10; end
+    eng.define_singleton_method(:player) { who }
+    $stats = nil
+    Graphics.define_singleton_method(:frame_count) { 3720 * 40 }
+    $PokemonGlobal.define_singleton_method(:startTime) { Time.local(2026, 9, 18, 10, 0, 0) }
+    Object.send(:define_method, :pbGetMonthName) { |m| %w[x Enero Febrero Marzo Abril Mayo Junio Julio Agosto Septiembre][m] }
+
+    t = PokeAccess::TrainerCardData.text.to_s
+    truthy "with no $stats the time comes from the frame count, as the card itself computes it",
+           t.index(PokeAccess::I18n.t(:tr_playtime, :h => 1, :m => 2))
+    day = PokeAccess::I18n.t(:tcard_date, :d => 18, :m => "Septiembre", :y => 2026)
+    truthy "and the start day is said with the game's own month name, in the language's order",
+           t.index(PokeAccess::I18n.t(:tcard_started, :date => day))
+
+    g6 = PokeAccess::TrainerCard.text.to_s
+    truthy "the gen-6 card says it too", g6.index(PokeAccess::I18n.t(:tcard_started, :date => day))
+  ensure
+    eng.define_singleton_method(:player, saved)
+    $stats = had_stats
+    if had_fc
+      Graphics.define_singleton_method(:frame_count, had_fc)
+    else
+      Graphics.singleton_class.send(:remove_method, :frame_count) rescue nil
+    end
+    if start_had
+      $PokemonGlobal.define_singleton_method(:startTime, start_had)
+    else
+      $PokemonGlobal.singleton_class.send(:remove_method, :startTime) rescue nil
+    end
+    Object.send(:remove_method, :pbGetMonthName) rescue nil
   end
 end

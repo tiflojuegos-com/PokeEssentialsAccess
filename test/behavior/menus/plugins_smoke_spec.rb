@@ -1,19 +1,6 @@
-# The WIRING of the plugins/ layer, which nothing tested. Every reader there has a spec for its logic, and
-# all of them call the pure function directly -- so the class name and the method name, the two things that
-# a real audit found broken over and over (a nested class, an empty subclass, a renamed method), were the
-# one part CI never looked at. Renaming "Log" to "LogXXX" inside text_log.rb left the whole suite green.
-#
-# This gives the readers the classes they hook, replays the registrations that ran and bound nothing before
-# those classes existed, and then drives the hooked methods the way the game does. Modelled on
-# dbk_smoke_spec, which already does exactly this for the Sky battle plugin.
-#
-# Extractors need no replay: Menus.focused_text resolves the class name on every call, so creating the
-# window class is enough for the dispatch to find it. Only hooks bind once at load.
-#
-# Scope, honestly: under the gen-6 stubs there is no GameData layer, so a reader whose text comes from
-# GameData (the berry detail page, the decoration names) can be shown to BIND but not to speak -- defining
-# a GameData stand-in is not an option, it would flip Engine.gamedata? for the whole run. The classes are
-# created and removed inside these suites so no later suite inherits them.
+# The wiring of the plugins/ layer: the readers get the classes they hook, their files (this repo's own) are evaluated
+# again so the hooks bind, and the hooked methods are driven as the game does. Extractors need no replay:
+# Menus.focused_text resolves the class on every call. The classes are removed after each suite.
 PLUGIN_SCENES = {
   "ItemCraft_Scene" => lambda {
     Class.new do
@@ -28,15 +15,14 @@ PLUGIN_SCENES = {
       def input; :input_done; end
     end
   },
-  # The two modal-loop scenes report what the around-hook did WHILE they ran: SceneWatcher holds the scene
-  # for the duration of the loop method, so the holder's @scene during the call is the proof it bound.
+  # The two modal-loop scenes record the scene SceneWatcher holds while their loop runs, the proof the hook bound.
   "Log" => lambda {
     Class.new do
       attr_reader :held
       def update; @held = PokeAccess::TextLogReader.instance_variable_get(:@scene); :closed; end
     end
   },
-  "Incubadora" => lambda { Class.new { def refresh; :refreshed; end } },
+  "Incubadora" => lambda { Class.new { def refresh; :refreshed; end; def dispose; :disposed; end } },
   "HallOfFameViewerScene" => lambda { Class.new { def update_display; :redrawn; end } },
   "AlbumFotos_Scene" => lambda {
     Class.new do
@@ -47,46 +33,32 @@ PLUGIN_SCENES = {
   "BerrydexInfo_Scene" => lambda { Class.new { def drawPage(_page); :page_drawn; end } },
   "PlaceDecoration_Scene" => lambda { Class.new { def pbUpdate; :updated; end } },
   "RSESTarterChoice" => lambda { Class.new { def pbUpdate; :starter_drawn; end } },
-  # The HGSS dex list reopens a class EVERY game has, so the hook binding proves nothing on its own: what
-  # says the plugin is there is the list sprite answering to dexlist/index, which the stock window does not.
+  # The HGSS dex list hooks a class every game has; the plugin shows in a list sprite answering dexlist and index.
   "PokemonPokedex_Scene" => lambda { Class.new { def pbRefresh; :dex_drawn; end } },
   "WindowTextEntryKeyboardPerKey" => lambda {
     Class.new do
       def insert(_ch); :inserted; end
       def delete; :deleted; end
     end
+  },
+  "Ekans_Interface_Game" => lambda {
+    Class.new do
+      def update_score_display
+        pbDrawTextPositions(nil, [["Puntuación: 3", 256, 6, 2, nil, nil]])
+        :score_drawn
+      end
+    end
   }
 }
 
-# The extractor-only plugins are NOT required here: the harness loads every reader, and require does not
-# know about a file already brought in with eval, so a second load would reassign whatever constants it
-# defines.
-# What the smoke does below is different and still needed: it RE-EVALUATES the hook-carrying files
-# after building fake scene classes, because a hook whose class did not exist at load time never bound.
-
-# The plugin files the hand-built suite below drives with REAL fixtures, so their speech is proven and not
-# only their binding. Every other hook-carrying file is covered by the derived suite that follows: there is
-# no exemption list any more, a new plugin is covered the moment its file and its manifest line exist.
+# The plugin files the hand-built suite drives with real fixtures, speech included; the derived suite covers the
+# rest. No plugin file is required here: the harness has loaded them, and a second load reassigns their constants.
 PLUGIN_HOOK_FILES = %w[item_crafting gender_selection text_log incubator hall_of_fame_bw photo_album
-                       berrydex secret_bases rse_starters hgss_dexlist bag_search_entry]
+                       berrydex secret_bases rse_starters hgss_dexlist bag_search_entry ekans_snake]
 
-# The derived half: every plugin file is evaluated twice against stand-ins built from plugins/manifest.rb
-# and from the file's OWN registrations.
-#
-# Pass 1 gives each plugin only its manifest probe (the class, plus the probed method when the probe is a
-# Class#method) and RECORDS every (class, method) the hook funnel is asked for while the file evaluates --
-# that is what the plugin binds to once its plugin is present, gates included. Pass 2 hands it stand-ins
-# carrying all of those methods (each returning a sentinel), evaluates the file again and checks, per
-# registration: it bound (its chain exists), driving the method still returns the sentinel through the
-# wrapper with no exception escaping the hook body, and no dump marks the site NO-DUMP in loop_census.txt
-# -- the method the plugin hooks exists in some surveyed game's copy of it, which is the renamed-method
-# check a stand-in cannot make on its own.
-#
-# The evaluation is the harness's own eval of this repo's files (test/support/harness.rb): no external input.
-#
-# What this does NOT prove is speech: a bare stand-in has no state to read. That is the hand-built suite
-# below. Everything the two passes register is undone on the way out (chains, pollers, listeners,
-# extractors, the stand-in constants), so no later suite inherits a duplicate.
+# Every plugin file evaluated twice: with its manifest probe, recording each (class, method) it hooks, then on
+# stand-ins with all of them; each hook binds, returns the sentinel, raises nothing and is no NO-DUMP site. On the
+# way out a class another spec defined gets back the method a new hook wrapped, since the hook's chain goes too.
 Suite.define("plugins: every hook in plugins/ binds and survives a drive, on stand-ins derived from the manifest and the file itself") do
   root = Harness::ROOT
   pdir = File.join(root, "plugins")
@@ -99,6 +71,9 @@ Suite.define("plugins: every hook in plugins/ binds and survives a drive, on sta
   chains = hooks.instance_variable_get(:@chains)
   chain_snap = {}
   chains.each { |k, v| chain_snap[k] = v.dup }
+  bodies = hooks.fn_bodies
+  body_snap = {}
+  bodies.each { |k, v| body_snap[k] = v.dup }
   pollers = PokeAccess::Keys.instance_variable_get(:@frame_pollers)
   poller_snap = pollers ? pollers.dup : nil
   listeners = PokeAccess::MenuReturn.instance_variable_get(:@listeners)
@@ -106,7 +81,6 @@ Suite.define("plugins: every hook in plugins/ binds and survives a drive, on sta
   extractors_len = PokeAccess::Menus::EXTRACTORS.length
   made = []
 
-  # The constant for a possibly namespaced name, created when absent (intermediates become modules).
   ensure_const = lambda do |name|
     parent = Object
     segs = name.split("::")
@@ -210,7 +184,15 @@ Suite.define("plugins: every hook in plugins/ binds and survives a drive, on sta
     meta.send(:alias_method, :wrap, :pa_smoke_wrap)
     meta.send(:remove_method, :pa_smoke_wrap)
     made.reverse_each { |par, seg| par.send(:remove_const, seg) if par.const_defined?(seg, false) }
-    chains.keys.each { |k| chain_snap.has_key?(k) ? chains[k].replace(chain_snap[k]) : chains.delete(k) }
+    chains.keys.each do |key|
+      next chains[key].replace(chain_snap[key]) if chain_snap.has_key?(key)
+      cname, meth = key.split("#", 2)
+      k = meth && PokeAccess.const_at(cname)
+      orig = "#{meth}__pa_orig_#{cname.gsub(/[^a-zA-Z0-9]/, '_')}"
+      k.send(:alias_method, meth, orig) if k.is_a?(Module) && (k.method_defined?(orig) || k.private_method_defined?(orig))
+      chains.delete(key)
+    end
+    bodies.keys.each { |k| body_snap.has_key?(k) ? bodies[k].replace(body_snap[k]) : bodies.delete(k) }
     pollers.replace(poller_snap) if pollers && poller_snap
     listeners.replace(listener_snap)
     PokeAccess::Menus::EXTRACTORS.slice!(extractors_len..-1) if PokeAccess::Menus::EXTRACTORS.length > extractors_len
@@ -229,9 +211,6 @@ Suite.define("plugins: every reader in plugins/ actually binds to the class its 
     end
     verbose = $VERBOSE
     begin
-      # eval is the harness's own loading mechanism (test/support/harness.rb): it evaluates THIS repo's
-      # files by absolute path under Harness::ROOT, never external input. Replaying a registration is the
-      # only way to bind a hook whose class did not exist when the file first loaded.
       $VERBOSE = nil
       PLUGIN_HOOK_FILES.each do |f|
         path = File.join(Harness::ROOT, "plugins", "#{f}.rb")
@@ -244,7 +223,6 @@ Suite.define("plugins: every reader in plugins/ actually binds to the class its 
     eq "no plugin hook reported a method it expected and did not find",
        PokeAccess::Hooks.missing.select { |m| PLUGIN_SCENES.keys.any? { |c| m.to_s.index("#{c}#") == 0 } }, []
 
-    # --- item_crafting: the pilot of the whole layer, and until now the only reader with NO spec at all.
     craft = ItemCraft_Scene.new
     adapter = Object.new
     adapter.define_singleton_method(:getName) { |_i| "Pocion" }
@@ -270,7 +248,6 @@ Suite.define("plugins: every reader in plugins/ actually binds to the class its 
     eq "the amount hook preserves its return value too", craft.refreshNumbers(0, 3), :numbers_drawn
     silent "and the same amount again is silent"
 
-    # --- the rest: bound, driven, and speaking. Each is its own plugin's real entry point.
     sel = PokemonGenderSelection.new
     SpeakCapture.clear
     sel.main_method
@@ -306,6 +283,8 @@ Suite.define("plugins: every reader in plugins/ actually binds to the class its 
     SpeakCapture.clear
     eq "the incubator hook preserves its return value", inc.refresh, :refreshed
     spoke "and the focused slot is read", /#{Regexp.escape(PokeAccess::I18n.t(:hatch_slot_empty, :n => 1))}/
+    eq "closing the incubator keeps its own return value", inc.dispose, :disposed
+    eq "and takes its slot off the info key", PokeAccess::Info.row_text, nil
 
     deco = PlaceDecoration_Scene.new
     deco.instance_variable_set(:@cursor_x, 4)
@@ -314,8 +293,6 @@ Suite.define("plugins: every reader in plugins/ actually binds to the class its 
     eq "the decoration cursor hook preserves its return value", deco.pbUpdate, :updated
     spoke "and the tile under it is read", /#{Regexp.escape(PokeAccess::I18n.t(:mg_rowcol, :row => 7, :col => 4))}/
 
-    # The two modal-loop readers bind through SceneWatcher: the proof it took is that the scene was HELD
-    # while the loop ran (that is what lets the per-frame poll read it), and released afterwards.
     log = Log.new
     eq "the message log's modal loop is wrapped without changing its result", log.update, :closed
     truthy "and the log scene was held for its duration", log.held.equal?(log)
@@ -334,10 +311,8 @@ Suite.define("plugins: every reader in plugins/ actually binds to the class its 
     SpeakCapture.clear
     eq "the starter carousel hook preserves its return value", starter.pbUpdate, :starter_drawn
     spoke "and the focused starter is named with its place in the row",
-          /#{Regexp.escape(PokeAccess::I18n.t(:rse_starter, :name => "Treecko", :n => 2, :tot => 3))}/
+          /#{Regexp.escape(PokeAccess::I18n.t(:list_entry, :name => "Treecko", :n => 2, :tot => 3))}/
 
-    # The dex list: the plugin's sprite answers to dexlist/index, the stock window does not, and that is
-    # both the read and the gate -- so this asserts the plugin case AND that a stock Pokedex stays quiet.
     dex = PokemonPokedex_Scene.new
     plugin_list = Object.new
     plugin_list.define_singleton_method(:index) { 0 }
@@ -356,6 +331,11 @@ Suite.define("plugins: every reader in plugins/ actually binds to the class its 
     stock.pbRefresh
     silent "and a game with the STOCK pokedex says nothing here, though the hook bound there too"
 
+    ekans = Ekans_Interface_Game.new
+    SpeakCapture.clear
+    eq "the Ekans score hook keeps its return value", ekans.update_score_display, :score_drawn
+    eq "and says the score as the game paints it", SpeakCapture.lines, ["Puntuación: 3"]
+
     berry = BerrydexInfo_Scene.new
     berry.instance_variable_set(:@berry, :ORANBERRY)
     SpeakCapture.clear
@@ -371,10 +351,8 @@ Suite.define("plugins: every reader in plugins/ actually binds to the class its 
   end
 end
 
-# Extractors are the other half of the layer and fail the same silent way. focused_text resolves the class
-# name on each call, so the dispatch is provable without replaying anything -- and each assertion is chosen
-# so the GENERIC reader could not have produced it, which is what tells "our extractor ran" apart from
-# "something read the list".
+# The plugin extractors are dispatched to (focused_text resolves the class on each call); each expected line is one
+# the generic reader could not produce.
 Suite.define("plugins: the window extractors are dispatched to, not just registered") do
   made = []
   mk = lambda do |name, ivars|
@@ -417,8 +395,6 @@ Suite.define("plugins: the window extractors are dispatched to, not just registe
     eq "and the row past the last category is the cancel button",
        PokeAccess::Menus.focused_text(pockets), PokeAccess::I18n.t(:pc_cancel)
 
-    # The quest journal keeps its list in @quests and resolves the name through the plugin's own data
-    # object, so the generic reader found neither -- it read the window as nothing at all.
     quest = Object.new
     quest.define_singleton_method(:id) { :RESCATE }
     quest.define_singleton_method(:story) { true }

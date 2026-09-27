@@ -47,10 +47,8 @@ module PokeAccess
       false
     end
 
-    # True if an event belongs in the given target category. A player override (Ctrl+K) wins over the
-    # automatic detection, so a mislabelled object can be moved to the right category. An exit lives in
-    # exits alone: with a sprite it also matched people or objects, and every arrow of a doorway came back
-    # there tile by tile under its sprite's name, beside the one clustered exit it already was.
+    # True if an event belongs in the given target category: the player's override (Ctrl+K) wins over detection, and
+    # an exit never counts as a person or an object, sprite or not.
     def self.in_category?(ev, cat)
       ov = tag_override(ev)
       if ov
@@ -68,10 +66,8 @@ module PokeAccess
       end
     end
 
-    # The categories to cycle now: the configured set, plus "puzzles" only while the current puzzle has
-    # something worth locating (its cells, obstacle walls, or statues), plus "lens" only on maps that hold a
-    # navigable Eye/Lens-of-Truth tile (#EOT), plus "marks" only on maps where the player set one, so no
-    # category ever shows up empty. Targets come from Puzzles/Marks/the event scan.
+    # The categories to cycle now: the configured ones, with puzzles, lens (#EOT tiles) and marks only while there is
+    # something to locate in them.
     def self.active_categories
       base = PokeAccess::Config.categories.reject { |c| c == :puzzles || c == :lens || c == :marks }
       base += [:puzzles] if (PokeAccess::Puzzles.has_locator_targets? rescue false)
@@ -87,9 +83,7 @@ module PokeAccess
       false
     end
 
-    # True if the current map holds a lens (#EOT) tile worth cycling to, gating the :lens category. With
-    # "hide unreachable" on, lens tiles behind their walls do not count, so the category does not appear
-    # empty (those tiles only become reachable once the lens reveals them).
+    # True if the current map holds a lens (#EOT) tile, a reachable one with hide_unreachable on; gates :lens.
     def self.any_lens_tile?
       return false unless $game_map
       tiles = $game_map.events.values.select { |ev| lens_tile?(ev) }
@@ -100,11 +94,10 @@ module PokeAccess
       false
     end
 
-    # Rebuilds the target list for the current category, sorted by distance (nearest first). With "hide
-    # unreachable" on, an empty reachable set is normally treated as a flood-fill misfire and the full list is
-    # kept; the lens category is the exception -- its tiles legitimately sit behind walls the lens reveals, so
-    # an empty result there stays empty rather than falling back to the unreachable list.
+    # Rebuilds the target list for the current category, nearest first. With hide_unreachable, an empty reachable set
+    # keeps the full list (taken as a flood misfire), except in lens, whose tiles sit behind walls the lens reveals.
     def self.rebuild_targets
+      @targets_stale = false
       @targets = []
       return unless $game_map && $game_player
       px = $game_player.x; py = $game_player.y
@@ -121,7 +114,7 @@ module PokeAccess
       else
         @targets = $game_map.events.values.select { |ev| in_category?(ev, cat) && !tag_hidden?(ev) }
         @targets = cluster_exits(@targets, px, py) if cat == :exits || cat == :all
-        @targets.concat(connection_targets) if cat == :exits || cat == :all
+        @targets.concat(connection_targets.map { |t| aim_connection(t) }) if cat == :exits || cat == :all
       end
       @targets = @targets.sort_by { |ev| (ev.x - px).abs + (ev.y - py).abs }
       if !synthetic && (PokeAccess::Config.hide_noninteractive rescue false)
@@ -149,15 +142,8 @@ module PokeAccess
       @ti = @targets.index(fresh)
     end
 
-    # Collapses a wide doorway -- adjacent transfer tiles landing on the same spot -- into one exit, keeping
-    # the tile nearest the player. Adjacency is 8-connected, and two events merge only when the destination
-    # map matches AND the landing spot is within a tile, so a multi-tile door groups while two doors that
-    # merely share a map stay separate. A door with an unknown destination falls back to its script-map or
-    # sprite. Union-find, so a 11-12-13 doorway merges as one chain.
-    #
-    # Only doors are matched against each other, since the merge test is O(n^2); everything else passes
-    # through untouched, which is why the function takes the whole list -- its result IS the target list.
-    # Order is not preserved: rebuild_targets sorts by distance on the next line.
+    # Collapses a wide doorway (8-connected transfer tiles with one exit, see same_exit?) into its tile nearest the
+    # player, chained by union-find; other events pass through, and order is not kept.
     def self.cluster_exits(events, px, py)
       return events if events.length <= 1
       doors = []
@@ -188,10 +174,8 @@ module PokeAccess
       events
     end
 
-    # A descriptor of an exit's destination for clustering: the resolved transfer target [map, x, y]
-    # (command 201), the script-transfer map, or the sprite name when neither resolves. Uses the sprite,
-    # NOT the event name -- doorway tiles are distinct events (EV002/EV003...) but share one sprite (or are
-    # all blank g0), so the sprite is what makes those group.
+    # An exit's destination for clustering: the transfer command's [map, x, y], else the script transfer's map, else
+    # the sprite name (doorway tiles are distinct events that share a sprite).
     def self.exit_descriptor(ev)
       xy = (transfer_command_dest_xy(ev) rescue nil)
       return [:xy, xy[0], xy[1], xy[2]] unless xy.nil?
@@ -200,9 +184,8 @@ module PokeAccess
       [:char, (ev.character_name.to_s rescue "")]
     end
 
-    # True if two exit descriptors belong to one doorway: same destination map with a landing spot within
-    # one tile (so a multi-tile door collapses but two far-apart doors do not), or -- when the target is
-    # unknown -- the same script-map or the same sprite.
+    # True if two exit descriptors belong to one doorway: the same map with landing spots within a tile of each other,
+    # or, with no known landing spot, the same script map or sprite.
     def self.same_exit?(a, b)
       return false if a.nil? || b.nil?
       if a[0] == :xy
@@ -212,13 +195,8 @@ module PokeAccess
       end
     end
 
-    # True if the player can walk to a tile adjacent to an event, for the hide-unreachable filter. One
-    # cached flood-fill per player tile, shared across category changes, rather than an A* per target.
-    # Reachable when the event's tile or a neighbour is in the flood, as find_path also routes to an
-    # adjacent tile; cross-counter desks are handled too.
-    #
-    # A TRUNCATED flood answers yes to everything: it covers only part of the map, so absence from it is no
-    # proof of unreachability. Same rule the pathfinder's own fast reject already applies.
+    # True if the event's tile, a neighbour or the tile across a counter is in the player's cached flood fill (for
+    # hide_unreachable); true whenever the flood was truncated, as absence from it proves nothing.
     def self.reachable?(ev)
       return true unless (PokeAccess::Pathfinder.reachable_set_complete? rescue false)
       s = (PokeAccess::Pathfinder.reachable_set rescue {})
@@ -233,7 +211,7 @@ module PokeAccess
       true
     end
 
-    # True when the current target still applies: a surface tile while on the same map, or an event that still exists.
+    # True when the current target still applies: a mark still set, a surface tile, or an event that still exists.
     def self.target_valid?
       return false unless @target && $game_map
       return !PokeAccess::Marks.get($game_map.map_id, @target.x, @target.y).nil? if mark_target?(@target)
@@ -242,9 +220,16 @@ module PokeAccess
       !id.nil? && $game_map.events[id] == @target
     end
 
-    # Ensures there is a valid target, rebuilding if needed; keeps the list position when the previous
-    # target vanished (e.g. an event changed page after talking to it) instead of snapping to the first.
+    # Ensures a valid target: a stale list is rebuilt keeping the selection, and a vanished target is replaced by the
+    # one now at its index.
     def self.ensure_target
+      if @targets_stale && target_valid?
+        prev = @target
+        rebuild_targets
+        i = @targets.index(prev)
+        @ti = i if i
+        return
+      end
       unless target_valid?
         rebuild_targets
         @ti = @targets.length - 1 if @ti >= @targets.length
@@ -261,8 +246,7 @@ module PokeAccess
       auto_steps_on
     end
 
-    # Moves the selection (+1/-1) keeping focus on the current target: the list is rebuilt fresh and the
-    # cursor resumes from where that target now sits, instead of snapping back to the nearest each time.
+    # Moves the selection by delta (+1/-1) from where the current target sits in the freshly rebuilt list.
     def self.step(delta)
       prev = @target
       rebuild_targets
@@ -287,8 +271,7 @@ module PokeAccess
       end
     end
 
-    # The player's marks on this map as synthetic targets, so the locator, the pathfinder and both guides
-    # treat a marked tile exactly like any other destination.
+    # The player's marks on this map as synthetic targets (SurfaceTarget with the key :mark).
     def self.mark_targets
       mid = $game_map.map_id
       PokeAccess::Marks.on_map(mid).map { |x, y, name| SurfaceTarget.new(x, y, name, :mark) }
@@ -301,10 +284,8 @@ module PokeAccess
       t.is_a?(SurfaceTarget) && t.key == :mark
     end
 
-    # The map-event id of a target, or nil for a synthetic one (a surface, a mark, a map edge). Decided by
-    # class and never by respond_to?(:id): under 1.8.7 every object answers that (Object#id, the old
-    # object_id), so a surface passed as taggable, took a label filed under a number no event has, and its
-    # "fixed" number followed whatever id the GC handed out.
+    # The map-event id of a target, or nil for a synthetic one (a surface, a mark, a map edge). Decided by class, not
+    # respond_to?(:id): on 1.8.7 every object has Object#id.
     def self.event_id_of(t)
       return nil if t.nil? || t.is_a?(SurfaceTarget)
       (t.id rescue nil)
@@ -339,16 +320,14 @@ module PokeAccess
     # Category options the player can force via Ctrl+K: nil = automatic detection, then the categories.
     TAG_OVERRIDES = [nil, :people, :objects, :exits, :signs]
 
-    # Shows a choice message and returns the picked (or cancel) index, across engines: gen-6 exposes the
-    # message function only as Kernel.pbMessage, modern as a global pbMessage. Calling the absent one
-    # raises NoMethodError, so pick whichever the game provides.
+    # Shows a choice message and returns the chosen (or cancel) index, through Kernel.pbMessage on gen-6 and the
+    # global pbMessage elsewhere.
     def self.show_menu(msg, choices, cancel)
       return Kernel.pbMessage(msg, choices, cancel) if Kernel.respond_to?(:pbMessage)
       pbMessage(msg, choices, cancel)
     end
 
-    # The Ctrl+K mini-menu for the focused object: recategorise (when the mod guessed wrong) or hide it.
-    # Uses the game's own choice window (read by the generic menu hook) and persists via Tags.
+    # The Ctrl+K menu for the focused object, in the game's choice window: rename, recategorise or hide it (Tags).
     def self.tag_menu
       ensure_target
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_nothing_selected), true) if @target.nil?
@@ -390,10 +369,8 @@ module PokeAccess
       eid ? [0, eid.to_i] : [1, t.x.to_i, t.y.to_i]
     end
 
-    # A stable per-map number for a target (its rank by stable_key), so an object keeps its number while
-    # you stay on the map -- the cycling list itself stays distance-sorted, so its raw index would shift.
-    # The ordering is cached keyed by the @targets array identity (the reference, so a GC.compact reusing an
-    # object_id can't cause a false hit); rebuild_targets reassigns @targets, so the cache self-invalidates.
+    # A stable per-map number for a target, its rank by stable_key; cached per @targets array by identity, which
+    # rebuild_targets replaces.
     def self.stable_ordinal(target)
       unless @stable_ref.equal?(@targets)
         @stable_ref = @targets
@@ -414,13 +391,17 @@ module PokeAccess
       end
     end
 
-    # The walking-distance suffix for a target: the real A* path length, or a no-route note. Empty when
-    # already adjacent. One A* per selection (a keypress), not per frame.
+    # The walking-distance suffix for a target: the route's step count, or why there is none (a field-move obstacle,
+    # water to surf, no route); empty when already adjacent.
     def self.step_phrase(target)
-      path = (PokeAccess::Pathfinder.find_path(target.x, target.y) rescue nil)
+      pf = PokeAccess::Pathfinder
+      cuts = pf.cuts
+      path = route_to(target)
       if path.nil?
-        return ", " + PokeAccess::I18n.t(:loc_surf_route) if (PokeAccess::Pathfinder.surf_launch(target.x, target.y) rescue nil)
-        return ", " + PokeAccess::I18n.t(:loc_no_route)
+        g = pf.gated_path(target.x, target.y)
+        return ", " + gate_route_text(g[1]) if g
+        return ", " + PokeAccess::I18n.t(:loc_surf_route) if pf.surf_launch(target.x, target.y)
+        return ", " + pf.no_route_text(pf.cuts != cuts)
       end
       return "" if path.empty?
       ", " + PokeAccess::I18n.t(:loc_steps, :n => path.length)
@@ -428,7 +409,38 @@ module PokeAccess
       ""
     end
 
-    # Speaks the selected target and its direction. param withname true prepends the target name.
+    # The walking route to a target: onto the tile for a spot acted on where it lies (dive), beside it otherwise.
+    def self.route_to(t)
+      pf = PokeAccess::Pathfinder
+      dive_key(t) ? pf.find_path_onto(t.x, t.y) : pf.find_path(t.x, t.y)
+    rescue StandardError
+      nil
+    end
+
+    # "blocked by a cut tree, use Cut": what stands between the player and a target an assisted route
+    # reaches, and what gets them past it.
+    def self.gate_route_text(g)
+      t = PokeAccess::I18n
+      case g[:kind]
+      when :act then t.t(:loc_act_route)
+      when :dismount then t.t(:loc_dismount_route)
+      else
+        return t.t(:loc_gate_route_push, :what => t.t(g[:label])) if g[:move].nil?
+        t.t(:loc_gate_route, :what => t.t(g[:label]), :move => PokeAccess::FieldMoves.name(g[:move]))
+      end
+    end
+
+    # What an assisted route leads up to, as "route to <this>" names it.
+    def self.gate_what(g)
+      case g[:kind]
+      when :act then PokeAccess::I18n.t(:loc_act_spot)
+      when :dismount then PokeAccess::I18n.t(:loc_dismount_spot)
+      else PokeAccess::I18n.t(g[:label])
+      end
+    end
+
+    # Speaks the direction to the selected target, and with withname its name, the marks shown over it, its number
+    # and walking distance too.
     def self.announce_selected(withname)
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_nothing_selected), true) if @target.nil? || $game_player.nil?
       phrase = dir_phrase(@target.x - $game_player.x, @target.y - $game_player.y)
@@ -437,14 +449,16 @@ module PokeAccess
       end
       ord = ordinal_of(@target)
       ordtxt = (ord && !@targets.empty?) ? (PokeAccess::I18n.t(:loc_count, :n => ord, :total => @targets.length) + ", ") : ""
-      PokeAccess.speak("#{target_name(@target)}, #{ordtxt}#{phrase}#{step_phrase(@target)}", true)
+      name = [target_name(@target)].concat((name_marks(@target) rescue []) || []).join(", ")
+      PokeAccess.speak("#{name}, #{ordtxt}#{phrase}#{step_phrase(@target)}", true)
     end
 
-    # Ctrl+G: names the tile the player stands on as a mark of their own. One key does all three things:
-    # the prompt opens empty on a bare tile and with the current name on a marked one, and an answer wiped
-    # blank removes the mark -- which is how prompt_rename already reads an empty answer. Map only: the key
-    # is polled from Input.update, which runs inside menus and battles too, and a mark set from the bag
-    # would point at wherever the map happened to be left.
+    # The words for what a plugin draws over a target (a quest marker), said after its name; none here, a plugin that
+    # draws them adds its own.
+    def self.name_marks(_target); []; end
+
+    # Ctrl+G: sets, renames or (with a blank answer) removes the mark on the player's tile. Map only: the key is
+    # polled from Input.update, which also runs in menus and battles.
     def self.mark_here
       return PokeAccess.speak(PokeAccess::I18n.t(:mark_map_only), true) unless on_map?
       edit_mark($game_player.x, $game_player.y)
@@ -464,8 +478,7 @@ module PokeAccess
       ensure_target
     end
 
-    # The Ctrl+K menu of a mark: rename or delete. A mark has no category to force and hiding it would be
-    # deleting it, so it is not the object menu with two options missing but its own two.
+    # The Ctrl+K menu of a mark: rename or delete.
     def self.mark_menu(t)
       sel = (show_menu(PokeAccess::I18n.t(:mark_menu, :name => t.name),
                        [PokeAccess::I18n.t(:tag_rename), PokeAccess::I18n.t(:mark_delete), PokeAccess::I18n.t(:back)], 3) rescue 2)
@@ -481,8 +494,7 @@ module PokeAccess
       nil
     end
 
-    # True while the player is on the map under free control, which is the only place a tile-bound action
-    # (marking where you stand) means anything.
+    # True while the player is on the map (Scene_Map, no menu open).
     def self.on_map?
       return false unless $game_map && $game_player
       return false if (($game_temp && $game_temp.in_menu) rescue false)
@@ -513,22 +525,24 @@ module PokeAccess
       auto_steps_on
     end
 
-    # Speaks the A* route to the current target.
+    # Speaks the A* route to the current target, or, when a field-move obstacle stands in the way, the route
+    # up to it and what it is.
     def self.announce_route
       ensure_target
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_nothing_selected), true) if @target.nil?
-      PokeAccess.speak(PokeAccess::I18n.t(:loc_route, :steps => PokeAccess::Pathfinder.path_to_text(
-        PokeAccess::Pathfinder.find_path(@target.x, @target.y))), true)
+      pf = PokeAccess::Pathfinder
+      cuts = pf.cuts
+      path = route_to(@target)
+      g = path.nil? ? pf.gated_path(@target.x, @target.y) : nil
+      if g
+        return PokeAccess.speak(PokeAccess::I18n.t(:loc_route_gate, :what => gate_what(g[1]),
+                                                   :steps => pf.path_to_text(g[0])), true)
+      end
+      PokeAccess.speak(PokeAccess::I18n.t(:loc_route, :steps => pf.path_to_text(path, pf.cuts != cuts)), true)
     end
 
-    # Announces the map name once on entering a new map, and is the single trigger for :map_changed, which
-    # is what makes Caches.reset_all run.
-    #
-    # Identity is compared as well as the id, because the id alone cannot see a LOAD: a save can land on the
-    # map the player was already standing on, and then nothing resets and the previous run's emitters and
-    # targets carry over. Loading rebuilds $game_map, so it is a different object even for the same id,
-    # while merely walking back to a visited map returns the cached instance. That catches every load in
-    # any era without knowing which screen performed it.
+    # Announces the map name on entering a new map and emits :map_changed (which runs Caches.reset_all). The map
+    # object is compared too: a load rebuilds $game_map, even onto the same map id.
     def self.announce_map_change
       mid = ($game_map.map_id rescue nil)
       ref = ($game_map.__id__ rescue nil)
@@ -542,20 +556,13 @@ module PokeAccess
       PokeAccess.speak(nm, false)
     end
 
-    # True while the player is mid-jump, i.e. hopping a ledge (the engine sets @x/@y two tiles at once and
-    # marks @jump_timer, so jumping? is true on that frame). Present in every engine variant (stock RMXP
-    # Game_Character); the rescue keeps a missing method from ever raising here.
+    # True while the player is mid-jump (a ledge hop moves them two tiles in one frame).
     def self.player_jumping?
       !!($game_player.jumping? rescue false)
     end
 
-    # Announces an internal teleport: a jump of more than one tile on the SAME map, which announce_map_change
-    # cannot see because the id does not change. Spoken with the destination's cardinal direction, and the
-    # targets are rebuilt for the new spot.
-    #
-    # A forced move route is a cutscene walk and does not count. Neither does a ledge hop, which also covers
-    # two tiles in one frame: jumping? guards it out, which keeps the locator's selection alive across it.
-    # The first frame and any map change only seed the position.
+    # Announces a teleport within the map (a move of over one tile in a frame) with its cardinal direction, and
+    # rebuilds the targets; a ledge hop or a forced move route does not count.
     def self.announce_internal_teleport
       x = ($game_player.x rescue nil); y = ($game_player.y rescue nil); mid = ($game_map.map_id rescue nil)
       return if x.nil? || y.nil? || mid.nil?
@@ -576,22 +583,17 @@ module PokeAccess
       nil
     end
 
-    # Drops the target list and selection so the locator never offers an event from the previous map. The
-    # cache reset run on :map_changed.
-    #
-    # NOT @last_map_id: clearing it would have announce_map_change see a change again next frame and
-    # re-announce forever. The guide's route memo goes too -- @noroute_key is [px, py, tx, ty] with no map
-    # in it, so a "no route" would be replayed on another map at the same coordinates without running A*.
-    # So does the surface list, which is built from the reachability flood that this registry resets.
+    # Drops the targets, the selection, the surface cache and the guide's route state (the no-route memo has no map
+    # id); run on :map_changed. Keeps @last_map_id, or the map change would be announced again every frame.
     def self.clear_targets
       @targets = []; @target = nil; @ti = 0
       @guide_path = nil; @guide_from = nil; @guide_target = nil; @noroute_key = nil
+      @guide_gate = nil; @guide_surf = false; @hold_said = nil
       @steps_at = nil; @steps_leg = nil
       @surface_cache = nil; @surface_cache_pos = nil
     end
 
-    # Forgets the current map so the next announce_map_change fires even on the same map_id. For loading a
-    # save, which may land on the map the player was already on; NOT wired to :map_changed.
+    # Forgets the current map so the next announce_map_change fires even on the same map id (a load screen calls it).
     def self.forget_map
       @last_map_id = nil
       @last_map_ref = nil
@@ -606,9 +608,8 @@ module PokeAccess
       PokeAccess.speak("#{nm ? nm + '. ' : ''}#{coords_text($game_player.x, $game_player.y)}", true)
     end
 
-    # Rebuilds the list the instant a running event finishes (an item picked up, a switch flipped) so a
-    # collected object drops out and the count updates at once. Fires once on the running->idle edge, only
-    # while the list is non-empty (an idle map pays nothing).
+    # On the edge where a running event finishes: drops the route caches and rebuilds (or marks stale) a non-empty
+    # target list, so a collected object drops out.
     def self.refresh_on_event_end
       run = ($game_system && $game_system.map_interpreter && $game_system.map_interpreter.running?) rescue false
       if @interp_running && !run
@@ -616,29 +617,49 @@ module PokeAccess
         (PokeAccess::Puzzles.forget_obstacles rescue nil)
         (PokeAccess::Locator.forget_noroute rescue nil)
         (PokeAccess::Locator.clear_verdicts rescue nil)
-        rebuild_targets unless @targets.empty?
+        stale_or_rebuild unless @targets.empty?
       end
       @interp_running = run
     rescue StandardError
       @interp_running = false
     end
 
-    # Whether map_poll does its per-frame work now: a map and a player, the mod switched on and its own
-    # menu shut. The game-bump filter asks the same, because the wall cue it stands in for plays from here.
+    # The target list after an event ends: marked stale for ensure_target to rebuild when next used, with
+    # defer_target_rebuild (on by default; rebuilding floods the map as a conversation closes), else rebuilt now.
+    def self.stale_or_rebuild
+      if (PokeAccess::Config.defer_target_rebuild rescue true)
+        @targets_stale = true
+      else
+        rebuild_targets
+      end
+    end
+
+    # Whether map_poll runs this frame: a map, a player, the mod on and its menu shut; the game-bump filter asks too.
     def self.polling?
       return false unless $game_map && $game_player
       return false unless (PokeAccess::Keys.enabled rescue true)
       !PokeAccess::ConfigMenu.active?
     end
 
-    # Runs every map frame: map-change announce, battle/info reset, spatial audio, guides, keys.
+    # Sets the info key to the trainer every map frame, so a menu drawn over the map answers with it too; not while a
+    # menu with help is open, whose help the key reads instead.
+    def self.refresh_info
+      PokeAccess::Info.set_info(:trainer, nil) unless PokeAccess::CommandHelp.current
+    end
+
+    # Runs every map frame (map_frame), filing what it says under navigation.
     def self.map_poll
       return unless polling?
+      PokeAccess::Speech.as(:nav) { map_frame }
+    end
+
+    # One map frame's work: the map and teleport lines, the guides, and the locator's keys.
+    def self.map_frame
       announce_map_change
       announce_internal_teleport
       refresh_on_event_end
       PokeAccess::Battle.clear_battle
-      PokeAccess::Info.set_info(:trainer, nil)
+      refresh_info
       PokeAccess::Spatial.tick
       guide_tick
       steps_tick
@@ -669,11 +690,8 @@ module PokeAccess
   end
 end
 
-# Per-frame map driver, hooked on Game_Player#update (not Scene_Map#update): some games run their whole
-# map loop inside Scene_Map#update, so an after-hook there would only fire on leaving the map, but
-# Game_Player#update runs each frame on the map in every engine variant. frame_hook, not after_hook: gen-6
-# runs a whole wild battle inside Game_Player#update, so guarding it would pin the reentrancy stack for the
-# entire fight and mute every battle reader (messages, command menu, moves).
+# Per-frame map driver on Game_Player#update (some games loop the whole map inside Scene_Map#update). A frame_hook:
+# gen-6 runs wild battles inside this update, and a guarded hook would mute every battle reader.
 PokeAccess::Hooks.frame_hook("Game_Player", :update) do |_p, _a|
   PokeAccess::Perf.measure(:map_poll) { PokeAccess::Locator.map_poll }
 end
@@ -681,7 +699,5 @@ end
 # Rebuild the target list when something elsewhere changes tags (e.g. an object un-hidden from the menu).
 PokeAccess::Events.on(:tags_changed) { (PokeAccess::Locator.rebuild_targets rescue nil) }
 
-# Drop the target list / selected target on map change (Caches.reset_all), so the locator never offers an
-# event from the previous map; announce_map_change rebuilds it for the new map on the next frame. Uses
-# clear_targets, NOT forget_map: clearing @last_map_id here would loop (reset -> re-announce -> reset).
+# Clears the targets on a map change; clear_targets, not forget_map, whose clearing of @last_map_id would loop.
 PokeAccess::Caches.register(:locator) { PokeAccess::Locator.clear_targets }

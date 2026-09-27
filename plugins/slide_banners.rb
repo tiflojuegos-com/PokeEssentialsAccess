@@ -1,15 +1,11 @@
-# Sliding banners (FastItemGet / QuickPickup family; Scene_Map#addSprite in five games): one line painted
-# onto a picture bitmap with drawTextEx or pbDrawTextPositions, then slid across the map, with no message
-# behind it while the map is up. The pairing is by BITMAP: the paint wraps remember what was written on
-# which bitmap, and the banner speaks when that same bitmap reaches addSprite, so nothing is composed, a
-# banner nested in another reads both, and a paint with no letter or digit (an autosave asterisk) is dropped.
-# The five copies differ only in what they paint.
+# Sliding banners (FastItemGet / QuickPickup family, Scene_Map#addSprite): the text painted on a bitmap with
+# drawTextEx or pbDrawTextPositions is spoken when that same bitmap reaches addSprite.
 module PokeAccess
   module SlideBanners
     KEEP = 8
     @painted = []
 
-    # Remembers the line drawTextEx just painted on a bitmap; only the last few pairs are kept.
+    # Remembers the line painted on a bitmap (the last KEEP pairs); one with no letter or digit is dropped.
     def self.painted(bitmap, text)
       return if bitmap.nil? || text.nil?
       t = text.to_s

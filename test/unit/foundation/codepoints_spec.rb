@@ -1,6 +1,5 @@
-# Clipboard's pure UTF-8 halves (codepoints_of / utf8): a byte-level round trip that must hold on every
-# width -- ASCII (1 byte), accents (2), CJK (3), emoji (4, the astral plane the Win32 path splits into
-# surrogates) -- and malformed input must degrade byte-by-byte instead of raising.
+# Clipboard's pure UTF-8 halves (codepoints_of, utf8) round-trip every width, 1 to 4 bytes; malformed input does not
+# raise.
 Suite.define("clipboard: codepoints_of and utf8 round-trip every UTF-8 width") do
   cases = {
     "ascii"  => [104, 111, 108, 97],

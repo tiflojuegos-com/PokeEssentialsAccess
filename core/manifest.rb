@@ -1,6 +1,5 @@
-# Core load order (subsystem/module path, no .rb): the dependency order, evaluated by boot.rb exactly as
-# listed. Keep foundation first. Layout is module-first: core/<module>/ holds the engine-agnostic readers,
-# and its version subfolders the parts that differ by engine, each gated by class existence:
+# Core load order (subsystem/module path, no .rb), evaluated by boot.rb as listed; foundation first.
+# core/<module>/ holds the engine-agnostic readers, its subfolders the per-engine parts (gated by class existence):
 #   <module>/gen6/     the gen-6 era (Ruby 1.8.7: PokeBattle_Scene, PScreen, PB* data)
 #   <module>/v21/      GameData-era Essentials v19-v21.1 (Battle::Scene, GameData, the pre-rework scenes)
 #   <module>/v22/      the v22 UI:: rework (UI::BaseScreen / UI::*Visuals)
@@ -33,15 +32,26 @@
   data/v21/data_v21
   speech/markers
   speech/text
+  speech/backend
+  speech/categories
   speech/speech
+  speech/history
+  speech/verbosity
+  speech/verbosity_schemes
   input/hooks
   util/paint_capture
   input/keyboard
   input/focus
   input/remap
+  input/native_keys
+  input/key_hints
   input/input
   input/diag
   menus/config_menu
+  menus/config_rows
+  menus/config_dicts
+  menus/config_verbosity
+  menus/config_remap
   nav/terrain
   audio/spatial
   audio/glossary
@@ -51,6 +61,7 @@
   field/field_states
   field/minigames
   puzzles/puzzles
+  puzzles/stages
   field/location_banner
   field/turbo
   menus/cursor
@@ -61,10 +72,10 @@
   menus/ready_menu
   menus/screen_messages
   menus/modal_panel
+  menus/pause_panel
   menus/info_window
   menus/controls_help
   menus/command_help
-  menus/character_creator
   menus/sprite_button_menu
   menus/options
   menus/option_help
@@ -74,7 +85,10 @@
   menus/appearance
   menus/picture_cues
   menus/load_screen
+  menus/title_screen
+  menus/gen6/title_screen_g6
   menus/trainer_card
+  menus/credits
   menus/v21/trainer_card_v21
   battle/battle
   battle/move_info
@@ -85,11 +99,16 @@
   battle/pokedex
   menus/pokedex_entry
   battle/v21/pokedex_info_v21
+  battle/gen6/pokedex_info_g6
   menus/purify_chamber
   menus/shops
+  menus/battle_swap
+  menus/marking
   menus/encounter_list
   menus/v21/ui_v21
-  menus/pokedex_search
+  menus/pokedex_search/base
+  menus/pokedex_search/grid
+  menus/pokedex_search/list
   menus/v21/move_relearner_v21
   menus/gen6/move_relearner_g6
   field/hall_of_fame
@@ -128,11 +147,25 @@
   nav/locator
   nav/guide
   nav/pathfinder
+  nav/route_search
+  nav/route_grid
+  nav/route_text
+  nav/event_pages
+  nav/route_events
+  nav/route_water
+  nav/route_gates
+  nav/route_terrain
+  nav/field_moves
+  nav/map_meta
   dialogue/dialogue
+  dialogue/pages
+  field/evolution_text
+  field/hatch_shiny
   field/mail
   field/fishing
   field/phone
   field/itemfinder
+  field/pokeradar
   menus/money_window
   menus/uihelper
   util/recorder

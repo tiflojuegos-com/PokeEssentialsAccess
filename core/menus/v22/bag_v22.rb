@@ -1,8 +1,6 @@
 module PokeAccess
-  # v22 bag screen (Essentials v22: UI::BagVisuals + UI::BagVisualsList). The list window is created with
-  # active = false, so it is read here on the screen's own cursor callback rather than by the generic
-  # command-window reader. Item navigation goes through refresh_on_index_changed; pocket changes go through
-  # set_pocket (which does not), so both are hooked.
+  # v22 bag (UI::BagVisuals): its list window is inactive, so items are read on the screen's cursor callback and
+  # pocket changes on set_pocket.
   module BagV22
     # The focused bag entry: "Item ×qty" (or just the name for unstackable items), or the close label.
     def self.item_line(vis)
@@ -31,8 +29,7 @@ end
 # Item navigation (fires in both the normal and choose-item loops).
 PokeAccess::V22.on_nav("UI::BagVisuals") { |vis| PokeAccess::BagV22.item_line(vis) }
 
-# Pocket change (left/right) goes through set_pocket, which does not fire refresh_on_index_changed, so
-# announce the new pocket plus its focused item and prime the nav dedup key to avoid an immediate repeat.
+# A pocket change (set_pocket, which skips the nav callback): the pocket and its focused item, priming the nav dedup.
 if PokeAccess::Engine.has?("UI::BagVisuals")
   PokeAccess::Hooks.after_hook("UI::BagVisuals", :set_pocket) do |vis, _ret, _args|
     line = PokeAccess::BagV22.item_line(vis)

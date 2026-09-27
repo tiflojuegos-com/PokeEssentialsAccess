@@ -1,8 +1,7 @@
 module PokeAccess
-  # The Ekans snake minigame: its setup menu and its record table. The menu is a vertical list (@index over
-  # @options, redrawn by draw on every move) on a class that inherits from nothing, so the generic window
-  # reader never sees it; each row is a Symbol resolved through Ekans_Game.option_name and .rhs_text. The
-  # GAME itself is deliberately not covered: it is real-time and needs a narration model of its own.
+  # The Ekans snake minigame's setup menu (@index over @options, each Symbol named through Ekans_Game.option_name and
+  # .rhs_text), its record table, its score during the game, and its pause and game-over panels; where the snake and
+  # the berries are is not read.
   module EkansSnake
     def self.row(scene)
       opts = PokeAccess.ivar(scene, :@options)
@@ -18,11 +17,7 @@ module PokeAccess
       nil
     end
 
-    # The record table as one spoken block, built from the very array the screen paints.
-    #
-    # Grouped by the y each cell is drawn at, so a table row comes out as a row instead of three loose
-    # values. The screen has no cursor and no scroll -- it is painted once and waits for a key -- so one
-    # read covers it whole, the "no records yet" case included.
+    # The record table as one spoken block from the array the screen paints, its cells grouped into rows by y.
     def self.scores_text(positions)
       return nil unless positions.is_a?(Array)
       rows = {}
@@ -43,33 +38,33 @@ module PokeAccess
   end
 end
 
-# draw runs when the menu opens and on every cursor move or value change, so it covers the opening read and
-# both kinds of change. The value is part of the dedup key: changing a setting leaves the cursor where it is.
+# draw runs on open and on every move or value change; the value joins the dedup key, as a change keeps the index.
 PokeAccess::Hooks.after_hook("Ekans_Interface_Main", :draw, :optional => true) do |scene, _r, _a|
   PokeAccess::EkansSnake.row(scene)
 end
 
-# Starting a game or opening the records comes back to the same row with the same value, so the redraw that
-# follows finds an unchanged key and would place the player nowhere. hook_container because the record
-# screen this method opens is itself read by a hook of ours.
+# Back from a game or the records on the same row and value: reset the dedup so the row is said again. A container,
+# since the record screen it opens has its own hook.
 PokeAccess::Hooks.after_hook("Ekans_Interface_Main", :do_action, :optional => true, :hook_container => true) do |scene, _r, _a|
   PokeAccess::Cursor.reset(scene, :ekans_row)
 end
 
-# The record table is painted inside the constructor, which then blocks until a key closes it, so the point
-# where the rows exist and the screen is still up is the method that builds them.
+# The record table, read from get_text_pos: the constructor paints it and then blocks until a key.
 PokeAccess::Hooks.after_hook("Ekans_Interface_Hiscores", :get_text_pos, :optional => true) do |_s, ret, _a|
   t = PokeAccess::EkansSnake.scores_text(ret)
   PokeAccess.speak(t, false) if t
 end
 
-# The pause and game-over panels: both are pure PNG artwork (their words live inside the image) that
-# BLOCK in their own loop, so a blind player got a game that just stopped answering the arrows. Image
-# text is the one case the mod's own prose is authorized for, via lang/.
+# The pause and game-over panels, whose words exist only in their images: said in the mod's own (lang/).
 PokeAccess::Hooks.before_hook("Ekans_Interface_Game", :do_pause_menu, :optional => true) do |_s, _a|
-  PokeAccess.speak(PokeAccess::I18n.t(:ekans_pause), true)
+  PokeAccess.speak(PokeAccess::Verbosity.with_hint(PokeAccess::I18n.t(:ekans_pause), PokeAccess::I18n.t(:ekans_pause_hint)), true)
 end
 PokeAccess::Hooks.before_hook("Ekans_Interface_Game", :lose_game, :optional => true) do |scene, _a|
   n = (PokeAccess.ivar(scene, :@adapter).score rescue nil)
   PokeAccess.speak(PokeAccess::I18n.t(:ekans_gameover, :n => n.to_i), true)
+end
+
+# The score line (update_score_display) as painted, captured on each berry that changes it and as the game starts.
+PokeAccess::Hooks.around_hook("Ekans_Interface_Game", :update_score_display, :optional => true) do |_s, nxt, _a|
+  PokeAccess::PaintCapture.speak_around(:ekans_score, true) { nxt.call }
 end

@@ -1,6 +1,5 @@
-# The net that fails the run when a reader hands speak an uncleaned text. It guards every suite, so it is
-# the one piece nothing else guards: these probes prove it fires for each family clean() strips, and that
-# clear() -- which specs call freely between assertions -- cannot wash the evidence away.
+# The net that fails the run when speak gets an uncleaned text: it fires for each family clean() strips, and clear()
+# does not wash the offenders away.
 Suite.define("runner: la red anti-codigos dispara y sobrevive a clear") do
   base = SpeakCapture.raw_offenders.length
   PokeAccess.speak("\\c[3]sonda", true)

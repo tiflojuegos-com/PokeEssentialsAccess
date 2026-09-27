@@ -1,13 +1,7 @@
 module PokeAccess
-  # v22 options screen (UI::OptionsVisualsList, a Window_DrawableCommand whose entries are option HASHES,
-  # not strings, so the generic reader gets nothing). The class is VANILLA v22, declared in
-  # Data/Scripts/016_UI/015_UI_Options.rb of the stock engine and not in La Base de Sky's: it is a core
-  # reader, not a plugins/ one, or every other v22 game would lose it.
-  #
-  # Reads the focused option's name and value, on BOTH navigation (index change) and value edit (left/right
-  # on the same option), by deduping on [index, value]. The value is formatted by option[:type], mirroring
-  # draw_option_values: choice lists (:array/:array_one/:arrow_option) read the chosen label, :toggle reads
-  # its label or ON/OFF, sliders and numbers read the number, :control reads the bound keys.
+  # v22 options screen (UI::OptionsVisualsList, vanilla v22, whose entries are option hashes): the focused option's
+  # name and value on navigation and on left/right, deduped on [index, value], the value by option[:type] as
+  # draw_option_values paints it.
   module OptionsV22
     # The spoken value of the focused option, by type, or nil when there is none to read.
     def self.value_text(win, i, o)
@@ -18,6 +12,10 @@ module PokeAccess
         v = (vals.is_a?(Array) ? vals[i] : nil)
         return nil unless v.is_a?(Array)
         return v.map { |k| k ? (Input.input_name(k) rescue k.to_s) : "---" }.join(", ")
+      end
+      if type == :number_type
+        painted = (PokeAccess.ivar(win, :@access_painted) || {})[i]
+        return painted if painted
       end
       cur = (o[:get_proc].call rescue nil)
       return nil if cur.nil? || cur.is_a?(Array) || cur.is_a?(Hash)
@@ -46,8 +44,7 @@ module PokeAccess
       nil
     end
 
-    # Reads the focused option when its index OR its value changes, so left/right value edits are spoken,
-    # not only navigation between options.
+    # Speaks the focused option when its index or value changes.
     def self.poll(win)
       opts = PokeAccess.ivar(win, :@options)
       i = (win.index rescue nil)
@@ -62,15 +59,32 @@ module PokeAccess
   end
 end
 
-# Per-frame on the options list (index navigation AND left/right value edits both keep redrawing it).
-# Registered only where the class exists, so the "::"-qualified name can't break gen-6's const handling.
-PokeAccess::Hooks.after_hook("UI::OptionsVisualsList", :update) do |win, _r, _a|
+# A :number_type value is painted as words ("Type 3/8") while the option holds a bare index: the paint is kept
+# per row, for the options list it was painted from, and read instead.
+PokeAccess::Hooks.around_hook("UI::OptionsVisualsList", :draw_option_values, :optional => true) do |win, nxt, args|
+  opts = PokeAccess.ivar(win, :@options)
+  o = opts.is_a?(Array) ? opts[args[0].to_i] : nil
+  if o.is_a?(Hash) && o[:type] == :number_type
+    ret = nil
+    rows = PokeAccess::PaintCapture.shadow_sample { ret = nxt.call }
+    painted = PokeAccess.ivar(win, :@access_painted_for) == opts.object_id ? PokeAccess.ivar(win, :@access_painted) : nil
+    painted ||= {}
+    painted[args[0].to_i] = PokeAccess.clean(rows.join(" ")) unless rows.empty?
+    win.instance_variable_set(:@access_painted, painted)
+    win.instance_variable_set(:@access_painted_for, opts.object_id)
+    ret
+  else
+    nxt.call
+  end
+end if PokeAccess::Engine.has?("UI::OptionsVisualsList")
+
+# Polled per frame on the options list, only where the class exists; a frame hook, since the list repaints inside
+# its update and a guarded hook would skip the value capture above.
+PokeAccess::Hooks.frame_hook("UI::OptionsVisualsList", :update) do |win, _a|
   PokeAccess::OptionsV22.poll(win)
 end if PokeAccess::Engine.has?("UI::OptionsVisualsList")
 
-# The tab row: index -1 moves BETWEEN pages, and the poll above only reads options. The hook's own
-# arguments carry the whole state (visible pages, scroll, the active page id); the page NAME comes from
-# the game's page handler, so it says whatever this build says.
+# The page tabs (index -1): the active page's name from the game's page handler, with its place among the pages.
 PokeAccess::Hooks.after_hook("UI::OptionsVisuals", :draw_page_tabs, :optional => true) do |vis, _r, args|
   pages = args[0]; active = args[2]
   if pages.is_a?(Array) && active
@@ -81,7 +95,8 @@ PokeAccess::Hooks.after_hook("UI::OptionsVisuals", :draw_page_tabs, :optional =>
       if nm.empty?
         nil
       elsif pos
-        PokeAccess::I18n.t(:opt_tab, :name => PokeAccess.clean(nm), :n => pos + 1, :tot => pages.length)
+        PokeAccess::Verbosity.list_entry(PokeAccess::I18n.t(:opt_tab_name, :name => PokeAccess.clean(nm)), pos + 1,
+                                         pages.length)
       else
         PokeAccess.clean(nm)
       end
@@ -89,10 +104,9 @@ PokeAccess::Hooks.after_hook("UI::OptionsVisuals", :draw_page_tabs, :optional =>
   end
 end
 
-# The per-option description the screen writes into its speech box on every selection change; stored on
-# the info key, matching how option help reads everywhere else in the mod.
+# The option's description in the speech box, stored for the info key on every selection change.
 PokeAccess::Hooks.after_hook("UI::OptionsVisuals", :refresh_selected_option, :optional => true) do |vis, _r, _a|
   box = (PokeAccess.ivar(vis, :@sprites) || {})[:speech_box]
   t = (box.text rescue nil)
-  PokeAccess::Info.set_info(:text, (t.nil? || t.to_s.strip.empty?) ? nil : PokeAccess.clean(t.to_s))
+  PokeAccess::Info.set_info(:text, (t.nil? || t.to_s.strip.empty?) ? nil : PokeAccess::KeyHints.localize(PokeAccess.clean(t.to_s), nil, true))
 end

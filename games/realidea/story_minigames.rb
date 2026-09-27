@@ -1,16 +1,31 @@
-# Realidea's two story-critical minigames: Mankey is launched from the battle code and the pirates event,
-# Pesca is the game's general fishing, so being unable to play them blocks progress. Both expose a method
-# that runs once per frame inside their own loop (Pesca#input, Mankey#inputs), so hooking those is enough.
-# Pesca is a TIMING game: @frame cycles 1..18 and frame 11 is the only one that costs the player nothing
-# (10 and 12 are 30 for 10, 9 and 13 are 20 for 20, the rest 10 for 30), so the tick's pitch peaks there.
-# Mankey is turn-based: @seleccion walks $Trainer.contestaciones and @vidasprota / @vidasenemigo are the
-# hearts, drawn as sprites.
+# Realidea's two story minigames, read from their per-frame methods: Pesca (fishing), a timing game whose @frame
+# cycles 1..18 with 11 the only frame that costs nothing, and Mankey, a duel of replies and hearts.
 module PokeAccess
   module RealideaStory
     PERFECT_FRAME = 11
+    # The picture each press shows, by the frame it lands on (resultado): PERFECT on 11, GREAT beside it, GOOD
+    # one further, BAD elsewhere.
+    RATINGS = { 11 => :rea_pesca_perfect, 10 => :rea_pesca_great, 12 => :rea_pesca_great, 9 => :rea_pesca_good,
+                13 => :rea_pesca_good }
+
+    # The Pokemon on the hook, as its box paints it ("<name> Lv.<n>"), once as the minigame opens.
+    def self.pesca_foe(scene)
+      pk = PokeAccess.ivar(scene, :@pokemon)
+      return unless pk && PokeAccess::Cursor.changed?(scene, :rea_pesca_foe, true)
+      name = (pk.name rescue nil).to_s
+      PokeAccess.speak(PokeAccess::I18n.t(:rea_pesca_foe, :name => name, :level => PokeAccess.ivar_i(scene, :@nivel)), true)
+    end
+
+    # The rating a press earns, as the picture resultado shows for the frame it lands on.
+    def self.pesca_rating(scene)
+      PokeAccess.speak(PokeAccess::I18n.t(RATINGS[PokeAccess.ivar_i(scene, :@frame)] || :rea_pesca_bad), true)
+    rescue StandardError
+      nil
+    end
 
     # Ticks once per frame step, pitch peaking on the perfect frame so the timing is audible.
     def self.pesca(scene)
+      pesca_foe(scene)
       f = PokeAccess.ivar(scene, :@frame)
       if !f.nil? && PokeAccess.ivar(scene, :@pa_frame) != f
         scene.instance_variable_set(:@pa_frame, f)
@@ -26,11 +41,8 @@ module PokeAccess
       nil
     end
 
-    # Speaks the focused reply, and the hearts left on each side whenever one is lost.
-    #
-    # The TURN is in the dedup key, not just the index and the length. Which of the two lists is showing --
-    # the comebacks or the insults -- is @turno, and both start at two entries and grow together, so with the
-    # same cursor on a same-sized list the line changed from one to the other and the reader said nothing.
+    # Speaks the focused reply, and the hearts left on each side whenever one is lost; the dedup key holds @turno,
+    # as the two lists can match in cursor and length.
     def self.mankey(scene)
       lives = PokeAccess.ivar(scene, :@vidasprota)
       elives = PokeAccess.ivar(scene, :@vidasenemigo)
@@ -42,17 +54,13 @@ module PokeAccess
       list = mankey_list(scene)
       return unless idx.is_a?(Integer) && list.is_a?(Array) && idx >= 0 && idx < list.length
       PokeAccess::Cursor.announce(scene, :rea_mankey, [idx, list.length, PokeAccess.ivar(scene, :@turno)], true) do
-        PokeAccess::I18n.t(:list_entry, :name => PokeAccess.clean(list[idx].to_s),
-                           :n => idx + 1, :tot => list.length)
+        PokeAccess::Verbosity.list_entry(PokeAccess.clean(list[idx].to_s), idx + 1, list.length)
       end
     rescue StandardError
       nil
     end
 
-    # The line list the duel is currently showing. It ALTERNATES: on turn 1 the player picks a comeback from
-    # $Trainer.contestaciones, otherwise an insult from $Trainer.insultos -- and it starts on turn 0, so
-    # fixing on the comeback list read the wrong line from the very first turn, and fell silent whenever the
-    # insult list was the longer of the two and the cursor went past the comeback list's end.
+    # The list the duel shows: $Trainer.contestaciones (comebacks) on turn 1, else $Trainer.insultos (insults).
     def self.mankey_list(scene)
       src = (PokeAccess.ivar(scene, :@turno) == 1) ? ($Trainer.contestaciones rescue nil) :
                                                      ($Trainer.insultos rescue nil)
@@ -67,5 +75,6 @@ PokeAccess::Game.define("realidea") do
   # hook_container: at zero enemy HP input opens the whole ball-choosing bag screen from inside, so an
   # atomic guard would discard every reader hook nested under it.
   after("Pesca", :input, :hook_container => true) { |s, _r, _a| PokeAccess::RealideaStory.pesca(s) }
+  before("Pesca", :resultado) { |s, _a| PokeAccess::RealideaStory.pesca_rating(s) }
   after("Mankey", :inputs) { |s, _r, _a| PokeAccess::RealideaStory.mankey(s) }
 end

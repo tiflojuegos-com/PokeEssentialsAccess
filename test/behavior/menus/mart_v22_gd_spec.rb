@@ -1,10 +1,5 @@
-# The v22 shops (Essentials v22 UI::MartVisuals for buying, UI::BPShopVisuals for the Battle Point shop,
-# UI::BagSellVisuals for selling). Two things had no assert at all. First, the price and its UNIT come from
-# the stock wrapper, not the reader, and the BP shop is a bare subclass that must be covered by the SAME
-# hook -- a shop that reads "500" when the price is 12 BP is worse than silence. Second, the sell screen is
-# a UI::BagVisuals SUBCLASS whose cursor callback calls super, so ONE cursor move runs the bag hook AND the
-# sell hook (the documented same-name onion in Hooks.wrap); only the reader's dedup keeps the entry from
-# being spoken twice. Runs only in the gamedata pass.
+# The v22 shops (UI::MartVisuals, UI::BPShopVisuals, UI::BagSellVisuals): the price and its unit come from the stock
+# wrapper, and the sell screen speaks each entry once though both bag hooks fire. Gamedata pass.
 
 Suite.define("v22 mart: the buy list reads the item with its price, and the exit row as cancel") do
   vis = UI::MartVisuals.new(UI::MartStockWrapper.new([:POTION, :ELIXIR]))
@@ -27,9 +22,7 @@ Suite.define("v22 mart: the buy list reads the item with its price, and the exit
      [PokeAccess::I18n.t(:pc_cancel)]
 end
 
-# UI::BPShopVisuals adds no cursor callback of its own: it inherits MartVisuals', which is exactly why one
-# hook registration must cover both. The unit is the discriminator -- the same item, the same reader, a
-# different wrapper, and the money price must NOT appear.
+# UI::BPShopVisuals inherits MartVisuals' cursor callback, so the same hook covers it; its wrapper prices in BP.
 Suite.define("v22 mart: the Battle Point shop is covered by the same hook and reads BP, not money") do
   vis = UI::BPShopVisuals.new(UI::BPShopStockWrapper.new([:POTION]))
 
@@ -39,10 +32,8 @@ Suite.define("v22 mart: the Battle Point shop is covered by the same hook and re
   not_spoke "and never quotes the money price of the same item", /500/
 end
 
-# The reentrancy case: UI::BagSellVisuals#refresh_on_index_changed calls super, so the child's hook runs the
-# child's original, which reaches the PARENT's hooked method under the same method name -- the onion the
-# guard deliberately lets through. Both readers therefore build the same line; only the [index, text] dedup
-# on the shared instance stops the player hearing the item twice on every single cursor move.
+# UI::BagSellVisuals#refresh_on_index_changed calls super, so both bag hooks fire on one move; the [index, text]
+# dedup on the shared instance speaks the entry once.
 Suite.define("v22 mart: the sell screen fires both bag hooks but speaks the entry once") do
   bag = TestBag.new({ :Items => [[:POTION, 3], [:ELIXIR, 7]] }, :Items)
   potion = PokeAccess::I18n.t(:bag_item, :name => "ItemPOTION", :qty => 3)

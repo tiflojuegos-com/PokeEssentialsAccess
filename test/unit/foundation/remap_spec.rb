@@ -1,34 +1,13 @@
-# core/input/remap.rb is the settings.ini key remapper: the one core file whose input the COMMUNITY writes
-# and shares (a rebind block pasted between players), and it had no spec at all. A regression here reaches
-# a blind player as "my remapped key does nothing", or -- far worse -- as an arrow key the engine no longer
-# sees, which is unrecoverable without editing a text file. These suites pin the four contracts it promises:
-#
-#   1. BUTTONS and the remap-menu list built from it (base + game extras + the reset-all entry), including
-#      that building the list never MUTATES the BUTTONS constant: the file builds it with dup/concat exactly
-#      because a fangame script patch redefines Array#+ as an in-place mutator, and a `+` there would grow
-#      the constant on every open of the controls menu.
-#   2. label(): a known row resolves through its i18n key, a per-game relabel wins over it, and an action in
-#      NO table degrades to its own name instead of raising (row[2] on a nil row is a NoMethodError, which
-#      inside the controls menu would take the menu down).
-#   3. the suppression rule the Input hooks implement: a REBOUND non-direction button is answered by the mod
-#      ALONE (the engine's default key goes silent, so the old key stops double-firing), while an unbound one
-#      is engine OR mod. The discriminating case is engine-says-pressed + mod-says-no: only a real suppression
-#      answers false there, an `orig || ours` that forgot the branch answers true.
-#   4. directions are NEVER suppressed (rebinding "down" must not take the arrow key away), and releasing OR
-#      unbinding a key clears the held state -- a stuck virtual key would walk the player forever.
-#
-# Only the two things outside the mod are scripted: the OS keyboard (Keys::GAKS, GetAsyncKeyState) and the
-# ENGINE's own answers (the Input#*__access_orig aliases the hooks call). Everything in between -- the real
-# Remap.update, the real hooks -- runs untouched. Config.rebinds / rebind_labels are NOT in the Config
-# schema, so the between-suites reset does not undo them: every suite here restores them itself.
+# core/input/remap.rb, the settings.ini key remapper, driven through the real Remap.update and Input hooks with only
+# the OS keyboard (Keys::GAKS) and the engine's own answers scripted; the suites restore Config.rebinds themselves.
+# Q and W are rebind targets; EXTRA_VK (numpad 0) is the raw virtual-key a game extra reads.
 module PaRemapRig
-  Q = 0x51           # a plausible rebind target ('Q')
-  W = 0x57           # a second one, to prove bindings are released one at a time
-  EXTRA_VK = 0x60    # the raw virtual-key a game extra would otherwise read directly (numpad 0)
+  Q = 0x51
+  W = 0x57
+  EXTRA_VK = 0x60
   HOOKED = [:trigger?, :press?, :repeat?, :triggerex?, :pressex?]
 
-  # The scripted world handed to a suite: which keys the OS reports as physically down, what the engine's
-  # own input answers, and a frame tick that runs the REAL Remap.update.
+  # The scripted world: the keys held down, the engine's own answer, and frames of the real Remap.update.
   class Scripted
     attr_reader :down
     attr_accessor :engine
@@ -42,9 +21,8 @@ module PaRemapRig
     def frames(n = 1); n.times { PokeAccess::Remap.update }; self; end
   end
 
-  # Runs the block with the OS keyboard and the engine's originals under the spec's control, restoring every
-  # global it touched (the Input aliases are saved BY ALIAS, never by redefining them away: the alias IS the
-  # engine's only remaining handle on its own method, and losing it would break input for every later suite).
+  # Runs the block with the OS keyboard and the engine's originals scripted, restoring all it touched; the Input
+  # aliases are saved by alias, as they are the engine's only handle on its own methods.
   def self.with_scripted_input
     rig = Scripted.new
     gaks = PokeAccess::Keys::GAKS
@@ -76,8 +54,8 @@ module PaRemapRig
   end
 end
 
-# The action table and the list the controls menu is built from. The list must be base buttons, then the
-# registered game extras, then the reset-all entry -- and building it must leave BUTTONS exactly as it was.
+# The button table and the controls menu list (base buttons, game extras, the mod's keys, reset-all); building the
+# list never grows BUTTONS (a fangame's Array#+ mutates in place).
 Suite.define("remap: the button table and the menu list built from it") do
   saved_extras = PokeAccess::Remap.extras.dup
   begin
@@ -105,9 +83,7 @@ Suite.define("remap: the button table and the menu list built from it") do
     eq "the mod's own hotkeys come next", list[before + 1][0], PokeAccess::Remap::MOD_KEYS[0][0]
     eq "and the reset-all entry closes it", list.last[0], :__reset__
 
-    # Every mod key the menu offers must be a real entry of Config.keys, or the row would assign a hotkey
-    # nothing reads; and every one must have its shipped default, or restoring it would blank it.
-    missing = PokeAccess::Remap::MOD_KEYS.map { |s, _l| s }.reject { |s| PokeAccess::Config::KEY_DEFAULTS.has_key?(s) }
+    missing =PokeAccess::Remap::MOD_KEYS.map { |s, _l| s }.reject { |s| PokeAccess::Config::KEY_DEFAULTS.has_key?(s) }
     eq "every offered mod key exists in the key table", missing, []
     eq "the menu offers ALL of them, none left unreachable",
        PokeAccess::Remap::MOD_KEYS.length, PokeAccess::Config::KEY_DEFAULTS.length
@@ -125,9 +101,8 @@ Suite.define("remap: the button table and the menu list built from it") do
   end
 end
 
-# label() feeds the controls menu. A known row speaks its i18n string (not the key), a per-game relabel wins,
-# an extra uses the label it registered, and an action in no table at all must still answer something
-# speakable instead of raising -- the menu iterates whatever list it is given.
+# label(): a row's i18n string, a per-game relabel over it, an extra's registered label; an action in no table is its
+# own name, never a raise.
 Suite.define("remap: labels resolve through i18n, per-game relabels win, unknown actions never raise") do
   cfg = PokeAccess::Config
   saved_labels = cfg.rebind_labels
@@ -164,10 +139,8 @@ Suite.define("remap: labels resolve through i18n, per-game relabels win, unknown
   end
 end
 
-# The suppression rule, end to end through the real Input hooks. Unbound: engine OR mod. Rebound: the mod
-# ALONE -- the engine's default key must go quiet, or the player gets the action twice (once from the old
-# key they rebound away, once from the new one). The engine-says-pressed + mod-says-no case is the one that
-# tells the two implementations apart.
+# The suppression rule through the real Input hooks: an unbound button answers engine or mod, a rebound one the mod
+# alone (its default key goes quiet).
 Suite.define("remap: a rebound button answers from the mod alone, an unbound one from engine OR mod") do
   PaRemapRig.with_scripted_input do |rig|
     cfg = PokeAccess::Config
@@ -211,9 +184,8 @@ Suite.define("remap: a rebound button answers from the mod alone, an unbound one
   end
 end
 
-# Alt is not one of RPG Maker's buttons, so the engine's F1 menu cannot move it, yet it is the key most
-# fangames' turbo scripts read (Input::ALT) and the only key some of them read at all. Offered in the same
-# table so the player can put the turbo on any key, and so physical Alt goes quiet once they do.
+# The engine's Alt (Input::ALT, which turbo scripts read and F1 cannot move) rebinds like a button: once bound,
+# physical Alt goes quiet.
 Suite.define("remap: the engine's Alt follows a rebind like any button, so a turbo read from Input::ALT moves with it") do
   PaRemapRig.with_scripted_input do |rig|
     cfg = PokeAccess::Config
@@ -240,9 +212,7 @@ Suite.define("remap: the engine's Alt follows a rebind like any button, so a tur
   end
 end
 
-# Movement is the safety case: a rebound direction stays ADDITIVE (both the arrow key and the new key move
-# the player), and no binding change may leave a direction stuck down. A suppression bug here strands the
-# player, so the arrow key must keep working with :down rebound, and dir must go back to 0 on release.
+# A rebound direction stays additive (the arrow key still moves the player), and no binding change leaves a key held.
 Suite.define("remap: directions stay additive and no binding change leaves a key stuck") do
   PaRemapRig.with_scripted_input do |rig|
     cfg = PokeAccess::Config
@@ -279,8 +249,7 @@ Suite.define("remap: directions stay additive and no binding change leaves a key
   end
 end
 
-# Game extras: actions a fangame reads by raw virtual-key (Input.triggerex?), rebindable like the base
-# buttons and suppressed the same way. Same discriminating pair: bound + engine pressed must answer false.
+# Game extras, read by raw virtual-key (Input.triggerex?), rebind and suppress like the base buttons.
 Suite.define("remap: a rebound game extra takes over its raw virtual-key") do
   PaRemapRig.with_scripted_input do |rig|
     cfg = PokeAccess::Config
@@ -310,10 +279,33 @@ Suite.define("remap: a rebound game extra takes over its raw virtual-key") do
   end
 end
 
-# The collision check. It is ONE function on purpose: the mod's hotkeys and the game's rebinds are two
-# separate tables that share one keyboard, and a menu comparing game buttons only against other game buttons
-# lets the game's A be bound to a key the mod owns -- that key then does two things at once, silently, with
-# no way for the player to know why the info key has started confirming messages.
+# A game extra still on the raw key the game reads it by owns that key: giving it to another action would make one
+# press do both (Reminiscencia's S, its help and its tabs, under a key bound to "down"); once the extra moves, the
+# key is free.
+Suite.define("remap: a game extra keeps its own raw key until it is rebound") do
+  rb = PokeAccess::Config.rebinds
+  keys = PokeAccess::Config.keys
+  saved = PokeAccess::Remap.extras.dup
+  begin
+    PokeAccess::Remap.extras.clear
+    PokeAccess::Remap.register_extra(:pa_spec_help, 0x53, :btn_x)
+    PokeAccess::Config.keys = PokeAccess::Config::KEY_DEFAULTS.dup
+    PokeAccess::Config.rebinds = {}
+    eq "a game button cannot take the extra's key", PokeAccess::Remap.conflict(0x53, :down), :pa_spec_help
+    eq "nor a mod key", PokeAccess::Remap.conflict(0x53, :hp), :pa_spec_help
+    eq "the extra itself may stay on it", PokeAccess::Remap.conflict(0x53, :pa_spec_help), nil
+    PokeAccess::Config.rebinds = { :pa_spec_help => 0x32 }
+    eq "moved elsewhere, its old key is free", PokeAccess::Remap.conflict(0x53, :down), nil
+    eq "and its new key is taken as any binding is", PokeAccess::Remap.conflict(0x32, :down), :pa_spec_help
+  ensure
+    PokeAccess::Remap.extras.replace(saved)
+    PokeAccess::Config.rebinds = rb
+    PokeAccess::Config.keys = keys
+  end
+end
+
+# Remap.conflict, one check over both key tables (the mod's hotkeys and the game's rebinds) and the engine's reserved
+# keys.
 Suite.define("remap: one collision check guards BOTH key tables and the engine's own keys") do
   rb   = PokeAccess::Config.rebinds
   keys = PokeAccess::Config.keys

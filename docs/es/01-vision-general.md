@@ -10,11 +10,11 @@ como estaba.
 
 | | |
 |---|---|
-| Módulos de core | 133, en `core/manifest.rb` |
-| Perfiles de juego | 16, en `games/` |
-| Lectores de plugin | 49, en `plugins/` |
+| Módulos de core | 167, en `core/manifest.rb` |
+| Perfiles de juego | 26, en `games/`: 21 juegos, el genérico y 4 perfiles comunes |
+| Lectores de plugin | 74, en `plugins/` |
 | Idiomas | 6 (`es`, `en`, `fr`, `pt`, `de`, `pl`), en `lang/` |
-| Suite | 2599 (gen-6, estáticos incluidos) + 409 (gamedata) |
+| Suite | 5518 (gen-6, estáticos incluidos) + 1593 (gamedata) |
 | Ruby | 1.8.7 en el juego; el del sistema en los tests |
 
 ## Capas
@@ -74,10 +74,13 @@ Formato del manifiesto de perfil, dos formas admitidas:
 
 { :modules => %w[modulo_a], :plugins => %w[tip_cards] }  # módulos + plugins declarados
 { :modules => %w[modulo_a], :plugins => :auto }          # solo el perfil generic
+{ :imports => %w[saga_common], :modules => %w[modulo_a] } # carga antes un perfil comun
 ```
 
 Un módulo que no esté en el manifiesto **no se carga** y nada avisa. Un plugin declarado que no exista se
 apunta en el log y se salta: una instalación a medias cuesta una pantalla, no el mod entero.
+
+Un **perfil común** (`games/<nombre>_common/`) guarda lo que comparten los juegos de una saga o de un autor. No tiene entrada en `catalog.json`, así que nunca se detecta como juego, y no importa a otros. El perfil que lo importa recibe sus módulos después de los plugins y antes que los suyos, y sus plugins sumados a los propios. El launcher lo copia a `accessibility/common/<nombre>/`. Un import que falta se apunta en el log y no impide arrancar.
 
 ## Dónde está cada cosa
 
@@ -119,7 +122,11 @@ construidos desde los juegos decompilados: la aridad y los nombres de parámetro
 Al final de la implementación, no a mitad:
 
 ```bash
-powershell -File installer/install.ps1 -Force
+launcher/target/x86_64-pc-windows-msvc/release/pokeessentialsaccess-launcher.exe local install --yes
 ```
+
+Es el launcher que compila `cargo build --release` en `launcher/`; el de la release sirve igual lanzado desde el
+repositorio. `local` toma el mod del repositorio; sin juego abre el selector de carpetas, y con `all` reinstala en
+todos los juegos de la lista. Las órdenes están en `launcher/commands.txt`.
 
 Reinstalar encima actualiza y conserva `settings.ini` y las etiquetas.

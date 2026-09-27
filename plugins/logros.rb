@@ -1,8 +1,5 @@
-# Achievements (Logros_Scene), a common fangame addon, in its two shapes.
-#
-# This hook serves the showTexts shape, which fires as the list is navigated. Every copy surveyed uses the
-# other one -- an indexed pbUpdate loop, handled by LogrosIndexed below -- so this stands down whenever that
-# module owns the scene.
+# Achievements (Logros_Scene) in its two shapes: this hook reads the showTexts one, and stands down while
+# LogrosIndexed (the indexed pbUpdate loop, below) owns the scene.
 PokeAccess::Hooks.after_hook("Logros_Scene", :showTexts, :optional => true) do |scene, _r, args|
   next if (PokeAccess::LogrosIndexed.watching? rescue false)
   logros = scene.instance_variable_get(:@logros)
@@ -14,8 +11,7 @@ PokeAccess::Hooks.after_hook("Logros_Scene", :showTexts, :optional => true) do |
 end
 
 module PokeAccess
-  # The indexed Logros screen: a pbUpdate loop moves @indexSel over @logros (LogroIcon name/desc/status)
-  # and draws the focused one. No showTexts.
+  # The indexed Logros screen: a pbUpdate loop moves @indexSel over @logros (LogroIcon name/desc/status).
   module LogrosIndexed
     @scene = nil; @last = nil
     def self.watch(s); @scene = s; @last = nil; end
@@ -24,13 +20,11 @@ module PokeAccess
     # True while this variant owns the scene, so the showTexts hook stands down.
     def self.watching?; !@scene.nil?; end
 
-    # The dedup key of the focused entry: cursor, description scroll and status.
-    #
-    # All three belong in it: a long description pages in place at the same index, and claiming a reward
-    # changes the status without moving anything. Public so the diagnostic can pin @last to the same shape.
+    # The focused entry's dedup key: cursor, description scroll (only while descriptions are said) and status.
     def self.key_of(s)
       idx = PokeAccess.ivar(s, :@indexSel)
-      [idx, PokeAccess.ivar(s, :@descOffset), (PokeAccess.ivar(s, :@logros)[idx].status rescue nil)]
+      scroll = PokeAccess::Verbosity.descriptions? ? PokeAccess.ivar(s, :@descOffset) : nil
+      [idx, scroll, (PokeAccess.ivar(s, :@logros)[idx].status rescue nil)]
     end
 
     # Reads the focused achievement when the cursor moves, the description scrolls, or the status changes.
@@ -47,38 +41,58 @@ module PokeAccess
     end
   end
 
-  # Name, status and description of one achievement, as the entry hands them over.
-  #
-  # The description is never suppressed here: whether an unearned achievement hides its text is already
-  # decided inside name/desc by each copy. Status 1 is the declared-but-unlocked default, not "secret".
-  # The status constants are top level in some copies and inside a Logros class in others, so the 3/2/1
-  # fallback is what answers on the latter.
+  # One achievement's name, status and description as its entry gives them; a hidden one showing the copy's
+  # placeholders (NOMBREOCULTO) is said as painted. 3 and 1 stand in where the constants sit in a class.
   def self.logro_indexed_text(l)
     nm = (l.name rescue nil)
     st = (l.status rescue nil)
     comp = (::LOGRO_COMPLETADO rescue 3); ocul = (::LOGRO_OCULTO rescue 1)
-    status = (st == comp) ? I18n.t(:ach_done) : ((st == ocul) ? I18n.t(:ach_locked) : I18n.t(:ach_pending))
     d = (l.desc rescue nil)
-    line = (d && !d.to_s.empty?) ? "#{nm}, #{status}. #{clean(d)}" : "#{nm}, #{status}"
-    r = reward_note(st)
-    r ? "#{line}. #{r}" : line
+    desc = (d && !d.to_s.empty?) ? PokeAccess::KeyHints.localize(clean(d), nil, true) : nil
+    if st == ocul && logro_placeholder?(nm)
+      line = desc ? "#{nm}. #{desc}" : nm.to_s
+      PokeAccess::Info.set_info(:text, line)
+      return line
+    end
+    earned = !logro_reward_state.nil? && st == logro_reward_state
+    status = if st == comp then I18n.t(:ach_done)
+             elsif earned then I18n.t(:ach_earned)
+             elsif st == ocul then I18n.t(:ach_locked)
+             else I18n.t(:ach_pending)
+             end
+    head = "#{nm}, #{status}"
+    PokeAccess::Info.set_info(:text, desc ? "#{head}. #{desc}" : head)
+    line = desc && PokeAccess::Verbosity.descriptions? ? "#{head}. #{desc}" : head
+    r = PokeAccess::Verbosity.hints? ? reward_note(st) : nil
+    return line unless r
+    line =~ /[.!?]\z/ ? "#{line} #{r}" : "#{line}. #{r}"
   rescue StandardError
     nil
   end
 
-  # The "press USE to collect" line, or nil. Only one copy has that state, and its LOGRO_ACTIVO means
-  # earned-and-unclaimed rather than not-yet-earned, so it is read from that copy's own constant.
+  # True when a name is the copy's own placeholder for a hidden achievement (NOMBREOCULTO, top level or in Logros).
+  def self.logro_placeholder?(nm)
+    ph = (::NOMBREOCULTO rescue nil) || (::Logros::NOMBREOCULTO rescue nil)
+    !ph.nil? && nm.to_s == ph.to_s
+  end
+
+  # The status of an achievement earned with its reward unclaimed (Logros::LOGRO_ACTIVO, in one copy), or nil.
+  def self.logro_reward_state
+    (::Logros::LOGRO_ACTIVO rescue nil)
+  end
+
+  # The line that copy paints under an earned achievement, with the key it names, or nil.
   def self.reward_note(st)
-    active = (::Logros::LOGRO_ACTIVO rescue nil)
+    active = logro_reward_state
     return nil if active.nil? || st != active
-    I18n.t(:ach_reward)
+    painted = (_INTL("[{1}]: " + _INTL("Obtener recompensa"), ::KeybindingReader.key_name(:USE)) rescue nil)
+    painted ? PokeAccess::KeyHints.localize(clean(painted)) : I18n.t(:ach_reward)
   rescue StandardError
     nil
   end
 end
 
-# Holds the scene during its pbUpdate loop, but only for the indexed variant, which is the one with
-# @indexSel.
+# Holds the scene during its pbUpdate loop, for the indexed variant only (the one with @indexSel).
 PokeAccess::Hooks.around_hook("Logros_Scene", :pbUpdate, :optional => true) do |scene, call_next, _a|
   if !(scene.instance_variable_get(:@indexSel) rescue nil).nil?
     PokeAccess::LogrosIndexed.watch(scene)
@@ -94,12 +108,7 @@ end
 
 PokeAccess::Keys.on_frame { PokeAccess::LogrosIndexed.poll }
 
-# This list is the mod's only per-frame poller, so it is the one thing that can make a custom menu lag.
-# The bench lives here and not in core's dump, because core must not name a plugin.
-#
-# @last is pinned to the live key before timing: poll SPEAKS on a difference, and pressing the diagnostic
-# key must not change what the player hears. It is pinned through key_of, the same builder poll uses, so the
-# two cannot drift apart.
+# A diag bench of the per-frame poll; @last is pinned to the live key (key_of) first, so polling speaks nothing.
 PokeAccess::Keys.register_diag_section(:logros_poll, :perf) do |o|
   lg = (PokeAccess::LogrosIndexed.instance_variable_get(:@scene) rescue :none)
   o.push("logros_poll: scene=#{lg.nil? ? 'idle' : (lg == :none ? 'absent' : 'ACTIVE')}")

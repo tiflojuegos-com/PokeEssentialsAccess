@@ -1,10 +1,5 @@
-# The name every shareable dictionary is stamped with, which is the ONLY thing standing between a marks file
-# from one game and the map ids of another. A map id means something else in every game, so a file imported
-# into the wrong one names random events all over the region -- silently, which is the one failure a shared
-# file must not have.
-#
-# The generic profile declares no name, so every game installed under it stamped the same word "generic" and
-# any two of them accepted each other's files. There the editor's own title qualifies the stamp.
+# The dictionary stamp: a generic install qualifies "generic" with the game's own title, so two unprofiled games do
+# not share a stamp; a declared profile is the stamp as is.
 Suite.define("profile stamp: two games with no profile of their own do not share a stamp") do
   g = PokeAccess::Game
   saved_profiles = g.profiles.dup
@@ -28,9 +23,7 @@ Suite.define("profile stamp: two games with no profile of their own do not share
     $data_system = other
     truthy "so another generic install is a DIFFERENT game", g.profile_name != myth
 
-    # The stamp is written and read back through Dictionary, whose line parser used to stop at the first
-    # space -- which would have made every title of two words foreign to itself.
-    file = "#{PokeAccess::Paths::DATA}/stamp_probe.txt"
+    file ="#{PokeAccess::Paths::DATA}/stamp_probe.txt"
     File.open(file, "w") { |f| f.write("# game: #{myth}\n1=algo\n") }
     eq "and a stamp with spaces in it survives the round trip",
        PokeAccess::Marks.file_game(file), myth
@@ -40,8 +33,6 @@ Suite.define("profile stamp: two games with no profile of their own do not share
     $data_system = nil
     eq "with no title to be had, the bare stamp is still answered", g.profile_name, "generic"
 
-    # A game WITH a profile keeps the profile name alone: it is already unique, and qualifying it would
-    # orphan every file already shared between players of that game.
     g.profiles.push("anil")
     g.instance_variable_set(:@profile_name, nil)
     eq "a declared profile is the stamp, untouched", g.profile_name, "anil"
@@ -54,11 +45,36 @@ Suite.define("profile stamp: two games with no profile of their own do not share
   end
 end
 
-# Every one of these files is read a line at a time, and the tags format separates its tokens with a tab.
-# A name carrying either -- pasted, not typed -- came back truncated on the NEXT load, long after the player
-# had moved on, and with no error anywhere.
-# Every unprofiled install before 0.4.6 stamped the bare word "generic", so a file so stamped may well be
-# this very game's own; taking the qualified stamp literally refused the player their own markers.
+# A common loads before the game's own modules and names its defines "<x>_common": the stamp stays the game's, from its
+# own define or, when all its readers come from commons, from its install.
+Suite.define("profile stamp: a common's define never signs the game") do
+  g = PokeAccess::Game
+  saved_profiles = g.profiles.dup
+  saved_name = g.instance_variable_get(:@profile_name)
+  path = "#{PokeAccess::Paths::DATA}/installed.json"
+  saved_json = (File.read(path) rescue nil)
+  begin
+    g.profiles.clear
+    g.profiles.push("infinitefusion_common")
+    g.profiles.push("infinitefusion_hoenn")
+    g.instance_variable_set(:@profile_name, nil)
+    eq "the game's own define signs, past the common's", g.profile_name, "infinitefusion_hoenn"
+
+    g.profiles.clear
+    g.profiles.push("infinitefusion_common")
+    g.instance_variable_set(:@profile_name, nil)
+    File.open(path, "w") { |f| f.write('{"profile": "infinitefusion"}') }
+    eq "a game with no define of its own is signed by its install", g.profile_name, "infinitefusion"
+  ensure
+    g.profiles.clear
+    saved_profiles.each { |p| g.profiles.push(p) }
+    g.instance_variable_set(:@profile_name, saved_name)
+    if saved_json then File.open(path, "w") { |f| f.write(saved_json) } else (File.delete(path) rescue nil) end
+  end
+end
+
+# A file with the bare "generic" stamp of installs before 0.4.6 imports into any unprofiled game; another game's
+# qualified stamp is still refused.
 Suite.define("profile stamp: a file stamped by an older unprofiled install still imports into its own game") do
   g = PokeAccess::Game
   saved_profiles = g.profiles.dup
@@ -80,6 +96,7 @@ Suite.define("profile stamp: a file stamped by an older unprofiled install still
   end
 end
 
+# A tab or a line break in a name (the files' token and line separators) is saved as a space.
 Suite.define("dictionaries: a name with a tab or a line break in it survives its own file") do
   begin
     PokeAccess::Tags.set(1, 40, "Casa\tdel\nprofesor")

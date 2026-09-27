@@ -1,6 +1,4 @@
-# announce_field builds a long report (weather + terrain + per-side effects). Each section is self-guarded,
-# so a section that raises -- a transient state on the frame a terrain expires -- drops only its own part
-# and the rest still speaks.
+# announce_field: each section (weather, terrain, per-side effects) is guarded; one that raises drops only itself.
 Suite.define("battle: announce_field survives a failing section") do
   weather_only = Object.new
   def weather_only.pbWeather; 1; end

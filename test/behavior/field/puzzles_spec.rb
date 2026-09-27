@@ -1,6 +1,4 @@
-# Puzzle category replication guard: active_categories must never mutate Config.categories (the tester once
-# saw it grow to 148 = 7 + 141 :puzzles), and it must self-heal a polluted base -- the locator builds the
-# active list every read, so a leak there compounds forever.
+# active_categories adds :puzzles once and never mutates Config.categories; a base already holding it ends with one.
 Suite.define("puzzles: active_categories never mutates the base") do
   PokeAccess::Config.categories = [:all, :people, :objects, :exits, :signs, :extras, :surfaces]
   saved_current = PokeAccess::Puzzles.method(:current)
@@ -17,9 +15,8 @@ Suite.define("puzzles: active_categories never mutates the base") do
   PokeAccess::Config.categories = [:all, :people, :objects, :exits, :signs, :extras, :surfaces]
 end
 
-# Puzzle controls: invisible cranks/valves are found by the watched flag their commands write (code 122 var
-# / 121 switch) and labelled by that watch entry; autorun/parallel controllers and unrelated events are
-# ignored. control? and control_label classify and name a found control.
+# Puzzle controls are the player-triggered events whose commands write a watched flag (122 variable, 121 switch),
+# labelled by that watch entry; autorun and parallel controllers and unrelated events are not.
 Suite.define("puzzles: state controls detected by their watched flag") do
   cmd = Struct.new(:code, :parameters)
   page = Struct.new(:trigger, :list)

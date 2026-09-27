@@ -1,14 +1,8 @@
-# Reminiscencia's custom move relearner (MoveRelearnerScene, 1740 MoveRelearner.rb) draws the focused move's
-# extra data onto @sprites["overlay"] inside pbDrawMoveList. The list is a Window_CommandPokemon in
-# @sprites["commands"], marked dedicated by the core relearner; the declared override at the bottom speaks
-# the focused move name. The hook runs AFTER pbDrawMoveList and publishes a spoken line (type, power,
-# accuracy from PBMoveData, the description through the Data adapter, the Heart Scale cost from the game's
-# own moveCost) to PokeAccess::Info as :text, so the info key stays on the focused move. The core gen-6
-# relearner reader is displaced by a declared Hooks.override, listed by the diag.
+# Reminiscencia's move relearner (MoveRelearnerScene): an override of the core gen-6 reader says the focused row
+# with its Heart Scale cost (the scales in hand on opening), and pbDrawMoveList publishes the move's detail.
 module PokeAccess
   module ReminMoveRelearner
-    # The move id currently focused by the custom relearner list, or nil. Same shape as every other
-    # hand-drawn move list, so the traversal is the shared one.
+    # The move id focused in the relearner list, or nil (the shared MoveList traversal).
     def self.focused_id(scene)
       PokeAccess::MoveList.focused_id(scene)
     end
@@ -31,6 +25,24 @@ module PokeAccess
       nil
     end
 
+    # The Heart Scales a move costs here, as its row writes it under the name, or nil.
+    def self.cost(scene, move_id)
+      movedata = (PBMoveData.new(move_id) rescue nil)
+      movedata ? (scene.send(:moveCost, movedata.category, movedata.basedamage, move_id) rescue nil) : nil
+    end
+
+    # The focused row: the move and, from the learn move reading's medium level, its cost; the first one after the
+    # screen opens comes after the Heart Scales in hand.
+    def self.row_text(scene, move_id)
+      name = (PokeAccess::Data.move_name(move_id) rescue nil).to_s
+      c = PokeAccess::Verbosity.keep?(:learn_move, :medium) ? cost(scene, move_id) : nil
+      line = c ? "#{name}, #{PokeAccess::I18n.t(:rem_heartscale_cost, :n => c, :item => PokeAccess::I18n.t(:rem_heartscale_name))}" : name
+      return line if PokeAccess.ivar(scene, :@access_rem_opened)
+      scene.instance_variable_set(:@access_rem_opened, true)
+      have = ($PokemonBag.pbQuantity(:HEARTSCALE) rescue nil)
+      have ? "#{PokeAccess::I18n.t(:rem_scales, :n => have)}. #{line}" : line
+    end
+
     # Publishes the focused move detail so the info key reads this menu instead of the previous screen.
     def self.sync_info(scene)
       text = detail_text(scene)
@@ -47,8 +59,8 @@ PokeAccess::Game.define("reminiscencia") do
     scene = args[0]
     id = (PokeAccess::MoveRelearnerGen6.focused_id(scene) rescue nil)
     if id
-      name = (PokeAccess::Data.move_name(id) rescue nil)
-      PokeAccess.speak(name.to_s, true)
+      first = !PokeAccess.ivar(scene, :@access_rem_opened)
+      PokeAccess.speak(PokeAccess::ReminMoveRelearner.row_text(scene, id), !first)
     end
   end
 

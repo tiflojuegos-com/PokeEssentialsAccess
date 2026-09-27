@@ -1,17 +1,11 @@
-# Verifies the world stub's new opt-in capabilities so later steps can rely on them:
-#   - place_ledge models a one-way ledge exactly as the engine does (terrain tag 1, passable only from the
-#     high side, direction readable through the tileset-passage surface Pathfinder::ledge_dir_ok? consults),
-#   - a blocking event makes its tile impassable (so passable_at? respects it),
-#   - both are off by default, so existing suites are unaffected.
-# It asserts the faithful engine surface only (ledge_jump, the search primitive, must succeed from the high
-# side); it deliberately does NOT assert step_target crossing a ledge, which is a live bug a later step fixes.
+# The world stub's place_ledge models a one-way ledge as the engine does: terrain tag 1, passable only from the high
+# side, its direction in the tileset passages ledge_dir_ok? reads. Crossing is pinned in ledge_pathfinding_spec.
 Suite.define("stub: place_ledge models a faithful one-way ledge") do
   pf = PokeAccess::Pathfinder
   ter = PokeAccess::Terrain
   PokeAccess::Config.route_cache = false
   PokeAccess::Config.ledge_directions = true
 
-  # A downward ledge at (5,7): jumped from above going down.
   $game_map.place_ledge(5, 7, 2)
 
   eq "the ledge reads terrain tag 1", $game_map.terrain_tag(5, 7), 1
@@ -26,7 +20,6 @@ Suite.define("stub: place_ledge models a faithful one-way ledge") do
   falsy "ledge_dir_ok? forbids hopping the ledge upward", pf.ledge_dir_ok?(5, 7, 8)
   falsy "ledge_dir_ok? forbids hopping the ledge sideways", pf.ledge_dir_ok?(5, 7, 6)
 
-  # The search primitive itself crosses the ledge from the high side (player at (5,6) jumping down two tiles).
   jump = pf.ledge_jump(5, 6, 0, 1, 2)
   eq "ledge_jump lands two tiles past the ledge from the high side", jump, [5, 8]
   eq "ledge_jump refuses the hop from the wrong side (moving up into it)", pf.ledge_jump(5, 8, 0, -1, 8), nil
@@ -40,7 +33,7 @@ Suite.define("stub: place_ledge honours each hop direction") do
   PokeAccess::Config.route_cache = false
   PokeAccess::Config.ledge_directions = true
 
-  $game_map.place_ledge(8, 8, 4)  # hopped to the left, entered from the right
+  $game_map.place_ledge(8, 8, 4)
   truthy "a left ledge is passable entering from the right (moving left)", $game_map.passable?(9, 8, 4)
   falsy "a left ledge blocks entering from the left (moving right)", $game_map.passable?(7, 8, 6)
   truthy "ledge_dir_ok? permits the leftward hop", pf.ledge_dir_ok?(8, 8, 4)
@@ -50,8 +43,7 @@ Suite.define("stub: place_ledge honours each hop direction") do
   PokeAccess::Config.route_cache = true
 end
 
-# A blocking event makes its tile impassable through the same passable? the pathfinder uses; a non-blocking
-# event (the default) does not, so no existing event-driven suite changes behaviour.
+# A blocking event makes its tile impassable through the passable? the pathfinder uses; a plain event does not.
 Suite.define("stub: a blocking event makes its tile impassable") do
   ev = World.event(:kind => :npc, :id => 4, :x => 6, :y => 5)
   truthy "a plain event does not block its tile by default", $game_map.passable?(6, 6, 8)

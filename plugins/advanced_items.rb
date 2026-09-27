@@ -1,17 +1,9 @@
 module PokeAccess
-  # Field-move / registered-item selection (Advanced Items - Field Moves plugin,
-  # SelectMoveMenu_Scene). A custom button menu: @commands is a list of [id, name, mode, idx]
-  # scrolled by @index with no command window, so it is otherwise mute. refresh_buttons runs on
-  # each cursor move and pbShowCommands wraps the loop, so the focused option's name is read on
-  # open and on navigation, deduped. The name is already a display string (the move/item name).
+  # Field-move and registered-item selection (Advanced Items - Field Moves plugin, SelectMoveMenu_Scene): a button
+  # menu with no command window: @commands rows [id, name, party slot, idx] under @index, read on open and on moves.
   module FieldMovesV21
-    # Speaks the focused option when it changes (deduped per scene via Cursor; pbShowCommands resets the
-    # slot so reopening on the same option still reads).
-    #
-    # Deduped by INDEX and read with the party member's name, because this menu is usually "which Pokemon
-    # should use Surf?" -- every row carries the SAME move name. Deduping on that name meant the first row
-    # spoke and every other row was swallowed as a repeat, and even the row that did speak never said whose
-    # it was, which is the only thing being chosen here.
+    # Speaks the focused option with its party member, deduped by index: the rows usually share one move name (which
+    # Pokemon should use Surf?).
     def self.read(scene)
       cmds = PokeAccess.ivar(scene, :@commands)
       idx  = PokeAccess.ivar(scene, :@index)
@@ -46,4 +38,46 @@ end
 
 PokeAccess::Hooks.after_hook("SelectMoveMenu_Scene", :refresh_buttons, :optional => true) do |scene, _r, _a|
   PokeAccess::FieldMovesV21.read(scene)
+end
+
+module PokeAccess
+  # Rock Climb, from the same plugin: facing rockclimb rock, the action button carries the player along it (sideways
+  # climbs follow a bend a row up or down) and sets them down one tile past its end; one assisted route step.
+  module RockClimbAIFM
+    # True if (x,y) is climbable rock.
+    def self.rock?(x, y)
+      PokeAccess::Terrain.flag_at?(x, y, :rockclimb)
+    end
+
+    # Where a climb begun from (x,y) facing d sets the player down, as [x, y], or nil.
+    def self.climb(x, y, d)
+      pf = PokeAccess::Pathfinder
+      dd = PokeAccess::DIR_DELTA[d]
+      cx = x + dd[0]; cy = y + dd[1]
+      return nil unless rock?(cx, cy)
+      steps = 0
+      while (hold = next_hold(cx, cy, d))
+        cx, cy = hold
+        steps += 1
+        return nil if steps > pf::ARRIVAL_CAP
+      end
+      pf.landing(cx + dd[0], cy + dd[1])
+    end
+
+    # The next tile of rock the plugin moves a climber to from (x,y) facing d, or nil at the end of it.
+    def self.next_hold(x, y, d)
+      if d == 2 || d == 8
+        ny = y + (d == 2 ? 1 : -1)
+        return rock?(x, ny) ? [x, ny] : nil
+      end
+      nx = x + (d == 6 ? 1 : -1)
+      [[nx, y], [nx, y - 1], [nx, y + 1]].find { |tx, ty| rock?(tx, ty) }
+    end
+  end
+end
+
+PokeAccess::Pathfinder.assist_source do |x, y, dir, lvl|
+  l = PokeAccess::RockClimbAIFM.climb(x, y, dir[2])
+  next nil if l.nil?
+  PokeAccess::Pathfinder::Step.new(l[0], l[1], lvl, 1, { :kind => :field, :label => :loc_rock_climb, :move => :ROCKCLIMB, :x => x + dir[0], :y => y + dir[1] })
 end

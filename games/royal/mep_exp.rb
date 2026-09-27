@@ -1,7 +1,5 @@
-# royal's post-battle EXP panel ([ROYAL] MEP -> class Swdfm_Exp_Screen): a non-navigable animated display
-# of each party member's exp gain and any level-ups (@values[i] is the exp about to be added to party[i]).
-# Announce the gains once when the panel is built (draw_party), and each level-up as it animates
-# (redraw_level fires once per level gained, after @levels[i] is bumped to the new level).
+# Royal's post-battle EXP panel (Swdfm_Exp_Screen): each member's gain (@values[i]) once on draw_party, and each
+# level-up on redraw_level, which runs once per level after @levels[i] is raised.
 PokeAccess::Game.define("royal") do
   after("Swdfm_Exp_Screen", :draw_party) do |scr, _ret, _args|
     next if (scr.instance_variable_get(:@access_mep) rescue false)

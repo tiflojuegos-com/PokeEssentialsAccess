@@ -1,9 +1,5 @@
-# Realidea's loot box (LootBox, 0291_Gacha.rb), opened from the gacha machine's event: three draws, each
-# showing a rarity frame behind the prize and then the game's own "obtained" message, which names the prize
-# but not its rarity. The rarity is the list the item came from (COMUNES, RAROS, LEGENDARIOS and EPICOS
-# never share an item), named as the event's "Ver probabilidad" names it, and a Pokémon prize is the fifth
-# tier. It is queued just ahead of the prize's message, which the mod queues too, so a quick player
-# never hears one draw's rarity cut the previous prize.
+# Realidea's loot box (LootBox): each prize's rarity, shown only as a frame, said queued before the game's
+# "obtained" message. Tiers are the game's lists, named as its "Ver probabilidad" does; a Pokémon is the fifth.
 module PokeAccess
   module ReaGacha
     TIERS = [["COMUNES", "Común"], ["RAROS", "Raro"], ["LEGENDARIOS", "Legendario"], ["EPICOS", "Épico"]]

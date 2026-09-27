@@ -1,13 +1,9 @@
 module PokeAccess
-  # Resolves a "A::B::C" constant by name. Segment by segment, because 1.8.7's const_defined? rejects a name
-  # containing "::", and gen-6 runs 1.8.7. The one low-level constant lookup the mod builds on: Hooks, Input
-  # and Engine.has? all route through it. Use it when the constant ITSELF is wanted -- for the bare
-  # existence boolean the gate is Engine.has?, so there is one obvious way to ask.
-  # param name a constant name, possibly nested with "::"
-  # return the constant, or nil if any segment is undefined
-  #
-  # An empty name is rejected up front: inject over an empty segment list returns the seed, so "" would
-  # resolve to Object, and era_scene answers "" by design for a reader whose era is not running.
+  # RPG Maker direction code => [dx, dy], the one-tile step that way.
+  DIR_DELTA = { 2 => [0, 1], 4 => [-1, 0], 6 => [1, 0], 8 => [0, -1] }
+
+  # The constant named "A::B::C", or nil if any segment is undefined; resolved segment by segment because 1.8.7's
+  # const_defined? rejects "::". An empty name is nil, not Object (era_scene answers "" for an inactive era).
   def self.const_at(name)
     return nil if name.nil? || name.to_s.empty?
     name.to_s.split("::").inject(Object) do |mod, seg|
@@ -18,17 +14,14 @@ module PokeAccess
     nil
   end
 
-  # Reads an instance variable off any object, defensively: the engine exposes no accessors, so the mod
-  # introspects by ivar constantly and an ivar's presence varies between game versions.
-  # param sym the ivar symbol, e.g. :@index
-  # param fallback the value when the ivar is absent or the read raises
+  # An instance variable (e.g. :@index) of any object, nil when unset; fallback only when the read raises.
   def self.ivar(obj, sym, fallback = nil)
     obj.instance_variable_get(sym)
   rescue StandardError
     fallback
   end
 
-  # ivar coerced to an Integer, for the numeric ivars whose open-coded reads fell back to 0.
+  # ivar as an Integer; fallback when it is unset or cannot be read or converted.
   def self.ivar_i(obj, sym, fallback = 0)
     v = ivar(obj, sym)
     v.nil? ? fallback : v.to_i
@@ -36,13 +29,8 @@ module PokeAccess
     fallback
   end
 
-  # The first of these accessors the object answers with something, or nil.
-  #
-  # Essentials renamed accessors between eras -- totalpp to total_pp, base_damage to power -- and each
-  # fangame kept whichever spelling it forked from, so the catalogue splits about evenly on each. Asking for
-  # one name does not raise, since these reads are guarded: it answers nil, and a move reads as missing data
-  # rather than as a bug. Tried in order, so the commonest spelling goes first.
-  # param names accessor symbols to try, e.g. :totalpp, :total_pp
+  # The first non-nil answer among these accessors, tried in order, or nil; for names Essentials renamed between
+  # eras (e.g. :totalpp, :total_pp).
   def self.attr_of(obj, *names)
     names.each do |n|
       next unless (obj.respond_to?(n) rescue false)
@@ -54,10 +42,7 @@ module PokeAccess
     nil
   end
 
-  # A named sprite from a scene's @sprites hash, or nil when the hash or the key is absent. Essentials scenes
-  # keep their windows in @sprites["name"], which the mod reads to introspect the focused window; this folds
-  # the doubly-defensive ((ivar || {})["k"] rescue nil) idiom into one call. 1.8.7-safe.
-  # param key the sprite key, e.g. "commandwindow"
+  # A named sprite from a scene's @sprites hash (e.g. "commandwindow"), or nil when the hash or the key is absent.
   def self.sprite(scene, key)
     h = ivar(scene, :@sprites)
     h.is_a?(Hash) ? h[key] : nil
@@ -65,14 +50,8 @@ module PokeAccess
     nil
   end
 
-  # Claims a window for a dedicated reader, so the generic command-window reader leaves it alone: some
-  # screens draw a list the generic reader half understands, and it names the bare row while the dedicated
-  # one is speaking the full detail.
-  #
-  # The flag is the mod's own and deliberately not the engine's @ignore_input, which some Selectable windows
-  # use to gate their own navigation -- setting that to mute us freezes the cursor. A pair, so the name is
-  # written once instead of by each reader that claims a window.
-  # param win the window, or nil, since a screen that has none is not an error
+  # Claims a window (nil allowed) for a dedicated reader, so the generic command-window reader leaves it alone.
+  # The flag is the mod's own, not the engine's @ignore_input, which would freeze the cursor.
   def self.dedicate(win)
     win.instance_variable_set(:@access_dedicated, true) if win
     win

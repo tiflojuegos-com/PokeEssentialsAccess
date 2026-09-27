@@ -1,6 +1,5 @@
-# Hooks.wrap_singleton: a game module's own singleton method (def self.x, called as Module.x) wrapped the
-# way wrap_kernel wraps Kernel's. A class hook on such a name binds the instance side, a copy nobody calls;
-# Añil's ability changer keeps its help-carrying command call on MessageUI, which is why this exists.
+# Hooks.wrap_singleton wraps a module's own singleton method (Module.x) as wrap_kernel wraps Kernel's; a class hook
+# would bind the instance side instead.
 module PaSingletonRig
   def self.run(a, b = 1); a * b; end
 end

@@ -1,18 +1,5 @@
-# The summary of an EGG, on the gen-6 spelling. Its twin summary_egg_gd_spec.rb covers the modern one.
-#
-# The mod used to read that page as if it were a hatched pokemon: species, types and ability -- none of
-# which the page paints, and the species is precisely what the screen keeps from the player until it
-# hatches. It is the mod asserting what the screen denies, and spoiling the game while doing it.
-#
-# What the page really paints is the trainer memo, the item, where the egg came from and how close it is to
-# hatching. The last two are the only thing anyone opens that page for, and both are drawn as a formatted
-# paragraph, which the capture had no ear for until now.
-#
-# Driven through drawPageOne, the way five of the seven gen-6 games reach the egg page (Reminiscencia redraws
-# page one without an egg branch and reads it through its own profile). The dispatcher's after-hook runs
-# its original under the reentrancy guard, so the egg page's own hook is skipped there and the take lives
-# with the dispatcher -- a spec that called the egg page directly kept passing while the reader was dead in
-# those five. Awakening goes to the egg page directly, and is the suite below.
+# The gen-6 egg page (the modern one is summary_egg_gd_spec.rb): what it paints, never the species inside. Reached
+# through drawPageOne, whose hook reads it; the egg page's own hook is suppressed there as nested.
 Suite.define("summary: an egg reads what its own page paints, and never its species") do
   scene = PokemonSummaryScene.new
   egg = Poke.build(:name => "Huevo")
@@ -49,10 +36,8 @@ Suite.define("summary: the egg page is spoken once, not once by each reader") do
   falsy "and neither is nothing at all", PokeAccess::Summary.egg?(nil)
 end
 
-# Awakening's drawPage draws an egg through drawPageOneEgg and returns, never calling
-# drawPageOne (awakening/0152 PScreen_Summary.rb:284-287), so the take on drawPageOne never ran there and the
-# page said nothing. The dispatcher's before-hook still arms the capture, and the egg page's own hook, not
-# nested this time, takes it. Its egg page takes no argument: the Pokemon is the scene's.
+# A drawPage that reaches drawPageOneEgg without drawPageOne (Awakening): the dispatcher's before-hook arms the
+# capture and the egg page's own hook, not nested this time, takes it; the Pokemon is the scene's.
 Suite.define("summary: an egg page reached without drawPageOne is still read") do
   scene = PokemonSummaryScene.new
   egg = Poke.build(:name => "Huevo")
@@ -69,4 +54,38 @@ Suite.define("summary: an egg page reached without drawPageOne is still read") d
   PokeAccess::PaintCapture.arm(:summary_egg)
   scene.drawPageOneEgg
   silent "and a redraw of the same page says nothing"
+end
+
+# Pages four and five take no capture (Awakening arms it on every drawPage), so what they left armed must not reach
+# the next egg page.
+Suite.define("summary: a page drawn before leaves nothing in the next egg page") do
+  scene = PokemonSummaryScene.new
+  egg = Poke.build(:name => "Huevo")
+  def egg.egg?; true; end
+  scene.pokemon = Poke.build(:name => "Chispa")
+  scene.drawPage(4)
+  pbDrawTextPositions(nil, [["MOVIMIENTOS", 0, 0]])
+  scene.pokemon = egg
+  SpeakCapture.clear
+  scene.drawPage(1)
+  truthy "the egg page is read", SpeakCapture.lines.join(" ").include?("Huevo misterioso")
+  falsy "without the moves page drawn before it", SpeakCapture.lines.join(" ").include?("MOVIMIENTOS")
+end
+
+# A game whose summary is one redrawn page (Reminiscencia) reads it through its own profile, the egg included:
+# the shared egg reader stands down for the egg too, and still takes its capture so it does not stay armed.
+Suite.define("summary: a single-page summary leaves the egg to its own reader too") do
+  scene = PokemonSummaryScene.new
+  egg = Poke.build(:name => "Huevo")
+  def egg.egg?; true; end
+  had = PokeAccess::Summary.single_page
+  begin
+    PokeAccess::Summary.single_page = true
+    SpeakCapture.clear
+    scene.drawPageOne(egg)
+    silent "nothing of the shared readers is said"
+    falsy "and the egg page's capture is not left armed", PokeAccess::PaintCapture.pending?(:summary_egg)
+  ensure
+    PokeAccess::Summary.single_page = had
+  end
 end

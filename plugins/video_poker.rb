@@ -1,13 +1,8 @@
 module PokeAccess
-  # Video Poker: set a wager, get five cards, mark which to keep, draw, get paid; a win offers double or
-  # nothing, with a face-up reference card and four face-down ones to pick from.
-  #
-  # Everything on this screen is painted, not windowed, so nothing reaches a reader on its own. Each of the
-  # three loops is held rather than inferred: they share @hand and share the cursor while meaning different
-  # things.
+  # Video Poker, all painted: the wager, the five cards to keep or draw, and double or nothing (a face-up reference
+  # card, four face-down to pick). The three loops share @hand and the cursor, so the one running is held (hold).
   module VideoPokerRead
-    # The plugin's own constants (HEART 1, DIAMOND 2, CLUB 3, SPADE 4; ACE 1, JACK 11, QUEEN 12, KING 13,
-    # JOKER 99), rather than positions guessed off the sprite sheet.
+    # Suit and face values as the plugin's own constants number them.
     SUITS = { 1 => :vp_hearts, 2 => :vp_diamonds, 3 => :vp_clubs, 4 => :vp_spades }
     FACES = { 1 => :vp_ace, 11 => :vp_jack, 12 => :vp_queen, 13 => :vp_king }
     JOKER = 99
@@ -18,9 +13,8 @@ module PokeAccess
     def self.hold(mode); @mode = mode; end
     def self.release; @mode = nil; end
 
-    # The message window is read on every frame and not only per mode: it carries the rules of the round --
-    # when to press cancel, that the next card must be higher than the reference one -- and those land while
-    # no mode is held, in the scene's own confirm loop.
+    # Each frame: the message window, even with no loop held (the round's rules land in the confirm loop), then the
+    # held loop's focus.
     def self.poll(scene)
       message(scene)
       case @mode
@@ -32,10 +26,8 @@ module PokeAccess
       nil
     end
 
-    # The bet, whenever it moves, and the purse beside it.
-    #
-    # The purse is the scene's player_coins, not the screen's raw coins: until a hand is dealt the entry cost
-    # is unpaid, and the window paints coins minus the wager.
+    # The bet whenever it moves, and the purse beside it as painted: the scene's player_coins (coins less the unpaid
+    # wager), not the screen's raw coins.
     def self.wager(scene)
       screen = PokeAccess.ivar(scene, :@screen)
       return unless screen
@@ -49,9 +41,8 @@ module PokeAccess
       end
     end
 
-    # The payout table for the info key: every combination, what it pays and what makes it. Rebuilt per
-    # wager, because each row is wager times bonus, which is what the window paints.
-    # return the table as one string, or nil when the scene has no combination list
+    # The payout table for the info key, as one string: every combination, what it pays at this wager (bonus times
+    # wager, as painted) and what makes it; nil with no combination list.
     def self.payout_table(scene, wager)
       list = PokeAccess.ivar(scene, :@combination_array)
       return nil unless list.is_a?(Array) && !list.empty?
@@ -70,18 +61,30 @@ module PokeAccess
       nil
     end
 
-    # The focused card and whether it is being kept. The Hold/Draw wording comes from the scene's own
-    # current_label_text, so it matches what is printed under the card.
+    # The focused card, whether it is being kept, and whether it flashes as part of the combination found. The
+    # Hold/Draw wording comes from the scene's own current_label_text, so it matches what is printed under the card.
     def self.card(scene)
       hand = PokeAccess.ivar(scene, :@hand)
       i = cursor_index(scene)
       return unless hand.is_a?(Array) && i && hand[i]
       state = label(scene, i)
-      PokeAccess::Cursor.announce(scene, :vp_card, [i, state], true, false) { card_text(hand[i], state) }
+      combo = flashing?(scene, i)
+      PokeAccess::Cursor.announce(scene, :vp_card, [i, state, combo], true, false) do
+        t = card_text(hand[i], state)
+        combo ? "#{t}, #{PokeAccess::I18n.t(:vp_in_combo)}" : t
+      end
     end
 
-    # Double or nothing: the position only. A face-down card is nil in @hand, which is the same flag the
-    # scene uses to draw the back, so naming one would reveal a card the screen hides.
+    # Whether a card flashes while cards are picked: the combination found is highlighted, the game flashes its
+    # cards (FLASH_CARDS) and this card is one of them.
+    def self.flashing?(scene, i)
+      return false unless PokeAccess.ivar(scene, :@highlight_combination)
+      flash = PokeAccess.const_at("VideoPoker::FLASH_CARDS")
+      return false if flash == false
+      (PokeAccess.ivar(scene, :@screen).hand_card_in_combination?(i) rescue false) ? true : false
+    end
+
+    # Double or nothing: the cursor's position only, as the screen hides the face-down cards.
     def self.pick(scene)
       i = cursor_index(scene)
       return unless i
@@ -92,9 +95,8 @@ module PokeAccess
       end
     end
 
-    # The reference card, said once as the double-or-nothing round opens; it does not change while the
-    # cursor moves. Queued, like the first line of each loop: the round's result was just spoken, and the
-    # message line of the new loop is queued in the same frame, so an interrupt here cut both.
+    # The reference card, once as the double-or-nothing round opens; queued, so it does not cut the round's result or
+    # the new message line.
     def self.reference(scene)
       hand = PokeAccess.ivar(scene, :@hand)
       c = hand.is_a?(Array) ? hand[REFERENCE_SLOT] : nil
@@ -104,8 +106,7 @@ module PokeAccess
       nil
     end
 
-    # The message window's line, plus the winning combination while the payout table highlights it -- the
-    # message never names the combination and the table is where it appears.
+    # The message window's line, plus the winning combination while the payout table highlights it.
     def self.message_text(scene)
       win = PokeAccess.sprite(scene, "message_window")
       t = PokeAccess.clean((win.text rescue "").to_s) if win
@@ -124,8 +125,7 @@ module PokeAccess
       nil
     end
 
-    # What the round paid. Interrupting, and through the same slot as the frame read, so the two cannot say
-    # the same line twice.
+    # What the round paid, interrupting, through the frame read's dedup slot.
     def self.result(scene)
       t = message_text(scene)
       PokeAccess::Cursor.announce(scene, :vp_msg, t, true) { t } if t
@@ -133,8 +133,7 @@ module PokeAccess
       nil
     end
 
-    # The winning combination's name while the payout table is highlighting it, else nil. Both conditions
-    # are the scene's own: it draws the highlight only when it has a combination and the flag is up.
+    # The winning combination's name while the payout table highlights it (@highlight_combination), else nil.
     def self.combination(scene)
       return nil unless PokeAccess.ivar(scene, :@highlight_combination)
       nm = (PokeAccess.ivar(scene, :@screen).combination_found.combination.name rescue nil)
@@ -173,9 +172,7 @@ PokeAccess::Hooks.around_hook("VideoPoker::Scene", :select_wager_loop, :optional
   begin; nxt.call; ensure; PokeAccess::VideoPokerRead.release; end
 end
 
-# Both select loops put the cursor back to its starting slot on entry, and the scene lives for the whole
-# session, so the dedup slot has to be cleared each time or a round that ended where the next one begins
-# opens in silence over a brand new hand.
+# Each loop clears its dedup slot on entry: the cursor starts again on the same slot, over a new hand.
 PokeAccess::Hooks.around_hook("VideoPoker::Scene", :cursor_loop, :optional => true) do |scene, nxt, _a|
   PokeAccess::VideoPokerRead.hold(:cards)
   PokeAccess::Cursor.reset(scene, :vp_card)
@@ -189,8 +186,7 @@ PokeAccess::Hooks.around_hook("VideoPoker::Scene", :double_or_nothing_cursor_sel
   begin; nxt.call; ensure; PokeAccess::VideoPokerRead.release; end
 end
 
-# The result of the round. It lands on a frame with no mode held (the scene is in its confirm loop), so the
-# per-frame poll below cannot see it.
+# The round's result, interrupting, as the scene shows it.
 ["show_result", "show_result_as_draw"].each do |meth|
   PokeAccess::Hooks.after_hook("VideoPoker::Scene", meth.to_sym, :optional => true) do |scene, _r, _a|
     PokeAccess::VideoPokerRead.result(scene)
@@ -202,11 +198,8 @@ PokeAccess::Hooks.after_hook("VideoPoker::Scene", :update_all, :optional => true
   PokeAccess::VideoPokerRead.poll(scene)
 end
 
-# The pay table lives on the info key while playing. It is published where the wager is settled, whichever
-# way it was asked -- the slider loop, or the plain yes/no a machine with one fixed wager puts up instead,
-# which never opens the slider -- and main_loop is the whole session (the VideoPoker::Screen loop that is
-# only left by leaving the machine), so it is released on the way back from it: otherwise the info key
-# keeps reciting poker hands out on the map.
+# The pay table sits on the info key while playing: published once the wager is settled (the slider or a fixed
+# wager's yes/no), cleared when main_loop, the whole session at the machine, returns.
 PokeAccess::Hooks.after_hook("VideoPoker::Screen", :select_wager, :optional => true) do |screen, ret, _a|
   scene = PokeAccess.ivar(screen, :@scene)
   if ret && scene

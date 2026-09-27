@@ -1,9 +1,5 @@
-# The marker ping. A mark is a tile the player named, not an event, so the event scan never meets one:
-# rescan adds the map's marks as an emitter type of their own, within the same reach and under the same
-# line-of-sight rule as everything else, and a mark set or removed re-scans on the next frame instead of
-# waiting for the player to step. Pinned because the whole family -- channel, tone, cadence, glossary --
-# hangs off the scan finding them: with that one call missing every table entry is right and the player
-# hears nothing.
+# The marker ping: rescan adds this map's marks within reach as an emitter type of their own (channel, tone,
+# cadence, volume), and a change to them drops the scan cursor so the next tick rescans.
 
 # Deletes the marks files and forgets the store.
 def marks_audio_wipe

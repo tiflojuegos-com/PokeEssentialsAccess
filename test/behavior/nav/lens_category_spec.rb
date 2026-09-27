@@ -1,6 +1,5 @@
-# Lens-of-Truth (#EOT) tiles are real map events, so they are promoted from a step-on cue to a navigable
-# locator category :lens (engine-agnostic, marker-based). The category appears only on maps that hold one,
-# the tiles are named "Zona oculta"/"Hidden area", and they also show under :all.
+# Lens of Truth (#EOT) tiles form a :lens locator category, present only on maps that hold one; they also show under
+# :all, named with the hidden-area label.
 Suite.define("locator: #EOT tiles form a navigable :lens category") do
   loc = PokeAccess::Locator
   PokeAccess::Config.hide_unreachable = false
@@ -21,10 +20,8 @@ Suite.define("locator: #EOT tiles form a navigable :lens category") do
   falsy ":lens drops out on a map with none", loc.active_categories.include?(:lens)
 end
 
-# With "hide unreachable" on, lens tiles still walled off (unreachable) must NOT keep the :lens category
-# alive -- otherwise the category shows up with only unreachable targets (the original bug). Reachability is
-# driven by the real Pathfinder.reachable_set, so the gate is exercised by feeding it an empty vs a covering
-# set (no module method is overridden, so nothing leaks into later suites).
+# With hide_unreachable on, :lens is dropped when its only tiles are unreachable and kept when the flood was
+# truncated; the flood is pinned through the pathfinder's cached set and its completeness flag.
 Suite.define("locator: :lens respects hide-unreachable") do
   loc = PokeAccess::Locator
   pf = PokeAccess::Pathfinder
@@ -32,9 +29,6 @@ Suite.define("locator: :lens respects hide-unreachable") do
   $game_map.events.clear
   $game_map.events[7] = far
 
-  # Pin the cached flood-fill so reachable? reads our set rather than recomputing for the test map. The
-  # completeness flag goes with it: a pinned set stands for a flood that ran to the end, which is the only
-  # state in which absence from the set means anything.
   pin = lambda do |set, full|
     pf.instance_variable_set(:@rs, set)
     pf.instance_variable_set(:@rs_full, full)
@@ -52,8 +46,6 @@ Suite.define("locator: :lens respects hide-unreachable") do
   PokeAccess::Config.hide_unreachable = true
   truthy ":lens shown when a tile is reachable", loc.active_categories.include?(:lens)
 
-  # A flood that hit the node cap covers part of the map, so absence from it proves nothing and the filter
-  # has to keep the category. Hiding on a truncated flood dropped real targets out of the list silently.
   pin.call({}, false)
   PokeAccess::Config.hide_unreachable = true
   truthy ":lens shown when the flood was truncated", loc.active_categories.include?(:lens)
@@ -65,9 +57,8 @@ Suite.define("locator: :lens respects hide-unreachable") do
   $game_map.events.delete(7)
 end
 
-# The step-on cue for the same tiles, from Spatial.tick. Checked once per TILE: it was the one poller there
-# without a position guard, sweeping every event of the map on every frame, in the nine games without the
-# plugin too. The map's event table counts how often it is swept.
+# The hidden-area step-on cue sweeps the map's events once per tile entered, not every frame (the stub table counts
+# the sweeps).
 Suite.define("spatial: the hidden-area cue is checked once per tile, not once per frame") do
   sp = PokeAccess::Spatial
   px = $game_player.x; py = $game_player.y

@@ -1,23 +1,12 @@
-# Checks EVERY manifest.rb against the files on disk -- core/manifest.rb and each games/<profile>/manifest.rb.
-# In each of those folders every **/*.rb (except its own manifest.rb) must be listed exactly once, and every
-# listed entry must have a file. Catches the two failure modes that have bitten releases -- a new reader added
-# but not registered (loads nowhere) and a manifest entry whose file was moved or renamed (NameError at boot).
-# The profiles need the same net as core and had none: the loader evals games/<key>/<entry>.rb for each listed
-# entry, so a renamed profile file half-wires that ONE game (its menus go silent) while every other game and
-# the whole test suite stay green -- invisible until a player reports it. Syntax is not re-checked here; the
-# real 1.8.7 interpreter already parses these files (check187_real.rb).
-# A pure-filesystem check, no engine stubs needed; exits non-zero on any gap, naming the culprit folder.
+# Checks core/manifest.rb and every games/<profile>/manifest.rb against the disk (each **/*.rb but the manifest
+# listed exactly once, each entry with its file) and games/catalog.json against the profiles and their detection.
+# A pure-filesystem check; exits non-zero on any gap, naming the folder.
 ROOT = File.expand_path("../..", __dir__)
 CORE = File.join(ROOT, "core")
 GAMES = File.join(ROOT, "games")
 
-# The module entries listed in a manifest file, as "subsystem/name" strings, or nil when the file carries no
-# %w[...] list at all (a manifest the loader cannot turn into a module list, so its whole folder loads nothing).
-#
-# A profile that declares third-party plugin readers has TWO lists ({:modules => %w[], :plugins => %w[]}),
-# and only the first is this folder's own files. Anchoring on ":modules =>" instead of taking whichever
-# %w[...] comes first is the difference between checking the right list and checking whichever one someone
-# happened to write above the other -- which would pass while validating nothing.
+# The entries of a manifest's :modules list (else its first %w[...]) as "subsystem/name" strings, or nil with no
+# list; a profile's :plugins list is not its folder's files.
 def manifest_entries(mf)
   text = File.read(mf)
   body = text[/:modules\s*=>\s*%w\[(.*?)\]/m, 1] || text[/%w\[(.*?)\]/m, 1]
@@ -31,13 +20,26 @@ def disk_modules(dir)
   end.reject { |r| r == "manifest" }
 end
 
-# The manifest<->disk gaps of one folder as problem lines, each prefixed with the folder that owns it so a
-# failure names the culprit instead of leaving core plus a dozen profiles to be diffed by hand.
-def folder_problems(label, dir)
+# The compat script each catalog profile names ("compat"), by profile key and without .rb: mkxp.json's preloadScript
+# runs it, so it is no module and its manifest does not list it.
+def compat_modules
+  require "json"
+  out = {}
+  JSON.parse(File.read(File.join(GAMES, "catalog.json")))["profiles"].each do |p|
+    out[p["key"]] = p["compat"].to_s.sub(/\.rb\z/, "") if p["compat"]
+  end
+  out
+rescue StandardError
+  {}
+end
+
+# The manifest<->disk gaps of one folder as problem lines, each prefixed with that folder's label; skip lists the
+# files on disk that are not modules.
+def folder_problems(label, dir, skip = [])
   entries = manifest_entries(File.join(dir, "manifest.rb"))
   return ["#{label}: manifest.rb has no %w[...] module list"] if entries.nil?
   missing_file = entries.reject { |e| File.file?(File.join(dir, "#{e}.rb")) }
-  not_listed   = disk_modules(dir) - entries
+  not_listed   = disk_modules(dir) - entries - skip
   dupes        = entries.select { |e| entries.count(e) > 1 }.uniq
   out = []
   out << "#{label}: listed but no file: #{missing_file.join(', ')}" unless missing_file.empty?
@@ -48,20 +50,27 @@ end
 
 profiles = Dir.glob(File.join(GAMES, "*", "manifest.rb")).sort.map { |p| File.dirname(p) }
 problems = folder_problems("core", CORE)
-profiles.each { |dir| problems.concat(folder_problems("games/#{File.basename(dir)}", dir)) }
+compat = compat_modules
+profiles.each do |dir|
+  key = File.basename(dir)
+  problems.concat(folder_problems("games/#{key}", dir, [compat[key]].compact))
+end
 entries = (manifest_entries(File.join(CORE, "manifest.rb")) || [])
 
-# The profile<->installer contract (games/catalog.json is the single source both installers read):
-# (a) every games/<key>/ folder with a manifest has a catalog entry and vice versa; (c) the LAYERED
-# detection both installers implement must resolve each profile's own signals to itself -- every
-# declared title picks its owner under longest-declared-match, every display resolves its owner under
-# longest-regex-match, and no distinctive exe is claimed twice. An over-broad new regex or a colliding
-# title breaks CI here with the culprit named, instead of misdetecting a player's game in silence.
+# games/catalog.json against the profiles: one entry per games/<key>/ folder but the commons (<key>_common, which are
+# never detected), and the layered detection resolving each profile's own titles and display to itself, with no exe
+# claimed twice.
+# - detect probes run on the display lowercased and de-accented, as folder names come.
+# - every profile needs a valid engine and, but for generic, at least one identity layer (titles, detect or exes).
+# - a compat names a bare .rb file of the profile's own folder (the launcher deploys it to accessibility/game/).
+# - a convert names an engine folder of assets/engine, and its markers the bare file names the launcher looks for in
+#   the game's folder before converting it; some profile has to offer one.
 require "json"
 begin
   catalog = JSON.parse(File.read(File.join(GAMES, "catalog.json")))["profiles"]
   keys = catalog.map { |p| p["key"] }
   folders = Dir.glob(File.join(GAMES, "*", "manifest.rb")).map { |p| File.basename(File.dirname(p)) }
+  folders = folders.reject { |k| k =~ /_common\z/ }
   problems << "games/ folder without a catalog entry: #{(folders - keys).join(', ')}" unless (folders - keys).empty?
   problems << "catalog entry without a games/ folder: #{(keys - folders).join(', ')}" unless (keys - folders).empty?
 
@@ -78,17 +87,28 @@ begin
     pair ? pair[1] : nil
   end
 
-  # Folder names in the wild are accent-free, so probes run on a de-accented lowercase form of the
-  # display ("Pokémon Z" -> "pokemon z"); a detect regex that cannot even match that form is dead.
   normalize = lambda { |s| s.to_s.downcase.tr("áéíóúüñ", "aeiouun") }
 
-  # Every non-generic profile must keep at least one identity layer (titles, detect or exes): with all
-  # three empty the game can never be auto-detected, and the installer and launcher fall back to the
-  # manual numbered menu -- for a blind player, the difference between installing and guessing.
   valid_engines = ["gen6", "gamedata", "any"]
   catalog.each do |q|
     e = q["engine"]
     problems << "profile #{q['key']} engine invalid or missing (#{e.inspect})" unless valid_engines.include?(e)
+  end
+
+  catalog.each do |q|
+    next unless q.key?("compat")
+    c = q["compat"].to_s
+    ok = c =~ /\A[a-z0-9_]+\.rb\z/ && File.file?(File.join(GAMES, q["key"].to_s, c))
+    problems << "profile #{q['key']} compat is not a .rb file of its folder (#{c.inspect})" unless ok
+  end
+
+  converts = catalog.select { |q| q["convert"] }
+  problems << "no catalog profile offers a conversion" if converts.empty?
+  converts.each do |q|
+    marks = q["markers"]
+    ok = q["convert"].to_s =~ /\A[a-z0-9][a-z0-9.\-]*\z/ && marks.is_a?(Array) && !marks.empty? &&
+         marks.all? { |m| m.is_a?(String) && m !~ %r{[\\/]|\.\.} && !m.strip.empty? }
+    problems << "profile #{q['key']} convert does not name an engine and the files that mark the game" unless ok
   end
 
   catalog.each do |q|

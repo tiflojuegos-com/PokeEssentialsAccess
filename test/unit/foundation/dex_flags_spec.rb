@@ -1,8 +1,5 @@
-# Util.dex_seen?/dex_owned? decide how the Pokedex list announces each row. The engines disagree on the API:
-# gen-6 exposes plain seen/owned arrays on the trainer, while v18+ (Infinite Fusion) replaced them with
-# seen?/owned? predicates -- sometimes on the player, sometimes on a nested pokedex object. Reading only the
-# arrays raised on v18 and left the whole dex list silent, so the probe tries the predicate first and the
-# array last, and reports nil when neither resolves (so "unknown" is not confused with "not seen").
+# Util.dex_seen?/dex_owned? read gen-6's seen/owned arrays or v18+'s seen?/owned? predicates, on the player or on a
+# nested pokedex; nil when neither resolves (unknown, not "not seen").
 
 # Stand-ins for each engine's player shape.
 class FakeGen6Trainer

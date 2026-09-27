@@ -1,7 +1,5 @@
-# Load order for the Pokemon Awakening game modules (no .rb), loaded after core. Awakening is Essentials
-# v17.2 (gen-6), covered by the core gen-6 path; only its bespoke Fates screens need readers here.
-# The item crafting screen is a THIRD-PARTY plugin shared with other fangames, so its reader lives in
-# plugins/ and is declared below instead of being copied into this profile. See plugins/manifest.rb.
+# Load order for the Pokemon Awakening modules (no .rb), after core; Awakening is Essentials v17.2 (gen-6).
+# :plugins names the third-party plugin readers it loads from plugins/ (see plugins/manifest.rb).
 {
   :modules => %w[
     constants
@@ -13,8 +11,16 @@
     fates_screens
     cmoon
     fates_extra
-    achievements
     load_panel
+    boss_box
+    floor_trap
+    quest_markers
+    battle_info
+    battle_hud
+    quotes
+    tea_time
+    psyduck_hunt
+    quests
   ],
-  :plugins => %w[easy_questing gender_selection item_crafting logros text_log book_scene hatcher simple_encounter_list magic_gachapon slide_banners luka_title]
+  :plugins => %w[advanced_pokedex easy_questing gender_selection item_crafting logros text_log book_scene hatcher simple_encounter_list magic_gachapon slide_banners luka_title pokemon_achievements quest_marker kyu_autosave]
 }

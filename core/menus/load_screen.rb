@@ -1,7 +1,6 @@
 module PokeAccess
-  # The multi-save "other save files" screen (PScreen_Load): a panel + moving-cursor selector
-  # (pbMoveSaveSel slides an icon over pre-drawn rows), not a command window, so the generic reader never
-  # sees it. Announces the focused save file as the cursor moves, and the first one on open.
+  # The multi-save file selector (a cursor sliding over pre-drawn rows, not a command window): the focused save file
+  # as the cursor moves, and the first one on open.
   module LoadScreen
     # The spoken label of a save-file row (its display name at savefiles[i][1]).
     def self.savefile_text(files, idx)
@@ -14,11 +13,8 @@ module PokeAccess
   end
 end
 
-# Opening the list: announce the first row without interrupting the title music/voice.
-#
-# :optional because the multi-save screen is not universal: several fangames ship a PokemonLoadScene with
-# no @savefiles at all (a single-save title). Without it those games park two permanent entries in
-# Hooks.missing, which by contract lists TYPOS -- eight standing false positives that hide a real one.
+# Opening the list: the first row, queued. :optional since single-save titles lack the method, and Hooks.missing
+# lists only typos.
 PokeAccess::Hooks.after_hook(PokeAccess::Engine.scene_class("PokemonLoad_Scene", "PokemonLoadScene").to_s, :pbDrawSaveCommands, :optional => true) do |_s, _r, args|
   txt = PokeAccess::LoadScreen.savefile_text(args[0], 0)
   PokeAccess.speak_clean(txt, false) if txt
@@ -31,10 +27,8 @@ PokeAccess::Hooks.after_hook(PokeAccess::Engine.scene_class("PokemonLoad_Scene",
   PokeAccess.speak_clean(txt, true) if txt
 end
 
-# The per-slot sub-chooser some forks add ("Normal Save / Autosave"): its own LEFT/RIGHT loop over two
-# panels, repainted through this method on entry and every move. The five strings -- slot name, the two
-# panel labels and the two dates -- are captured from the entry paint (per-language builds swap them) and
-# replayed per focus; the index is the second half of the dedup key, so each move speaks its panel.
+# The per-slot sub-chooser some forks add (Normal Save / Autosave), repainted on entry and every left/right move:
+# its five painted strings (slot name, two panel labels, two dates) are captured and replayed per focus.
 module PokeAccess
   module LoadScreen
     def self.auto_sub(scene, index, arrayindex)
@@ -56,4 +50,13 @@ PokeAccess::Hooks.before_hook("PokemonLoadScene", :pbChooseAutoSubFile, :optiona
 end
 PokeAccess::Hooks.after_hook("PokemonLoadScene", :pbChooseAutoSubFile, :optional => true) do |scene, _r, args|
   PokeAccess::LoadScreen.auto_sub(scene, args[0], args[1])
+end
+
+# The name of the save on offer, which multi-save titles paint above the panels: taken from the paint, queued.
+PokeAccess::Hooks.around_hook(PokeAccess::Engine.scene_class("PokemonLoad_Scene", "PokemonLoadScene").to_s, :pbDrawCurrentSaveFile, :optional => true) do |_s, nxt, _a|
+  ret = nil
+  rows = PokeAccess::PaintCapture.sample { ret = nxt.call }
+  t = PokeAccess::PaintCapture.text(rows.map { |r| r[0] })
+  PokeAccess.speak(t, false) unless t.empty?
+  ret
 end

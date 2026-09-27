@@ -1,9 +1,6 @@
 module PokeAccess
-  # Realidea's sticker album (Albumfotos): a 2x3 grid of collectible cards with no command window. inputs
-  # runs every frame; @selec (0..5) is the cursor over the current @pagina of @paginas, and the focused
-  # card id is (@selec+1)+(@pagina-1)*6 (filled when its fotito sprite is visible). Pressing C opens the
-  # card detail (@sprites["foto"] visible), and flipping it (@girado) reveals the illustrator from @info1.
-  # Read the focus when grid position, page, detail or flip state changes.
+  # Realidea's sticker album (Albumfotos), read on each inputs frame: a 2x3 card grid (@selec 0..5 on page
+  # @pagina of @paginas), a card's detail (@sprites["foto"]) and its back (@girado), which names the illustrator.
   module RealideaAlbum
     # The album state to dedup on: detail-vs-grid, cursor, page and flip.
     def self.state(scene)
@@ -24,11 +21,7 @@ module PokeAccess
       1
     end
 
-    # The spoken line for the current focus.
-    #
-    # The page numbers go through positive_or and not through a `rescue 1`, which would not cover them: an
-    # ivar that was never assigned reads as nil rather than raising, and the scene only assigns @paginas once
-    # the album holds a photo. With an empty album it stayed nil and the line came out as "page 1 of ,".
+    # The spoken line for the current focus; @paginas stays nil until the album holds a photo (positive_or).
     def self.line(scene)
       sel = (scene.instance_variable_get(:@selec) rescue 0).to_i
       page = positive_or(PokeAccess.ivar(scene, :@pagina))
@@ -46,6 +39,7 @@ module PokeAccess
       end
       filled = (sprites && sprites["fotito#{sel + 1}"] && sprites["fotito#{sel + 1}"].visible rescue false)
       st = filled ? PokeAccess::I18n.t(:album_have) : PokeAccess::I18n.t(:album_empty)
+      return "#{PokeAccess::I18n.t(:album_card, :n => card)}, #{st}" unless PokeAccess::Verbosity.keep?(:positions, :medium)
       PokeAccess::I18n.t(:album_slot, :n => card, :page => page, :pages => pages, :state => st)
     rescue StandardError
       nil

@@ -1,27 +1,18 @@
 module PokeAccess
-  # Tells the gen-6 era apart from the GameData era of Essentials so shared code reaches the right data API.
-  # Named by the data API each era uses (gen-6 = PB* tables, later = the GameData layer), not by "old/new",
-  # which would not age well.
+  # Tells the gen-6 era (PB* tables) apart from the GameData era, and probes what the running engine has.
   module Engine
-    # True on the GameData era (Essentials v17+), detected by the GameData layer it introduced.
+    # True on the GameData era, detected by GameData::Species.
     def self.gamedata?
       (defined?(GameData) && defined?(GameData::Species)) ? true : false
     end
 
-    # True on the gen-6 era (v16-17), which predates GameData.
+    # True on the gen-6 era, which predates GameData.
     def self.gen6?
       !gamedata?
     end
 
-    # The names worth hooking out of a screen's candidate list: any name another kept one already covers --
-    # by inheritance, or by being a second name for the same class -- is dropped.
-    #
-    # Two shapes make this necessary and both fail silently. A compatibility layer declares the OLD names as
-    # empty SUBCLASSES of the new ones and instantiates only the new one, so a hook on the old name binds to
-    # a class the game never builds and never reaches Hooks.missing either. The reverse, a game that builds
-    # the subclass with the same body registered on both names, reads the screen twice.
-    #
-    # Unrelated classes in the same list are all kept: they cover different scenes.
+    # The existing names worth hooking among a screen's candidates: drops a subclass of another listed class (a
+    # hook on the parent covers it) and a second name for the same class; unrelated classes are all kept.
     def self.scene_classes(*names)
       found = []
       names.each do |n|
@@ -38,20 +29,19 @@ module PokeAccess
       keep
     end
 
-    # The single name to hook among ALIASES of one screen, or nil when the game has none of them.
+    # The single name to hook among aliases of one screen, or nil when the game has none of them.
     def self.scene_class(*names)
       scene_classes(*names)[0]
     end
 
-    # The scene name for a reader written against ONE data API, or "", which binds nothing. The NAME decides
-    # where a game ships only one alias (both Infinite Fusions have GameData under the gen-6 names); the era
-    # breaks the tie only when both aliases exist, as a compatibility layer produces.
-    # param era :gen6 or :gamedata
-    # param own the alias this reader hooks; param other the alias the other era's reader hooks
+    # The scene name to hook for the era's reader (era :gen6 or :gamedata), or "", which binds nothing: own when the
+    # other era's alias is absent, the running era's pick when both exist. A GameData reader never binds on the gen-6
+    # engine, whose screen named only the v17 way (no v16 alias, as in Soulstones) goes to the gen-6 reader.
     def self.era_scene(era, own, other)
       mine = PokeAccess.const_at(own)
       twin = PokeAccess.const_at(other)
-      return "" if mine.nil?
+      return "" if era == :gamedata && gen6?
+      return ((era == :gen6 && gen6? && twin) ? other : "") if mine.nil?
       return own if twin.nil?
       ((era == :gen6) ? gen6? : gamedata?) ? scene_class(own, other).to_s : ""
     end
@@ -66,14 +56,19 @@ module PokeAccess
       (defined?($player) && $player) ? $player : (defined?($Trainer) ? $Trainer : nil)
     end
 
-    # Running Essentials version as a comparable Float, for the DIAGNOSTIC line only: real fangames mix eras,
-    # so code gates on has? and never on this number. v16 has no constant and floors to 16.0, and a gen-6
-    # fork that writes ESSENTIALSVERSION as free text can parse below 1, which snaps to 17.0 rather than
-    # reporting a nonsense era.
-    #
-    # A GameData engine with no version constant is told apart structurally and never by a runtime global,
-    # since the player object does not exist at the title screen and the result is memoised: v19 renamed the
-    # battle scene, so its absence means the v18 transitional era.
+    # How many of an item the bag holds ($bag, $PokemonBag or the player's own bag; quantity or pbQuantity), or
+    # nil when no bag answers.
+    def self.bag_quantity(item)
+      bag = (defined?($bag) && $bag) || (defined?($PokemonBag) && $PokemonBag) || (player.bag rescue nil)
+      return nil unless bag
+      n = bag.respond_to?(:quantity) ? bag.quantity(item) : bag.pbQuantity(item)
+      n.nil? ? nil : n.to_i
+    rescue StandardError
+      nil
+    end
+
+    # The running Essentials version as a Float, for diagnostics and fork (readers gate on has?). Without a
+    # constant: GameData is 19.0 or 18.0 by Battle::Scene, gen-6 16.0; an ESSENTIALSVERSION below 1 reads 17.0.
     def self.version
       return @version if defined?(@version) && @version
       ev = (defined?(Essentials) && (Essentials::VERSION rescue nil)) ||
@@ -93,31 +88,21 @@ module PokeAccess
       @fork = (gamedata? && version < 21.9 && defined?(UI) && defined?(UI::BaseScreen)) ? :sky : nil
     end
 
-    # Named capabilities: symbol => a probe, either a "A::B::C" constant name or a lambda returning a bool.
-    # A reader gates on a CAPABILITY and never on a version number, so a fork that backports a feature works
-    # without edits; a version folder only says where a capability was introduced. Register the transversal
-    # ones here -- a one-off screen can pass its class name to has? directly.
-    #
-    # The last two are THIRD-PARTY plugins and are here for the DIAGNOSTIC, not for gating: their readers
-    # bind per method with :optional, which keeps a partial install working. They are not in the plugins/
-    # detection table because that lists plugins a PROFILE declares, and these reopen engine classes rather
-    # than adding their own, so only a method identifies them -- which is what a capability probe is.
+    # Named capabilities: symbol => a probe (a has? string or a lambda). Readers gate on these, never on a version
+    # number; :ui_rework is the v22 UI:: rework and :battle_scene the v19+ battle scene; :dbk (Deluxe Battle Kit) and
+    # :mui (Modular UI Scenes) are third-party plugins listed for the diagnostic, not for gating.
     CAPABILITIES = {
       :gamedata  => lambda { gamedata? },
       :gen6      => lambda { gen6? },
       :sky_fork  => lambda { fork == :sky },
-      :ui_rework => "UI::BaseScreen",      # the v22 UI:: rework
-      :battle_scene => "Battle::Scene",    # the v19+ battle scene
-      :dbk => "Battle#pbToggleSpecialActions",  # Deluxe Battle Kit
-      :mui => "UIHandlers"                      # Modular UI Scenes
+      :ui_rework => "UI::BaseScreen",
+      :battle_scene => "Battle::Scene",
+      :dbk => "Battle#pbToggleSpecialActions",
+      :mui => "UIHandlers"
     }
 
-    # True when a capability is present: the single gate for "can this engine do X?". Takes a registered
-    # capability symbol, a "A::B::C" constant name, or "A::B::C#method" to also require an instance method,
-    # so a fork that backports it activates whatever its version says.
-    #
-    # An unregistered symbol is logged once. A typo answers false exactly like a real absence and would
-    # otherwise silence a family of readers with no noise at all; the answer stays false either way.
+    # True when a capability is present: a registered symbol, a "A::B::C" constant name, or "A::B::C#method" to
+    # also require an instance method. An unregistered symbol answers false and is logged once.
     def self.has?(cap)
       probe = cap.is_a?(Symbol) ? CAPABILITIES[cap] : cap
       PokeAccess.log_once("cap_#{cap}", "capacidad no registrada") if probe.nil? && cap.is_a?(Symbol)

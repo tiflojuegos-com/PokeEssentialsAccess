@@ -1,8 +1,5 @@
-# The two modal windows this game builds by hand instead of using the message system: the tutorial popups
-# and the Achievement Points scoreboard after a boss. Both take the text as their first argument and then
-# block until the player dismisses the window, which is why the reader hangs off the call rather than the
-# return. The stand-ins are the game's own signatures, second argument and all: the scoreboard is called as
-# "@scene.pbBottomRightWindow(text)" with the scene left out.
+# Soulstones 2's hand-built modal windows (tutorial popups, the boss's Achievement Points scoreboard) block until
+# dismissed, so they are read from the call; the stand-ins keep the game's signatures.
 def pbTutorialWindow(text, scene = nil); [text, scene]; end
 def pbBottomRightWindow(text, scene = nil); [text, scene]; end
 

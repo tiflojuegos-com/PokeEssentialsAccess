@@ -8,9 +8,10 @@ How it attaches is in [03-hooks](03-hooks.md); this is what goes inside the body
 
 | Call | File | What it does |
 |---|---|---|
-| `PokeAccess.speak(text, interrupt = true)` | `core/speech/speech.rb` | Speaks through the active screen reader. Collapses whitespace, ignores empty text. |
-| `PokeAccess.speak_clean(text, interrupt = true)` | `core/speech/speech.rb` | `speak(clean(text), interrupt)`. |
+| `PokeAccess.speak(text, interrupt = true, category = nil)` | `core/speech/speech.rb` | Speaks through the active screen reader and files the line in the history. Collapses whitespace, ignores empty text. |
+| `PokeAccess.speak_clean(text, interrupt = true, category = nil)` | `core/speech/speech.rb` | `speak(clean(text), interrupt, category)`. |
 | `PokeAccess.say_dialogue(message)` | `core/dialogue/dialogue.rb` | `pbMessage` dialogue: cleans, stores the line for the repeat key, drops an identical line within 0.5 s, speaks queued. |
+| `DialoguePages.open(win, message, letterbyletter)` | `core/dialogue/pages.rb` | With `dialogue_pages`, takes the message over and reads it page by page: whenever the window stops for the key, it says what it drew since the previous stop, cutting the page before. What it cannot follow (another window shape, text drawn at once, a message inside another) is left to `say_dialogue`, and a message no page of which was heard is said whole when it closes. |
 
 **Text coming from the GAME goes through `speak_clean`**: Essentials strings carry control codes the screen
 reader would spell out. Text the mod builds itself, via i18n, is already clean and goes through `speak`.
@@ -19,6 +20,29 @@ reader would spell out. Text the mod builds itself, via i18n, is already clean a
 variable, turns `\N` and `|` into spaces, and strips `\C[n]`, every other `\X` and `\X[..]`, `<...>` tags
 and the `\x00-\x1f` bytes. Those bytes matter: leave them in and a paused line no longer compares equal to
 its unpaused twin, slips past `say_dialogue`'s dedup, and the dialogue is spoken twice.
+
+The category (`:dialogue`, `:battle`, `:menu`, `:nav`, `:info`, `:system`) only decides where the line is filed in
+the history. It rarely needs passing: the chokepoints already carry it (the menu cursor and the dialogue reader in
+their calls, the locator and the information keys through `Speech.as`), and the rest is deduced from the moment.
+Pass it when a
+reader says something that is not what the moment looks like (a system notice in the middle of a menu).
+
+### Rows and verbosity
+
+A row said while moving through a menu (a party member, a move, an item) is not joined by hand: its parts go with
+the level they are said from, and `Verbosity.line` decides which go in under the player's scheme. What matters
+goes in `:brief`; what a decision does not need, in `:medium` or `:full`. Key hints are said only if
+`Verbosity.hints?`, and a position in the list (or the page of a screen of several) goes through
+`Verbosity.list_entry`, `Verbosity.position` or `keep?(:positions, :medium)`. Nothing is lost: the info key says the
+focused thing's sheet and Ctrl+T the row whole, which the screen publishes with `Verbosity.info_line` or, with a
+sheet of its own, with `Info.set_info(kind, data, Verbosity.full_line(parts))`.
+
+```ruby
+# core/menus/menus.rb -- the Pokedex row; the info key and Ctrl+T say the whole row
+PokeAccess::Verbosity.info_line(:dex_entry, [[num.to_s, :brief], [name.to_s, :brief], [state, :medium]])
+```
+
+The readings, their levels and the API are in [08-reference](08-reference.md#verbosity).
 
 ### The `interrupt` argument
 
@@ -52,11 +76,12 @@ interpolates to an empty string.
 
 | Test | What it requires |
 |---|---|
-| `test/static/i18n_parity_spec.rb` | `I18n.parity_issues` empty: no key present in one language and missing in another, none duplicated within a file, same `%{var}` set in both. |
-| `test/static/i18n_refs_spec.rb` | That every key the code references exists in `lang/en.txt`. It scans `I18n.t(:k)` and the short `t(:k)` form across `core/`, `games/` and `plugins/`. |
+| `test/static/i18n_parity_spec.rb` | `I18n.parity_issues` empty: no key present in one language and missing in another, none duplicated within a file, the same `%{var}` set everywhere (plural forms included), and the forms each language's rule asks for. |
+| `test/static/i18n_refs_spec.rb` | That every key the code references exists in `lang/en.txt`, plain or by forms (`key.one`...). It scans `I18n.t(:k)` and the short `t(:k)` form across `core/`, `games/` and `plugins/`. |
 
 `__meta__` keys (the `__` prefix) are excluded from parity. A dynamically built family (`:"chr_#{kind}"`)
-cannot be scanned: its prefix is declared in `dynamic_prefixes`, inside `i18n_refs_spec.rb`.
+cannot be scanned, and nothing exempts it (`dynamic_prefixes`, inside `i18n_refs_spec.rb`, stays empty on
+purpose): its own spec checks its keys.
 `loader/boot.rb` runs the parity check at boot and logs it as a warning. Monolingual `games/` profiles may
 use literals; see [05-extending](05-extending.md).
 
@@ -140,10 +165,12 @@ active provider (`active_priority` <= 0), so an unrecognised engine is never a s
 | `stat_name(s)` | "Attack" | `PBStats.getName` | `Stat#name` |
 | `status_name(st)` | see note | `Config.status_names[st]` | `Status#name` |
 | `pokemon_types(pk)` | `["Fire", "Flying"]` | `type1` / `type2` | `pk.types` |
+| `species_types(id)` | `["Fire", "Flying"]` | dex data, two bytes at offset 8 (`pbOpenDexData`) | `Species#types` (`type1`/`type2` on v19) |
+| `trainer_type_name(id)` | "Hiker" | `PBTrainers.getName`, by number or constant name | `TrainerType.try_get(id).name` |
 
 `status_name` is asymmetric: on the GameData era it returns the status text; on gen-6, the **i18n key** from
 `Config.status_names` (`:st_burn`), which the caller passes through `I18n.t`; on the fallback, `nil`.
-`pokemon_types` never returns `nil`: `[]` when nothing resolves.
+`pokemon_types` and `species_types` never return `nil`: `[]` when nothing resolves.
 
 `resolve` returns `nil` in two distinct cases: the datum does not exist (intended silence), or the provider
 raised (likely a bug). The second is recorded once per `(method, error class)` in the marker and in

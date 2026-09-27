@@ -8,7 +8,7 @@ qué motor se detectó, qué hooks se ataron y qué plugins hay, antes de tocar 
 
 | Tecla | Qué hace | Salida |
 |---|---|---|
-| Ctrl+Alt+F8 | Activa/desactiva el mod; al reactivar reintenta el arranque de la voz | Voz |
+| Ctrl+Alt+F8 | Activa/desactiva el mod y con él calla el sonar; al reactivar reintenta el arranque de la voz y rehace el sonar donde estás | Voz |
 | Ctrl+Alt+F9 | Volcado completo, las 11 secciones | `<DATA>/diag.txt`, en modo append. `DATA` es `accessibility/data`, o la carpeta AppData del juego si aquella no admite escritura |
 | Ctrl+Alt+F10 | Diagnóstico hablado corto | Solo voz |
 
@@ -100,7 +100,7 @@ pantalla sin lector. Tres valores posibles, y **no significan lo mismo**:
 Se enciende desde el menú de depuración, no con tecla; escribe
 `accessibility/data/recordings/rec-AAAAMMDD-HHMMSS.txt` y al parar dice cuántos eventos guardó. Convierte
 una partida en un **transcript**: qué vio el mod y qué dijo, en orden. No engancha nada dentro de los
-lectores —todo le llega por `PokeAccess.on_speak` y una lectura por frame de estado que el mod ya lleva—,
+lectores —todo le llega como observador del despachador de voz (`Speech.observe`) y por una lectura por frame de estado que el mod ya lleva—,
 así que el instrumento no puede romper un lector. Apagado no cuesta nada. Campos separados por tabulador,
 texto siempre al final:
 

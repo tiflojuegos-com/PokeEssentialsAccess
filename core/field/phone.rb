@@ -1,7 +1,5 @@
 module PokeAccess
-  # The Pokegear phone contact list shows a rematch-ready icon next to trainers, invisible to a screen
-  # reader. The contact name is read by the generic command-window reader; this appends "ready for
-  # rematch". Readiness lives on the phone SCENE, so the live scene is tracked over its lifetime.
+  # Pokegear phone contacts: "ready for rematch" after a contact whose icon says so, read off the live phone scene.
   module Phone
     @scene = nil
 
@@ -24,8 +22,7 @@ module PokeAccess
   end
 end
 
-# Track the live phone scene so the list extractor can read rematch state. Modern splits setup/teardown
-# (pbStartScene/pbEndScene); gen-6 has one monolithic `start`, so wrap it to hold the scene throughout.
+# Holds the live phone scene: modern between pbStartScene and pbEndScene, gen-6 around its single start.
 PokeAccess::Hooks.after_hook("PokemonPhone_Scene", :pbStartScene) { |scene, _r, _a| PokeAccess::Phone.watch(scene) }
 PokeAccess::Hooks.after_hook("PokemonPhone_Scene", :pbEndScene) { |_s, _r, _a| PokeAccess::Phone.unwatch }
 PokeAccess::Hooks.around_hook("PokemonPhoneScene", :start) do |scene, call_next, _a|

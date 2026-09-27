@@ -1,7 +1,5 @@
-# The timing gauge: a tick whose pitch says how close the player is to the good moment. Its whole sweep has
-# to fit what mkxp's flat SE channel plays, 50 to 150: an older top of 180 was silently pinned at 150, so
-# the last third of every approach, the frames that matter most, sounded the same. Pinned here so a widened
-# span can never bring that back.
+# The timing gauge's tick, pitched by closeness to the good moment: its sweep fits mkxp's flat SE range (50-150), so
+# every step sounds different.
 Suite.define("gauge: the sweep stays inside the flat channel's 50-150 and every step is audible") do
   log = []
   orig = Audio.method(:se_play)

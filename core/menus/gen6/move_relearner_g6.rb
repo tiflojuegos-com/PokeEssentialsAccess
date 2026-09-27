@@ -1,46 +1,107 @@
-# Gen-6 Move Relearner (MoveRelearnerScene, no underscore -- the vanilla gen-6 class, distinct from the
-# modern MoveRelearner_Scene read in menus/v21). Its move list is a Window_CommandPokemon whose bare names the
-# generic reader already voices, but the focused move's full detail (type/power/accuracy/description) is only
-# hand-drawn in pbDrawMoveList. Without this, gen-6 games spoke only the move name while the modern relearner
-# and the forget-move screen spoke everything -- the inconsistency players reported. Mute the bare-name read
-# and speak the full detail on each redraw, via MoveInfo.by_id_via_data (PBMoveData on gen-6). The BetterMove-
-# Relearner plugin stores @moves as [id, "MT"] pairs; vanilla stores plain ids, so unwrap.
+# Gen-6 Move Relearner (MoveRelearnerScene; the modern MoveRelearner_Scene is menus/v21's): speaks the focused move's
+# detail on each pbDrawMoveList, or on each pbRefreshInfo in the older screen (Insurgence, Uranium), and the list
+# again when a declined question returns to it.
 module PokeAccess
   module MoveRelearnerGen6
-    # The move id under the focused list row. The traversal (and the [id, tag] unwrap this screen needs,
-    # because BetterMoveRelearner pairs each id with a tag) is shared with every other hand-drawn move list.
+    # The move id under the focused row (MoveList unwraps BetterMoveRelearner's [id, tag] pairs).
     def self.focused_id(scene)
       PokeAccess::MoveList.focused_id(scene)
     end
 
-    # Speaks the focused move's full detail (or nothing when it cannot be resolved).
+    # Speaks the focused move's detail at the learn move reading's level, with its row's tag (Pokemon Z's "MT") in
+    # front from medium; the info key keeps it whole.
     def self.detail(scene)
       id = focused_id(scene)
       return if id.nil?
-      s = PokeAccess::MoveInfo.by_id_via_data(id)
-      PokeAccess.speak(s, true)
+      tag = PokeAccess::MoveList.focused_tag(scene)
+      full = PokeAccess::MoveInfo.by_id_via_data(id)
+      PokeAccess::Info.set_info(:text, tag.empty? || full.nil? ? full : "#{tag}. #{full}")
+      s = PokeAccess::MoveInfo.by_id_via_data(id, :learn_move)
+      tag = "" unless PokeAccess::Verbosity.keep?(:learn_move, :medium)
+      PokeAccess.speak(tag.empty? || s.nil? ? s : "#{tag}. #{s}", true)
     rescue StandardError
       nil
     end
 
-    # The scene class to hook, or "" when this reader does not apply to the running engine. Same trap as the
-    # gen-6 summary: a fork can declare MoveRelearnerScene as an empty SUBCLASS of MoveRelearner_Scene and
-    # only ever build the latter, so this reader bound to nothing -- and move_relearner_v21, matching that
-    # v17 name, bound instead, MUTED the generic bare-name read and then said nothing itself, because its
-    # detail builder needs GameData::Move. The screen went from "only the move name" to completely silent.
+    # The list the generic reader would read: the older screen's "list", the stock screen's "commands".
+    def self.list_sprite(scene)
+      PokeAccess.sprite(scene, scene.respond_to?(:pbRefreshInfo) ? "list" : "commands")
+    end
+
+    # The older screen's focused row: the move's data at the learn move reading's level (the info key keeps it
+    # whole), or the list's own caption for CANCEL (move 0).
+    def self.row_text(scene, move)
+      if move.to_i > 0
+        PokeAccess::Info.set_info(:text, PokeAccess::MoveInfo.by_id_via_data(move))
+        return PokeAccess::MoveInfo.by_id_via_data(move, :learn_move)
+      end
+      list = PokeAccess.sprite(scene, "list")
+      list ? PokeAccess::Menus.focused_text(list) : nil
+    rescue StandardError
+      nil
+    end
+
+    # Says the row the older screen's pbRefreshInfo just painted; the first time, queued after the screen's own
+    # question.
+    def self.refreshed(scene, move)
+      text = row_text(scene, move)
+      return if text.nil? || text.to_s.empty?
+      first = !PokeAccess.ivar(scene, :@access_relearn_asked)
+      if first
+        scene.instance_variable_set(:@access_relearn_asked, true)
+        ask = (PokeAccess.sprite(scene, "msgwindow").text rescue nil)
+        text = PokeAccess.sentences([PokeAccess.clean(ask.to_s), text])
+      end
+      PokeAccess.speak_clean(text, !first, :menu)
+    rescue StandardError
+      nil
+    end
+
+    # The scene class to hook, or "" where this reader does not apply: with both names present (a fork declaring
+    # MoveRelearnerScene as an empty subclass of MoveRelearner_Scene), it binds only on a gen-6 engine.
+    # Counts the entries to the choice loop (pbChooseMove); from the second on, back from a declined question, which
+    # neither redraws nor reads anything, the loop's first update says the list again.
+    def self.choosing(scene)
+      n = PokeAccess.ivar(scene, :@access_relearn_entries).to_i + 1
+      scene.instance_variable_set(:@access_relearn_entries, n)
+      scene.instance_variable_set(:@access_relearn_again, true) if n > 1
+    end
+
+    # The first update of a re-entered choice loop, queued: the older screen's question and focused row, or the
+    # stock screen's focused move.
+    def self.again(scene)
+      return unless PokeAccess.ivar(scene, :@access_relearn_again)
+      scene.instance_variable_set(:@access_relearn_again, false)
+      return detail(scene) unless scene.respond_to?(:pbRefreshInfo)
+      list = PokeAccess.sprite(scene, "list")
+      moves = PokeAccess.ivar(scene, :@moves)
+      row = (list && moves.is_a?(Array)) ? row_text(scene, moves[list.index]).to_s : nil
+      ask = (PokeAccess.sprite(scene, "msgwindow").text rescue nil)
+      text = PokeAccess.sentences([PokeAccess.clean(ask.to_s), row])
+      PokeAccess.speak_clean(text, false, :menu) unless text.empty?
+    rescue StandardError
+      nil
+    end
+
     SCENE = PokeAccess::Engine.era_scene(:gen6, "MoveRelearnerScene", "MoveRelearner_Scene")
   end
 end
 
-# Mute the generic bare-name read of the move list, but with the mod's own flag: on gen-6 the command
-# window gates its OWN navigation on @ignore_input (050_SpriteWindow), so setting that here would freeze the
-# player's cursor. @access_dedicated tells menus.rb to skip the window without touching the engine's input.
-# hook_container: this body only STORES, it never speaks, and pbStartScene calls pbDrawMoveList -- whose hook is
-# the one that announces. Guarded, that opening read is dropped as nested_other? and the screen opens
-# in silence; the guard is only useful when the outer hook is itself the announcer.
+# Mutes the list's generic read with the mod's own flag (@ignore_input would freeze the gen-6 cursor). A container:
+# pbStartScene calls pbDrawMoveList (pbRefreshInfo in the older screen), whose hook speaks the opening read.
 PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbStartScene, :hook_container => true) do |scene, _r, _a|
-  PokeAccess.dedicate(PokeAccess.sprite(scene, "commands"))
+  PokeAccess.dedicate(PokeAccess::MoveRelearnerGen6.list_sprite(scene))
 end
-PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbDrawMoveList) do |scene, _r, _a|
+PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbDrawMoveList, :optional => true) do |scene, _r, _a|
   PokeAccess::MoveRelearnerGen6.detail(scene)
+end
+PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbRefreshInfo, :optional => true) do |scene, _r, args|
+  PokeAccess::MoveRelearnerGen6.refreshed(scene, args[0])
+end
+PokeAccess::Hooks.before_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbChooseMove, :optional => true) do |scene, _a|
+  PokeAccess::MoveRelearnerGen6.choosing(scene)
+end
+PokeAccess::Hooks.after_hook(PokeAccess::MoveRelearnerGen6::SCENE, :pbUpdate, :optional => true,
+                             :hook_container => true) do |scene, _r, _a|
+  PokeAccess::MoveRelearnerGen6.again(scene)
 end

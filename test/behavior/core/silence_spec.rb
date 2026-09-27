@@ -1,6 +1,5 @@
-# The silence watch: a screen that came up and said nothing must end up named in the diagnostic, and a
-# screen that spoke must not. Everything else in the suite proves a reader speaks when asked; this proves
-# the mod NOTICES when one never was.
+# The silence watch: a screen silent for Silence::WINDOW frames is named in the diagnostic, once and capped at MAX;
+# one that spoke is not.
 Suite.define("silence: a screen that says nothing gets named, one that speaks does not") do
   sil = PokeAccess::Silence
   frames = PokeAccess::Silence::WINDOW
@@ -18,7 +17,6 @@ Suite.define("silence: a screen that says nothing gets named, one that speaks do
   (frames + 2).times { sil.tick }
   eq "a screen that spoke inside the window is not", sil.quiet, []
 
-  # The watch must not turn a long session into a growing list: it is evidence in a diagnostic, not a log.
   sil.reset
   1.upto(PokeAccess::Silence::MAX + 5) do |n|
     PokeAccess::Hooks.note_screen("Scene#{n}")

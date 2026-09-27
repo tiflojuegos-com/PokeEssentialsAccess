@@ -1,7 +1,6 @@
 module PokeAccess
-  # The money / coins / battle-point side windows (shown by \g \cn \pt in a message) are separate
-  # windows, so their value never reaches the dialogue hook. Each pbDisplay*Window returns the window,
-  # whose text already carries the game's own localized label and amount (so reading it is engine-agnostic).
+  # The money, coins and points side windows a message opens (\g \cn \pt...): read from the window each
+  # pbDisplay*Window returns, whose text carries the game's own label and amount.
 
   # The cleaned spoken text of a money-style window, or nil.
   def self.money_window_text(win)
@@ -10,22 +9,15 @@ module PokeAccess
     clean(t.gsub(/<\/?ar>/i, " ")).gsub(/\s+/, " ").strip
   end
 
-  # Announces a money/coins/battle-points window's contents. Queued, never interrupting: these windows
-  # open from INSIDE pbMessageDisplay (the \g \cn \pt control codes), milliseconds after the message that
-  # opened them was queued, so an interrupting read cuts the NPC's own sentence to say the amount.
+  # Speaks a money-style window's contents, queued: it opens inside pbMessageDisplay, right after the message line.
   def self.say_money_window(win)
     t = money_window_text(win)
     speak(t, false) if t && !t.empty?
   end
 end
 
-# Each money-style window builder is a top-level method in both engines; read the window it returns.
-# No-op for any not defined (gen-6 lacks battle points).
-#
-# The last four are point windows a game or a plugin adds: the Infinite Fusions' \ft battle-factory points,
-# \hs heart scales and \qp quest points, and \apw achievement points. Their codes are erased from the line
-# like every other window trigger, so the figure they open reached the player through nothing at all until
-# they were listed here.
+# Reads the window each builder returns; a builder the game lacks is skipped. The last four are added by games or
+# plugins: battle-factory points (\ft), heart scales (\hs), quest points (\qp), achievement points (\apw).
 %w[pbDisplayGoldWindow pbDisplayCoinsWindow pbDisplayBattlePointsWindow
    pbDisplayBattleFactoryPointsWindow pbDisplayHeartScalesWindow pbDisplayQuestPointsWindow
    pbDisplayAchievementPointsWindow].each do |meth|

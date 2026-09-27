@@ -1,8 +1,6 @@
 module PokeAccess
-  # Both eras route many screen messages through UIHelper instead of pbMessage: its singleton methods are
-  # wrapped to read the message (via say_dialogue) before running the original. Every wrapped method takes
-  # (helpwindow, msg, ...), so one wrapper serves all; pbShowCommands/pbChooseNumber carry the QUESTION of
-  # every action/quantity prompt. A profile whose fork adds a method of that shape registers it with wrap.
+  # UIHelper's message methods, which bypass pbMessage: each wrapped singleton method takes (helpwindow, msg, ...) and
+  # says msg through say_dialogue first. A profile whose fork adds one of that shape registers it with wrap.
   module UIHelperWrap
     def self.wrap(names)
       return unless defined?(::UIHelper)

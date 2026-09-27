@@ -1,14 +1,7 @@
-# Neo PauseMenu (Luka S.J. plugin, EBS-style): reopens PokemonMenu_Scene as a sprite menu -- its entries
-# are drawn as bitmaps with no command window, so neither the command-window hook nor the generic
-# auto-detect (which both need a SpriteWindow_Selectable to introspect) can see it. Its own loop sets @index and
-# calls update every frame, with the entry refs in @entries and their labels in the MenuHandlers module;
-# read the focused entry on change. Guarded on @entries + MenuHandlers, so it is a no-op on a vanilla
-# command-window PokemonMenu_Scene (and on any game without this plugin). Optional: gen-6 menus have no
-# #update at all (their loop lives in pbStartScene), which is variance, not a typo.
+# Neo PauseMenu (Luka S.J.'s plugin): PokemonMenu_Scene as a sprite menu with no command window; the focused entry of
+# @entries is read by its MenuHandlers name on change. :optional, since gen-6 menus have no #update.
 module PokeAccess
-  # Return signal for the Neo sprite menu: entries run INLINE in the menu's own loop, so coming back lands
-  # on the same @index. MenuReturn arms a flag the menu's next update consumes by forgetting the slot.
-  # Arming outside the menu is harmless: consuming only clears a dedup slot.
+  # Return signal for the Neo menu: MenuReturn arms a flag its next update consumes by resetting the dedup slot.
   module NeoMenu
     def self.mark_return; @ret = true; end
 
@@ -20,8 +13,10 @@ module PokeAccess
   end
 end
 
+# Each frame: sets the info key's trainer answer (the loop never updates the map) and reads the focused entry.
 PokeAccess::Hooks.after_hook("PokemonMenu_Scene", :update, :optional => true) do |scene, _r, _a|
   if defined?(MenuHandlers)
+    PokeAccess::Info.set_info(:trainer, nil)
     PokeAccess::Cursor.reset(scene, :neo_last) if PokeAccess::NeoMenu.consume_return?
     PokeAccess::Menus.poll_sprite_menu(scene, :@entries, :neo_last) do |entry|
       (MenuHandlers.getName(entry) rescue entry.to_s)

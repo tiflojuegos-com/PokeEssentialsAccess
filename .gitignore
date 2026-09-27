@@ -22,9 +22,6 @@ desktop.ini
 *.swp
 *~
 
-# graphify analysis output (local only)
-graphify-out/
-
 # native build output and fetched third-party deps (miniaudio.h, Steam Audio SDK)
 native/out/
 native/miniaudio.h
@@ -45,25 +42,21 @@ accessibility/
 bridge/out/
 
 
-# Config local de Claude Code: privada, no se comparte.
+# Config local de Claude Code y demás asistentes: privada, no se comparte.
 .claude/
-
-# graft's local graph cache — regenerable, not committed (run `graft build`).
-/graft/
-
-# MCP local (graft): va con .claude/, no se comparte.
 .mcp.json
-.ignore
+.codegraph/
+CLAUDE.md
+CLAUDE.local.md
+AGENTS.md
+GEMINI.md
+MEMORY.md
 
 # Informes de auditoria: viven fuera del repo (../../auditoria/). Al repo solo va el mod.
 /auditoria/
 
 # Runtime markers the test harness writes (redirected via POKEACCESS_DATA_DIR)
 test/tmp_data/
-
-# Scratch folders of the installer specs (removed in ensure; only an interrupted run leaves them)
-test/static/tmp_ps_fn/
-test/static/tmp_fake_game/
 
 # Scratch folder of the preload trigger spec (removed in ensure; only an interrupted run leaves it)
 test/static/tmp_preload/

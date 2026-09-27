@@ -1,32 +1,25 @@
 module PokeAccess
-  # Adapter API: the declarative surface a game profile uses to plug into the toolkit. Each method
-  # forwards to a registration point, so it is a thin layer over the raw calls (which still work).
+  # The declarative API game profiles use (Game.define): each method forwards to a toolkit registration call.
   module Game
     @profiles = []
     @profile_name = nil
 
-    # The identifiers of the profiles defined so far (diagnostics only).
+    # The identifiers of the profiles defined so far.
     def self.profiles; @profiles; end
 
-    # The identifier of the profile this game runs under: the first name a Game.define block declared, else
-    # the one the installer stamped in installed.json (the generic profile declares none), else nil. The
-    # shareable dictionaries stamp their files with it, so a file is never imported into the wrong game.
-    #
-    # Memoised behind a false sentinel. The answer cannot change within a session, and the file it may have
-    # to read is the install manifest -- one SHA1 per deployed file -- which was being re-read whole every
-    # time the player set a mark or renamed a map.
+    # The profile this game runs under, which the dictionaries stamp their files with; memoised (false for nil)
+    # until Game.define adds a name.
     def self.profile_name
       @profile_name = (resolve_profile_name || false) if @profile_name.nil?
       @profile_name || nil
     end
 
-    # The stamp itself, qualified by the game's own title when the installer's is the GENERIC one. Without
-    # that qualifier every game installed without a profile stamped the same word, and a marks file from one
-    # imported into another without a murmur -- map ids mean something else in every game, so it would name
-    # random events all over the region. A game with a profile keeps the profile name alone: that name is
-    # already unique, and changing it would orphan every file already shared.
+    # The first Game.define name that is not a common's (a common loads first and names itself "<x>_common"), else
+    # installed.json's profile, else nil; "generic" becomes "generic:<title>" so two unprofiled games never share a
+    # stamp.
     def self.resolve_profile_name
-      return @profiles.first if @profiles.first
+      own = @profiles.find { |n| n.to_s !~ /_common\z/ }
+      return own if own
       txt = (File.read("#{PokeAccess::Paths::DATA}/installed.json") rescue nil)
       m = txt ? txt.match(/"profile"\s*:\s*"([^"]+)"/) : nil
       return nil unless m
@@ -35,8 +28,7 @@ module PokeAccess
       t ? "#{m[1]}:#{t}" : m[1]
     end
 
-    # The title the editor gave this game, which is what tells two generic installs apart. Loaded with the
-    # rest of the data before any dictionary can be written, and a player never edits it.
+    # The game's title from $data_system, or nil when blank.
     def self.game_title
       t = ($data_system.game_title rescue nil)
       (t.nil? || t.to_s.strip.empty?) ? nil : t.to_s.strip
@@ -66,34 +58,31 @@ module PokeAccess
       # Merges per-game button relabels into the remap menu (added to the defaults, never replacing).
       def button_labels(map); PokeAccess::Config.rebind_labels.merge!(map); end
 
-      # Merges a game's own entries into one of the core name tables -- :status_names, :weather_names,
-      # :field_weather_names -- added to the defaults, never replacing them. Fangames extend these engine
-      # enums past the vanilla range, and the ids they add CLASH between games (field weather 8 is ShadowSky
-      # in one and Charco in another), so each profile declares only its own; an unmapped id reads as nothing
-      # rather than as somebody else's weather. Values are i18n symbols, or literals for a Spanish-only game.
+      # Declares which letters the game paints in its key hints and the button each stands for (see KeyHints),
+      # only those checked against the code that reads the key: a letter the game reads raw stays out.
+      def key_hints(map); PokeAccess::Config.key_hint_letters.merge!(map); end
+
+      # Merges a game's own ids into a core name table (:status_names, :weather_names, :field_weather_names).
+      # Values are i18n symbols, or literals for a Spanish-only game.
       def names(table, map); PokeAccess::Config.send(table).merge!(map); end
 
       # Registers a focused-option reader for a command window. Yields (window, index) -> option text.
       def screen_reader(cname, &blk); PokeAccess::Menus.def_extractor(cname, &blk); end
 
-      # Declares one of this game's standing information windows: the sprite it writes with text= and
-      # repaints as the cursor moves, holding what the list rows never say.
+      # Declares one of this game's standing information windows (a sprite repainted with text= as the cursor moves).
       def info_window(cname, key, slot, opts = {}); PokeAccess::InfoWindow.watch(cname, key, slot, opts); end
 
-      # Declares this game's clones of the hall-of-fame records screen, which fangames copy-paste one per
-      # records hall they add (Fire Ash ships six). Each named class gets the family's readers: the member
-      # panel, the banner and the entry animation. Core already binds the two vanilla spellings.
+      # Binds the hall-of-fame readers (member panel, banner, trainer box) to this game's copies of the
+      # screen; core binds the two vanilla spellings.
       def hall_of_fame(*cnames)
         cnames.flatten.each { |c| PokeAccess::HallOfFame.bind(c) }
       end
 
-      # Runs the block AFTER a method fires. Yields (instance, result, args). opts reaches the hook
-      # untouched, so a profile has the same options the core does: :optional for a method legitimately
-      # absent on some builds of the game (skipped silently instead of landing in Hooks.missing) and
-      # :hook_container for an opener that delegates the announcement to hooked methods it drives.
+      # Runs the block after a method fires; yields (instance, result, args). opts as in Hooks.after_hook: :optional
+      # for a method absent on some builds, :hook_container for one that drives the hooks that announce.
       def after(cname, meth, opts = {}, &blk); PokeAccess::Hooks.after_hook(cname, meth, opts, &blk); end
 
-      # Runs the block BEFORE a method fires. Yields (instance, args). opts as in after (:optional).
+      # Runs the block before a method fires; yields (instance, args). opts as in after (:optional).
       def before(cname, meth, opts = {}, &blk); PokeAccess::Hooks.before_hook(cname, meth, opts, &blk); end
 
       # Wraps a method: the block runs around the original and must call the yielded nxt. Yields
@@ -104,17 +93,15 @@ module PokeAccess
       # text; meth defaults to :pbStartScene; :timing => :before for openers that block in their own loop.
       def read_on_open(cname, meth = :pbStartScene, opts = {}, &blk); PokeAccess::Hooks.read_on_open(cname, meth, opts, &blk); end
 
-      # REPLACES a core reader's module method (or a game class's instance method) for this profile,
-      # declaring the intent -- the diag lists every override, so the core is never steamrolled in silence.
-      # Yields (receiver, original, args); call original.() to wrap instead of substitute.
+      # Replaces a core reader's module method (or a game class's instance method) for this profile, listed in the
+      # diag. Yields (receiver, original, args); call original.() to wrap instead of substitute.
       def override(target, meth, &body); PokeAccess::Hooks.override(target, meth, :tag => "game_#{@name}", &body); end
 
       # Hooks a top-level function (a bare def, possibly on Kernel), for plugin functions that are not class
       # methods (e.g. pbItemBall). timing is :before/:after/:around; no-op where the function is absent.
       def kernel(fname, timing = :before, &body); PokeAccess::Hooks.wrap_kernel(fname, "game_#{@name}_#{fname}", timing, &body); end
 
-      # Contributes a section to the diagnostic dump (and the debug menu's group), so a game's own
-      # mechanics can be diagnosed without the core knowing the game. Yields the output line array.
+      # Adds a section to the diagnostic dump (and the debug menu's group); yields the output line array.
       def diag_section(name, group = :scene, &body); PokeAccess::Keys.register_diag_section(name, group, &body); end
 
       # Registers a remappable extra action (a raw key that would otherwise clash), reassignable from
@@ -124,9 +111,8 @@ module PokeAccess
       # Runs a block once per frame in every scene, for menus the game drives from its own blocking loop.
       def poll_each_frame(&blk); PokeAccess::Keys.on_frame(&blk); end
 
-      # Defines or replaces a named part of the trainer line the info key speaks (ribbons instead of badges,
-      # coins instead of money). Yields the player object; answers a spoken fragment or nil. A new name joins
-      # the end of the order (see trainer_order to place it).
+      # Defines or replaces a named part of the trainer line the info key speaks; yields the player, answers a
+      # spoken fragment or nil. A new name joins the end of the order (see trainer_order).
       def trainer_part(key, &reader); PokeAccess::Info.set_trainer_part(key, &reader); end
 
       # Sets the trainer line's parts and their order; a default part left out is simply not spoken.
@@ -142,18 +128,40 @@ module PokeAccess
       # an exit however it is triggered and gets the teleporter cue rather than the door's.
       def teleporter(pattern); PokeAccess::Locator.register_teleporter(pattern); end
 
-      # Registers a script call that means an event transfers the player, for a game whose doors call a
-      # function of its own instead of the editor's Transfer Player command. The pattern must capture the
-      # destination map id, which is what names the exit.
+      # Registers a script call that transfers the player (doors that skip the Transfer Player command); the
+      # pattern must capture the destination map id.
       def transfer_script(pattern); PokeAccess::Locator.register_transfer_script(pattern); end
+
+      # Declares an item this game hands a field move to (a surfboard for Surf), so the route finder and
+      # the guide know the player can use the move without a Pokemon that knows it.
+      def field_move_item(move, item); PokeAccess::FieldMoves.register_item(move, item); end
+
+      # Declares a script call this game's event conditions test, and what it returns: the block gets the match
+      # and the walk's context (see EventPages::ScriptCondition.register_atom).
+      def script_condition(pattern, &reader); PokeAccess::EventPages::ScriptCondition.register_atom(pattern, &reader); end
+
+      # Declares terrain of this game that moves the player once they arrive on it (see Pathfinder.arrival_rule).
+      def terrain_rule(&rule); PokeAccess::Pathfinder.arrival_rule(&rule); end
+
+      # Declares tiles of this game where the direction key has to be kept held (see Pathfinder.held_key_rule).
+      def held_key_ground(&rule); PokeAccess::Pathfinder.held_key_rule(&rule); end
+
+      # Declares terrain of this game the player leaves by a move of its own (see Pathfinder.leave_rule).
+      def terrain_exit(&rule); PokeAccess::Pathfinder.leave_rule(&rule); end
+
+      # Declares something this game lets the player do to get past what stops a walk, for the assisted
+      # route (see Pathfinder.assist_source).
+      def assisted_step(&blk); PokeAccess::Pathfinder.assist_source(&blk); end
+
+      # Declares that this game's player passability reads nothing an event can change but the map's tiles, tileset
+      # and events, as checked against its scripts (see Pathfinder.plain_passability).
+      def plain_passability; PokeAccess::Pathfinder.plain_passability; end
 
       # Maps picture file names to spoken text, for screens that light one picture per option.
       def picture_texts(map); PokeAccess::PictureCues::TEXTS.merge!(map); end
 
-      # picture_texts for a game shipped as several per-language builds: each value is a hash of build
-      # language => transcription, resolved at speak time against what the RUNNING build declares
-      # (GameLang). base names the language the pictures were authored in -- the fallback when a build
-      # declares a language nobody transcribed.
+      # picture_texts for a game shipped as per-language builds: each value maps build language => text, resolved
+      # against the running build (GameLang); base is the pictures' own language, the fallback.
       def picture_texts_multibuild(base, map)
         map.each_key { |k| PokeAccess::PictureCues::BASE_LANG[k.to_s] = base }
         PokeAccess::PictureCues::TEXTS.merge!(map)

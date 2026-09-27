@@ -1,8 +1,5 @@
-# The speech-init state machine (F-L08-001): init happens ONCE and honours the result; a failure stays
-# failed with no background retry, and retry_init! (the Ctrl+Alt+F8 re-enable gesture) is the only way
-# to try again. Under the harness the stub Win32API always constructs and its call returns 0, so PEA_INIT
-# is NOT nil: PeaInitialize "runs" and reports failure, which exercises exactly the "init failed" branch
-# (not the missing-DLL branch) without extra stubbing.
+# Speech init runs once and a failure stays failed until retry_init! (the Ctrl+Alt+F8 gesture); the stub Win32API
+# returns 0, so PeaInitialize runs and reports failure.
 Suite.define("speech: init attempts once, stays failed, and retry_init! re-arms it") do
   prev_ready = PokeAccess.instance_variable_get(:@ready)
   prev_attempted = PokeAccess.instance_variable_get(:@init_attempted)
@@ -38,9 +35,7 @@ Suite.define("speech: voice primitives degrade safely without a bridge") do
   eq "speech_backend is empty", PokeAccess.speech_backend, ""
 end
 
-# codepoints_to_utf8 hand-encodes BMP codepoints (1.8.7 has no Encoding API): ASCII stays 1 byte,
-# Latin-1 supplement takes 2, braille patterns (U+28xx) take 3. Compared as byte arrays so the spec
-# is immune to string-encoding rules across Ruby versions.
+# codepoints_to_utf8 hand-encodes BMP codepoints (1.8.7 has no Encoding API): ASCII 1 byte, Latin-1 2, braille 3.
 Suite.define("speech: codepoints_to_utf8 encodes ASCII, 2-byte and 3-byte ranges") do
   eq "plain ASCII passes through", PokeAccess.codepoints_to_utf8([0x61, 0x62, 0x63]).unpack("C*"),
      [0x61, 0x62, 0x63]

@@ -1,10 +1,5 @@
-# One find_path is up to three searches -- the reachability probe, the walking route, then the route that
-# allows ledge hops -- so a clock per search spends route_budget_ms, the option that promises "never spend
-# more than this on a route", three times over. The interesting part is not the arithmetic: running out of
-# time makes a search return nil, and returning nil is precisely what fires the NEXT search, so the cut-off
-# feeds the work it exists to cut.
-#
-# The clock is faked here so the assertions are exact rather than "these two floats differ by a hair".
+# One route, one deadline: every search inside with_budget (probe, walking route, ledge route) shares it, nested ones
+# included, and it closes with the route even on a raise; with route_auto off there is none. The clock is faked.
 Suite.define("pathfinder: one route, one deadline") do
   pf = PokeAccess::Pathfinder
   prev = [PokeAccess::Config.route_auto, PokeAccess::Config.route_budget_ms]
@@ -16,7 +11,7 @@ Suite.define("pathfinder: one route, one deadline") do
     def clock; @budget_spec_t = (@budget_spec_t || 0.0) + 1.0; end
   end
 
-  falsy "no deadline is in scope to begin with", pf.instance_variable_get(:@budget_until)
+  falsy "no search operation, so no deadline, is open to begin with", pf.context
 
   outer = pf.with_budget do
     a = pf.search_deadline
@@ -26,21 +21,17 @@ Suite.define("pathfinder: one route, one deadline") do
        pf.with_budget { pf.search_deadline }, a
     a
   end
-  falsy "the deadline is gone once the route is done", pf.instance_variable_get(:@budget_until)
+  falsy "the operation and its deadline are gone once the route is done", pf.context
 
   later = pf.with_budget { pf.search_deadline }
   truthy "the next route gets its own deadline, not the stale one", later > outer
 
-  # A search that blows up must not leave its deadline behind: the next route would inherit an hour that
-  # already passed and give up on its first node check.
   begin
     pf.with_budget { raise "boom" }
   rescue StandardError
   end
-  falsy "a search that raises still clears its deadline", pf.instance_variable_get(:@budget_until)
+  falsy "a search that raises still closes its operation, deadline and all", pf.context
 
-  # With the time mode off there is no deadline at all: the searches bound themselves by node count instead,
-  # which is the old behaviour and must stay reachable.
   PokeAccess::Config.route_auto = false
   eq "with the time mode off there is nothing to run out of",
      pf.with_budget { pf.search_deadline }, nil

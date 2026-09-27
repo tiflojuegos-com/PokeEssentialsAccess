@@ -1,8 +1,6 @@
 module PokeAccess
-  # Player overrides for map objects, keyed by map and event id, so players (and the community) can
-  # name, recategorise or hide objects. Stored as shareable "mapid:eventid=name" lines in tags.txt, with
-  # optional tab-separated "cat=<symbol>" and "hide" tokens. The file plumbing (load, import, export, the
-  # game stamp) is Dictionary's; this module owns the record shape.
+  # Player overrides for map objects by map and event id (name, category, hidden), stored as "mapid:eventid=name"
+  # lines in tags.txt with optional tab-separated "cat=<symbol>" and "hide" tokens.
   module Tags
     extend PokeAccess::Dictionary
     FILE   = "#{PokeAccess::Paths::DATA}/tags.txt"
@@ -58,8 +56,7 @@ module PokeAccess
       prune(mid, eid); save
     end
 
-    # Forgets an object entirely -- name, category and hidden flag at once -- and persists. The management
-    # menu's "delete"; set with "" is not this, it clears the name and keeps the rest.
+    # Forgets an object's whole record (name, category, hidden) and persists; set with "" clears only the name.
     def self.delete(mid, eid)
       evs = store[mid]
       return unless evs && evs.has_key?(eid)
@@ -68,8 +65,7 @@ module PokeAccess
       save
     end
 
-    # Drops a record that has no name, no category and no hidden flag (so tags.txt never accumulates
-    # empty entries), and the map's hash when it empties.
+    # Drops a record with no name, category or hidden flag, and the map's hash when it empties.
     def self.prune(mid, eid)
       r = rec(mid, eid)
       return unless r
@@ -90,7 +86,7 @@ module PokeAccess
        "Comparte este archivo; para importar otro, renombralo a tags_import.txt"]
     end
 
-    # One "mapid:eventid=name<TAB>cat=x<TAB>hide" line into the store. Old name-only lines load unchanged.
+    # One "mapid:eventid=name<TAB>cat=x<TAB>hide" line into the store; the tokens are optional.
     def self.parse_line(dest, key, val)
       colon = key.index(":")
       return if colon.nil?

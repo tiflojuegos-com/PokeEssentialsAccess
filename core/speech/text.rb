@@ -1,63 +1,51 @@
 module PokeAccess
-  # Strips Essentials control codes and HTML-like tags for natural speech. The player-name and money codes
-  # (\PN, \pm, \upn, \dpn) are substituted, the bracketed codes (\c[n], \l[n], \wt[n]...) and the bare ones
-  # removed; the bracketed codes that open a NAME BOX become the speaker (NAME_CODES). Bare codes are matched
-  # from a LIST first, since a game glues them onto the text ("\bHello!") and a greedy match ate the first
-  # word; an unlisted one falls to the bounded sweep below, which eats the short word after it or leaves its
-  # letters glued to a long one, which is why the list exists. Control bytes \x00-\x1f go too, or a paused
-  # line slips past say_dialogue's dedup. <br> becomes a space, since it is a line break; the other tags are
-  # formatting and leave no gap. FIELD_TAGS are the panel separators clean_fields turns into ", ", where
-  # clean alone would glue the fields together.
+  # Game text made speakable (clean): name and money codes substituted, name-box codes turned into the speaker,
+  # other codes and tags removed, <br> read as a space, entities decoded, control bytes blanked (say_dialogue's dedup
+  # needs it).
+  # FIELD_TAGS are the panel separators clean_fields turns into ", ".
   FIELD_TAGS = /<\s*\/?\s*(r|br|ac)\s*\/?\s*>/i
 
+  # A panel's fields joined by ", ": separator tags and runs of commas become one, a digit-grouping comma ("3,000")
+  # stays as painted.
   def self.clean_fields(text)
-    t = clean(text.to_s.gsub(FIELD_TAGS, ", ")).to_s.strip
-    t.gsub(/(,\s*)+/, ", ").sub(/\A,\s*/, "").sub(/,\s*\z/, "")
+    t = clean(text.to_s.gsub(FIELD_TAGS, ", ")).to_s.strip.gsub(/(\d),(?=\d)/, "\\1\001")
+    t.gsub(/\s*(?:,\s*)+/, ", ").sub(/\A,\s*/, "").sub(/,\s*\z/, "").tr("\001", ",")
   end
 
-  # The bare (bracketless) control codes the surveyed games' message systems recognise, longest first so
-  # \pog is matched whole rather than as \pg followed by an o: the speaker colours \b \r, the gendered
-  # colours \pg \pog, the window codes \wu \wm \wd \op \cl, the money and points windows \G \CN \pt \ft \hs
-  # \qp \apw, anil's \sh, awakening's \pksz \wshs. \PN, \pm and \n are handled on their own.
-  #
-  # The list has to be a LIST. A bare code that is not on it falls to the generic sweep below, which cannot
-  # tell where the code ends: it eats the word that follows ("\ptSi." became "."), and where the next letter
-  # is accented -- not [A-Za-z] -- it splits the word instead and the code is read out letter by letter.
-  # \pt alone appears in vanilla and eight of the games.
+  # The bare control codes the games' message systems recognise, longest first (\pog before \pg): speaker colours
+  # \b \r, gendered colours \pg \pog, window codes \wu \wm \wd \op \cl, money and points windows \G \CN \pt \ft \hs
+  # \qp \apw, anil's \sh, awakening's \pksz \wshs. An unlisted one hits the generic sweep, which eats the next word.
   BARE_CODES = /\\(?:pksz|wshs|pog|apw|pg|wu|wm|wd|op|cl|cn|sh|pt|ft|hs|qp|b|r|g)/i
 
-  # The bracketed codes that open a NAME BOX above the message. Seven spellings across the games and their
-  # plugins: \tg (vanilla), \ta and \tb (awakening's second and third name boxes), \js (awakening's own NPC
-  # name plugin) and \xn \dxn \xna \xnb \xnc (the Mr Gela name windows Soulstones 2 ships). All but the
-  # first two were erased by the generic bracket sweep, so in those games nobody said who was speaking --
-  # which on a screen whose portrait is the only other clue is the line's whole subject.
+  # The bracketed codes that open a name box above the message: \tg (vanilla), \ta \tb and \js (awakening), \xn \dxn
+  # \xna \xnb \xnc (the Mr Gela name windows, Soulstones 2).
   NAME_CODES = /\\(?:tg|ta|tb|js|dxn[abc]?|xn[abc]?)\[([^\]]*)\]/i
 
-  # Rules a PROFILE adds for the name a box really shows. The name in the code is not always the name on
-  # screen: Reminiscencia hides one character behind "???" until a switch is flipped, and rewrites the
-  # parameter on its way to the window (reminiscencia/0500 Messages.rb:1727). Reading the code raw told the
-  # player who it was, which is the one thing that scene is withholding -- and no generic rule can know
-  # that, because the condition is the game's.
+  # Rules a profile adds for the name a box really shows, where the game rewrites the code's name on its way to the
+  # window (Reminiscencia's "???").
   @name_filters = []
 
   # Registers a rule. Yields the name the code carries, returns the name to speak (or nil to keep it).
   def self.register_name_filter(&blk); @name_filters.push(blk); end
   def self.name_filters; @name_filters; end
 
-  # The speaker's name as the box paints it: the FIRST comma-separated field, because the parameter of the
-  # \xn family is a whole list (name, base colour, shadow colour, font, size, alignment, x, y, skin) and the
-  # window itself takes only the first of it -- the rest was being read out as hexadecimal. Then whatever a
-  # profile's rule makes of it.
+  # The speaker's name as the box paints it: the first comma-separated field (the \xn parameter is a whole list of
+  # name, colours, font and position), then whatever the profile's rules make of it; a box that shows only question
+  # marks (a hidden speaker's "???") is said as the word for an unknown speaker, since a screen reader drops them.
   def self.speaker_name(raw)
     nm = raw.to_s.split(",")[0].to_s.strip
     @name_filters.each do |f|
       out = (f.call(nm) rescue nil)
       nm = out.to_s if out
     end
-    nm
+    nm =~ /\A\?+\z/ ? PokeAccess::I18n.t(:msg_speaker_unknown) : nm
   rescue StandardError
     raw.to_s
   end
+
+  # The five character entities the games' text drawing turns back into characters (toUnformattedText and
+  # getFormattedText), in its order: &amp; last, so "&amp;quot;" stays "&quot;" as painted.
+  ENTITIES = [["&lt;", "<"], ["&gt;", ">"], ["&apos;", "'"], ["&quot;", "\""], ["&amp;", "&"]]
 
   # The player's money for the \pm code, or "" without a player.
   def self.money_text
@@ -85,9 +73,23 @@ module PokeAccess
     t.gsub!(/\\/, "")
     t.gsub!(/<\s*br\s*\/?\s*>/i, " ")
     t.gsub!(/<\/?[A-Za-z][^>]*>/, "")
+    ENTITIES.each { |ent, ch| t.gsub!(ent, ch) }
     t.gsub!(/\|/, " ")
     t.gsub!(/[\x00-\x1f]/, " ")
     t.gsub!(/\s+/, " ")
     t.strip
+  end
+
+  # Parts joined as sentences; one that already closes its own ("Teletr.") takes no second mark, nor one that
+  # leads into the next (a label ending in a colon, "LISTA DE TARJETAS:"). Empty parts are left out.
+  def self.sentences(parts)
+    out = ""
+    parts.each do |p|
+      s = p.to_s.strip
+      next if s.empty?
+      out << (out =~ /[.!?:]\z/ ? " " : ". ") unless out.empty?
+      out << s
+    end
+    out
   end
 end

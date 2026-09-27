@@ -1,14 +1,12 @@
 module PokeAccess
-  # Berry-plant state at a glance (for the locator's target name). A planted berry is a map event whose
-  # growth data hangs off its self-variable in different shapes per engine (modern a BerryPlantData,
-  # gen-6 a plain array); stage numbering is identical (1 planted .. 5+ ready), moisture 0 dry/1 damp/2 wet.
+  # Berry-plant state for the locator's target name. The growth data sits on the plant event's variable, a
+  # BerryPlantData (modern) or a plain array (gen-6); stages 1 planted .. 5+ ready, moisture 0 dry/1 damp/2 wet.
   module Berry
     STAGE = { 1 => :berry_planted, 2 => :berry_sprouted, 3 => :berry_taller,
               4 => :berry_flowering, 5 => :berry_ready }
     MOIST = { 0 => :berry_dry, 1 => :berry_damp, 2 => :berry_wet }
 
-    # The growth/moisture suffix appended to a berry plant's spoken name, or "" when empty/unreadable.
-    # Leads with a comma so it slots onto the plant name.
+    # The suffix appended to a berry plant's name (", stage, berry, moisture"), or "" when unplanted or unreadable.
     def self.state_suffix(ev)
       stage, item, moist, newmech = read((ev.variable rescue nil))
       return "" if stage.nil? || stage <= 0

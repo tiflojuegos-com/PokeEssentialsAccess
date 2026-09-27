@@ -1,14 +1,5 @@
-# The hall-of-fame family reader, on the gen-6 spelling. Its twin hall_of_fame_family_gd_spec.rb covers the
-# modern one and the profile-declared clone.
-#
-# The screen is FL's, and fangames clone it by copy-paste once per records hall they add: Fire Ash ships six
-# more with the same methods and the same panels, changing only the class name and the header. Readers
-# written against one class name covered one screen of seven, and the other six were mute from end to end,
-# with the focused member marked by opacity alone.
-#
-# What is pinned is that the panel is READ AS PAINTED rather than composed. Composing gives nickname,
-# species and level; the panel also paints the dex number and the trainer id, and each per-language build
-# paints its own words.
+# The hall-of-fame family reader on the gen-6 spelling (the modern one and clones: hall_of_fame_family_gd_spec.rb):
+# the member panel is read as painted, dex number and trainer id included, and the banner is the screen's own.
 Suite.define("hall of fame: the member panel is read as painted, and the banner is the screen's own") do
   fake = Class.new do
     attr_reader :name, :level, :species
@@ -43,4 +34,18 @@ Suite.define("hall of fame: the member panel is read as painted, and the banner 
   SpeakCapture.clear
   scene.writeWelcome
   eq "the banner is whatever the screen painted", SpeakCapture.lines, ["Bienvenido al Salon de la Fama"]
+end
+
+# The closing trainer box (writeTrainerData) is read as its window takes its text, queued ahead of the congratulation
+# the same method then blocks on; a text window built anywhere else is left to its own readers.
+Suite.define("hall of fame: the closing trainer box is read row by row before the congratulation") do
+  SpeakCapture.clear
+  HallOfFameScene.new.writeTrainerData
+  eq "the box's rows, label and value apart, then the congratulation, both queued",
+     SpeakCapture.log,
+     [["Name Tester, IDNo. 12345, Time 01:23, Pokédex 10/20", false], ["¡Enhorabuena por tu victoria!", false]]
+
+  SpeakCapture.clear
+  Window_AdvancedTextPokemon.new("Name<r>Otro<br>")
+  silent "a text window built outside that method says nothing through this reader"
 end

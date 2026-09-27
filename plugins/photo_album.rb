@@ -1,8 +1,5 @@
-# Photo album (the "Fotos del equipo" plugin, AlbumFotos_Scene): a 2x2 grid of saved screenshots over pages,
-# cursor in @photo (0-3) and @page, @viendofoto set while one is enlarged. What a player can use is the
-# slot's number and the date, stored in the FILENAME as capture###_dd_mm_yyyy.png. pbUpdateAlbum is a modal
-# loop, so the cursor is polled through SceneWatcher. The copies differ only in the LOOKUP (a cached listing
-# behind obtener_archivo_captura, or a glob of ALBUM_DIR), so the fallback caches its own listing.
+# Photo album ("Fotos del equipo", AlbumFotos_Scene): pages of a 2x2 screenshot grid (@photo 0-3, @page) polled
+# during pbUpdateAlbum; each slot's number and date come from its filename, capture###_dd_mm_yyyy.png.
 module PokeAccess
   module PhotoAlbum
     # The album's files, listed once per scene. The plugin does not add photos while the album is open.
@@ -15,9 +12,7 @@ module PokeAccess
       list
     end
 
-    # The file behind a slot, by whichever route this copy offers, or nil for an empty slot.
-    # The lookup logs rather than swallowing: respond_to? has already said the method is there, so a raise
-    # is a real fault and hiding it would report every photo as an empty slot.
+    # The file behind a slot, via obtener_archivo_captura (a raise there is logged) or a glob; nil if empty.
     def self.file_for(scene, index)
       if scene.respond_to?(:obtener_archivo_captura, true)
         return (scene.send(:obtener_archivo_captura, index) rescue (PokeAccess.log_once("album_lookup", $!); nil))
@@ -34,21 +29,30 @@ module PokeAccess
       "#{parts[-3].to_i}/#{parts[-2].to_i}/#{parts[-1].to_i}"
     end
 
-    # What the focused slot is: a numbered photo with its date, or an empty slot, always with the page.
+    # What the focused slot is, as a numbered photo or an empty slot: on the grid with its page, which the grid
+    # paints; opened, with the date, which only the opened photo paints.
     def self.text(scene)
       page  = PokeAccess.ivar_i(scene, :@page)
       photo = PokeAccess.ivar_i(scene, :@photo)
       pages = (PokeAccess.ivar(scene, :@numpages) || 1).to_i
       index = page * 4 + photo
       file  = file_for(scene, index)
+      viewing = PokeAccess.ivar(scene, :@viendofoto) ? true : false
+      pos = PokeAccess::Verbosity.keep?(:positions, :medium)
       head = if file
-               d = date_of(file)
-               t = PokeAccess::I18n.t(:alb_photo, :n => index + 1, :tot => PokeAccess.ivar_i(scene, :@numcapturas))
+               d = viewing ? date_of(file) : nil
+               t = if pos
+                     PokeAccess::I18n.t(:alb_photo, :n => index + 1, :tot => PokeAccess.ivar_i(scene, :@numcapturas))
+                   else
+                     PokeAccess::I18n.t(:alb_photo_bare, :n => index + 1)
+                   end
                d ? "#{t}, #{d}" : t
              else
                PokeAccess::I18n.t(:alb_empty)
              end
-      "#{head}, #{PokeAccess::I18n.t(:alb_page, :n => page + 1, :tot => pages)}"
+      return head if viewing
+      return "#{head}, #{PokeAccess::I18n.t(:alb_page, :n => page + 1, :tot => pages)}" if pos
+      file ? head : "#{head}, #{PokeAccess::I18n.t(:alb_page_bare, :n => page + 1)}"
     end
   end
 

@@ -1,8 +1,5 @@
-# The guide's cached-route consumers must advance TWO tiles over a ledge hop, matching the pathfinder's
-# two-tile hop model (a hop is packed as ONE direction whose landing is beyond the ledge). Before the fix
-# they advanced one tile per step, so after every hop the cursor desynchronised from the player and the
-# guide re-ran the full A* per hop; path_walkable? also validated the post-hop steps from the ledge tile
-# instead of the landing, declaring healthy routes broken.
+# The guide's cached-route consumers advance two tiles over a ledge hop, packed as one direction landing beyond the
+# ledge; path_walkable? checks the steps after a hop from the landing.
 Suite.define("guide: cached-route consumption crosses a ledge hop as two tiles") do
   loc = PokeAccess::Locator
   PokeAccess::Config.route_cache = false
@@ -10,12 +7,12 @@ Suite.define("guide: cached-route consumption crosses a ledge hop as two tiles")
   $game_map.load_grid(["########", "########", "########", "########", "########",
                        "#####..#", "#####.##", "#####.##", "#####..#", "########"])
   $game_map.place_ledge(5, 7, 2)
-  [:@rs_key, :@pcache_state, :@hpa_sig, :@slide_key].each { |s| PokeAccess::Pathfinder.instance_variable_set(s, nil) }
+  [:@rs_key, :@pcache_state, :@hpa_sig, :@event_indexes].each { |s| PokeAccess::Pathfinder.instance_variable_set(s, nil) }
+  pf = PokeAccess::Pathfinder
 
-  eq "step_span walks one tile on plain ground", loc.step_span(5, 5, 2), [5, 6]
-  eq "step_span lands two tiles past a ledge", loc.step_span(5, 6, 2), [5, 8]
+  eq "a route step walks one tile on plain ground", spots(pf.trace(5, 5, 0, [2])), [[5, 6, 0]]
+  eq "and lands two tiles past a ledge", spots(pf.trace(5, 6, 0, [2])), [[5, 8, 0]]
 
-  # A cached route from (5,5): down (plain), down (the hop), right -- as the pathfinder packs it.
   loc.instance_variable_set(:@guide_from, [5, 5])
   loc.instance_variable_set(:@guide_path, [2, 2, 6])
 

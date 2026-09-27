@@ -1,15 +1,13 @@
 # Realidea profile: only what differs from core/foundation/config.rb.
 PokeAccess::Game.define("realidea") do
-  # The game extends both weather enums past the vanilla range, and the core tables stopped short, so these
-  # read as nothing at all: a battle under Aroma was announced as having no field condition, and three
-  # overworld weathers that fill the screen came out as clear skies. Ids from the game's own PBWeather
-  # (AROMA = 9) and PBFieldWeather (ShadowSky = 8, Aroma = 9, Ash = 10). Shadow Sky already has a core key,
-  # so it reuses it and stays translated; the two the game invented carry its own Spanish names.
-  names(:weather_names, 9 => "Aroma")
-  names(:field_weather_names, 8 => :w_shadow_sky, 9 => "Aroma", 10 => "Ceniza")
+  # The weathers past the vanilla range, by the ids of the game's PBWeather and PBFieldWeather; the game paints no
+  # name for its own two (Aroma and Ash), which take the mod's words.
+  names(:weather_names, 9 => :w_aroma)
+  names(:field_weather_names, 8 => :w_shadow_sky, 9 => :w_aroma, 10 => :w_ash)
 
-  # The lake temples, the ruins and the oasis are linked by warp pads drawn as a small light, and the metro
-  # and the director's office reuse the sprite: ten touch-triggered transfers on the map data, none of them
-  # a doorway, so they take the teleporter cue.
+  # The small-light warp pads (temples, ruins, oasis, metro, director's office) take the teleporter cue.
   teleporter(/\Alucecita\z/i)
+
+  # Key hints for the default letters, but not Q and W, which also fire the game's own pause-menu teleport.
+  key_hints "Z" => :a, "X" => :b, "C" => :c, "A" => :x, "S" => :y, "D" => :z
 end

@@ -1,14 +1,6 @@
-# The tone menu: one 0-100 setting per sound family that pitches the family's cues on every path they
-# take -- the positional engine (PA3D_Pitch), the flat SE fallback and the menu's own audition. What the
-# suites pin is the contract the C side and the Ruby side share: 50 is the recording and each side of it
-# is an octave; the engine is told once per change; the guide keeps ahead and behind on the flat pitched
-# cue and moves its four directions by one factor; the flat fallback keeps a pitch-coded pair tellable
-# apart inside mkxp's 50-150.
-#
-# Why the suites force engine state: the harness ships no PA3D dll. Win32API is a stub whose #call returns
-# 0, so boot() never marks the engine ready and every play path refuses. The suites seed @ch with the handle
-# table boot builds, mark the engine ready and replace the #call of the entry points they watch with a
-# recorder, so the asserts read exactly the arguments the real dll receives. Everything is restored.
+# The tone menu: a 0-100 setting per sound family pitching its cues on the engine (PA3D_Pitch), the flat SE fallback
+# and the menu audition; 50 is the recording and each side an octave. The harness has no dll, so the suites mark the
+# engine ready, seed @ch with the table boot would build and record the native calls.
 module A3DTone
   IVARS = [:@ch, :@tone_sent, :@ready, :@master_sent]
   FNS = [:SET, :PITCH, :MAST]
@@ -104,9 +96,10 @@ Suite.define("tone: the engine hears a channel's pitch once per change, and the 
     A3DTone.ready(log)
     a3d.sync_tones
     sent = A3DTone.pitches(log)
-    eq "every channel but the guide got its pitch on the first pass", sent.length, a3d::CHANNEL_FILES.length - 1
+    eq "every channel but the guide's two got its pitch on the first pass", sent.length, a3d::CHANNEL_FILES.length - 2
     eq "all of them the recording, the default tone being 50", sent.map { |_ch, p| p }.uniq, [100]
-    falsy "the guide channel was not among them", sent.any? { |ch, _p| ch == A3DTone.channels[:guide] }
+    guides = [A3DTone.channels[:guide], A3DTone.channels[:guide_hold]]
+    falsy "the guide's channels were not among them", sent.any? { |ch, _p| guides.include?(ch) }
     log.clear
     a3d.sync_tones
     eq "a second pass with nothing changed sends nothing", log.length, 0
@@ -138,6 +131,17 @@ Suite.define("tone: the engine hears a channel's pitch once per change, and the 
     PokeAccess::Config.guide_tone = 0
     a3d.guide(6, 60)
     eq "and down as far as keeps behind over 50", A3DTone.pitches(log), [[guide, 71]]
+
+    log.clear
+    hold = A3DTone.channels[:guide_hold]
+    truthy "the held tone sounds to the left at the pitch it is given", a3d.guide_hold(4, 60, 93)
+    eq "placed where the chime goes, and asked to play", log, [[:PITCH, [hold, 93]], [:SET, [hold, 700, 1000, 60, 1]]]
+    log.clear
+    truthy "ahead it is taken too, on the player, told apart by pitch alone", a3d.guide_hold(8, 60, 140)
+    eq "at the player's own tile", log.last, [:SET, [hold, 1000, 1000, 60, 1]]
+    log.clear
+    truthy "and it stops when asked with no direction", a3d.guide_hold(nil)
+    eq "silenced with a single call", log, [[:SET, [hold, 0, 0, 0, 0]]]
   ensure
     A3DTone.restore(saved)
   end

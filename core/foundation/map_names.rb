@@ -1,9 +1,6 @@
 module PokeAccess
-  # Player-chosen names for maps, keyed by map id, so a player can rename a place whose own name is unhelpful
-  # (an "EV"-style internal name, a duplicate, or just clearer wording). Stored as "mapid=name" lines in
-  # map_names.txt. The override is consulted by Locator.map_name, so it also changes how exits to that map are
-  # announced (a door's spoken destination uses the same lookup). Import and export are Dictionary's, the
-  # same as the tags: a player who renamed a whole dungeon can hand the file on.
+  # Player-chosen map names by map id ("mapid=name" in map_names.txt), used by Locator.map_name and so by the
+  # spoken exit destinations; imported and exported through Dictionary.
   module MapNames
     extend PokeAccess::Dictionary
     FILE   = "#{PokeAccess::Paths::DATA}/map_names.txt"

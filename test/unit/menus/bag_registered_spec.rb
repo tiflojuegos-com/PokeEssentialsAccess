@@ -1,11 +1,4 @@
-# Whether a bag item is REGISTERED to the ready menu, which the bag marks with an icon and the row reader
-# turns into a spoken word. The fangames expose it five different ways, and a shape the probe does not know
-# fails the way every reader bug in this mod fails: no exception, no nil, the row simply never says
-# "registered" and sounds like any other.
-#
-# Surveying the fifteen script dumps, four games keep it ONLY as pbIsRegistered? over a registeredItems
-# array -- Fire Ash, both Infinite Fusions and Awakening, which also keeps the old single slot -- and in
-# three of them the mod had never said the word.
+# Whether a bag item is registered to the ready menu (the bag's icon), in each of the five shapes fangames give it.
 Suite.define("bag: every shape a fangame gives the registered flag is understood") do
   m = PokeAccess::Menus
 
@@ -38,10 +31,8 @@ Suite.define("bag: every shape a fangame gives the registered flag is understood
   falsy "and neither is a nil bag", m.bag_registered?(nil, :BICYCLE)
 end
 
-# The SECOND frame of that same icon: the bag draws it on an important item the quick menu would accept but
-# that is not registered yet (fireash/285_UI_Bag.rb:86, and the same in the eight games that have the
-# function). It is the only thing on the screen that says which items the menu takes, and no game read it,
-# so a player had to try them one by one.
+# The icon's second frame, drawn on an important item the quick menu would accept but that is not registered yet
+# (pbCanRegisterItem?), said only where the game has that function.
 Suite.define("bag: an item the quick menu would accept says so, and only where the game draws it") do
   m = PokeAccess::Menus
   bag = Object.new
@@ -67,9 +58,7 @@ Suite.define("bag: an item the quick menu would accept says so, and only where t
         m.bag_registrable?(bag, :OLDROD)
 end
 
-# The party menu's rows are the member's own FIELD MOVES and then Summary, Switch, Item, Cancel -- and the
-# screen tells the two kinds apart by COLOUR alone, a @colorKey of 1 painted blue. Nine of the fifteen games
-# use that window. Read through @commands, already unpacked to strings, "Fly" and "Switch" sounded the same.
+# The party menu's field moves, told apart by colour alone (@colorKey 1, painted blue), are said as field moves.
 Suite.define("party menu: a field move says it is one, which is all that its colour said") do
   win = Class.new do
     attr_accessor :index

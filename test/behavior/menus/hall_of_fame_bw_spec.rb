@@ -1,8 +1,5 @@
-# The Hall of Fame PC viewer plugin. Entries are stored newest-last but NUMBERED by when they happened, so
-# the number on screen is not the index: it is hallOfFameLastNumber + index - size + 1, the plugin's own
-# formula, identical in both copies. Announcing the index instead would name the wrong run of the game.
-# The harness loads every plugin reader, so this spec does not pull it in itself: a require on a file
-# already brought in with eval loads it a SECOND time and reassigns its constants.
+# The Hall of Fame PC viewer plugin: an entry's number is the plugin's hallOfFameLastNumber + index - size + 1, not
+# the index. Not required here: the harness loads it, and a second load reassigns its constants.
 
 class FakeHofGlobal
   attr_accessor :hallOfFame, :hallOfFameLastNumber
@@ -33,7 +30,7 @@ Suite.define("hall of fame viewer: the entry number is the game's, and each memb
     SpeakCapture.clear
     hof.read(scene)
     spoke "the entry number", /#{PokeAccess::I18n.t(:hofbw_entry, :n => 7)}/
-    spoke "where in the team", /#{PokeAccess::I18n.t(:hofbw_pos, :n => 2, :tot => 2)}/
+    spoke "where in the team", /#{PokeAccess::I18n.t(:list_pos, :i => 2, :n => 2)}/
     spoke "the nickname and the species, which differ here", /Rocoso.*Onix/
     spoke "and the level", /#{PokeAccess::I18n.t(:hofbw_level, :n => 51)}/
 
@@ -47,5 +44,43 @@ Suite.define("hall of fame viewer: the entry number is the game's, and each memb
     spoke "moving along the team speaks the next one", /Bulbi/
   ensure
     $PokemonGlobal = saved
+  end
+end
+
+Suite.define("hall of fame viewer: a member at the Hall of Fame reading's level, the whole card on the info key") do
+  hof = PokeAccess::HallOfFameBW
+  saved = $PokemonGlobal
+  begin
+    team = [FakeHofMon.new("Bulbi", "Bulbasaur", 55), FakeHofMon.new("Rocoso", "Onix", 51)]
+    $PokemonGlobal = FakeHofGlobal.new([team], 3)
+    scene = Object.new
+    scene.instance_variable_set(:@hallEntry, team)
+    scene.instance_variable_set(:@hallIndex, 0)
+    level = PokeAccess::I18n.t(:hofbw_level, :n => 51)
+    rows = vb_levels do
+      PokeAccess::Cursor.reset(scene, :hof)
+      scene.instance_variable_set(:@pokemonIndex, 1)
+      SpeakCapture.clear
+      hof.read(scene)
+      SpeakCapture.last
+    end
+    truthy "brief: the nickname and the species, not the level", rows[0] =~ /Rocoso.*Onix/ && !rows[0].include?(level)
+    truthy "medium: and the level", rows[1].include?(level)
+    truthy "the info key keeps the level", PokeAccess::Info.info_text.to_s.include?(level)
+
+    entry = PokeAccess::I18n.t(:hofbw_entry, :n => 3)
+    PokeAccess::Config.verbosity = :brief
+    PokeAccess::Cursor.reset(scene, :hof)
+    scene.instance_variable_set(:@pokemonIndex, 0)
+    SpeakCapture.clear
+    hof.read(scene)
+    truthy "brief names the entry as the cursor reaches it", SpeakCapture.last.include?(entry)
+    scene.instance_variable_set(:@pokemonIndex, 1)
+    SpeakCapture.clear
+    hof.read(scene)
+    truthy "and leaves it out while the cursor stays in it", !SpeakCapture.last.include?(entry)
+  ensure
+    $PokemonGlobal = saved
+    PokeAccess::Config.verbosity = :full
   end
 end

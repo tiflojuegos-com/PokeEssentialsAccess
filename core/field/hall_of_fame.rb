@@ -1,15 +1,13 @@
 module PokeAccess
-  # Hall of fame entry sequence, which draws team and banner text directly: writePokemonData per member and
-  # writeWelcome for the banner, on HallOfFameScene (gen-6) and HallOfFame_Scene (modern). It is a FAMILY:
-  # fangames clone the scene per records hall (Fire Ash ships six more), so the readers live in bind, which
-  # core calls for the vanilla spellings and a profile for its clones.
+  # Hall of fame: the member panels (writePokemonData), the banner (writeWelcome) and the closing trainer box
+  # (writeTrainerData), bound by bind to the vanilla scenes and to a profile's clones.
   module HallOfFame
     # The vanilla spellings, one per era.
     FAMILY = ["HallOfFameScene", "HallOfFame_Scene"]
 
-    # The spoken hall-of-fame line for a member: nickname, species and level (or "egg"). The FALLBACK for a
-    # panel that painted nothing; what the panel paints is richer (dex number, sex symbol, trainer id) and
-    # is what the capture reads.
+    @box_armed = false
+
+    # A member as nickname, species and level (or "egg"), for a panel that painted nothing.
     def self.member_text(pk)
       return nil unless pk
       return PokeAccess::I18n.t(:hof_egg) if (pk.egg? rescue (pk.isEgg? rescue false))
@@ -22,13 +20,8 @@ module PokeAccess
       nil
     end
 
-    # True while the scene is BROWSING rather than playing the entry animation, which is when a redraw must
-    # interrupt the line before it instead of queueing behind it. Two things say so, and a clone needs only
-    # one: the second argument of writePokemonData carries the record number in the PC viewer and -1 (or
-    # nothing) during the animation, and a class with no pbStartSceneEntry has no animation at all, so every
-    # draw of it is a browse. Fire Ash's team viewer is that second case -- one argument, no animation,
-    # redrawn on each cursor move -- and queueing there read the whole walk instead of the member the player
-    # stopped on. Every other hall of the sixteen sources has both the animation and the second argument.
+    # True while the scene is browsing, not animating the entry (a redraw then interrupts): writePokemonData's
+    # second argument is a record number (-1 or absent in the animation), or the class has no pbStartSceneEntry.
     def self.viewer?(scene, args)
       n = args[1]
       return true if n.is_a?(Integer) && n > -1
@@ -37,10 +30,8 @@ module PokeAccess
       false
     end
 
-    # Binds the family's readers to one scene class and answers whether the PANEL one took (a banner without
-    # a panel is a hall nobody can read). Both are CAPTURED rather than composed, since vanilla and every
-    # clone paint their own words per language build. Each is optional and re-registering a class is
-    # harmless.
+    # Binds the panel, banner and trainer-box readers, all reading what is painted, to one scene class; answers
+    # whether the panel one took.
     def self.bind(cname)
       panel = PokeAccess::Hooks.around_hook(cname, :writePokemonData, :optional => true) do |scene, nxt, args|
         PokeAccess::PaintCapture.arm(:hof_panel)
@@ -61,11 +52,38 @@ module PokeAccess
           PokeAccess::HallOfFame.say_welcome(scene, t)
         end
       end
+
+      PokeAccess::Hooks.around_hook(cname, :writeTrainerData, :optional => true) do |_s, nxt, _a|
+        PokeAccess::HallOfFame.arm_box
+        begin
+          nxt.call
+        ensure
+          PokeAccess::HallOfFame.disarm_box
+        end
+      end
       panel
     end
 
-    # Speaks the banner once. The panel dedups on the member; this one has nothing of its own to dedup on,
-    # so it keys on the text -- which also makes binding a class twice harmless, as the header claims.
+    # Arms and disarms the reading of the trainer box for the span of writeTrainerData.
+    def self.arm_box; @box_armed = true; end
+    def self.disarm_box; @box_armed = false; end
+
+    # Speaks, queued ahead of the congratulation, the first text a window takes while armed: the trainer box.
+    def self.note_box(text)
+      return unless @box_armed
+      t = box_text(text)
+      return if t.empty?
+      @box_armed = false
+      PokeAccess.speak(t, false)
+    end
+
+    # A box's rows as spoken: one per <br>, each label kept apart from the value <r> aligns right.
+    def self.box_text(text)
+      rows = text.to_s.split(/<\s*br\s*\/?\s*>/i).map { |r| PokeAccess.clean(r.gsub(/<\s*r\s*>/i, " ")) }
+      rows.reject { |r| r.empty? }.join(", ")
+    end
+
+    # Speaks the banner once, deduped on its text.
     def self.say_welcome(scene, t)
       return if t.to_s.strip.empty?
       return unless PokeAccess::Cursor.changed?(scene, :hof_welcome, t.to_s)
@@ -74,13 +92,11 @@ module PokeAccess
       nil
     end
 
-    # Speaks one member panel: what it painted (dex number, name with its sex symbol, level, trainer id and,
-    # in the viewer, the record header -- all words the per-language builds swap), or the composed line when
-    # the copy painted nothing. Deduped per scene by OBJECT IDENTITY, so a redraw of the same member is
-    # silent while two members that compare equal both read.
+    # Speaks one member panel as painted, every row kept (a number and a win count may be the same figure), or
+    # member_text when it painted nothing; deduped per scene by object identity, so two equal members both read.
     def self.say_panel(scene, args)
       pk = args[0]
-      t = PokeAccess::PaintCapture.text(PokeAccess::PaintCapture.take(:hof_panel))
+      t = PokeAccess::PaintCapture.text(PokeAccess::PaintCapture.take(:hof_panel), false)
       key = pk ? pk.object_id : nil
       return unless key.nil? || PokeAccess::Cursor.changed?(scene, :hof_pk, key)
       t = member_text(pk).to_s if t.to_s.strip.empty?
@@ -93,4 +109,9 @@ end
 
 PokeAccess::Hooks.variants(PokeAccess::HallOfFame::FAMILY, :writePokemonData, "hall_of_fame") do |cname|
   PokeAccess::HallOfFame.bind(cname)
+end
+
+# writeTrainerData's box is a Window_AdvancedTextPokemon, read as it takes its text (HallOfFame.note_box).
+PokeAccess::Hooks.after_hook("Window_AdvancedTextPokemon", :text=) do |_w, _r, args|
+  PokeAccess::HallOfFame.note_box(args[0])
 end

@@ -1,9 +1,5 @@
-# Secret base decorating. The two copies of the plugin ask the same question -- can this tile take the
-# piece? -- through methods of different ARITY: the fork added the tile's position within the piece as a
-# fourth argument. Calling with the wrong one raises on every frame, and "it fits" is precisely the part a
-# blind player has no other way to learn, so it would vanish without a symptom.
-# The harness loads every plugin reader, so this spec does not pull it in itself: a require on a file
-# already brought in with eval loads it a SECOND time and reassigns its constants.
+# Secret base decorating: the fit check is called with the arity this copy declares (the fork adds the tile's
+# position in the piece). Not required here: the harness loads it, and a second load reassigns its constants.
 
 class FakeDecoration
   attr_reader :tile_size

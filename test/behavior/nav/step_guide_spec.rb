@@ -1,31 +1,22 @@
-# The step guide (Ctrl+I): the route spoken one leg at a time, the next only once this one is walked. The
-# rule the whole feature rests on is that an instruction is spoken when it is NEW, and that is what is
-# pinned here, because both ways of getting it wrong pass a green suite silently: repeat the leg on every
-# tile and the guide natters over the game; skip a leg that merely got longer after a wrong turn and it
-# goes quiet at the exact moment the player is lost.
-#
-# The second thing pinned is that the two guides share one ending. The cane and the step guide walk the
-# same route and reach the target on the same frame, so without a shared stop the player hears "you have
-# arrived" twice, and the same for "no route".
+# The step guide (Ctrl+I) speaks the route a leg at a time, each leg when it is new, silent while it shortens; it
+# shares one arrival and one dead end with the cane.
 
 # Aims the step guide at a target with nothing remembered, so the next tick recomputes and speaks.
 def steps_aim(loc, target)
   [:@guide_time, :@guide_path, :@guide_from, :@guide_target, :@guide_fresh, :@guide_surf,
-   :@noroute_key, :@noroute_cue_at, :@guide_noroute, :@jump_at, :@blocked_recheck_at,
-   :@steps_at, :@steps_leg].each { |s| loc.instance_variable_set(s, nil) }
+   :@noroute_key, :@noroute_cue_at, :@guide_noroute, :@guide_cut, :@jump_at, :@blocked_recheck_at,
+   :@steps_at, :@steps_leg, :@leg_seq].each { |s| loc.instance_variable_set(s, nil) }
   loc.instance_variable_set(:@target, target)
   loc.instance_variable_set(:@steps, true)
 end
 
-# Runs the block with every ivar either guide touches saved, then restores them and drops the test grid, so
-# a suite cannot leave a guide switched on. It also lends the world a trainer for the duration: guide_tick
-# is gated on Spatial.busy?, and with the gen-6 stub's $Trainer = nil the mod believes the player is still
-# on the character-selection screen and the cane stays silent for the wrong reason.
+# Runs the block with both guides' ivars saved and restored and the test grid dropped after, and with a $Trainer,
+# since guide_tick is silent while Spatial.busy? (no trainer reads as character selection).
 def with_step_state
   loc = PokeAccess::Locator
   ivars = [:@guide, :@steps, :@steps_at, :@steps_leg, :@guide_time, :@guide_path, :@guide_from,
-           :@guide_target, :@guide_fresh, :@guide_surf, :@guide_noroute, :@noroute_key, :@noroute_cue_at,
-           :@jump_at, :@blocked_recheck_at, :@target]
+           :@guide_target, :@guide_fresh, :@guide_surf, :@guide_noroute, :@guide_cut, :@noroute_key,
+           :@noroute_cue_at, :@jump_at, :@blocked_recheck_at, :@target, :@leg_seq]
   prev = ivars.map { |s| loc.instance_variable_get(s) }
   had_trainer = $Trainer
   $Trainer = Object.new
@@ -47,8 +38,7 @@ def walk_to(loc, x, y)
   SpeakCapture.lines
 end
 
-# The split both readers share. path_to_text used to count the runs itself; the step guide needs the same
-# count for the head leg alone, and two copies of "where does the corner fall" would drift.
+# legs splits a route into runs of one direction, shared by path_to_text and the step guide.
 Suite.define("route: legs merge runs of one direction, and the whole phrase is those legs joined") do
   pf = PokeAccess::Pathfinder
   eq "runs merge, order kept", pf.legs([4, 8, 8, 8, 8, 8, 8]), [[4, 1], [8, 6]]
@@ -66,8 +56,7 @@ Suite.define("route: legs merge runs of one direction, and the whole phrase is t
   eq "and no route says so", pf.path_to_text(nil), PokeAccess::I18n.t(:loc_no_route)
 end
 
-# The corridor turns once, so the route is exactly two legs and every interesting moment falls on it: the
-# first instruction, walking it down, a wrong turn, the corner, and arriving.
+# A corridor that turns once: the first leg, walking it down, a wrong turn, the corner and the arrival.
 Suite.define("step guide: speaks a leg when it is new and holds its tongue while it shortens") do
   hpa_fresh_grid(["##########",
                   "#@.......#",
@@ -84,12 +73,19 @@ Suite.define("step guide: speaks a leg when it is new and holds its tongue while
     leg = pf.legs(loc.instance_variable_get(:@guide_path))[0]
     eq "the route starts with the run along the corridor", leg, [6, 7]
     eq "and the first tick speaks exactly that leg", first, [pf.leg_text([6, 7])]
+    eq "queued behind whatever was being said", SpeakCapture.log.last[1], false
 
     eq "walking a tile of it says nothing: the leg only got shorter", walk_to(loc, 2, 1), []
     eq "nor does the next", walk_to(loc, 3, 1), []
 
     eq "stepping back the way you came speaks the leg again, longer",
        walk_to(loc, 2, 1), [pf.leg_text([6, 6])]
+    eq "cutting the leg before it rather than queueing behind it", SpeakCapture.log.last[1], true
+
+    walk_to(loc, 3, 1)
+    PokeAccess.speak("otra cosa", false)
+    eq "but a line said since the last leg is not cut: the next leg queues behind it",
+       [walk_to(loc, 2, 1), SpeakCapture.log.last[1]], [[pf.leg_text([6, 6])], false]
 
     (3..7).each { |x| walk_to(loc, x, 1) }
     eq "the far end of the corridor turns, so the new direction is announced",
@@ -101,7 +97,33 @@ Suite.define("step guide: speaks a leg when it is new and holds its tongue while
   end
 end
 
-# Both guides run off one route, so both reach the same arrival and the same dead end on the same frame.
+Suite.define("step guide: a route a turned page changes is checked again at once, not after the freshness window") do
+  hpa_fresh_grid(["##########",
+                  "#@......T#",
+                  "#........#",
+                  "##########"])
+  with_step_state do |loc|
+    pf = PokeAccess::Pathfinder
+    target = $game_map.events[1]
+    floor = World.touch(:id => 81, :x => 5, :y => 1, :list => [TestCmd.new(355, ["pbSEPlay('Crack')"])])
+    pf.invalidate_cache(true)
+    steps_aim(loc, target)
+    walk_to(loc, 1, 1)
+    crosses = lambda { |x, y| pf.trace(x, y, 0, loc.instance_variable_get(:@guide_path)).any? { |p| p.tile == [5, 1] } }
+    truthy "the route runs along the top row, over the floor at (5,1)", crosses.call(1, 1)
+    walk_to(loc, 2, 1)
+    hole = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(201, [0, $game_map.map_id, 1, 2]), TestCmd.new(0, [])])
+    [:@active, :@page].each { |iv| floor.instance_variable_set(iv, hole) }
+    floor.instance_variable_set(:@list, hole.list)
+    walk_to(loc, 3, 1)
+    falsy "once the floor has given way the route no longer steps on it, well inside the freshness window",
+          crosses.call(3, 1)
+    last = pf.trace(3, 1, 0, loc.instance_variable_get(:@guide_path)).last
+    truthy "and it still ends beside the target", last && pf.target_reached?(last.x, last.y, target.x, target.y)
+  end
+end
+
+# Both guides run off one route: the arrival and a dead end are each said once, not once per guide.
 Suite.define("step guide: the cane and the step guide share one arrival and one dead end") do
   hpa_fresh_grid(["#####",
                   "#@.T#",
@@ -171,5 +193,44 @@ Suite.define("step guide: toggling names the target, and the auto setting arms i
     ensure
       PokeAccess::Config.auto_steps = had
     end
+  end
+end
+
+# A nil route from a search stopped short (node budget spent, target beyond its reach) is said as not worked out from
+# here; one searched to the end is no route.
+Suite.define("route: a search stopped short is not called no route") do
+  pf = PokeAccess::Pathfinder
+  hpa_fresh_grid(["#######",
+                  "#@....#",
+                  "#######"])
+  cuts = pf.cuts
+  truthy "a target in reach is found", pf.find_path(5, 1)
+  eq "and no search stopped short", pf.cuts, cuts
+  PokeAccess::Config.route_reach = 3
+  falsy "beyond the reach there is no route", pf.find_path(5, 1)
+  truthy "but it was not looked for: the stop is counted", pf.cuts > cuts
+  PokeAccess::Config.route_reach = 128
+  PokeAccess::Config.astar_max = 1
+  cuts = pf.cuts
+  falsy "past the node budget there is none either", pf.find_path(5, 1)
+  truthy "and that stop is counted too", pf.cuts > cuts
+  eq "said as not worked out from here", pf.path_to_text(nil, true), PokeAccess::I18n.t(:loc_route_gave_up)
+  PokeAccess::Config.astar_max = 2500
+  hpa_fresh_grid(["#####",
+                  "#@#.#",
+                  "#####"])
+  cuts = pf.cuts
+  falsy "a walled-off target has no route", pf.find_path(3, 1)
+  eq "searched to the end", pf.cuts, cuts
+
+  hpa_fresh_grid(["######",
+                  "#@..T#",
+                  "######"])
+  PokeAccess::Config.astar_max = 1
+  with_step_state do |loc|
+    steps_aim(loc, $game_map.events[1])
+    SpeakCapture.clear
+    loc.steps_tick
+    eq "the step guide says so, not no route", SpeakCapture.lines, [PokeAccess::I18n.t(:loc_route_gave_up)]
   end
 end

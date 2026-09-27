@@ -1,9 +1,7 @@
-# KYU's Hatcher, the incubator five games ship (anil, armonia, awakening, realidea, royal). The slot
-# narration is PokeAccess::Incubator in core/field/incubator.rb, shared with the other incubator plugin.
-#
-# refresh is the whole reader. It runs on every cursor move AND once from the constructor, in all five games
-# that ship this plugin (anil, armonia, awakening, realidea and royal), so it gives the opening read as well -- there is nothing left for a second hook to
-# cover. update is the screen's blocking loop and was bound before it "for the opening read the loop never
-# produces"; the loop does produce it, through the constructor, and that hook only ran announce into its own
-# dedup on every frame of the screen.
+# KYU's Hatcher incubator, read through core's Incubator on each refresh, which runs on every cursor move and
+# once on opening.
+PokeAccess::Hooks.before_hook("Hatcher", :refresh, :optional => true) { |_scene, _args| PokeAccess::Incubator.arm }
 PokeAccess::Hooks.after_hook("Hatcher", :refresh, :optional => true) { |scene, _result, _args| PokeAccess::Incubator.announce(scene) }
+PokeAccess::Hooks.after_hook("Hatcher", :dispose, :optional => true) { |_s, _r, _a| PokeAccess::Info.clear_text }
+
+PokeAccess::Verbosity.define_reading(:incubator, :vb_incubator, :vbh_incubator)

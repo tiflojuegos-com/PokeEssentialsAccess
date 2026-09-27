@@ -1,10 +1,7 @@
 module PokeAccess
   module Util
-    # Union-find (with path compression) over indices 0...n. The block decides whether two indices i, j
-    # belong together; returns the list of index groups (each an Array of indices). Callers map the indices
-    # back to their own elements and pick a representative -- this only owns the non-trivial grouping. The
-    # double loop is O(n^2) in the merge test, matching the original inline versions (small n: emitters/exits
-    # near the player). 1.8.7-safe.
+    # Groups indices 0...n with union-find, joining i and j when the block says they belong together; returns
+    # the groups as Arrays of indices. O(n^2) merge tests, fine for the small sets it serves.
     def self.union_groups(n)
       return [] if n <= 0
       parent = (0...n).to_a

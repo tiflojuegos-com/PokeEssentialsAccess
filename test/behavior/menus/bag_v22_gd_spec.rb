@@ -1,9 +1,5 @@
-# The v22 bag (Essentials v22 UI::BagVisuals) is the most used screen of the modern path and the one the
-# reentrancy/dedup family of bugs came from: its item list is created INACTIVE, so the generic
-# active-window reader never sees it, and every word it says comes from two hooks that must not step on
-# each other -- refresh_on_index_changed (item navigation) and set_pocket (left/right, which calls refresh
-# and NOT refresh_on_index_changed). A reader that speaks twice and one that goes silent are both one
-# missing dedup apart, and neither had a single assert. Runs only in the gamedata pass.
+# The v22 bag (UI::BagVisuals): its item list is inactive, so it is read only by two hooks that must not repeat each
+# other, refresh_on_index_changed (items) and set_pocket (pockets). Gamedata pass.
 
 # A two-pocket bag: a stackable item, a machine (display_name differs from name) and an important item
 # (show_quantity? false), plus a second pocket with two entries so a move inside it is testable.
@@ -29,9 +25,7 @@ Suite.define("v22 bag: the focused item is read once, with its quantity") do
   not_spoke "and does not repeat the entry left behind", /ItemPOTION/
 end
 
-# The dedup lives on the screen instance, so a reopened bag is a fresh one and MUST read the entry the
-# player left the cursor on -- the difference between "silent because nothing changed" and "silent because
-# the screen you just opened thinks it already told you".
+# The dedup lives on the screen instance, so a reopened bag reads the entry under the cursor again.
 Suite.define("v22 bag: reopening the bag re-reads the entry the cursor is on") do
   bag = bag_v22_bag
   first = UI::BagVisuals.new(bag)
@@ -47,8 +41,7 @@ Suite.define("v22 bag: reopening the bag re-reads the entry the cursor is on") d
   spoke_once "a reopened bag reads the same entry again", /ItemPOTION/
 end
 
-# What the line must CONTAIN differs per entry: a machine is worth nothing read as "TM01", an important
-# item has no stack to count, and the row past the last item is the exit, not an item.
+# A machine reads its move, an important item no quantity, and the row past the last item is the close-bag label.
 Suite.define("v22 bag: machine, important item and the close row each read their own way") do
   vis = UI::BagVisuals.new(bag_v22_bag)
 
@@ -66,11 +59,8 @@ Suite.define("v22 bag: machine, important item and the close row each read their
      [PokeAccess::I18n.t(:mn_close_bag)]
 end
 
-# Pocket change is the double-read trap. set_pocket announces pocket + focused item itself (the cursor
-# callback never fires for it), and then UI::BaseVisuals#navigate, seeing the index moved, calls
-# refresh_on_index_changed on the SAME frame -- which would say the item a second time if set_pocket had
-# not primed the nav dedup key. The contra-case is right below it: a real move inside the new pocket must
-# still be read, so the priming must not mute the pocket permanently.
+# set_pocket says the pocket and its item in one line and primes the nav dedup, so the refresh_on_index_changed
+# navigate calls on the same frame stays silent; a real move after it still reads.
 Suite.define("v22 bag: a pocket change reads pocket plus item once and primes the nav dedup") do
   vis = UI::BagVisuals.new(bag_v22_bag)
   vis.set_index(2)

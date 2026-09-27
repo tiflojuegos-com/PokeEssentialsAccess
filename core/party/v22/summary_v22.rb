@@ -1,8 +1,6 @@
 module PokeAccess
-  # v22 summary screen (Essentials v22: UI::PokemonSummaryVisuals). Pages are symbols in @page
-  # (:info/:memo/:skills/:moves/:ribbons/:egg_memo/:detailed_moves), changed by go_to_next_page /
-  # go_to_previous_page; the shown Pokemon is @pokemon, switched by set_party_index. The per-page spoken
-  # content is the agnostic SummaryGameData (the modern GameData API is identical), mapped from the v22 symbol.
+  # v22 summary screen (UI::PokemonSummaryVisuals): @page is a symbol (:info, :memo, :skills, :moves, :ribbons,
+  # :egg_memo, :detailed_moves), @pokemon the one shown; the text comes from SummaryGameData.
   module SummaryV22
     # The current page's display name from its PAGE_HANDLERS entry.
     def self.page_name(page)
@@ -12,9 +10,7 @@ module PokeAccess
       nil
     end
 
-    # The spoken body for a page, reusing the v21 per-page builders. An egg's memo page paints where the egg
-    # came from and how close it is to hatching, not the nature, which the memo builder would have given
-    # away; it has a builder of its own.
+    # The spoken body for a page, from the SummaryGameData builders (egg_memo_text for an egg's memo).
     def self.body_for(pk, page)
       case page
       when :info             then PokeAccess::SummaryGameData.info_text(pk)
@@ -28,9 +24,8 @@ module PokeAccess
       nil
     end
 
-    # Speaks the current page (name + body), prefixed with the Pokemon glance when the shown Pokemon just
-    # changed. Deduped by [page, party_index] so an in-page redraw stays silent. param with_pkmn whether to
-    # prepend the Pokemon name/level/hp (used when switching Pokemon with up/down)
+    # Speaks the current page's name and body, deduped by [page, party_index].
+    # param with_pkmn true to lead with the Pokemon's name, level and hp (a switch with up/down)
     def self.speak(vis, with_pkmn)
       pk = PokeAccess.ivar(vis, :@pokemon)
       return unless pk
@@ -48,9 +43,8 @@ module PokeAccess
       nil
     end
 
-    # Detail of the focused move on the moves page: the move object at @move_index, or the move being
-    # learned (@new_move, a Pokemon::Move object in v22) in the extra slot. move_line expects a move id, so
-    # pass @new_move.id (it is an object here, not an id, which made the learn slot silent before).
+    # The focused move in full: the move at @move_index, or in the extra slot the move being learned (@new_move,
+    # an object in v22, passed to move_line by id).
     def self.move_at(vis, mi)
       pk = PokeAccess.ivar(vis, :@pokemon)
       nm = PokeAccess.ivar(vis, :@new_move)
@@ -66,17 +60,11 @@ module PokeAccess
 end
 
 if PokeAccess::Engine.has?("UI::PokemonSummaryVisuals")
-  # set_party_index changes the shown Pokemon and then calls refresh INTERNALLY. The hook engine's
-  # reentrancy guard skips that nested refresh hook (a DIFFERENT method than set_party_index), so it neither
-  # speaks the page without the glance nor consumes the [page, party_index] dedup: set_party_index's own
-  # after-hook, running after the original returns, voices the switch WITH the new Pokemon's glance.
+  # Switching Pokemon: the page led by the new Pokemon's glance; the guard skips the refresh nested inside.
   PokeAccess::Hooks.after_hook("UI::PokemonSummaryVisuals", :set_party_index) do |vis, _ret, _args|
     PokeAccess::SummaryV22.speak(vis, true)
   end
-  # :refresh is also bound so the FIRST page is read on open (initialize -> refresh, without any go_to_*_page
-  # call); go_to_next_page / go_to_previous_page each call refresh internally too, but the guard skips that
-  # nested refresh so only the page-nav hook speaks. None of these prepend the glance (page moves, not a
-  # Pokemon switch); the [page, party_index] dedup keeps an in-page redraw silent.
+  # Turning pages, and refresh for the first page on opening (a refresh nested in a page turn is skipped).
   [:go_to_next_page, :go_to_previous_page, :refresh].each do |m|
     PokeAccess::Hooks.after_hook("UI::PokemonSummaryVisuals", m) do |vis, _ret, _args|
       PokeAccess::SummaryV22.speak(vis, false)
@@ -90,8 +78,8 @@ if PokeAccess::Engine.has?("UI::PokemonSummaryVisuals")
       PokeAccess.speak(t, true)
     end
   end
-  # Per-ribbon detail while navigating the ribbons page (deduped by @ribbon_index); the page body only
-  # announces the count, so this voices each focused ribbon's name and description.
+  # The focused ribbon while navigating the ribbons page (deduped by @ribbon_index): its name, and in full its
+  # description, which the info key keeps.
   PokeAccess::Hooks.after_hook("UI::PokemonSummaryVisuals", :refresh_ribbon_cursor) do |vis, _ret, _args|
     ri = PokeAccess.ivar(vis, :@ribbon_index)
     if ri && PokeAccess::Cursor.changed?(vis, :ribbon_idx, ri)
@@ -99,9 +87,8 @@ if PokeAccess::Engine.has?("UI::PokemonSummaryVisuals")
       rid = pk ? (pk.ribbons[ri] rescue nil) : nil
       rd  = rid ? (GameData::Ribbon.get(rid) rescue nil) : nil
       if rd
-        nm = (rd.name rescue rid.to_s); desc = (rd.description rescue "")
-        t = (desc && !desc.to_s.empty?) ? "#{nm}. #{desc}" : nm.to_s
-        PokeAccess.speak_clean(t, true)
+        parts = [[(rd.name rescue rid.to_s).to_s, :brief], [(rd.description rescue "").to_s, :full]]
+        PokeAccess.speak_clean(PokeAccess::Verbosity.info_line(:ribbon, parts, ". "), true)
       end
     end
   end

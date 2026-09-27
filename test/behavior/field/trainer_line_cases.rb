@@ -1,11 +1,7 @@
-# Shared body of trainer_line_spec (gen-6 pass) and trainer_line_gd_spec (gamedata pass): the trainer line
-# is core and both eras build it from the same named parts. What is pinned: the default line is the five
-# parts in their order, a profile can replace a part in place (ribbons where badges were), add one (it
-# joins the end), reorder and drop through the order alone, a part that raises costs only its fragment, and
-# an unknown name in the order is ignored.
+# Shared cases of trainer_line_spec and trainer_line_gd_spec: the default line is five named parts in order, which a
+# profile replaces in place, adds to the end, reorders or drops; a raising or unknown part costs only its fragment.
 module TrainerLineCases
-  # Snapshot of the order and the readers the cases touch, restored afterwards: Reset does not reach the
-  # structural config, and a leaked part would rewrite the trainer line for every suite after.
+  # The order and the part readers, to restore after a case (Reset does not reach them).
   def self.snapshot
     [PokeAccess::Config.trainer_parts.dup, PokeAccess::Info::TRAINER_PARTS.dup]
   end

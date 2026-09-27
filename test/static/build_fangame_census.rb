@@ -1,13 +1,6 @@
-# Regenerates test/static/fangame_classes.txt, the census coupling_spec uses to tell a vanilla Essentials
-# class from one that belongs to a single fangame. NOT a spec (no _spec suffix, so the runner ignores it):
-# it reads the decompiled script dumps, which live OUTSIDE the repo and are absent on CI, which is exactly
-# why the census is a committed file instead of a live scan -- a check that quietly disappears when its
-# input is missing is the hole this whole block is closing.
-# Run by hand after adding or refreshing a dump:
-#   ruby test/static/build_fangame_census.rb ["path\to\decompiled Scripts"]
-# Only names defined in EXACTLY ONE surveyed game are written: those are the ones core/ must not know
-# about. A name defined in two or more games is a shared/third-party class and its treatment is the open
-# doctrine question (PENDIENTE 6.4), not something to decide from here.
+# Builds fangame_classes.txt (names one fangame alone defines, for coupling_spec), plugin_census.txt (plugins_spec)
+# and all_classes.txt (hooked_classes_spec) from the decompiled dumps, which are absent on CI. Run by hand after
+# adding or refreshing a dump: ruby test/static/build_fangame_census.rb ["path\to\decompiled Scripts"]
 require File.expand_path("reader_sites", File.dirname(__FILE__))
 
 DEFAULT_DUMPS = File.expand_path("../../../../decompiled Scripts", File.dirname(__FILE__))
@@ -26,9 +19,7 @@ if games.empty?
   exit 1
 end
 
-# Vanilla Essentials counts as a source here for one reason: a name UPSTREAM defines is not a name one
-# fangame has. UI::OptionsVisualsList is vanilla v22, and because only royal backports that UI among the
-# thirteen, the census called it single-game and the coupling check accused core of naming a royal class.
+# Vanilla Essentials counts as a source: a name upstream defines is not one fangame's, even if only one backports it.
 VANILLA = File.expand_path("../../../../pokemon-essentials/Data/Scripts", File.dirname(__FILE__))
 vanilla = ENV["PA_VANILLA"] || VANILLA
 sources_of = {}
@@ -40,26 +31,10 @@ else
   puts "note: vanilla Essentials tree not found at #{vanilla}"
 end
 
-# Read binary: the dumps carry Latin-1 accents in comments, and a UTF-8 String would raise on the match.
-# Each name records its games and whether it ever came from a _PluginScripts/ folder: "only in royal" and
-# "only in royal, and only because royal installs that third-party plugin" call for different fixes (move
-# the reader to games/royal/ vs. move it to plugins/), so the census says which it is.
-# Methods are collected alongside classes, qualified as "Class#method", for the detection probes that name
-# one. A plugin does not always bring a class: the multi-save one only REOPENS the engine's save scene, so
-# the only thing that gives it away is a method appearing there. Qualifying by the enclosing class matters --
-# a bare method name like `main` says nothing.
-#
-# The enclosing class is the last class/module line seen, PLUS an indent test: a def indented no deeper than
-# its supposed class line is outside that class's body. Without it, every top-level function after the first
-# class in a file was filed under that class, which across these dumps invented thousands of Class#method
-# pairs that do not exist -- harmless while no probe happened to name one, and a silent wrong answer the day
-# one did. Tracking indentation is not a full parser, but it is what separates "inside the body" from "after
-# the end" in every dump here, and unlike a name-only rule it fails closed: an unusual layout drops a real
-# method rather than inventing a false one, and a dropped probe fails its check loudly.
-#
-# =begin/=end blocks are skipped. A game that ships a plugin with its whole screen commented out was being
-# censused as having that class, so the check that asks "does this class exist anywhere?" answered yes about
-# a screen no player can open.
+# Read binary (the dumps carry Latin-1 in comments). Each class records its games and whether it came from a
+# _PluginScripts/ folder; methods and attr_reader/accessor names are recorded as "Class#method" for the probes that
+# name one, the owner by indentation; a def at column 0 is also recorded as "Object#name", the owner of a top-level
+# function; =begin/=end blocks are skipped.
 owners = {}
 meth_owners = {}
 games.each do |g|
@@ -84,7 +59,13 @@ games.each do |g|
           from_plugin ? rec[:plugin] += 1 : rec[:script] += 1
         else
           cur = stack.feed(line)
+          ((meth_owners["Object##{$1}"] ||= {}))[g] = true if line =~ /^def\s+([a-z_][A-Za-z0-9_]*[?!]?)(?=[\s(;]|\z)/
           next unless cur
+          if (m = line.match(/^(\s*)attr_(?:reader|accessor)\s+(.+)/))
+            owner = stack.owner_at(m[1].length) || cur
+            m[2].scan(/:([a-zA-Z_][A-Za-z0-9_]*[?!]?)/) { |a| ((meth_owners["#{owner}##{a[0]}"] ||= {}))[g] = true }
+            next
+          end
           next unless line =~ /^(\s*)def\s+(?:self\.)?([a-zA-Z_][A-Za-z0-9_]*[?!]?)/
           owner = stack.owner_at($1.length) || cur
           ((meth_owners["#{owner}##{$2}"] ||= {}))[g] = true
@@ -94,9 +75,7 @@ games.each do |g|
   end
 end
 
-# "Exclusive" means one FANGAME, and vanilla is not one: a name upstream Essentials defines is engine, and
-# naming it from core/ is what core/ is for. It earns its place in the survey by taking names OUT of this
-# list -- a class only royal happens to backport is still a vanilla class, not a royal one.
+# Exclusive means one fangame alone: a name vanilla defines is engine, never exclusive.
 exclusive = {}
 owners.each do |name, rec|
   next if rec[:games]["vanilla"]
@@ -118,21 +97,12 @@ end
 
 puts "wrote #{OUT}: #{exclusive.length} exclusive names out of #{owners.length}, from #{games.length} games"
 
-# --- second census: which PROFILE ships each plugin, so a forgotten declaration cannot stay silent.
-#
-# Moving a reader from core/ to plugins/ trades one risk for another. In core it ran everywhere, right or
-# wrong; in plugins/ it runs only where a profile declares it, and forgetting a declaration costs that game
-# the screen -- no error, no missing hook, nothing but a line in the diagnostic that helps only if somebody
-# reads a recording. This census lets a spec check the declarations against the dumps instead.
-#
-# Keyed by the DETECTION CLASS rather than the plugin name: the class is what the dumps contain, and the
-# name a plugin has in our table is ours to change.
+# Second census: which profiles ship each plugin, keyed by its detection probe (what the dumps contain), for
+# plugins_spec to check the declarations against.
 PROFILE_OF = ReaderSites::PROFILE_OF
 PLUGIN_OUT = File.join(File.dirname(__FILE__), "plugin_census.txt")
 mod_root = File.expand_path("../..", File.dirname(__FILE__))
-# eval, not a parser: the manifest is a Ruby literal committed in THIS repo and is read here exactly as
-# loader/boot.rb reads it at runtime, because RGSS ships no JSON. No external input reaches it, and this
-# generator runs by hand on a developer machine, never in the game.
+# eval, as loader/boot.rb reads it: the manifest is a Ruby literal committed in this repo.
 table = eval(File.read(File.join(mod_root, "plugins", "manifest.rb")))
 
 rows = {}
@@ -167,10 +137,7 @@ end
 
 puts "wrote #{PLUGIN_OUT}: #{rows.length} detection classes"
 
-# Every class name any surveyed source defines, not just the exclusive ones. fangame_classes.txt answers
-# "does exactly one game have this?", which cannot answer "does ANY game have this?" -- a hooked class that
-# no game defines at all has no row there, and the coupling check skips what it has no row for. That is the
-# shape of a typo: Hooks.after_hook("PokemonPartyScreeen", ...) binds nothing, logs nothing and passes.
+# Third census: every class name any source defines, so a hooked class no game defines (a typo) is caught.
 ALL_OUT = File.join(File.dirname(__FILE__), "all_classes.txt")
 File.open(ALL_OUT, "wb") do |io|
   io.print("# GENERATED by test/static/build_fangame_census.rb -- do not edit by hand.\n")

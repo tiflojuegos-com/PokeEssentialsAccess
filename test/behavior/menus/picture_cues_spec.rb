@@ -1,8 +1,5 @@
-# PictureCues: the picture-name => text table behind the image-only screens, which had no spec of its
-# own. The multibuild half is the part that can lie silently: a hash value must resolve against the
-# RUNNING build (GameLang) with the authored-base fallback, because these are transcriptions of what the
-# screen paints, never mod prose. Also pins the dedup (an engine re-show of the same picture stays
-# silent until an erase) so the berry-chart reopen keeps re-reading.
+# PictureCues, the picture-name => text table of image-only screens: a multibuild hash resolves against the running
+# build with its authored base as fallback, and a re-shown picture stays silent until an erase.
 Suite.define("picture cues: a shown picture speaks its text once, multibuild hashes follow the build") do
   old_texts = PokeAccess::PictureCues::TEXTS.dup
   old_base  = PokeAccess::PictureCues::BASE_LANG.dup

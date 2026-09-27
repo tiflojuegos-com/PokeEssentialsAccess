@@ -1,25 +1,48 @@
 module PokeAccess
-  # The gen-6 trainer card: a static panel (name, ID, money, badges, pokedex, play time) drawn once on
-  # open, so reading the trainer summary on pbStartScene covers it. Covers the standard Essentials scene
-  # (PokemonTrainerCardScene); a game that replaces the card ships its own reader in its profile.
+  # The trainer card, read as it paints itself (pbDrawTrainerCardFront), then the count of badge icons it drew (the
+  # region's own); the composed summary where it paints no words.
   module TrainerCard
-    # The spoken trainer summary (name, money, badges, pokedex, play time).
+    # The composed trainer summary, then the day the save was started (the card prints it last).
     def self.text
-      PokeAccess::Info.trainer_info
+      t = PokeAccess::Info.trainer_info
+      started = PokeAccess::Util.started_line
+      t && started ? "#{t}. #{started}" : t
     rescue StandardError
       nil
     end
 
-    # The scene class to hook, or "" off the gen-6 era. A gen-6 fork can declare PokemonTrainerCard_Scene as
-    # an empty subclass alias and build only that one, so hooking the v16 name read nothing and the v21 card
-    # bound instead -- reading a gen-6 trainer through the modern accessors, which drops the ID, the Pokedex
-    # tally and the play time. scene_class answers with the ancestral name; the era decides WHOSE content.
+    # The scene class to hook, or "" where this reader does not apply: with both names present (a fork declaring
+    # PokemonTrainerCard_Scene as an empty subclass), it binds only on a gen-6 engine.
     SCENE = PokeAccess::Engine.era_scene(:gen6, "PokemonTrainerCardScene", "PokemonTrainerCard_Scene")
+
+    # Reads a card face as the block paints it, key hints gated, then the front's badge icons; queued on open,
+    # interrupting when the card is turned.
+    # param front whether this is the front, the face with the badges
+    # param fallback a callable giving the text for a face that painted no words
+    def self.read_face(scene, front, fallback = nil)
+      ret = nil
+      icons = []
+      pairs = PokeAccess::PaintCapture.sample { icons = PokeAccess::PaintCapture.icons { ret = yield } }
+      lines = PokeAccess::KeyHints.gate(PokeAccess::PaintCapture.lines(pairs))
+      n = (icons || []).count { |p| p =~ /badge/i }
+      badges = (front && n > 0) ? badge_line(scene, n) : nil
+      lines.push(badges) if badges && !lines.empty?
+      lines = [fallback.call] if lines.empty? && fallback
+      turned = PokeAccess.ivar(scene, :@access_card_read)
+      scene.instance_variable_set(:@access_card_read, true)
+      t = PokeAccess.sentences(lines.compact.map { |l| PokeAccess::KeyHints.localize(l, nil, true) })
+      PokeAccess.speak(t, turned ? true : false) unless t.empty?
+      ret
+    end
+
+    # The line for the badge icons of the front; a card that paints its own count as text drops it.
+    def self.badge_line(_scene, n)
+      PokeAccess::I18n.t(:tr_badges, :n => n)
+    end
   end
 
-  # The full trainer-card panel read (name, ID, money, pokedex tally, badges, play time), engine-independent
-  # (it reads Engine.player). Lives at the module root so both the classic card (v21) and the v22 UI card
-  # delegate here instead of one version depending on another's file.
+  # The composed trainer-card read (name, ID, money, pokedex tally, badges, play time) from Engine.player, shared by
+  # the v21 and v22 cards.
   module TrainerCardData
     # The spoken trainer-card summary, or nil.
     def self.text
@@ -32,8 +55,10 @@ module PokeAccess
       dex = (p.pokedex rescue nil)
       parts.push(PokeAccess::I18n.t(:tc_pokedex, :owned => dex.owned_count, :seen => dex.seen_count)) if dex && (dex.respond_to?(:owned_count) rescue false)
       badges = PokeAccess::Util.badge_count(p); parts.push(PokeAccess::I18n.t(:tr_badges, :n => badges)) if badges
-      hm = PokeAccess::Util.playtime_parts(($stats.play_time.to_i rescue nil))
+      hm = PokeAccess::Util.playtime_parts(PokeAccess::Util.playtime_seconds)
       parts.push(PokeAccess::I18n.t(:tr_playtime, :h => hm[0], :m => hm[1])) if hm
+      started = PokeAccess::Util.started_line
+      parts.push(started) if started
       parts.join(". ")
     rescue StandardError
       nil
@@ -41,4 +66,6 @@ module PokeAccess
   end
 end
 
-PokeAccess::Hooks.read_on_open(PokeAccess::TrainerCard::SCENE) { |_s| PokeAccess::TrainerCard.text }
+PokeAccess::Hooks.around_hook(PokeAccess::TrainerCard::SCENE, :pbDrawTrainerCardFront, :optional => true) do |scene, nxt, _a|
+  PokeAccess::TrainerCard.read_face(scene, true, lambda { PokeAccess::TrainerCard.text }) { nxt.call }
+end

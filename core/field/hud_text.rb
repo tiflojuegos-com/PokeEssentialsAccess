@@ -1,18 +1,14 @@
-# Kernel.pbDisplayText: a HUD text writer some fangames ship (DisplayText.rb), painting labels straight onto a
-# bare BitmapSprite -- a whole PokeNav and the character creator in the games that have it. Wrapping the one
-# function reaches all of them. Deduped by SCREENFUL, with Kernel.pbClearText as the repaint boundary: a HUD
-# repaints every frame and alternates its labels, so a one-slot dedup would flood the queue.
+# Kernel.pbDisplayText, a HUD text writer some fangames ship (DisplayText.rb) that paints labels onto a bare
+# BitmapSprite. Deduped per screenful, with Kernel.pbClearText as the repaint boundary.
 module PokeAccess
   module HudText
-    # Distinct labels kept per pass. A HUD screen paints a handful; the cap is what stops a screen that never
-    # clears from growing a list for as long as it is open.
+    # Distinct labels kept per pass; the cap bounds a screen that never clears.
     MAX_LABELS = 32
 
     @shown = []
     @batch = []
 
-    # Starts a new pass: what the last one wrote becomes what is on screen -- INCLUDING an empty write.
-    # An empty pass means the HUD went blank, so whatever paints after it is new to the player.
+    # Starts a new pass: what the last one wrote, even nothing, becomes what is on screen.
     def self.cleared
       @shown = @batch
       @batch = []
@@ -23,11 +19,7 @@ module PokeAccess
       @batch = []
     end
 
-    # Speaks a HUD label the first time this pass writes it, unless the previous pass had it too. Blank and
-    # purely decorative strings are dropped, and the text goes through the shared cleaner so colour codes are
-    # not spelled out.
-    # Mutes say for the block: a screen whose closing repaint reaches the HUD after it is gone wraps that
-    # paint here. Counted, so a nested hush releases only when the outermost block ends.
+    # Mutes say for the block (a screen's closing repaint); counted, so a nested hush releases with the outermost.
     def self.hushed
       @hush = @hush.to_i + 1
       yield
@@ -35,6 +27,7 @@ module PokeAccess
       @hush = @hush.to_i - 1
     end
 
+    # Speaks a cleaned HUD label the first time this pass writes it, unless the previous pass had it too.
     def self.say(msg)
       return if @hush.to_i > 0
       t = PokeAccess.clean(msg.to_s)

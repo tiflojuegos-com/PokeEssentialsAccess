@@ -1,10 +1,5 @@
-# Map naming on the modern path. map_change_spec carries no _gd suffix, so it only runs in the gen-6 pass,
-# where the stub defines the gen-6 loader: a Locator.map_name that asks for pbLoadRxData, which v19+ removed
-# in favour of pbLoadMapInfos, would pass there while the six games that have only the latter lose every map
-# name -- zone, exits, coordinates, renaming -- for the whole session, since the failure is memoised on
-# first use.
-#
-# Any reader resting on an API only one engine ships needs a twin like this, or the green tick means nothing.
+# Map naming in the gamedata pass, which has pbLoadMapInfos and not the gen-6 pbLoadRxData (map_change_spec runs only
+# in the gen-6 pass).
 
 Suite.define("field (gamedata): map_name resolves through the modern MapInfos loader") do
   eq "a known id is named without the gen-6 loader", PokeAccess::Locator.map_name(35), "Mapa 35"
@@ -23,8 +18,7 @@ Suite.define("field (gamedata): the map is announced once per change, as in gen-
   spoke_once "new map announced once after the id changes", /Mapa 40/
 end
 
-# MapInfos names are the editor's and carry its control codes -- FireAsh names every house "\PN's house" --
-# so the name a player hears goes through the speech cleaner: the code becomes the player's name.
+# A map name goes through the speech cleaner: a \PN control code becomes the player's name.
 Suite.define("field: a map name with a control code is spoken cleaned") do
   who = (defined?($player) && $player) ? $player : $Trainer
   eq "the player-name code becomes the player's name", PokeAccess::Locator.map_name(36), "Casa de #{who.name}"

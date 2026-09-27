@@ -1,14 +1,9 @@
 module PokeAccess
-  # Two field mechanics that take control away from the player, or change what the map contains, and say so
-  # only through animation. Neither is a screen, so no reader could ever have been bound to one: they are
-  # flags on the running game, watched once per frame.
+  # Two field mechanics shown only through animation, spin tiles and the Lens of Truth: flags on the running game,
+  # watched once per frame.
   module FieldStates
-    # Spin tiles (the Vendily/thepsynergist plugin, two games): stepping on one drags the player in its
-    # direction until a wall or a stop tile, redirecting on every further spin tile. $PokemonGlobal.spinning
-    # is the flag and the player's FACING is the direction: the plugin turns the player toward each arrow
-    # before it moves them, and it moves them in the same call, so by the first frame any poll runs the
-    # player already stands one tile past the tile that decided the turn. The terrain tag under them would
-    # name the NEXT tile (and nothing at all on plain floor); the facing names this turn.
+    # Spin tiles (Vendily/thepsynergist plugin): $PokemonGlobal.spinning is the flag and the player's facing the
+    # direction; the terrain tag under the player already names the next tile.
     SPIN_DIRS = { 2 => :fs_spin_down, 4 => :fs_spin_left, 6 => :fs_spin_right, 8 => :fs_spin_up }
 
     @spin_last = nil
@@ -21,11 +16,7 @@ module PokeAccess
       nil
     end
 
-    # Announces starting to spin, every change of direction, and coming to a stop.
-    #
-    # The direction is part of the key, not just the on/off: the plugin redirects the player on each new
-    # spin tile without ever clearing the flag, so an on/off key would announce the first direction and
-    # then stay quiet through a whole chain of turns.
+    # Announces a spin's start, each change of direction (the flag stays on through a chain of turns) and its stop.
     def self.spin_poll
       on = ($PokemonGlobal.spinning rescue false) ? true : false
       key = on ? (spin_key || :fs_spin_on) : nil
@@ -38,13 +29,8 @@ module PokeAccess
       nil
     end
 
-    # Lens of Truth (Drimer's plugin, six games): an item that for a few seconds fades hidden events in and
-    # visible ones out within a small radius. Scene_Map#eye_of_truth_time counts the frames left.
-    #
-    # Only the WINDOW is announced, not what appeared: the tiles it reveals are already reachable, both by
-    # the locator's own category for them and by the notice the player gets on stepping onto one. What was
-    # missing is that the item did anything at all, and how long it lasts -- a countdown a sighted player
-    # reads off the fading sprites.
+    # Lens of Truth (Drimer's plugin): announces when it takes effect and when it wears off
+    # (Scene_Map#eye_of_truth_time counts the frames left); what it reveals is left to the locator.
     def self.lens_poll
       t = ($scene.is_a?(Scene_Map) ? ($scene.eye_of_truth_time rescue 0) : 0).to_i
       on = t > 0
@@ -55,9 +41,8 @@ module PokeAccess
       nil
     end
 
-    # Both flags belong to the map the player just left. The lens starts at false and not at nil: an unset
-    # slot differs from "off" and the first look on a fresh map would announce that the lens had worn off
-    # when it had never been used.
+    # Clears both flags on a map change; the lens goes to false, not nil, so a fresh map does not announce it
+    # wearing off.
     def self.reset
       @spin_last = nil
       @lens_on = false

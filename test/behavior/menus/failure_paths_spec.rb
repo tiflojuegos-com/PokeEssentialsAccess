@@ -1,12 +1,8 @@
-# Failure paths, and whether they leave a trace. The mod already owns the right mechanism -- log_once
-# writes one marker line per key -- but readers kept rescuing inside their own bodies, so the exception
-# never reached it and a renamed method became permanent, undiagnosable silence with a clean marker file.
-# These drive the paths that were fixed, and assert BOTH halves: the degradation is graceful AND it is
-# recorded. A blind player cannot debug a screen that simply stopped talking.
+# A reader that breaks degrades gracefully and leaves a marker line: a raising extractor falls back to the generic
+# read, and a raising modal-loop block and an unregistered capability are logged once.
 Suite.define("failure paths: a reader that breaks degrades visibly, not silently") do
   logged = lambda { |key| !!(PokeAccess.instance_variable_get(:@logged_once) || {})[key] }
 
-  # --- a dedicated extractor that raises must not cost the option's NAME: the generic read still has it.
   klass = Class.new { attr_accessor :index }
   begin
     Object.const_set(:PaSpecBrokenWindow, klass) unless Object.const_defined?(:PaSpecBrokenWindow)
@@ -22,9 +18,7 @@ Suite.define("failure paths: a reader that breaks degrades visibly, not silently
     Object.send(:remove_const, :PaSpecBrokenWindow) if Object.const_defined?(:PaSpecBrokenWindow)
   end
 
-  # --- a modal-loop reader whose block raises: silent by design (it must not kill the input loop), but
-  # the failure is now written down instead of vanishing.
-  boom = PokeAccess::SceneWatcher.reader("PaSpecNoSuchLoop", :main, :spec_boom) { |_s| raise "bloque roto" }
+  boom =PokeAccess::SceneWatcher.reader("PaSpecNoSuchLoop", :main, :spec_boom) { |_s| raise "bloque roto" }
   boom.watch(Object.new)
   SpeakCapture.clear
   boom.poll
@@ -32,18 +26,14 @@ Suite.define("failure paths: a reader that breaks degrades visibly, not silently
   truthy "but it is recorded", logged.call("scene_watcher_spec_boom")
   boom.unwatch
 
-  # --- a capability symbol nobody registered is a typo, otherwise indistinguishable from an engine that
-  # genuinely lacks the feature.
-  falsy "an unregistered capability is still false", PokeAccess::Engine.has?(:pa_spec_no_such_cap)
+  falsy"an unregistered capability is still false", PokeAccess::Engine.has?(:pa_spec_no_such_cap)
   truthy "but it says so once", logged.call("cap_pa_spec_no_such_cap")
   falsy "a class name that is simply absent stays a plain false, with no noise",
         PokeAccess::Engine.has?("PaSpecAbsentClass")
   falsy "and is NOT reported as a typo", logged.call("cap_PaSpecAbsentClass")
 end
 
-# MapInfos is read for every map name, exit name, diagnostic line and recorder sample. When it cannot be
-# loaded, a guard that stays true retries the whole Marshal on every one of those calls, forever, while no
-# map is ever named and nothing is written anywhere.
+# An unloadable MapInfos is tried once and kept as an empty table: a map name resolves to nil without a retry.
 Suite.define("failure paths: an unloadable MapInfos is given up on once, not retried forever") do
   loc = PokeAccess::Locator
   saved = loc.instance_variable_get(:@mapinfos)
@@ -68,8 +58,7 @@ Suite.define("failure paths: an unloadable MapInfos is given up on once, not ret
   end
 end
 
-# The help line for a menu option is stored for the info key, and must not outlive its menu: going straight
-# from one menu into another would leave the key answering with the previous menu's help.
+# A menu option's help line reaches the info key and leaves with its menu.
 Suite.define("failure paths: the menu help line leaves with its menu") do
   ch = PokeAccess::CommandHelp
   win = Object.new

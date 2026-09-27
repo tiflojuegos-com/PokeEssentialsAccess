@@ -1,10 +1,5 @@
-# A door drawn with a sprite that opens on the action button, a warp pad that asks before it takes the
-# player, a floor arrow painted at an exit: the map data of the surveyed games holds a couple of dozen of
-# the first, a hundred and fifty of the second and over a thousand painted doors and arrows, and all of
-# them were listed among the PEOPLE, named after their sprite file, because an action-button transfer with a
-# sprite was read as a person taking the player somewhere. The sprite is what tells the two apart: the
-# sailor and the Abra owner keep a person's sprite, the passage a doorway's. The names cut both ways: a
-# soldier called "Exit" who only talks is a person, and "Teleportation Master" is the NPC, not the pad.
+# A doorway sprite with an action-button transfer is an exit however triggered; a person's sprite stays a person,
+# whatever the event is named. doorway_case builds a one-page event with that sprite, trigger and command list.
 def doorway_case(id, sprite, trigger, list)
   page = TestPage.new(:trigger => trigger, :sprite => sprite, :list => list)
   ev = TestGameEvent.new(:id => id, :x => 3 + id, :y => 6, :name => "EV00#{id}", :pages => [page], :active_page => page)

@@ -1,10 +1,5 @@
-# The modern half of summary_egg_spec.rb, and the half that had no spec at all: PokemonSummary_Scene is the
-# summary of NINE of the fifteen surveyed games, and there was no stand-in for it in this pass, so every
-# hook in core/party/v21/summary_v21.rb bound to nothing and the whole reader went unexercised.
-#
-# Here the dispatcher is drawPage, which takes the egg branch before anything else
-# (emerald/298_UI_Summary.rb:303-307), and drawPage is the method the page reader after-hooks -- so a hook
-# on drawPageOneEgg was swallowed by the reentrancy guard and the page said nothing.
+# The modern egg page: drawPage takes the egg branch first and is after-hooked by the page reader, so a hook on
+# drawPageOneEgg would be suppressed as nested.
 Suite.define("summary: the modern egg page reads what it paints, and the page reader still reads the rest") do
   scene = PokemonSummary_Scene.new
   egg = Poke.build(:name => "Egg")

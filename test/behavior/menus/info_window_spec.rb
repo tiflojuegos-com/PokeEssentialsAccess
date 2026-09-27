@@ -1,11 +1,5 @@
-# Standing information windows: the sprite a screen writes with text= and repaints as the cursor moves,
-# holding what the list rows never say. Where a phone contact lives, how many are registered, how many
-# species the dex has seen, whether the list on screen is a search result.
-#
-# Eight of them went unread across the surveyed games, all for the same reason: the global listeners on
-# Window_AdvancedTextPokemon#text= are narrowed to the two command-help variants on purpose, because one
-# that spoke every assignment would talk over dialogue and over battle text. So the fix is to NAME each
-# window rather than widen the listener, and that is what a watch is.
+# InfoWindow: a window a screen writes with text= (holding what its rows never say), named by a watch, is spoken when
+# it changes, and only while its scene is up.
 Suite.define("info window: a watched window speaks when it changes, and only inside its own scene") do
   scene_class = Class.new do
     attr_reader :sprites
@@ -48,13 +42,12 @@ Suite.define("info window: a watched window speaks when it changes, and only ins
     iw.tick
     silent "and once the scene closes its windows are nobody's business"
   ensure
-    iw.watches.reject! { |w| w[0] == "SpecInfoScene" }
+    iw.watches.reject! { |w| w[0].to_s == "SpecInfoScene" }
     iw.enter(prev)
   end
 end
 
-# The two screens core declares. What matters is that they are declared at all: each name is one screen
-# whose standing window had never been spoken in any game.
+# The windows core declares, the phone's and the gen-6 dex header's, each on its own dedup slot.
 Suite.define("info window: the phone and the pokedex header are declared, each window on its own slot") do
   rows = PokeAccess::InfoWindow.watches
   phone = rows.select { |r| r[0].to_s =~ /Phone/ }
@@ -71,10 +64,8 @@ Suite.define("info window: the phone and the pokedex header are declared, each w
      PokeAccess::InfoWindow.silent, []
 end
 
-# The scene's OPEN, which is the half of a watch nobody sees fail. A window is declared, the class is there,
-# the sprite is there -- and if the mod never learns that the screen started, the watch points at nothing and
-# not a single line is ever spoken. Fire Ash's swap screen is exactly that: two openers of its own,
-# pbStartRentScene and pbStartSwapScene, and no pbStartScene anywhere.
+# A scene is entered by each opener it declares (Fire Ash's swap screen has two and no pbStartScene); a scene with no
+# opener takes no watch and is named in unentered.
 Suite.define("info window: a scene is entered by its own opener, and one with none is reported") do
   own = Class.new do
     attr_reader :sprites
@@ -127,10 +118,7 @@ Suite.define("info window: a scene is entered by its own opener, and one with no
   end
 end
 
-# The `start` shape of the lifecycle, which is how ELEVEN of the fifteen games open the phone: one method
-# that builds the windows, runs the whole screen and returns when it is over. No pbStartScene, no
-# pbEndScene. Until now both stubs gave the phone the SPLIT shape, so the fallback that covers those eleven
-# could be deleted with the whole suite still green and nobody the wiser.
+# The start shape of the lifecycle (the phone's in most games): one method runs the screen, watched while it runs.
 Suite.define("info window: a screen that opens with start is watched for as long as start runs") do
   iw = PokeAccess::InfoWindow
   prev = iw.live
@@ -141,7 +129,7 @@ Suite.define("info window: a screen that opens with start is watched for as long
     SpeakCapture.clear
     scene.start
     eq "every contact the cursor walked over was spoken, from inside start, and the standing totals with them",
-       SpeakCapture.lines, ["Ruta 3", "Registrados , 12", "Ciudad Verde"]
+       SpeakCapture.lines, ["Ruta 3", "Registrados, 12", "Ciudad Verde"]
 
     falsy "and the watch ends with start, which is the only close this shape has", iw.live
 
@@ -154,11 +142,7 @@ Suite.define("info window: a screen that opens with start is watched for as long
   end
 end
 
-# The frame a screen OPENS, every one of its windows is new at once -- so an interrupting one has nothing of
-# its own screen to cut except a sibling. Fire Ash's buff screen paints its title ("Enemy Buffs (Sync
-# Challenge)") and its textbox in the same breath; the textbox cut the title, and because the dedup then
-# held that title as already said, the player never learned which challenge the buffs applied to for the
-# whole time that screen was open.
+# On the frame a screen opens an interrupting window queues behind its siblings; later changes interrupt as declared.
 Suite.define("info window: an interrupting window waits its turn on the frame the screen opens") do
   scene_class = Class.new do
     attr_reader :sprites
@@ -181,7 +165,6 @@ Suite.define("info window: an interrupting window waits its turn on the frame th
        SpeakCapture.lines, ["Mejoras (Sync)", "Pulsa Enter."]
     eq "and neither of them cuts the other", SpeakCapture.log.map { |_t, int| int }, [false, false]
 
-    # Later, answering a keypress, it interrupts as declared.
     scene.sprites["textbox"].text = "Cuesta x1.5 creditos."
     SpeakCapture.clear
     iw.tick
@@ -191,4 +174,18 @@ Suite.define("info window: an interrupting window waits its turn on the frame th
     iw.watches.reject! { |w| w[2] == :spec_buff_title || w[2] == :spec_buff_box }
     iw.enter(prev)
   end
+end
+
+# The painted header of the dex list: an unseen species is painted there as a run of question marks, which the
+# list reader has just said as a word ("not discovered"), so the header leaves them out.
+Suite.define("info window: the dex header leaves out an unseen species' question marks") do
+  pc = PokeAccess::PaintCapture
+  pc.arm(:dex_header)
+  pc.note("Pokedex regional")
+  pc.note("?????")
+  pc.note("Vistos: 10")
+  SpeakCapture.clear
+  PokeAccess::InfoWindow.say_dex_header(World.stub_scene(:@sprites => {}))
+  spoke "the header is said", /Vistos: 10/
+  not_spoke "without the placeholder the list reader has already worded", /\?/
 end

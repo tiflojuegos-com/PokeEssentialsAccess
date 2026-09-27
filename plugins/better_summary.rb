@@ -1,13 +1,6 @@
 module PokeAccess
-  # Better Summary: adds a full-screen ability page to the summary, opened with the special button.
-  #
-  # It bypasses drawPage entirely -- it paints straight onto the overlay bitmap -- so not one of the summary
-  # hooks fires. There is no cursor on it either, so there is nothing to poll: the page is static and the
-  # method that draws it is handed the Pokemon, which is all the reader needs.
-  #
-  # Besides the ability, the page paints the held item (or "none") and the sex symbol. Both copies do, and
-  # both are worth saying: this page is entered from the MOVES page, where neither appears, so for a blind
-  # player the held item exists nowhere else in the summary.
+  # Better Summary's ability page (the special button), painted outside drawPage: the ability, its description,
+  # the sex sign and the held item, from the Pokemon showAbilityDescription is handed.
   module BetterSummary
     def self.ability(pkmn)
       a = (pkmn.ability rescue nil)
@@ -23,9 +16,8 @@ module PokeAccess
     # The sex and the held item as the page writes them: the item line is always painted, "none" included.
     def self.extras(pkmn)
       out = []
-      sex = (PokeAccess::Party.gender_word(pkmn) rescue nil)
-      g = (pkmn.gender rescue nil)
-      out.push(sex) if sex && (g == 0 || g == 1)
+      sex = (PokeAccess::Party.gender_glyph(pkmn) rescue nil)
+      out.push(sex) if sex
       it = ((pkmn.hasItem? rescue false) ? (pkmn.item.name rescue nil) : nil)
       out.push(PokeAccess::I18n.t(:sum_item, :i => it || PokeAccess::I18n.t(:bs_no_item)))
       out
@@ -35,11 +27,8 @@ module PokeAccess
   end
 end
 
-# Closing the page redraws the skills page underneath, and the summary reader dedups a page against the last
-# one it spoke -- which is still that same skills page, because nothing replaced it while the ability page was
-# up. Forgetting it here is what makes coming back say where you are instead of dropping the player onto a
-# silent screen.
+# Forgets the page underneath as the ability page opens, so its redraw on closing is read.
 PokeAccess::Hooks.before_hook("PokemonSummary_Scene", :showAbilityDescription, :optional => true) do |scene, args|
-  scene.instance_variable_set(:@access_page_text, nil) rescue nil
+  PokeAccess::Summary.forget_page(scene)
   PokeAccess::BetterSummary.ability(args[0])
 end

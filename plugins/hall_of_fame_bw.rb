@@ -1,12 +1,4 @@
-# Hall of Fame PC viewer (the "Hall de la Fama BW" plugin, HallOfFameViewerScene): browse past Hall entries
-# team by team. Left/Right walk the six members, the confirm key steps back an entry, and update_display
-# redraws after every one of those -- and once from pbStartScene -- so it is both the opening read and the
-# cursor read.
-#
-# The two copies differ a long way outside this screen, but the viewer itself matches: @hallEntry,
-# @pokemonIndex, @hallIndex, update_display, hallOfFameLastNumber and speciesName mean the same in both.
-# The entry number is not @hallIndex but the plugin's own formula, because entries are stored newest-last
-# while it numbers them by when they happened.
+# The "Hall de la Fama BW" plugin: its Hall of Fame PC viewer (read on each update_display) and entry ceremony.
 module PokeAccess
   module HallOfFameBW
     # The 1-based number the plugin shows for the focused entry, or the index + 1 if the counter is absent.
@@ -16,8 +8,6 @@ module PokeAccess
     end
 
     # The rest of what the panel paints under the name: types, owner, trainer ID and where it was caught.
-    # Through the plugin's own accessors (types as an array, owner.name, owner.public_id padded to five),
-    # since these two games do not have the gen-6 names.
     def self.extra(pk)
       out = []
       names = (pk.types.uniq.map { |ty| (PokeAccess::Data.type_name(ty) rescue nil) } rescue [])
@@ -33,8 +23,7 @@ module PokeAccess
       []
     end
 
-    # Where it was caught, resolved the way the panel resolves it: the stored obtain_text wins, then the map
-    # name, and finally the panel's own "unknown place" default, which it paints rather than hiding the line.
+    # Where it was caught, as the panel resolves it: obtain_text, else the map name, else "unknown place".
     def self.caught_in(pk)
       txt = (pk.obtain_text rescue nil)
       return txt.to_s if txt && !txt.to_s.empty?
@@ -45,18 +34,22 @@ module PokeAccess
       nil
     end
 
-    # The sex word the panel glues to the SPECIES name, or "". Male and female only: a genderless entry gets
-    # no symbol on screen.
+    # The sex sign the panel glues to the species name, as painted, or "" (a genderless entry shows none).
     def self.sex_suffix(pk)
-      g = (pk.gender rescue nil)
-      return "" unless g == 0 || g == 1
-      " " + PokeAccess::I18n.t(g == 0 ? :pk_male : :pk_female)
+      g = PokeAccess::Party.gender_glyph(pk)
+      g ? " #{g}" : ""
     rescue StandardError
       ""
     end
 
+    # What the card's species bar shows: the species with its sex sign. A copy that draws something else in
+    # that bar overrides this.
+    def self.species_bar(pk, sp)
+      sp.to_s + sex_suffix(pk)
+    end
+
     # The gen-5 ceremony card of one team member, composed from what its two bars paint: the nickname when
-    # it differs from the species, the species with its sex word, and the level.
+    # it differs from the species, the species bar, and the level.
     def self.card(pk)
       return nil unless pk
       sp = (pk.speciesName rescue nil)
@@ -64,7 +57,7 @@ module PokeAccess
       nm = (pk.name rescue nil)
       parts = []
       parts.push(nm) if nm && !nm.to_s.empty? && nm != sp
-      parts.push(sp.to_s + sex_suffix(pk)) if sp && !sp.to_s.empty?
+      parts.push(species_bar(pk, sp)) if sp && !sp.to_s.empty?
       lv = (pk.level rescue nil)
       parts.push(PokeAccess::I18n.t(:hofbw_level, :n => lv)) if lv
       parts.empty? ? nil : parts.join(", ")
@@ -88,26 +81,40 @@ module PokeAccess
       nil
     end
 
-    # The focused team member: which entry, where in the team, and the Pokemon. speciesName is the plugin's
-    # own accessor, so a renamed or fused species comes out as the screen shows it.
+    # A ceremony text window on screen, once per text it shows.
+    def self.say_window(win)
+      t = PokeAccess.ivar(win, :@text).to_s
+      return if t.strip.empty? || !PokeAccess::Cursor.changed?(win, :hof_text, t)
+      PokeAccess.say_dialogue(t)
+    end
+
+    # The focused team member: entry, place in the team and the Pokemon (its species via the plugin's speciesName).
     def self.read(scene)
       entry = PokeAccess.ivar(scene, :@hallEntry)
       return unless entry.is_a?(Array)
       pi = PokeAccess.ivar_i(scene, :@pokemonIndex)
       hi = PokeAccess.ivar_i(scene, :@hallIndex)
+      prev = PokeAccess::Cursor.current(scene, :hof)
       return unless PokeAccess::Cursor.changed?(scene, :hof, [hi, pi])
       pk = (entry[pi] rescue nil)
       return unless pk
-      parts = [PokeAccess::I18n.t(:hofbw_entry, :n => entry_number(hi)),
-               PokeAccess::I18n.t(:hofbw_pos, :n => pi + 1, :tot => entry.length)]
+      record = PokeAccess::I18n.t(:hofbw_entry, :n => entry_number(hi))
       nm = (pk.name rescue nil)
+      nm = nil if nm.nil? || nm.to_s.empty?
       sp = (pk.speciesName rescue nil)
-      parts.push(nm) if nm && !nm.to_s.empty? && nm != sp
-      parts.push(sp.to_s + sex_suffix(pk)) if sp && !sp.to_s.empty?
+      sp = nil if sp.nil? || sp.to_s.empty?
+      nm = nil if nm == sp
       lv = (pk.level rescue nil)
-      parts.push(PokeAccess::I18n.t(:hofbw_level, :n => lv)) if lv
-      parts.concat(extra(pk))
-      PokeAccess.speak_clean(parts.join(", "), true)
+      level = lv ? PokeAccess::I18n.t(:hofbw_level, :n => lv) : nil
+      more = extra(pk)
+      whole = [record, nm, sp ? sp.to_s + sex_suffix(pk) : nil, level].concat(more)
+      PokeAccess::Info.set_info(:text, PokeAccess.clean(PokeAccess::Util.join_parts(whole, ", ")))
+      new_record = !prev.is_a?(Array) || prev[0] != hi
+      shown_sp = PokeAccess::Verbosity.keep?(:hall_of_fame, :full) ? whole[2] : sp
+      parts = [[record, new_record ? :brief : :full], [PokeAccess::Verbosity.position(pi + 1, entry.length), :brief],
+               [nm, :brief], [shown_sp, :brief], [level, :medium]]
+      more.each { |m| parts.push([m, :full]) }
+      PokeAccess.speak_clean(PokeAccess::Verbosity.line(:hall_of_fame, parts), true)
     rescue StandardError
       nil
     end
@@ -118,21 +125,16 @@ PokeAccess::Hooks.after_hook("HallOfFameViewerScene", :update_display, :optional
   PokeAccess::HallOfFameBW.read(scene)
 end
 
-# The entry CEREMONY (SalonDeFama.registrar -> HallDeLaFama): the plugin replaces the engine's
-# pbHallOfFameEntry wholesale, so the core HallOfFame reader never runs in these games. Its gen-4 styles put
-# every line -- titles, dex stats, per-Pokemon cards -- through three window builders; the gen-5 style both
-# games run (HallDeLaFama_GEN = 5) paints the per-Pokemon card in gen5_pokemon_info, nickname and level on
-# the lower bar and species and sex on the upper, and the finale in create_gen5_final_windows, straight
-# onto bitmaps in one game and through a text sprite in the other. Card and finale are composed from the
-# data those bars paint, since one copy has no text seam at all; the title still arrives through
-# create_text_window.
-["create_text_window", "create_title_window", "create_info_window"].each do |m|
-  PokeAccess::Hooks.after_hook("HallDeLaFama", m.to_sym, :optional => true) do |_s, _r, args|
-    t = args[0]
-    PokeAccess.say_dialogue(t.to_s) if t && !t.to_s.strip.empty?
-  end
+# The entry ceremony (HallDeLaFama, replacing pbHallOfFameEntry): gen-4 styles' HallOfFameTextWindow text, read
+# when a window is shown or rewritten while shown, never when built (the gen-5 style builds one it never shows).
+PokeAccess::Hooks.after_hook("HallOfFameTextWindow", :visible=, :optional => true) do |win, _r, args|
+  PokeAccess::HallOfFameBW.say_window(win) if args[0]
+end
+PokeAccess::Hooks.after_hook("HallOfFameTextWindow", :text=, :optional => true) do |win, _r, _a|
+  PokeAccess::HallOfFameBW.say_window(win) if (win.visible rescue false)
 end
 
+# The gen-5 style's per-Pokemon card and finale, composed from the data their bars paint.
 PokeAccess::Hooks.after_hook("HallDeLaFama", :gen5_pokemon_info, :optional => true) do |_s, _r, args|
   t = PokeAccess::HallOfFameBW.card(args[0])
   PokeAccess.say_dialogue(t) if t
@@ -142,3 +144,5 @@ PokeAccess::Hooks.after_hook("HallDeLaFama", :create_gen5_final_windows, :option
   t = PokeAccess::HallOfFameBW.finale(scene)
   PokeAccess.say_dialogue(t) if t
 end
+
+PokeAccess::Verbosity.define_reading(:hall_of_fame, :vb_hall_of_fame, :vbh_hall_of_fame)

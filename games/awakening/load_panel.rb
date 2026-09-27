@@ -1,42 +1,31 @@
-# Awakening's continue panel ("0271 Panel intro Jess.rb"): the badge slot is relabelled "Capítulo" and holds
-# the story chapter, the pokedex line is commented out, and under it goes "Alineación" -- Orden, Caos or
-# Neutro from whichever route file exists, "---" for none -- with the finished endings as four icons
-# (Forden, Fcaos, Fneutral, Freal) and the saved team as icons. The stock panel reader said "4 medallas"
-# and nothing of the rest.
+# Awakening's continue panel: its own painted lines are read by the core, with the save's map (painted at the
+# end of the route's row) as a line of its own; the finished endings, four icons with no word, are said here.
 module PokeAccess
   module AwakeningLoad
-    ROUTES = [["Data/rutaorden.dat", "Orden"], ["Data/rutacaos.dat", "Caos"], ["Data/rutaneutra.dat", "Neutro"]]
-    ENDINGS = [[2, "Orden"], [1, "Caos"], [3, "Neutro"]]
+    ENDINGS = [[2, :awk_end_order], [1, :awk_end_chaos], [3, :awk_end_neutral]]
 
-    # The alignment the panel paints: the first route file that exists, in the panel's own order.
-    # param exist how a path is tested, so a spec can stand in for the disk
-    def self.alignment(exist = nil)
-      exist ||= lambda { |p| File.exist?(p) }
-      hit = ROUTES.find { |path, _name| exist.call(path) }
-      "Alineación: " + (hit ? hit[1] : "ninguna")
-    end
+    # Where the map's name is painted (188*2, right-aligned); every other cell of the panel stands left of it.
+    PLACE_X = 300
 
-    # The endings already completed, as the four icons say them: three through the game's own
-    # checkNewGamePlus, the true ending through its own file. nil when none is done.
+    # The completed endings (three by checkNewGamePlus, the true one by Data/realfin.dat), or nil when none;
+    # check and exist can be stubbed by a spec.
     def self.endings(check = nil, exist = nil)
       check ||= lambda { |n| (checkNewGamePlus(n) rescue false) }
       exist ||= lambda { |p| File.exist?(p) }
-      done = ENDINGS.select { |n, _name| check.call(n) }.map { |_n, name| name }
-      done.push("Real") if exist.call("Data/realfin.dat")
-      done.empty? ? nil : "Finales completados: " + done.join(", ")
+      done = ENDINGS.select { |n, _key| check.call(n) }.map { |_n, key| PokeAccess::I18n.t(key) }
+      done.push(PokeAccess::I18n.t(:awk_end_true)) if exist.call("Data/realfin.dat")
+      done.empty? ? nil : PokeAccess::I18n.t(:awk_endings, :list => done.join(", "))
     end
 
-    # How many Pokemon the saved team has, from the party the panel draws as icons.
-    def self.team(trainer)
-      n = (trainer.party.length rescue nil)
-      n ? "Equipo de #{n}" : nil
+    # The panel's lines with the map's name off the route's row, after it.
+    def self.lines(pairs)
+      place = pairs.select { |p| p[2].to_i >= PLACE_X }
+      PokeAccess::PaintCapture.lines(pairs - place) + place.map { |p| PokeAccess.clean(p[0].to_s) }.reject { |t| t.empty? }
     end
   end
 end
 
 PokeAccess::Game.define("awakening") do
-  override(PokeAccess::LoadPanel, :badges_text) { |_mod, _original, args| "Capítulo #{args[0]}" }
-  override(PokeAccess::LoadPanel, :extras) do |_mod, _original, args|
-    [PokeAccess::AwakeningLoad.alignment, PokeAccess::AwakeningLoad.endings, PokeAccess::AwakeningLoad.team(args[0])]
-  end
+  override(PokeAccess::LoadPanel, :extras) { |_mod, _original, _args| [PokeAccess::AwakeningLoad.endings] }
+  override(PokeAccess::LoadPanel, :lines_of) { |_mod, _original, args| PokeAccess::AwakeningLoad.lines(args[0]) }
 end

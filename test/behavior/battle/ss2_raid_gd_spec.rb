@@ -1,16 +1,6 @@
-# DBK Raid Battles: the cheer menu and the boss's barrier, the two things a raid draws and never writes.
-#
-# The classes below reproduce the kit's own shapes, not the reader's wishes. GameData::Cheer really does
-# keep the shout and the description apart -- cheer_text is the word on the button, description(level) is a
-# four-entry array indexed by the CURRENT cheer level, and entry 0 of every one of them says the cheer needs
-# a higher level. CheerMenu really does fill @cheers inside refresh, and really does shadow MenuBase's mode=
-# with an attr_accessor, so setting the mode does NOT repaint. pbChooseCheer is the kit's own loop with its
-# input reads replaced by a scripted list of cursor positions: what the real one calls each iteration is
-# pbUpdate, which reaches Input.update and from there every frame poller, so the stand-in calls the pollers
-# in that same place.
-#
-# Battle::Scene is shared with the other battle specs, which build it with Battle::Scene.new, so nothing
-# here may define an initialize on it.
+# DBK Raid Battles: the cheer menu and the boss's barrier. The stand-ins keep the kit's shapes (description(level) by
+# the current cheer level, a mode= that does not repaint, the pollers run where pbUpdate would); Battle::Scene is
+# shared with other specs, so no initialize on it here.
 module GameData
   class Cheer
     attr_reader :id, :command_index
@@ -120,10 +110,8 @@ class SS2RaidBattlerStub
   def opposes?; @opposes; end
 end
 
-# The raid den: the screen the portal opens and the page that closes it. Its three options live in a local
-# variable of pbRaidEntry's loop and the only trace of the choice is where the loop put the cursor sprite,
-# so the stand-in moves that sprite exactly as the kit does (y = 132 + 34 * index). The painting is the
-# kit's own two calls, in its own order, with the option labels between the den's name and the rules line.
+# The raid den's entry and rewards screens: the chosen option shows only in the cursor sprite, which the stand-in
+# moves as the kit does (y = 132 + 34 * index).
 class RaidCursorSprite
   attr_accessor :y, :visible
   def initialize; @y = 132; @visible = true; end
@@ -134,8 +122,14 @@ class RaidTextWindow
   def initialize; @text = ""; @visible = false; end
 end
 
+# A party icon of the entry screen (PokemonIconSprite), which Change Party repoints at the new party.
+class RaidPartyIcon
+  attr_accessor :pokemon
+  def initialize(pk); @pokemon = pk; end
+end
+
 class RaidScene
-  attr_accessor :script, :reward_script
+  attr_accessor :script, :reward_script, :party, :new_party, :field
 
   def initialize(pkmn, rules, save_ok = true)
     @pkmn = pkmn
@@ -144,6 +138,9 @@ class RaidScene
     @sprites = { "cursor" => RaidCursorSprite.new, "itemtext" => RaidTextWindow.new }
     @script = [:use]
     @reward_script = []
+    @party = []
+    @new_party = []
+    @field = [:None, :None, nil]
   end
 
   def sprite(key); @sprites[key]; end
@@ -152,19 +149,27 @@ class RaidScene
 
   def pbSavingPrompt(_pkmn, _rules); @save_ok; end
 
+  # As the kit's: the field conditions and the party icons are set up before the texts are drawn.
   def pbStartScene(pkmn, rules)
     return false if !pbSavingPrompt(pkmn, rules)
+    @weather, @terrain, @environ = @field
+    @party.each_with_index { |pk, i| @sprites["partyicon_#{i}"] = RaidPartyIcon.new(pk) }
     pbDrawTextPositions(nil, [["BASIC DEN", 97, 24], ["Begin Raid", 391, 140],
                               ["Leave Raid", 391, 174], ["Change Party", 391, 208]])
     drawTextEx(nil, 40, 250, 226, 2, "Battle ends after 10 turns.")
     pbRaidEntry
   end
 
+  # :change stands for Change Party returning: the icons are repointed at the party chosen.
   def pbRaidEntry
     index = 0
     @script.each do |step|
       PokeAccess::Keys.run_frame_pollers
       break if step == :use
+      if step == :change
+        @new_party.each_with_index { |pk, i| @sprites["partyicon_#{i}"].pokemon = pk }
+        next
+      end
       index = step
       @sprites["cursor"].y = 132 + 34 * index
     end
@@ -206,8 +211,6 @@ Suite.define("soulstones 2 raid: the cheer menu says the level once and each but
   truthy "the level comes first, since it is what the buttons mean",
          lines.index(PokeAccess::I18n.t(:ss2_cheer_lvl, :n => 0, :max => 3)) < lines.index("Go all-out!")
 
-  # The level is the whole screen: the same button is a different thing two rounds later. A reader that took
-  # description(0) for granted would sound identical here, which is why this is a second open.
   scene2 = Battle::Scene.new
   scene2.raid_setup(SS2RaidBattleStub.new(2, 5), [:use])
   SpeakCapture.clear
@@ -218,7 +221,6 @@ Suite.define("soulstones 2 raid: the cheer menu says the level once and each but
   match "and the button carries the description for level two", lines2,
         /Increases potency of the team's moves/
 
-  # The poll runs forty times a second and the cursor stands still between presses.
   scene3 = Battle::Scene.new
   scene3.raid_setup(SS2RaidBattleStub.new(1, 5), [1, 1, :use])
   SpeakCapture.clear
@@ -264,7 +266,6 @@ Suite.define("soulstones 2 raid den: the entry screen reads what it painted and 
   match "and each one the cursor moves to", lines, /Leave Raid/
   match "including the one whose wording depends on the raid size", lines, /Change Party/
 
-  # A prompt answered no never paints the screen, so nothing may be left armed to swallow the next one.
   scene2 = RaidScene.new(boss, { :rank => 1 }, false)
   SpeakCapture.clear
   eq "a refused saving prompt opens nothing", scene2.pbStartScene(boss, { :rank => 1 }), false
@@ -282,9 +283,81 @@ Suite.define("soulstones 2 raid den: the rewards page says the outcome, and the 
   match "the outcome leads", lines, /You caught Tester!/
   match "with the level catching it revealed", lines, /Lv\. 70/
   match "and the ability", lines, /Abil: Pressure/
-  match "the sex glyph is replaced by the word for it",
-        lines, /#{Regexp.escape(PokeAccess::Party.gender_word(boss))}/
-  truthy "and the glyph itself never reaches the voice", !lines.include?("â")
+  match "the sex sign is passed on as the page paints it",
+        lines, /#{Regexp.escape(PokeAccess::Party.gender_glyph(boss))}/
+  falsy "and not turned into a word", lines.include?(PokeAccess::I18n.t(:pk_male))
   match "the description is read once the player asks for the box", lines, /restores 20 HP/
   match "and again for the next item while the box is up", lines, /restores 60 HP/
+end
+
+# The entry screen shows the boss as a black silhouette: its species is named only on the rewards page.
+Suite.define("soulstones 2 raid den: the boss inside is a silhouette, said with the types and rank it shows") do
+  t = PokeAccess::I18n
+  boss = Poke.build(:name => "Mewtwo", :species => :MEWTWO)
+  def boss.types; [:PSYCHIC]; end
+  scene = RaidScene.new(boss, { :rank => 5 })
+
+  SpeakCapture.clear
+  scene.pbStartScene(boss, {})
+  first = SpeakCapture.lines.first.to_s
+  falsy "the species the silhouette hides is not said", first.include?(PokeAccess::Data.species_name(:MEWTWO).to_s)
+  falsy "nor its name", first.include?("Mewtwo")
+  match "a hidden Pokemon is, with the types its icons show and its rank", first,
+        /#{Regexp.escape([t.t(:ss2_raid_hidden), t.t(:pc_types, :t => PokeAccess::Data.type_name(:PSYCHIC)),
+                          t.t(:ss2_raid_rank, :n => 5)].join(", "))}/
+  falsy "no field line where the screen draws no field icons", first.include?(t.t(:ss2_raid_field, :list => "").strip)
+end
+
+# Who enters shows only as icons, the ones the confirmation calls "the displayed party"; Change Party repoints them.
+Suite.define("soulstones 2 raid den: the party the icons show is said, and again after Change Party") do
+  t = PokeAccess::I18n
+  boss = Poke.build(:name => "Boss")
+  scene = RaidScene.new(boss, { :rank => 3, :loot => [:RARECANDY], :online => true })
+  scene.party = [Poke.build(:name => "Chispa"), Poke.build(:name => "Rocoso")]
+  scene.new_party = [Poke.build(:name => "Brasa"), scene.party[1]]
+  scene.field = [:Rain, :Electric, :Cave]
+  scene.script = [2, :change, 2, :use]
+
+  SpeakCapture.clear
+  scene.pbStartScene(boss, {})
+  first = SpeakCapture.lines.first.to_s
+  match "the party icons are named on opening", first, /#{Regexp.escape(t.t(:ss2_raid_party, :list => "Chispa, Rocoso"))}/
+  match "with the bonus loot icon", first, /#{Regexp.escape(t.t(:ss2_raid_bonus))}/
+  match "and the online one", first, /#{Regexp.escape(t.t(:ss2_raid_online))}/
+  field = [PokeAccess::Battle.weather_name(:Rain), t.t(:bt_electric), "Cave"].join(", ")
+  match "the field icons, weather, terrain and environment", first,
+        /#{Regexp.escape(t.t(:ss2_raid_field, :list => field))}/
+  after = t.t(:ss2_raid_party, :list => "Brasa, Rocoso")
+  eq "the new party is said once, when Change Party has repointed the icons",
+     SpeakCapture.lines.count { |l| l.include?(after) }, 1
+  eq "and the party loop lets the screen go", PokeAccess::SS2RaidDen.instance_variable_get(:@entry), nil
+end
+
+# The rewards page draws the rank stars and, over a shiny boss, the shiny icon.
+Suite.define("soulstones 2 raid den: the rewards page says the shiny icon and the rank stars") do
+  t = PokeAccess::I18n
+  shiny = Poke.build(:name => "Tester", :shiny => true)
+  scene = RaidScene.new(shiny, { :rank => 6 })
+  SpeakCapture.clear
+  scene.pbRaidRewardsScreen(1)
+  lines = SpeakCapture.lines.join(" | ")
+  match "a shiny boss is said to be one", lines, /#{Regexp.escape(t.t(:pk_shiny))}/
+  match "and the stars are its rank", lines, /#{Regexp.escape(t.t(:ss2_raid_rank, :n => 6))}/
+
+  plain = RaidScene.new(Poke.build(:name => "Tester"), { :rank => 2 })
+  SpeakCapture.clear
+  plain.pbRaidRewardsScreen(1)
+  falsy "a boss that is not shiny draws no shiny icon", SpeakCapture.lines.join(" | ").include?(t.t(:pk_shiny))
+end
+
+Suite.define("soulstones 2 raid: a cheer's description waits for full, and the info key keeps it") do
+  cheer = GameData::Cheer.get_cheer_for_index(1)
+  whole = "Hang tough!, The team takes less damage from moves."
+  rows = vb_levels { PokeAccess::SS2Cheer.line(cheer, 1) }
+  eq "brief and medium: the shout", rows[0, 2], ["Hang tough!", "Hang tough!"]
+  eq "full: and what it does at this level", rows[2], whole
+  PokeAccess::Config.verbosity = :brief
+  PokeAccess::SS2Cheer.line(cheer, 1)
+  PokeAccess::Config.verbosity = :full
+  eq "the info key keeps both", PokeAccess::Info.info_text, whole
 end

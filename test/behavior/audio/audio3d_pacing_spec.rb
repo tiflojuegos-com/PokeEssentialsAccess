@@ -1,12 +1,5 @@
-# WHEN and WHERE each emitter sounds: the ping scheduler, the occlusion pass and the loop placement. This
-# is the layer that keeps the soundscape readable -- one cue at a time, taking turns, panned to the right
-# tile. Its failures are all "too much at once" or "the wrong ear", neither of which any other suite sees.
-#
-# Why this suite forces engine state: the harness ships no PA3D dll. Win32API is a stub class whose #call
-# returns 0, so boot() fails on `INIT.call == 1` and leaves @ready false with no channels, and every play
-# path refuses with `ch >= 0`. The suite seeds @ch with the handle table boot builds and replaces the #call
-# of the entry points it watches with a recorder, so the asserts read exactly the arguments the real dll
-# receives. Everything is restored afterwards.
+# When and where each emitter sounds: the ping scheduler, the occlusion pass and the loop placement. The harness
+# has no dll, so the suites seed @ch with the handle table boot would build and record the native calls.
 module A3DPace
   IVARS = [:@ch, :@emitters, :@ptime, :@ping_idx, :@last_ping_any, :@last_ping_pos, :@wall]
   FNS = [:SET, :OCCL]
@@ -42,17 +35,15 @@ module A3DPace
     end
   end
 
-  # The [x, y] tiles that were played (volume > 0), in the order they sounded.
+  # The [x, y] tiles that were played (play flag set), in the order they sounded.
   def self.played(log)
     log.select { |c, a| c == :SET && a[4] == 1 }.map { |_c, a| [a[1] / PokeAccess::Audio3D::TILE_UNITS,
                                                                 a[2] / PokeAccess::Audio3D::TILE_UNITS] }
   end
 end
 
-# At most ONE emitter per tick, and the type chosen is the one whose own timer has been waiting longest.
-# Without the fairness sort a high-frequency type would win every slot and the player would never hear the
-# doors; without the one-per-call rule every type due on the same frame would fire at once and blur into
-# noise. The two halves are asserted with the same two types in both orders, so neither can pass by luck.
+# At most one emitter per tick, given to the type whose timer has waited longest; a type inside its own frequency
+# window stays quiet.
 Suite.define("audio3d: one ping per tick, and the most overdue type gets it") do
   a3d = PokeAccess::Audio3D
   saved = A3DPace.snapshot
@@ -79,7 +70,6 @@ Suite.define("audio3d: one ping per tick, and the most overdue type gets it") do
     a3d.ping_types
     eq "swap who waited longest and the other type gets the slot", A3DPace.played(log), [[16, 16]]
 
-    # A type inside its own frequency window must stay quiet: this timer IS the player's frequency slider.
     log.clear
     now = PokeAccess.clock
     a3d.instance_variable_set(:@emitters, { :npc => [[4, 4]] })
@@ -98,9 +88,7 @@ Suite.define("audio3d: one ping per tick, and the most overdue type gets it") do
   end
 end
 
-# Within one type the nearest few take turns, so three people in a room are heard as three positions
-# instead of the closest one masking the rest. The cursor must ADVANCE on every ping and wrap: a cursor
-# stuck at 0 is the "only one of them ever sounds" bug the alternation was written to fix.
+# Within one type the nearest few take turns: the cursor advances on every ping and wraps.
 Suite.define("audio3d: the nearest few of a type take turns, wrapping round") do
   a3d = PokeAccess::Audio3D
   saved = A3DPace.snapshot
@@ -111,8 +99,6 @@ Suite.define("audio3d: the nearest few of a type take turns, wrapping round") do
     a3d.instance_variable_set(:@ping_idx, {})
     A3DPace.record(log)
 
-    # Each ping is isolated from the previous one (its timer and the global gap cleared) so the only thing
-    # deciding WHICH of the three sounds is the round-robin cursor.
     4.times do
       a3d.instance_variable_set(:@ptime, {})
       a3d.instance_variable_set(:@last_ping_any, nil)
@@ -126,10 +112,7 @@ Suite.define("audio3d: the nearest few of a type take turns, wrapping round") do
   end
 end
 
-# Two cues landing on top of each other are unreadable, so a ping within PING_GAP of the last one is held
-# back -- but ONLY if it is close to it. A far emitter still fires because HRTF panning already separates
-# them, and that exception is what keeps the soundscape alive in a busy room. Three asserts: near waits,
-# far fires, and the hold-back expires with the window rather than muting the tile permanently.
+# Within PING_GAP of the last ping, a candidate within audio3d_alt_dist of it waits; a farther one fires anyway.
 Suite.define("audio3d: a ping beside the last one waits, a distant one fires anyway") do
   a3d = PokeAccess::Audio3D
   saved = A3DPace.snapshot
@@ -164,7 +147,6 @@ Suite.define("audio3d: a ping beside the last one waits, a distant one fires any
     a3d.ping_types
     eq "and once the window has passed the near one sounds too", A3DPace.played(log), [[6, 5]]
 
-    # The hold-back radius is the player's own setting: shrink it and the same pair stops colliding.
     log.clear
     PokeAccess::Config.audio3d_alt_dist = 1
     a3d.instance_variable_set(:@emitters, { :npc => [[7, 5]] })
@@ -179,10 +161,7 @@ Suite.define("audio3d: a ping beside the last one waits, a distant one fires any
   end
 end
 
-# Occlude mode is the middle setting: an emitter behind a wall is MUFFLED, not deleted, so the player still
-# knows it is there but hears that something is in the way. If the occlusion were left from the previous
-# ping, a cue would stay muffled after the player steps into the open (or the reverse), so every ping sets
-# it explicitly -- including back to 0.
+# Occlude mode muffles a ping behind a wall; every ping sets its occlusion explicitly, back to 0 in the open.
 Suite.define("audio3d: occlude mode muffles a ping behind a wall and clears it in the open") do
   a3d = PokeAccess::Audio3D
   saved = A3DPace.snapshot
@@ -207,7 +186,6 @@ Suite.define("audio3d: occlude mode muffles a ping behind a wall and clears it i
     a3d.set_occlusion(chans[:npc], [6, 1])
     eq "hear mode never muffles anything", occ.call, [0]
 
-    # And the ping path really does run it: the muffling would be dead code if ping_types skipped it.
     log.clear
     PokeAccess::Config.audio3d_occlusion = :occlude
     a3d.instance_variable_set(:@emitters, { :npc => [[6, 1]] })
@@ -224,9 +202,8 @@ Suite.define("audio3d: occlude mode muffles a ping behind a wall and clears it i
   end
 end
 
-# The wind loops ARE the wall-proximity sense: their volume is the distance and their position is the side.
-# A sign flip pans a wall to the wrong ear, a missing stop leaves wind blowing from an open corridor, and a
-# broken falloff makes a wall two tiles away as loud as one you are touching -- which is the whole cue.
+# Each wind loop sits on its wall's side at a volume that falls off with distance (audio3d_wall_falloff); an open
+# side is stopped. Also set_loop's place and stop.
 Suite.define("audio3d: wind volume falls off with distance and an open side is stopped") do
   a3d = PokeAccess::Audio3D
   saved = A3DPace.snapshot
@@ -254,7 +231,6 @@ Suite.define("audio3d: wind volume falls off with distance and an open side is s
     eq "and an open side is parked at the range limit and stopped",
        by_ch[chans[:wind_n]], [chans[:wind_n], 5 * u, 2 * u, 0, 0]
 
-    # The falloff slider must actually steepen the curve, or the "narrow openings are audible" cue is flat.
     log.clear
     PokeAccess::Config.audio3d_wall_falloff = 100
     a3d.set_winds(5, 5)

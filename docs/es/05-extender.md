@@ -68,6 +68,8 @@ Dos trampas:
 }
 ```
 
+Lo que depende del motor va a `core/`, así lo aprovechan también los juegos desconocidos. Lo que comparte una saga o un autor va a un perfil común, `games/<nombre>_common/`, con su propio `manifest.rb`, que cada juego carga con `:imports => %w[<nombre>_common]`. Lo propio del juego va a su perfil. Ningún fichero se copia entre dos perfiles: lo que se repetiría va al común. Los `Game.define` de un común llevan el nombre del común, que nunca da nombre al juego.
+
 3. Declarar el perfil en `constants.rb`.
 
 ```ruby
@@ -77,7 +79,7 @@ PokeAccess::Game.define("armonia") do
 end
 ```
 
-4. Registrarlo en `games/catalog.json`, fuente única del instalador y del launcher.
+4. Registrarlo en `games/catalog.json`, la lista con la que el launcher reconoce los juegos.
 
 | Campo | Qué es |
 |---|---|
@@ -130,6 +132,15 @@ Volver de un submenú lo señala `PokeAccess::MenuReturn`, una sola vez para tod
 apunta con `MenuReturn.on_return { ... }` y declara con `MenuReturn.bare("Clase", :metodo)` las pantallas que
 su juego abre sin fade ni diálogo. Solo la salida más externa dispara a los oyentes.
 
+Si la pantalla dice filas al moverse, van por la verbosidad ([04-lectores](04-lectores.md)): sus partes con su
+nivel, la T con lo que el nivel quita, las pistas y las posiciones por sus puertas. Una fila de un tipo que el
+núcleo ya tiene usa su lectura (un objeto a la venta es `:shop_item`, lo venda la pantalla que lo venda); una de un tipo que no tiene declara
+la suya al final del fichero, con sus claves `vb_*` y `vbh_*` en los seis idiomas, que `i18n_refs_spec` exige:
+
+```ruby
+PokeAccess::Verbosity.define_reading(:rem_blessing, :vb_rem_blessing, :vbh_rem_blessing)
+```
+
 La DSL completa está en [03-hooks](03-hooks.md); cómo se arma el texto y se deduplica, en
 [04-lectores](04-lectores.md). **Un perfil no reabre un módulo del core**: la vía declarada es `override`,
 que además queda listada en el diagnóstico, y `coupling_spec` rechaza la reapertura.
@@ -181,8 +192,8 @@ Con eso aparece en su categoría, se persiste en `settings.ini` y vuelve con "re
 | Caso | Qué más hace falta |
 |---|---|
 | Tipo numérico nuevo | fila en `KIND_BOUNDS` con `[min, max, paso, unidad]`; `Settings::NUMERIC` sale de ahí |
-| Tipo de símbolo nuevo | añadirlo a `Settings::SYMS` y darle lectura y ciclado en `core/menus/config_menu.rb` |
-| Categoría nueva | fila en `Config::CATEGORIES` si es de raíz, o un `:enter` empujado a mano en `config_menu.rb` |
+| Tipo de símbolo nuevo | añadirlo a `Settings::SYMS` y darle lectura y ciclado en `core/menus/config_rows.rb` (`value_text` y `adjust_setting`) |
+| Categoría nueva | fila en `Config::CATEGORIES` si es de raíz, o un `:enter` empujado a mano en la pantalla que la cuelga (`config_rows.rb`, `config_dicts.rb`) |
 
 No reutilices un tipo por parecido de unidad: `:sonar` (1-30) existe aparte de `:tiles` (1-20) para que
 subir el alcance del sonar no ensanche de rebote la sonda de paredes.
@@ -191,23 +202,41 @@ subir el alcance del sonar no ensanche de rebote la sonda de paredes.
 
 1. La clave en los seis `lang/*.txt`, con los MISMOS huecos `%{var}`.
 2. Usarla con `PokeAccess::I18n.t(:clave)` o con el alias corto `t(:clave)`.
+3. Voz y términos. El mod es un programa y nunca habla en primera persona ("no se ha podido calcular la ruta", no
+   "no he podido"); al jugador se le habla con el registro de cada fichero (tú, you, du, tu, ty, você). Los
+   términos de Pokémon son los oficiales de cada idioma (WikiDex, Bulbapedia, Pokéwiki, Poképédia), cotejados
+   con lo que pintan los juegos.
+4. Plurales. Si las palabras cambian con el número, la clave se escribe por formas y el código pasa la cuenta en
+   `:n` (si el texto usa otro hueco para el número, se pasa además como `:n`). Cada idioma escribe las formas de
+   su regla CLDR: `one` y `other` en es, en, de, fr y pt (en fr y pt el 0 también va en singular), `one`, `few`
+   y `many` en pl. Un idioma al que el número no le cambia nada ("Medallas: %{n}") deja la clave sin formas; la
+   paridad solo exige que, si un idioma usa formas, estén todas y ninguna más.
 
 ```
 # lang/es.txt
-load_play=%{h} horas %{m} minutos de juego
+load_play=Horas de juego: %{h}, minutos: %{m}
 
 # lang/en.txt
-load_play=%{h} hours %{m} minutes played
+load_play=Hours played: %{h}, minutes: %{m}
+
+# lang/es.txt: t(:loc_steps, :n => 1) dice "a 1 paso"
+loc_steps.one=a %{n} paso
+loc_steps.other=a %{n} pasos
+
+# lang/pl.txt: t(:tiles_unit, :n => 3) dice "pola"
+tiles_unit.one=pole
+tiles_unit.few=pola
+tiles_unit.many=pól
 ```
 
 Formato `clave=texto`, UTF-8, `#` comenta. Las familias de claves construidas en tiempo de ejecución
-(`:"chr_#{kind}"`) no se pueden grepear: su prefijo se declara en `dynamic_prefixes`, dentro de
-`test/static/i18n_refs_spec.rb`. Las transcripciones de texto que el juego dibuja van siempre literales:
+(`:"chr_#{kind}"`) no se pueden grepear, y nada las exime (`dynamic_prefixes`, en `test/static/i18n_refs_spec.rb`,
+sigue vacío a propósito): sus claves tienen que existir como cualquier otra, y solo su propio spec puede comprobarlo. Las transcripciones de texto que el juego dibuja van siempre literales:
 replican al juego, no son frases del mod.
 
 ## Reglas automatizadas
 
-`ruby test/run_all.rb`, y al terminar `powershell -File installer/install.ps1 -Force`. Qué falla y por qué:
+`ruby test/run_all.rb`, y al terminar `local install --yes` con el launcher ([cómo](01-vision-general.md#instalar)). Qué falla y por qué:
 
 | Check | Falla si |
 |---|---|
@@ -218,7 +247,7 @@ replican al juego, no son frases del mod.
 | `coupling_spec.rb` (censo) | un fichero de `core/` nombra en string una clase que solo tiene UN fangame |
 | `plugins_spec.rb` | un fichero de `plugins/` no está en la tabla o al revés; un hook no es `:optional`; dos lectores se disputan el mismo `Clase#metodo`; dos entradas comparten sonda; un perfil declara un plugin que su juego no trae o deja de declarar uno que sí; la sonda no está en el censo |
 | `plugins_smoke_spec.rb` | un lector de `plugins/` engancha una clase o un método que ya no se llama así |
-| `i18n_parity_spec.rb` | una clave está en un idioma y no en otro, está duplicada, o sus huecos `%{}` difieren |
+| `i18n_parity_spec.rb` | una clave está en un idioma y no en otro, está duplicada, sus huecos `%{}` difieren, o sus formas de plural no son las de la regla del idioma |
 | `i18n_refs_spec.rb` | el código referencia una clave que no está en `lang/en.txt`, incluidas las `lbl_`/`help_` del SCHEMA |
 | `check187.py` | sintaxis moderna en `core/`, `plugins/`, `loader/` o un perfil gen-6 |
 | `mts_mutator_guard_spec.rb` | hay `CONST + array` o `x - array` en código que carga bajo Pokémon Z, cuyo motor redefine `Array#+` y `Array#-` como mutadores in-place |
@@ -226,4 +255,4 @@ replican al juego, no son frases del mod.
 | `arity_spec.rb` | el cuerpo de un hook lee `args[N]` más allá de lo que algún juego pasa a ese método, o un mismo cuerpo atado a varias clases lee una posición que los juegos nombran distinto (mensaje en una clase, lista de comandos en otra); los registros en bucle cuentan, vía `ReaderSites.registrations` |
 | `era_calls_spec.rb` | el core compartido llama a un nombre `pb*` de Essentials que no definen todas las fuentes, y la llamada no es escalera hacia el nombre de la otra era, ni guarda, ni fila explicada; o una explicación sobrevive a su llamada |
 | `blocking_hooks_spec.rb` | un hook `after` cuelga de un método que ES el bucle bloqueante de la pantalla, así que hablaría al salir |
-| `twins_spec.rb` | dos gemelos declarados en `test/static/twins.rb` han dejado de ser idénticos |
+| `imports_spec.rb` | un `:imports` nombra un común que no existe, un común tiene entrada en el catálogo, importa a otro o no lo importa nadie, o un fichero está copiado entre dos perfiles jugables |

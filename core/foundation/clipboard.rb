@@ -1,7 +1,6 @@
 module PokeAccess
-  # Writes text to the Windows clipboard, for content awkward to speak (e.g. a braille message read on
-  # a display). Prefers mkxp-z's own clipboard setter, falls back to the Win32 API. Input is unicode
-  # codepoints so the source stays ASCII (Ruby 1.8.7 on the gen-6 games).
+  # Writes text to the Windows clipboard (for text awkward to speak, like a braille message): mkxp-z's
+  # Input.clipboard= when present, else the Win32 API.
   module Clipboard
     GMEM_MOVEABLE = 0x0002
     CF_UNICODETEXT = 13
@@ -19,8 +18,8 @@ module PokeAccess
       nil
     end
 
-    # Copies a UTF-8 string to the clipboard; true on success. Decodes the bytes to codepoints by hand so it
-    # works the same on Ruby 1.8.7 (gen-6), where String#unpack("U*") depends on $KCODE.
+    # Copies a UTF-8 string to the clipboard; true on success. Decoded by hand, since on Ruby 1.8.7
+    # unpack("U*") depends on $KCODE.
     def self.set_text(str)
       set_codepoints(codepoints_of(str.to_s))
     rescue StandardError
@@ -81,10 +80,8 @@ module PokeAccess
       bytes.pack("C*")
     end
 
-    # Win32 clipboard fallback: writes the codepoints as UTF-16LE through CF_UNICODETEXT. Codepoints above
-    # the BMP (> U+FFFF, e.g. emoji) are split into a surrogate pair, as UTF-16 requires. Ownership of the
-    # GlobalAlloc handle passes to the system only when SetClipboardData succeeds; every earlier failure
-    # (lock, open, a rejected set) frees it here, per the Win32 contract -- who allocates frees on failure.
+    # Win32 fallback: writes the codepoints as UTF-16LE (surrogate pairs above U+FFFF) through CF_UNICODETEXT.
+    # The system owns the handle only once SetClipboardData succeeds, so every earlier failure frees it here.
     def self.win32(cps)
       return false unless @api
       arr = []

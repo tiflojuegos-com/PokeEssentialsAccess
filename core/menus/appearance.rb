@@ -1,16 +1,32 @@
 module PokeAccess
-  # Character appearance selection. pbChangePlayer(id) previews an appearance sprite (visual-only), so
-  # this announces its number and gender to choose blind.
+  # Character selection: speaks the appearance pbChangePlayer previews (number and gender) and a portrait's gender.
   module Appearance
-    # True where appearance ids start at 1 rather than 0. v21+ replaced the MetadataPlayerA block with
-    # GameData::PlayerMetadata and moved the first appearance to id 1 -- its pbChangePlayer rejects id < 1 --
-    # so the +1 that makes a 0-based id readable turns a v21+ id into the NEXT one along: the screen previews
-    # character 1 and the reader says "number 2". The gen-6 games and both Infinite Fusions stay 0-based, and
-    # the presence of the class is what separates them, not a version number.
+    # True where appearance ids start at 1: GameData::PlayerMetadata exists (v21+). Gen-6 and both Infinite Fusions
+    # are 0-based; the class decides, not a version number.
     def self.one_based?
       defined?(GameData) && GameData.const_defined?(:PlayerMetadata)
     rescue StandardError
       false
+    end
+
+    # The appearance in use: the player's character_ID (v19+) or $PokemonGlobal.playerID (gen-6); nil if unreadable.
+    def self.current_id
+      id = (PokeAccess::Engine.player.character_ID rescue nil)
+      id = ($PokemonGlobal.playerID rescue nil) if id.nil?
+      id
+    end
+
+    # Remembers the appearance in use before pbChangePlayer runs.
+    def self.note_before
+      @before = current_id
+    end
+
+    # Speaks the appearance pbChangePlayer put on unless it is unchanged (a refused id, a re-apply on map transfer);
+    # the requested id when the current one is unreadable.
+    def self.changed(id)
+      now = current_id
+      return announce(id) if now.nil?
+      announce(now) unless now == @before
     end
 
     # Speaks the appearance number and gender after a preview change.
@@ -22,8 +38,7 @@ module PokeAccess
       nil
     end
 
-    # The gender word of an appearance (0 male, 1 female, else nil). Reads the trainer type from the
-    # appearance metadata so it works before the trainer exists, falling back to the player's own gender.
+    # An appearance's gender word or nil, by its trainer type (readable before the player exists), else the player's.
     def self.gender_word(id)
       gv = trainertype_gender(id)
       gv = (PokeAccess::Engine.player.gender rescue nil) if gv.nil?
@@ -33,10 +48,7 @@ module PokeAccess
       end
     end
 
-    # The trainer type bound to an appearance id. v21+ keeps it on GameData::PlayerMetadata and the gen-6
-    # games in the MetadataPlayerA block; only the second was consulted, so the four v21+ games never named
-    # a gender here and fell through to the player's own -- which on the character-choice screen is exactly
-    # the thing not decided yet.
+    # The trainer type of an appearance id: GameData::PlayerMetadata on v21+, the MetadataPlayerA block on gen-6.
     def self.trainer_type(id)
       return (GameData::PlayerMetadata.get(id).trainer_type rescue nil) if one_based?
       return nil unless defined?(pbGetMetadata) && defined?(MetadataPlayerA)
@@ -63,8 +75,8 @@ module PokeAccess
     # (e.g. "pantallaGenero1"/"...2"); 0 is the neutral screen. Overridable via Config.gender_numbers.
     GENDER_NUMBERS = { 1 => :ap_boy, 2 => :ap_girl }
 
-    # True only while choosing a character at new game (no trainer yet); both $Trainer (gen-6) and
-    # $player (modern) must be absent, or busy? would always be true on modern games.
+    # True while choosing a character at new game: neither $Trainer (gen-6) nor $player (modern) exists yet, or
+    # playerID is negative.
     def self.selecting?
       return true if ($Trainer rescue nil).nil? && ($player rescue nil).nil?
       ($PokemonGlobal.playerID rescue 0).to_i < 0
@@ -72,8 +84,7 @@ module PokeAccess
       false
     end
 
-    # Announces the gender of a just-shown selection picture (these games pick gender by swapping a
-    # portrait, with no text or pbChangePlayer).
+    # Speaks the gender of a selection portrait just shown, once per change, for games that pick gender by portrait.
     def self.on_picture(name)
       return unless selecting?
       g = gender_for_picture(name)
@@ -85,9 +96,7 @@ module PokeAccess
       nil
     end
 
-    # Drops the last-announced gender. The module outlives the selection screen, so without this a second
-    # new game in the same session whose first portrait matches the last one heard would open silent; any
-    # map change means the selection is over.
+    # Forgets the last spoken portrait gender on map change, so a second new game speaks its first portrait.
     def self.forget_picture_gender
       @last_picture_gender = nil
     end
@@ -108,7 +117,8 @@ module PokeAccess
   end
 end
 
-# pbChangePlayer is a global function out of reach of the class hook; announce the new appearance after it.
-PokeAccess::Hooks.wrap_global("pbChangePlayer", "hook_pbChangePlayer", :after) { |args, _r| PokeAccess::Appearance.announce(args[0]) }
+# pbChangePlayer is a global function: note the appearance before it, speak the new one after.
+PokeAccess::Hooks.wrap_global("pbChangePlayer", "hook_pbChangePlayer_before", :before) { |_args, _r| PokeAccess::Appearance.note_before }
+PokeAccess::Hooks.wrap_global("pbChangePlayer", "hook_pbChangePlayer", :after) { |args, _r| PokeAccess::Appearance.changed(args[0]) }
 
 PokeAccess::Caches.register(:appearance_gender) { PokeAccess::Appearance.forget_picture_gender }

@@ -1,22 +1,15 @@
 module PokeAccess
-  # Monotype challenge type picker (Monotype Challenge plugin). The class is NESTED --
-  # MonotypeMenu::MonotypeMenu_Scene -- and registering the bare name bound nothing at all. An absent class
-  # is normal cross-game variance, so it is silent by design and never reaches Hooks.missing: the whole
-  # screen read nothing, with no error anywhere to find it by.
-  #
-  # A custom sprite list scrolled by @index over @type_list, with a trailing special option at
-  # @type_list.length and no command window. pbRedrawList runs once on open and on every cursor move, so
-  # the focused entry is read from there, deduped.
+  # Monotype challenge type picker (Monotype Challenge plugin, nested MonotypeMenu::MonotypeMenu_Scene): a sprite
+  # list over @type_list plus a trailing option, read from pbRedrawList (open and every cursor move), deduped, after
+  # the title the list paints as it opens.
   module AnilMonotype
-    # The focused type's spoken name. An entry is [display_name, type_symbol, starters], NOT a type id, so
-    # handing it to GameData::Type raised and the rescue spoke the whole array's inspect.
+    # The focused type's spoken name; an entry is [display_name, type_symbol, starters], not a type id.
     def self.type_name(entry)
       return entry[0].to_s if entry.is_a?(Array)
       (GameData::Type.get(entry).name rescue (entry.respond_to?(:name) ? entry.name : entry.to_s))
     end
 
-    # The focused type, or the trailing option -- which is two different actions and the plugin labels it
-    # accordingly: from the recommended list it switches to the other one, from that one it goes back.
+    # The focused type, or the trailing option: switch to the other list from the recommended one, else back.
     def self.text(scene)
       tl  = PokeAccess.ivar(scene, :@type_list)
       idx = PokeAccess.ivar(scene, :@index)
@@ -29,12 +22,22 @@ module PokeAccess
       nil
     end
 
-    # Speaks the focused type when it changes; the dedup lives on the scene so it resets on reopen.
+    # Speaks the focused type when it changes, the list's first read queued after its title; the dedup lives on the
+    # scene so it resets on reopen.
     def self.read(scene)
       t = text(scene)
-      PokeAccess::Cursor.announce(scene, :mono_type, t, true) { t } unless t.nil?
+      PokeAccess::Cursor.announce(scene, :mono_type, t, true, false) { t } unless t.nil?
     rescue StandardError
       nil
+    end
+
+    # Says the title the block paints (the list's create_overlay_title) as the list opens; returns the block's value.
+    def self.title
+      ret = nil
+      pairs = PokeAccess::PaintCapture.sample { ret = yield }
+      t = PokeAccess::PaintCapture.lines(pairs).join(". ")
+      PokeAccess.speak(t, true) unless t.empty?
+      ret
     end
   end
 end
@@ -42,5 +45,8 @@ end
 PokeAccess::Game.define("anil") do
   after("MonotypeMenu::MonotypeMenu_Scene", :pbRedrawList) do |scene, _r, _a|
     PokeAccess::AnilMonotype.read(scene)
+  end
+  around("MonotypeMenu::MonotypeMenu_Scene", :create_overlay_title, :optional => true) do |_scene, nxt, _a|
+    PokeAccess::AnilMonotype.title { nxt.call }
   end
 end

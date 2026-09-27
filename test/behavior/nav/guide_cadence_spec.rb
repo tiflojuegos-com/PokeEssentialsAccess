@@ -1,20 +1,7 @@
-# The guide cane's per-frame loop (Locator.guide_tick). Its cached-route consumption is covered by
-# guide_ledge_span_spec; what is pinned here is everything the PLAYER hears, all of it frame-rate sensitive:
-#
-#   - the CADENCE. guide_tick runs on every map frame. Without the interval gate the chime fires at frame
-#     rate, which is exactly the soundscape bug that the wall clock was introduced for (a fangame's forged
-#     System.uptime made every interval look already met). The gate must hold inside the interval and open
-#     past it, and it must widen with distance so a far target does not gallop.
-#   - the DIRECTION cue. Left/right are panned files, up/down cannot be placed by HRTF and are the SAME file
-#     told apart only by pitch (high = up, low = down) -- swap those two and the cane silently points the
-#     wrong way. Volume rises as the target nears and rests on a floor so a distant target stays audible.
-#   - "no route", which must be said ONCE. It sits on a per-frame path, so a missing latch turns an
-#     unreachable target into a stutter; and the straight-line fallback cue must not re-chime while the
-#     player stands still, or it gallops in place.
-#   - ARRIVAL and a target that VANISHES, both of which end the guide instead of chiming forever.
+# The guide cane's per-frame loop (Locator.guide_tick) as heard: the chime interval, which grows with distance; the
+# direction cue, up and down told apart by pitch alone; "no route" said once; arrival; a target that vanishes.
 
-# Points the cane at a target with a clean slate (no cached route, no cadence debt, no latches), so the very
-# next guide_tick recomputes and chimes.
+# Points the cane at target with no cached route, cadence or latches, so the next guide_tick recomputes and chimes.
 def guide_aim(loc, target)
   [:@guide_time, :@guide_path, :@guide_from, :@guide_target, :@guide_fresh, :@guide_surf,
    :@noroute_key, :@noroute_cue_at, :@guide_noroute, :@jump_at, :@blocked_recheck_at].each do |s|
@@ -29,13 +16,8 @@ def guide_rewind(loc, secs)
   loc.instance_variable_set(:@guide_time, PokeAccess.clock - secs)
 end
 
-# Runs the block with every guide/target ivar the tick touches saved, then restores them and drops the test
-# grid, so a suite cannot leave the cane switched on (guide_tick is not part of Reset).
-#
-# It also gives the world a trainer for the duration. guide_tick (like the whole soundscape) is gated on
-# Spatial.busy?, and with the gen-6 stub's $Trainer = nil the mod believes the player is still on the
-# character-selection screen (Appearance.selecting?) and stays silent -- so without this every cue assertion
-# below would fail, and any spec that only checked "nothing wrong happened" would pass for the wrong reason.
+# Runs the block with the guide ivars saved and restored and the test grid dropped after (Reset does not cover them),
+# and with a $Trainer, since guide_tick is silent while Spatial.busy? (no trainer reads as character selection).
 def with_guide_state
   loc = PokeAccess::Locator
   ivars = [:@guide, :@guide_time, :@guide_path, :@guide_from, :@guide_target, :@guide_fresh, :@guide_surf,
@@ -53,9 +35,7 @@ ensure
   $game_map.clear_grid
 end
 
-# Records what the cane would actually play by standing in for the engine's Audio.se_play (the 3D engine is
-# never ready under test, so every cue falls through to Spatial.cue -> Audio.se_play). Yields the log of
-# [file, volume, pitch] and restores the stub afterwards.
+# Yields a log of [file, volume, pitch] for every Audio.se_play, where each cue lands under test (no 3D engine).
 def with_cue_log
   log = []
   orig = Audio.method(:se_play)
@@ -223,9 +203,8 @@ Suite.define("guide: an unreachable target is announced once, and its cue does n
   end
 end
 
+# The player stands one tile off the wall on purpose: "#@A" in a double-quoted row would interpolate @A.
 Suite.define("guide: reaching the target announces it and switches the cane off") do
-  # The player is written one tile in from the wall on purpose: "#@A" in a double-quoted row would
-  # interpolate the instance variable @A and silently hand load_grid a different map.
   hpa_fresh_grid(["##########",
                   "#.@A..B..#",
                   "##########"])

@@ -1,29 +1,10 @@
-# The plugins/dbk_*.rb readers (Deluxe Battle Kit, the battle plugin La Base de Sky
-# bundles) had ZERO assertions: nothing in CI ever executed a line of them. They are pure hook bodies --
-# every one binds with :optional => true against a class the test stubs do not have, so they bind nothing
-# at load and stay invisible even to a load error. A typo in any of them is a battle screen that says
-# nothing on a DBK fangame, and the suite stays green.
-#
-# This suite gives them the classes they hook (a Sky-shaped Battle + Battle::Scene, defined right here),
-# re-evaluates the four files so the hooks bind for real -- binding happens once at load, so a class that
-# appears afterwards needs the registration replayed -- and then drives each hooked method the way the
-# plugin does, asserting the reader speaks and that its DEDUP is real: the same cursor position stays
-# silent, a move speaks, and reopening the panel on the SAME position reads again (each of those three
-# hooks resets its dedup on open precisely so a reopen is not mute).
-#
-# Scope, honestly: under the gen-6 stubs there is no GameData layer, so the branches that turn an id into a
-# NAME (the ball's item, the battler's status, the move's type) fall back and cannot be asserted here --
-# defining a GameData stand-in is not an option, it would flip Engine.gamedata? for the whole run. What is
-# covered is every hook's installation, its speech, its dedup and its reset, plus the text builders that do
-# not need the data layer. ::Battle is created and removed inside this one suite: Engine's :battle_scene
-# capability probes exactly that constant, so leaving it behind would silently change what later gen-6
-# suites believe the engine can do.
+# The plugins/dbk_*.rb readers on a Sky-shaped Battle and Battle::Scene: the plugin files (this repo's own) are
+# re-evaluated so their hooks bind, then each hook's speech, dedup and reset on reopen is driven. ::Battle is removed
+# after (Engine's :battle_scene probes it) and the re-stacked Battle overrides are put back.
 Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on reopen") do
   t = lambda { |key, vars| PokeAccess::I18n.t(key, vars) }
   rx = lambda { |s| /#{Regexp.escape(s.to_s)}/ }
 
-  # A battler as the plugin hands it over: the plugin's own objects answer far more, and every reader
-  # rescues what is missing, so the minimum is what proves the fallbacks hold.
   mk_battler = lambda do |nm, idx, moves|
     b = Object.new
     b.define_singleton_method(:name) { nm }
@@ -61,22 +42,22 @@ Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on r
     Object.const_set(:Battle, battle_cls) unless Object.const_defined?(:Battle)
     Battle.const_set(:Scene, scene_cls) unless Battle.const_defined?(:Scene)
     verbose = $VERBOSE
+    kept = [:shown_sex, :shown_level].map { |n| [n, PokeAccess::Battle.method(n)] }
+    listed = PokeAccess::Hooks.overrides.length
     begin
-      # eval is the harness's own loading mechanism (see test/support/harness.rb): it evaluates THIS repo's
-      # trusted source files, addressed by absolute path under Harness::ROOT, never any external input. It
-      # is what replays a hook registration that ran, and bound nothing, before these classes existed.
-      $VERBOSE = nil   # re-evaluating a file re-assigns its constants; that warning is noise here
+      $VERBOSE = nil
       %w[dbk_battle dbk_enhanced_ui].each do |f|
         path = File.join(Harness::ROOT, "plugins", "#{f}.rb")
         eval(File.read(path), TOPLEVEL_BINDING, path)
       end
     ensure
       $VERBOSE = verbose
+      kept.each { |n, m| PokeAccess::Battle.define_singleton_method(n, m) }
+      PokeAccess::Hooks.overrides.slice!(listed..-1)
     end
     truthy "the DBK files bound to the Sky-shaped classes, none reported as a typo",
            PokeAccess::Hooks.missing.none? { |m| m =~ /\ABattle(::Scene)?#pb/ }
 
-    #--- dbk_battle: the special-mechanic toggle, shown only as an icon in the plugin ---
     battle = Battle.new
     battle.registered = true
     SpeakCapture.clear
@@ -94,7 +75,6 @@ Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on r
     battle.pbToggleSpecialActions(0, nil)
     silent "a toggle with no mechanic named says nothing"
 
-    #--- selectors: the Poke Ball picker (sprite cursor, no command window) ---
     scene = Battle::Scene.new
     items = [[:POKEBALL, 5], [:ULTRABALL, 2]]
     SpeakCapture.clear
@@ -117,7 +97,6 @@ Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on r
     truthy "REOPENING the selector re-reads the index it closed on (the open resets the dedup)",
            SpeakCapture.lines.length == 1
 
-    #--- selectors: the battler-selection grid ---
     mine = mk_battler.call("Sparky", 0, [])
     theirs_near = mk_battler.call("Nearby", 1, [])
     theirs_far = mk_battler.call("Faraway", 3, [])
@@ -145,8 +124,7 @@ Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on r
     scene.pbUpdateBattlerSelection(1, 5, true)
     silent "a cell with no battler behind it reads nothing"
 
-    #--- battler info: the battler detail overlay (summary + focused effect) ---
-    effects = [["Drenadoras", "3", "Roba PS cada turno"], ["Toxico", "--", "Dano creciente"]]
+    effects =[["Drenadoras", "3", "Roba PS cada turno"], ["Toxico", "--", "Dano creciente"]]
     scene.instance_variable_set(:@enhancedUIToggle, :battler)
     SpeakCapture.clear
     eq "the battler-info hook preserves its return value",
@@ -176,8 +154,7 @@ Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on r
     scene.pbUpdateBattlerInfo(mine, effects, 0)
     spoke "REOPENING on the very same battler reads again (closing reset the dedup)", rx.call("Sparky")
 
-    #--- move info: the move-detail overlay over the fight menu ---
-    bolt = mk_move.call("Rayo", 90, 100, 0)
+    bolt =mk_move.call("Rayo", 90, 100, 0)
     swap = mk_move.call("Cambio", 0, 0, 2)
     fighter = mk_battler.call("Sparky", 0, [bolt, swap])
     cw = Object.new
@@ -189,12 +166,17 @@ Suite.define("dbk: the Sky battle-plugin hooks bind, speak, dedup and reset on r
     eq "the move-info hook preserves its return value",
        scene.pbUpdateMoveInfoWindow(fighter, nil, cw), :minfo_drawn
     spoke "the focused move is named", rx.call("Rayo")
-    spoke "with its category", rx.call(t.call(:mv_category, { :c => t.call(:cat_physical, nil) }))
+    spoke "with its category, the bare word every move line uses", rx.call(t.call(:cat_physical, nil))
     spoke "its power", rx.call(t.call(:mv_power, { :p => "90" }))
     spoke "and its accuracy", rx.call(t.call(:mv_acc, { :a => 100 }))
     SpeakCapture.clear
     scene.pbUpdateMoveInfoWindow(fighter, nil, cw)
     silent "redrawing the same move stays silent"
+    bolt.define_singleton_method(:power) { 160 }
+    scene.pbUpdateMoveInfoWindow(fighter, nil, cw)
+    spoke "but staging a mechanic repaints it with new figures under a still cursor, and that is read",
+          rx.call(t.call(:mv_power, { :p => "160" }))
+    SpeakCapture.clear
     cw_index = 1
     scene.pbUpdateMoveInfoWindow(fighter, nil, cw)
     spoke "moving to another move reads it", rx.call("Cambio")

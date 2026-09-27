@@ -1,6 +1,4 @@
-# JPS (#5) and HPA* (#6) over the grid harness: the opt-in algorithms must return valid routes that match
-# A* in length (JPS stays optimal; HPA* is near-optimal) across mazes with straight-corridor jumps, forced
-# neighbours at corners, and a multi-cluster arena that forces portal crossings.
+# The opt-in JPS and HPA* over the grid harness: valid routes, JPS as short as A*, HPA* near-optimal across clusters.
 Suite.define("pathfinder: JPS matches A* on corridor mazes") do
   PokeAccess::Config.route_cache = false
   PokeAccess::Config.route_reach = 128
@@ -21,7 +19,7 @@ Suite.define("pathfinder: JPS matches A* on corridor mazes") do
     use_grid.call(grid); PokeAccess::Config.path_algorithm = :astar
     astar = PokeAccess::Pathfinder.find_path(tx, ty)
     use_grid.call(grid); PokeAccess::Config.path_algorithm = :jps
-    jps = PokeAccess::Pathfinder.find_path(tx, ty)
+    jps = without_terrain_rules { PokeAccess::Pathfinder.find_path(tx, ty) }
     truthy "JPS returns a valid route ##{gi}", jps && !jps.empty?
     truthy "JPS is optimal, equal to A* length ##{gi}",
            astar && jps && jps.length == astar.length
@@ -31,10 +29,8 @@ Suite.define("pathfinder: JPS matches A* on corridor mazes") do
   PokeAccess::Config.route_cache = true
 end
 
-# HPA* across a 24x14 arena split by two wall bands, each pierced by one gap, so the map spans several
-# 10-tile clusters and the route MUST cross portals -- exercising the hierarchy, not the same-cluster
-# shortcut. hpa_search must return a real (non-fallback) route that is walkable, lands on/next to the goal,
-# and is near-optimal versus A*.
+# HPA* on a 24x14 arena whose two wall bands, one gap each, force portal crossings between 10-tile clusters: a real,
+# walkable route that reaches the goal, near-optimal against A*.
 Suite.define("pathfinder: HPA* crosses clusters near-optimally") do
   PokeAccess::Config.route_cache = false
   PokeAccess::Config.route_reach = 128
@@ -84,9 +80,7 @@ Suite.define("pathfinder: HPA* crosses clusters near-optimally") do
   PokeAccess::Config.route_cache = true
 end
 
-# JPS optimality FUZZ over random wall grids (corridor goldens cannot expose a bad forced-neighbour rule).
-# On every REACHABLE pair, :jps must return a route the same length as :astar -- it is either optimal or it
-# bails to A* (which is). Seeded for reproducibility.
+# JPS fuzz over seeded random wall grids: on every reachable pair its route is as short as A*'s.
 Suite.define("pathfinder: JPS fuzz stays optimal on reachable pairs") do
   PokeAccess::Config.route_cache = false
   PokeAccess::Config.route_reach = 128
@@ -129,7 +123,7 @@ Suite.define("pathfinder: JPS fuzz stays optimal on reachable pairs") do
     aok, axe, aye = walk_route.call(a, ps[0], ps[1])
     next unless aok && (axe - ts[0]).abs + (aye - ts[1]).abs <= 1
     use_grid.call(rows); PokeAccess::Config.path_algorithm = :jps
-    j = PokeAccess::Pathfinder.find_path(ts[0], ts[1])
+    j = without_terrain_rules { PokeAccess::Pathfinder.find_path(ts[0], ts[1]) }
     jf_runs += 1
     jok, jxe, jye = j ? walk_route.call(j, ps[0], ps[1]) : [false, -1, -1]
     jf_ok += 1 if jok && (jxe - ts[0]).abs + (jye - ts[1]).abs <= 1 && j.length == a.length

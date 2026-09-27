@@ -1,13 +1,5 @@
-# The Ready Menu's second half: the owner beside a move row and the quantity beside an item row.
-#
-# Twice wrong before this. First the reader demanded four fields and read the fourth as the quantity, which
-# no game puts there. Then it asked the WINDOW for the tuple -- and the window never has one: the scene
-# builds its lists out of tuple[1] alone (Essentials 016_UI/016_UI_ReadyMenu.rb:108-113, same in the nine
-# games that ship the screen), so what came back was a String and the extra was silently dropped. Both times
-# the spec passed, because it fed the tuples straight into the window.
-#
-# So the doubles here are shaped like the real screen: NAMES in the window, tuples on the scene, and the
-# cursor split across the two lists exactly as @index is.
+# The Ready Menu's rows: an item's quantity and a move's owner. As in the real screen, the window holds only the
+# names and the scene the tuples, the cursor split across the two lists as @index is.
 Suite.define("ready menu: an item row says how many are left, a move row says whose it is") do
   rm = PokeAccess::ReadyMenu
   win_class = Class.new do
@@ -34,8 +26,6 @@ Suite.define("ready menu: an item row says how many are left, a move row says wh
     eq "and the next one says its own", rm.row_text(scene, win, "Repelente"),
        PokeAccess::I18n.t(:bag_item, :name => "Repelente", :qty => 1)
 
-    # A move row names the party member whose move it is: the screen lists one row per member that knows
-    # it, so the owner is the only thing being chosen.
     who = Object.new
     def who.name; "Chispa"; end
     trainer = PokeAccess::Engine.player
@@ -47,8 +37,7 @@ Suite.define("ready menu: an item row says how many are left, a move row says wh
          rm.row_text(mscene, mwin, "Vuelo"), "Vuelo, #{trainer.party[0].name}"
     end
 
-    # The one game that never split the screen keeps a flat list and an integer cursor.
-    flat = scene_class.new(items, 1)
+    flat =scene_class.new(items, 1)
     fwin = win_class.new(items.map { |e| e[1] })
     fwin.index = 1
     eq "the flat shape reads the same", rm.row_text(flat, fwin, "Repelente"),

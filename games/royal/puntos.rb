@@ -1,16 +1,11 @@
 module PokeAccess
-  # royal's trainer-points screen ([ROYAL] Puntos entrenador -> PokemonOptionPuntos_Scene, whose option
-  # window is Window_PokemonOption_Sky, a Window_DrawableCommand of SliderOptions the generic reader skips
-  # because it has @options/@values, not @commands).
+  # Royal's trainer-points screen (PokemonOptionPuntos_Scene), whose slider window Window_PokemonOption_Sky has
+  # @options rather than the @commands the generic reader reads.
   module RoyalPoints
-    # "name: value" for the focused option (lowest_value + the slider value), or the closing row.
-    #
-    # That last row is spoken with the screen's own word. The generic :sm_exit key reads "Salir", but this
-    # screen draws _INTL("Cerrar") there, so the reader was naming a button that did not exist -- a small
-    # thing, except it is the row the player has to find to leave.
+    # "name: value" for the focused option (lowest_value + slider value), or the closing row as painted, "Cerrar".
     def self.line(win, i)
       opts = win.instance_variable_get(:@options)
-      return "Cerrar" if opts.is_a?(Array) && i && i >= opts.length
+      return (_INTL("Cerrar") rescue "Cerrar") if opts.is_a?(Array) && i && i >= opts.length
       return nil unless opts.is_a?(Array) && i && opts[i]
       o = opts[i]
       name = (o.name rescue "").to_s
@@ -23,18 +18,15 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("royal") do
-  # Navigation between options (index change) goes through the generic command-window reader.
+  # The focused option on each index change.
   screen_reader("Window_PokemonOption_Sky") { |win, i| PokeAccess::RoyalPoints.line(win, i) }
-  # Left/right value edits keep the index, so the generic reader (which dedups by index) never re-fires for
-  # them; read here when the window flags value_changed (true only on the edited frame, so no spam).
+  # A value edit keeps the index, so it is read here, on the frame the window flags value_changed.
   after("Window_PokemonOption_Sky", :update) do |win, _r, _a|
     next unless (win.value_changed rescue false)
     t = PokeAccess::RoyalPoints.line(win, (win.index rescue nil))
     PokeAccess.speak(t, true)
   end
-  # The help line under the options. core/menus/option_help binds the two scene names every game has; this
-  # scene is this plugin's own, so its binding belongs here rather than in a core list. Both method names
-  # for the same reason core carries both: the fork renamed it and either may be the one that exists.
+  # The help line under the options, bound on both method names as in core (the fork renamed it).
   after("PokemonOptionPuntos_Scene", :pbChangeSelection, :optional => true) do |s, _r, _a|
     PokeAccess::OptionHelp.read(s)
   end
@@ -43,7 +35,5 @@ PokeAccess::Game.define("royal") do
   end
 end
 
-# The running total the screen rewrites after every slider edit (actualizarPuntosTotales), which is what
-# the sliders are spent against. pbStartScene builds and returns, and pbEndScene closes, so the engine's
-# lifecycle serves.
+# The points total the screen rewrites after every slider edit (actualizarPuntosTotales).
 PokeAccess::InfoWindow.watch("PokemonOptionPuntos_Scene", "puntos_totales", :royal_points_total)

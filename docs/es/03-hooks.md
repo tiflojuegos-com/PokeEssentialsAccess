@@ -10,7 +10,7 @@ nunca desactiva en silencio un hook existente.
 `cname` es siempre un **string** (`"Battle::Scene"`), nunca la constante. `wrap` la resuelve con
 `PokeAccess.const_at`, que camina los segmentos de uno en uno porque el `const_defined?` de 1.8.7 rechaza un
 nombre con `::`. Nombrar la constante reventaría la carga en cualquier juego que no la defina, y ninguna clase
-existe en los 16 perfiles a la vez: `PokemonMenu_Scene` es de gen-6, `UI::BaseScreen` de v22.
+existe en todos los perfiles a la vez: `PokemonMenu_Scene` es de gen-6, `UI::BaseScreen` de v22.
 
 | Situación | Resultado |
 |---|---|
