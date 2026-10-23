@@ -42,7 +42,8 @@ module PokeAccess
       return unless @desc
       t = PokeAccess.clean(text.to_s)
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

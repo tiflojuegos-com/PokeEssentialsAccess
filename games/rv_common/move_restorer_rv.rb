@@ -1,8 +1,6 @@
 module PokeAccess
-  # The moveset restorer of the engine Reborn, Rejuvenation and Desolation share (MoveRestorerScene): the Pokemon's
-  # stored sets in a list, and beside it a panel with the focused set's moves, both repainted by pbSetList on each
-  # cursor move; a menu of its own (pbShowCommands) asks what to do with the set chosen. The list's bare name is
-  # muted: each repaint says the set with its moves, the first after the question at the top.
+  # The moveset restorer of the engine Reborn, Rejuvenation and Desolation share (MoveRestorerScene): each repaint by
+  # pbSetList says the focused set with its moves, the first after the question at the top, in place of its bare name.
   module MoveRestorerRV
     # The moves panel as a column of moves: left of the list, from y 80.
     PANEL = [0, 250, 80]

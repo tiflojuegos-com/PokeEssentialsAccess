@@ -24,7 +24,8 @@ module PokeAccess
       num = cmds[i][2].to_i
       return PokeAccess::I18n.t(:bdx_entry, :num => num, :name => cmds[i][1]) if (pbBerryRegistered?(id) rescue false)
       PokeAccess::I18n.t(:bdx_unknown, :num => num)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -57,8 +58,9 @@ module PokeAccess
       flav = flavor_line(berry)
       body.push(flav) if flav && page.to_i == 1
       parts.concat(body)
-      PokeAccess.speak_clean(parts.join(". "), true)
-    rescue StandardError
+      PokeAccess.speak_clean(PokeAccess.sentences(parts), true)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -85,7 +87,8 @@ module PokeAccess
       return nil if max.nil? || max <= 0
       tops = fl.select { |_k, v| v.to_i == max }.map { |k, _v| flavor_name(k) }
       PokeAccess::I18n.t(:bdx_flavor, :f => tops.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -100,7 +103,8 @@ module PokeAccess
       return if t.to_s.strip.empty?
       return unless PokeAccess::Cursor.changed?(scene, :bdx_header, t)
       PokeAccess.speak(t, false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

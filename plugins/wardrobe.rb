@@ -14,7 +14,8 @@ module PokeAccess
       worn = scene ? worn?(scene, outfits[i]) : checked
       return "#{name}, #{PokeAccess::I18n.t(:wardrobe_worn)}" if worn
       checked ? "#{name}, #{PokeAccess::I18n.t(:wardrobe_chosen)}" : name
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -23,7 +24,8 @@ module PokeAccess
       all = PokeAccess.ivar(scene, :@outfit_all)
       current = PokeAccess.ivar(scene, :@outfit_current)
       all.is_a?(Array) && !current.nil? && all.index(outfit) == current
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -43,7 +45,8 @@ module PokeAccess
       return if t.nil? || t.to_s.empty?
       worn = PokeAccess.ivar(win, :@outfit_selected)
       PokeAccess::Cursor.announce(scene, :wardrobe_row, [i, worn, t], true) { t }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -59,4 +62,4 @@ PokeAccess::Hooks.around_hook("WardrobeScene", :pbMain, :optional => true) do |s
   begin; nxt.call; ensure; PokeAccess::Wardrobe.unwatch; end
 end
 
-PokeAccess::Keys.on_frame { PokeAccess::Wardrobe.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::Wardrobe.poll }

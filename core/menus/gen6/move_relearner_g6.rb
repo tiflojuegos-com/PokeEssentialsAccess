@@ -8,19 +8,46 @@ module PokeAccess
       PokeAccess::MoveList.focused_id(scene)
     end
 
-    # Speaks the focused move's detail at the learn move reading's level, with its row's tag (Pokemon Z's "MT") in
-    # front from medium; the info key keeps it whole.
+    # Speaks the focused move's detail at the learn move reading's level, with its row's place after the name and
+    # its tag (Pokemon Z's "MT") in front from medium, led once by what the screen paints of its Pokemon; the info key
+    # keeps the move whole.
     def self.detail(scene)
       id = focused_id(scene)
       return if id.nil?
       tag = PokeAccess::MoveList.focused_tag(scene)
       full = PokeAccess::MoveInfo.by_id_via_data(id)
       PokeAccess::Info.set_info(:text, tag.empty? || full.nil? ? full : "#{tag}. #{full}")
-      s = PokeAccess::MoveInfo.by_id_via_data(id, :learn_move)
+      s = placed(scene, id, PokeAccess::MoveInfo.by_id_via_data(id, :learn_move))
       tag = "" unless PokeAccess::Verbosity.keep?(:learn_move, :medium)
-      PokeAccess.speak(tag.empty? || s.nil? ? s : "#{tag}. #{s}", true)
-    rescue StandardError
+      s = "#{tag}. #{s}" unless tag.empty? || s.nil?
+      head = pokemon_head(scene)
+      s = "#{head}. #{s}" if s && head && PokeAccess::Cursor.changed?(scene, :relearn_pokemon, head)
+      PokeAccess.speak(s, true)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
+    end
+
+    # The move's line with the row's place in the list after its name ("Placaje, 3 de 7. ..."), while positions are
+    # said; the line as it is when it does not open with that name.
+    def self.placed(scene, id, line)
+      moves = PokeAccess.ivar(scene, :@moves)
+      idx = (PokeAccess.sprite(scene, "commands").index rescue nil)
+      nm = (PokeAccess::Data.move_name(id) rescue nil).to_s
+      return line unless line && moves.is_a?(Array) && idx.is_a?(Integer) && !nm.empty? && line[0, nm.length] == nm
+      PokeAccess::Verbosity.list_entry(nm, idx + 1, moves.length) + line[nm.length..-1]
+    end
+
+    # What the stock screen paints of its Pokemon above the list: the species its icon shows and its types; nil
+    # with no Pokemon.
+    def self.pokemon_head(scene)
+      pk = PokeAccess.ivar(scene, :@pokemon)
+      return nil if pk.nil?
+      types = PokeAccess::Data.pokemon_types(pk)
+      parts = [(PokeAccess::Data.species_name(pk.species) rescue nil).to_s]
+      parts.push(PokeAccess::I18n.t(:pc_types, :t => types.join(" "))) unless types.empty?
+      t = parts.reject { |p| p.empty? }.join(", ")
+      t.empty? ? nil : t
     end
 
     # The list the generic reader would read: the older screen's "list", the stock screen's "commands".
@@ -37,7 +64,8 @@ module PokeAccess
       end
       list = PokeAccess.sprite(scene, "list")
       list ? PokeAccess::Menus.focused_text(list) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -53,12 +81,11 @@ module PokeAccess
         text = PokeAccess.sentences([PokeAccess.clean(ask.to_s), text])
       end
       PokeAccess.speak_clean(text, !first, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # The scene class to hook, or "" where this reader does not apply: with both names present (a fork declaring
-    # MoveRelearnerScene as an empty subclass of MoveRelearner_Scene), it binds only on a gen-6 engine.
     # Counts the entries to the choice loop (pbChooseMove); from the second on, back from a declined question, which
     # neither redraws nor reads anything, the loop's first update says the list again.
     def self.choosing(scene)
@@ -79,10 +106,13 @@ module PokeAccess
       ask = (PokeAccess.sprite(scene, "msgwindow").text rescue nil)
       text = PokeAccess.sentences([PokeAccess.clean(ask.to_s), row])
       PokeAccess.speak_clean(text, false, :menu) unless text.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
+    # The scene class to hook, or "" where this reader does not apply: with both names present (a fork declaring
+    # MoveRelearnerScene as an empty subclass of MoveRelearner_Scene), it binds only on a gen-6 engine.
     SCENE = PokeAccess::Engine.era_scene(:gen6, "MoveRelearnerScene", "MoveRelearner_Scene")
   end
 end

@@ -1,6 +1,6 @@
-# The mod loader for both mkxp-z preload and native RMXP injection: evals core and the game profile in manifest
-# order, the declared plugin readers and the commons the profile imports between them, then applies user settings.
-# eval only runs the mod's own files.
+# The mod loader that preload_access.rb evaluates: evals core and the game profile in manifest order, the declared
+# plugin readers and the commons the profile imports between them, then applies user settings. eval only runs the
+# mod's own files.
 module PokeAccessBoot
   ROOT = "accessibility"
 
@@ -14,13 +14,11 @@ module PokeAccessBoot
     commons.each { |dir| load_manifest(dir) }
     load_manifest(game)
     (PokeAccess::Settings.apply rescue nil) if defined?(PokeAccess) && PokeAccess.const_defined?(:Settings)
-    miss = ((PokeAccess::Hooks.missing + PokeAccess::Hooks.unbound) rescue [])
+    miss = (PokeAccess::Hooks.missing.dup.concat(PokeAccess::Hooks.unbound) rescue [])
     log("[diag] enganches sin metodo (posible typo): #{miss.join(', ')}") if miss && !miss.empty?
     if defined?(PokeAccess::Data) && (PokeAccess::Data.active_priority rescue nil).to_i <= 0
       log("[diag] PokeAccess::Data en modo emergencia: ningun provider de motor registrado (datos = id crudo)")
     end
-    par = (PokeAccess::I18n.parity_issues rescue [])
-    log("[diag] i18n sin paridad (clave en un idioma y no en otro): #{par.join(', ')}") if par && !par.empty?
   end
 
   # Evals each <dir>/<entry>.rb in the order <dir>/manifest.rb lists them, never the filesystem's order.
@@ -102,7 +100,7 @@ module PokeAccessBoot
   # Loads the named plugin readers (detected ones for :auto); a missing file is logged and skipped, not fatal.
   def self.load_plugins(names)
     table = read_manifest("#{ROOT}/plugins/manifest.rb") if File.exist?("#{ROOT}/plugins/manifest.rb")
-    (PokeAccess::Plugins.table = table rescue nil) if table
+    PokeAccess::Plugins.table = table if table && defined?(PokeAccess::Plugins)
     names = detected_plugins(table) if names == :auto
     names.each do |name|
       path = "#{ROOT}/plugins/#{name}.rb"

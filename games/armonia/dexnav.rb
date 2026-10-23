@@ -43,7 +43,8 @@ module PokeAccess
       PokeAccess::Info.set_info(:text, PokeAccess::I18n.t(:dxn_list, :zone => zwhole, :n => list.length, :names => whole.join(", ")))
       names = list.map { |s| species_label(s) }
       PokeAccess::I18n.t(:dxn_list, :zone => zname, :n => list.length, :names => names.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -55,7 +56,8 @@ module PokeAccess
       return PokeAccess::I18n.t(:dex_unknown) unless owned || PokeAccess::Util.dex_seen?(sp)
       return name.to_s unless whole || PokeAccess::Verbosity.keep?(:dex_entry, :medium)
       "#{name}, #{PokeAccess::I18n.t(owned ? :dex_caught : :dex_seen)}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       sp.to_s
     end
 
@@ -88,7 +90,8 @@ module PokeAccess
       final = item_label(items[items.length - 1])
       final += ", " + PokeAccess::I18n.t(:dxn_claimed) if got[-1] == true
       PokeAccess::I18n.t(:dxn_rewards, :taken => taken, :tot => zones, :list => parts.join(", "), :final => final)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -106,7 +109,8 @@ module PokeAccess
       row = (::DEXNAV_ZONES.find { |z| z[0] == enc } rescue nil)
       key = row ? ZONES[row[1]] : nil
       key ? PokeAccess::I18n.t(key) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

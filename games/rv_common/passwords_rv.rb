@@ -1,8 +1,6 @@
 module PokeAccess
-  # The passwords menu of the engine Reborn and Desolation share (pbPasswordsMenu: the known passwords, and adding
-  # one). Its list marks an active password with "> " and an inactive one with four spaces, marks a screen reader
-  # leaves unsaid, so each password row is said with its state; the other rows ([Exit], [Add password]) go on as
-  # painted.
+  # The passwords menu of the engine Reborn and Desolation share (pbPasswordsMenu): an active password's "> " mark and
+  # an inactive one's four spaces are said as its state; the other rows ([Exit], [Add password]) go on as painted.
   module PasswordsRV
     ACTIVE = /\A> (\S.*)\z/m
     INACTIVE = /\A {4}(\S.*)\z/m

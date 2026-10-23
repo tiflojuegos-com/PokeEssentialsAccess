@@ -27,7 +27,7 @@ module PokeAccess
     # Removes the mark on a tile, if any, and persists.
     def self.delete(mid, x, y)
       tiles = store[mid]
-      return unless tiles && tiles.has_key?([x, y])
+      return unless tiles && tiles.key?([x, y])
       tiles.delete([x, y])
       store.delete(mid) if tiles.empty?
       save
@@ -71,7 +71,7 @@ module PokeAccess
     end
 
     def self.has_entry?(store, key)
-      !!(store[key[0]] && store[key[0]].has_key?([key[1], key[2]]))
+      !!(store[key[0]] && store[key[0]].key?([key[1], key[2]]))
     end
 
     def self.put_entry(store, key, name)

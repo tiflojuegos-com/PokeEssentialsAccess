@@ -1,8 +1,6 @@
 module PokeAccess
-  # Rejuvenation's password lists (PasswordEntry#entryForPasswords, at a new game and on the PC with Data Chips): each
-  # password row starts with its state, "> " when it is on, "~ " when a bulk password is only partly on and four spaces
-  # when it is off, marks a screen reader leaves unsaid; so each password is said with its state, the other rows as
-  # painted. The bulk passwords' list opens inside the other.
+  # Rejuvenation's password lists (PasswordEntry#entryForPasswords): each password is said with the state its mark
+  # shows ("> " on, "~ " partly on, four spaces off), other rows as painted; the bulk list opens inside the other.
   module RejuvPasswords
     ON = /\A> (\S.*)\z/m
     PARTLY = /\A~ (\S.*)\z/m

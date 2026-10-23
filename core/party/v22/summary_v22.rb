@@ -6,7 +6,8 @@ module PokeAccess
     def self.page_name(page)
       h = (UI::PokemonSummaryVisuals::PAGE_HANDLERS[page] rescue nil)
       (h && h[:name]) ? (h[:name].call rescue nil) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -20,7 +21,8 @@ module PokeAccess
       when :moves, :detailed_moves then PokeAccess::SummaryGameData.moves_text(pk)
       when :ribbons          then PokeAccess::SummaryGameData.ribbons_text(pk)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -37,9 +39,10 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:pk_glance, :name => pk.name, :level => pk.level, :hp => pk.hp, :tot => pk.totalhp)) if with_pkmn
       parts.push(page_name(page))
       parts.push(body_for(pk, page))
-      t = PokeAccess::Util.join_parts(parts)
+      t = PokeAccess.sentences(parts)
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -53,7 +56,8 @@ module PokeAccess
       else
         PokeAccess::SummaryGameData.move_detail(pk, (pk.moves[mi] rescue nil))
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

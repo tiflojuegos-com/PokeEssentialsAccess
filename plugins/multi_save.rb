@@ -8,7 +8,8 @@ module PokeAccess
       return if t.empty?
       PokeAccess::Cursor.reset(scene, :ams_slot) if moving?
       PokeAccess::Cursor.announce(scene, :ams_slot, t, false) { t }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -22,7 +23,8 @@ module PokeAccess
       @asking = false
       t = PokeAccess.clean(text.to_s)
       PokeAccess.speak(t, false) unless t.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -36,7 +38,8 @@ module PokeAccess
         k = (Input.const_get(name) rescue nil)
         k && (Input.trigger?(k) || Input.repeat?(k))
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
   end

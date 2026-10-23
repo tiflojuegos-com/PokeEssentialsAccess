@@ -24,7 +24,8 @@ module PokeAccess
     def self.drawn(args)
       text = args.length >= 5 ? args[4] : args[1]
       PokeAccess.speak_clean(text.to_s, false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

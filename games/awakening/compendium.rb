@@ -11,7 +11,8 @@ module PokeAccess
     # shape, since the non-ASCII placeholder's encoding may differ from this file's).
     def self.placeholder?(name)
       name.to_s.gsub(/[^[:alnum:]]/, "").empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -29,7 +30,8 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :awk_comp, idx, true) do
         PokeAccess::Verbosity.list_entry(name, idx + 1, rows.length)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -51,7 +53,8 @@ module PokeAccess
       return if @pending.nil?
       t = PokeAccess.clean(text.to_s)
       @pending.push(t) unless t.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -61,7 +64,8 @@ module PokeAccess
       t = @pending.join(". ")
       @pending = []
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -69,7 +73,8 @@ module PokeAccess
     def self.note_positions(rows)
       return unless rows.is_a?(Array)
       rows.each { |r| note(r.is_a?(Array) ? r[0] : r) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

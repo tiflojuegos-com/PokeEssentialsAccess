@@ -1,5 +1,6 @@
-# Builds ivar_census.txt, loop_census.txt, spec_census.txt and lifecycle_census.txt from the decompiled dumps,
-# which are absent on CI (tools/dump_scripts.rb makes one). Run by hand after adding a reader, a profile or a dump:
+# Builds ivar_census.txt, loop_census.txt and lifecycle_census.txt from the decompiled dumps (absent on CI;
+# tools/dump_scripts.rb makes one) and test_census.txt from the test tree. Run by hand after adding a reader, a
+# profile, a dump or a test file:
 #   ruby test/static/build_reader_census.rb ["path\to\decompiled Scripts"]
 require File.expand_path("reader_sites", File.dirname(__FILE__))
 
@@ -217,16 +218,16 @@ puts "wrote #{LOOP_OUT}: #{hooked.length} after-hook sites, #{blocking.length} b
      "#{no_evidence.length} with no dump, #{unresolved.values.flatten.length} unresolved"
 puts "blocking: #{blocking.join(', ')}" unless blocking.empty?
 
-# Third census: every *_spec.rb run_all must discover, so a sweep whose glob went quiet fails; needs no dumps.
-SPEC_OUT = File.join(File.dirname(__FILE__), "spec_census.txt")
+# Third census: every *_test.rb test/run.rb must discover, so a glob that went quiet fails; needs no dumps.
+TEST_OUT = File.join(File.dirname(__FILE__), "test_census.txt")
 test_root = File.expand_path(File.join(File.dirname(__FILE__), ".."))
-spec_rel = Dir.glob(File.join(test_root, "{unit,behavior,static}", "**", "*_spec.rb"))
+test_rel = Dir.glob(File.join(test_root, "{unit,behavior,static}", "**", "*_test.rb"))
               .map { |p| File.expand_path(p)[(test_root.length + 1)..-1].tr("\\", "/") }.sort
-File.open(SPEC_OUT, "wb") do |io|
-  io.print("# Spec files run_all must discover. Regenerate: ruby test/static/build_reader_census.rb\n")
-  spec_rel.each { |r| io.print(r, "\n") }
+File.open(TEST_OUT, "wb") do |io|
+  io.print("# Test files test/run.rb must discover. Regenerate: ruby test/static/build_census.rb\n")
+  test_rel.each { |r| io.print(r, "\n") }
 end
-puts "wrote #{SPEC_OUT}: #{spec_rel.length} spec files"
+puts "wrote #{TEST_OUT}: #{test_rel.length} test files"
 
 # Fourth census: per scene InfoWindow watches, the lifecycle methods the games define and those the mod declares,
 # which must meet; class names listed through variants or scene_classes count, and an :open constant is resolved.

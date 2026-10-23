@@ -70,7 +70,10 @@ module PokeAccess
       alt = letters.keys.sort_by { |k| -k.length }.map { |k| Regexp.escape(k) }.join("|")
       swap = lambda { |tok| key(letters[tok], tok) }
       out = text.to_s.gsub(/\[(#{alt})\]/) { "[#{swap.call($1)}]" }
-      out = out.gsub(/(\A|\s)((?:#{alt})(?:\/(?:#{alt}))*)(\s?:)(?=\s)/) { $1 + $2.split("/").map { |t| swap.call(t) }.join("/") + $3 }
+      out = out.gsub(/(\A|\s)((?:#{alt})(?:\/(?:#{alt}))*)(\s?:)(?=\s)/) do
+        lead, keys, colon = $1, $2, $3
+        lead + keys.split("/").map { |t| swap.call(t) }.join("/") + colon
+      end
       return out unless sentences
       out.gsub(/\b(?:(#{VERBS})(\s+#{KEY_WORDS})|(#{NAMED})(\s+))(#{alt})(?![A-Za-z])/i) do
         "#{$1}#{$2}#{$3}#{$4}#{swap.call($5)}"

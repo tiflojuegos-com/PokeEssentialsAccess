@@ -13,6 +13,8 @@
     pause_menu
     punch_bag
     diploma
+    damage_numbers
+    passability
   ],
-  :plugins => %w[advanced_items bag_screen_party better_summary challenge_rules encounter_list_ui enhanced_pokemon_ui hall_of_fame_bw storage_utilities item_find misc_scripts_anil multi_save photo_album party_picture sv_summary_screen sv_summary_prompts pokegear_themes hatcher dbk_battle dbk_enhanced_ui dp_pausemenu hgss_trainer_card bag_search_entry sky_bag bw_key_items modular_title marin_side_stairs fancy_badges]
+  :plugins => %w[advanced_items bag_screen_party better_summary challenge_rules encounter_list_ui enhanced_pokemon_ui hall_of_fame_bw storage_utilities item_find misc_scripts_anil multi_save photo_album party_picture sv_summary_screen sv_summary_prompts pokegear_themes fl_pokegear_watch hatcher dbk_battle dbk_enhanced_ui dp_pausemenu hgss_trainer_card bag_search_entry sky_bag bw_key_items modular_title marin_side_stairs fancy_badges cable_club]
 }

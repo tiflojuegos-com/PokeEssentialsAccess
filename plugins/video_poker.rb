@@ -22,7 +22,8 @@ module PokeAccess
       when :cards then card(scene)
       when :pick then pick(scene)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -56,8 +57,9 @@ module PokeAccess
         d.empty? ? row : "#{row}, #{d}"
       end
       rows = rows.compact
-      rows.empty? ? nil : rows.join(". ")
-    rescue StandardError
+      rows.empty? ? nil : PokeAccess.sentences(rows)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -102,7 +104,8 @@ module PokeAccess
       c = hand.is_a?(Array) ? hand[REFERENCE_SLOT] : nil
       return unless c
       PokeAccess.speak(PokeAccess::I18n.t(:vp_reference, :card => card_text(c, "")), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -112,8 +115,9 @@ module PokeAccess
       t = PokeAccess.clean((win.text rescue "").to_s) if win
       return nil if t.nil? || t.empty?
       c = combination(scene)
-      c ? "#{t}. #{c}" : t
-    rescue StandardError
+      c ? PokeAccess.sentences([t, c]) : t
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -121,7 +125,8 @@ module PokeAccess
     def self.message(scene)
       t = message_text(scene)
       PokeAccess::Cursor.announce(scene, :vp_msg, t, false) { t } if t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -129,7 +134,8 @@ module PokeAccess
     def self.result(scene)
       t = message_text(scene)
       PokeAccess::Cursor.announce(scene, :vp_msg, t, true) { t } if t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -139,7 +145,8 @@ module PokeAccess
       nm = (PokeAccess.ivar(scene, :@screen).combination_found.combination.name rescue nil)
       return nil if nm.nil? || nm.to_s.empty?
       PokeAccess.clean(nm.to_s)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

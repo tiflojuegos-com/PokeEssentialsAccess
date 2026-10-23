@@ -13,7 +13,8 @@ module PokeAccess
       scene = @pc
       return false unless scene && obj && !PokeAccess.ivar(scene, :@selectedrecord)
       obj.equal?(PokeAccess.sprite(scene, "cancelbuttom")) && Input.trigger?(Input::B) ? true : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
   end

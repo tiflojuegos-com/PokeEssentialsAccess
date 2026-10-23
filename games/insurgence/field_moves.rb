@@ -1,15 +1,7 @@
 module PokeAccess
-  # Insurgence's own rules for the field moves the route finder asks about, which are not Essentials' "a party Pokemon
+  # Insurgence's own rules for the field moves the route finder asks about, in place of Essentials' "a party Pokemon
   # knows it and the badge is won" (088_PokemonHiddenMoves.rb as 166_PokemonFollow.rb and 179_ChallengeChampionship.rb
-  # redefine it):
-  #   Surf       switch 4 (Defeated Gym 1), and the Instant Lapras pack or a Pokemon that knows Surf (the onAction
-  #              handler, then the Kernel.pbSurf of 166)
-  #   Waterfall  six badges and the Magic Carpet (JETPACK); the move itself can never be used (its CanUseMove fails)
-  #   Dive       the Scuba Gear alone (Kernel.pbDive)
-  #   Rock Climb the Hiking Boots alone (Kernel.pbRockClimb)
-  #   Strength   for a "Boulder", switch 4 and any of thirteen moves, or Strength already used on the map
-  #              (Kernel.pbStrength)
-  #   Rock Smash for a "Rock_Smash" rock, any damaging Fighting-type move (doInsurgenceRockSmash)
+  # redefine it). Waterfall's move can never be used (its CanUseMove fails): six badges and the Magic Carpet take it.
   module InsurgenceFieldMoves
     # The moves Kernel.pbStrength accepts, in its own order.
     STRENGTH_MOVES = [:STRENGTH, :BULLDOZE, :STEAMROLLER, :OMINOUSWIND, :ICYWIND, :GIGAIMPACT, :SLAM, :WHIRLWIND,
@@ -18,10 +10,14 @@ module PokeAccess
     ITEMS = { :WATERFALL => :JETPACK, :DIVE => :SCUBAGEAR, :ROCKCLIMB => :HIKINGBOOTS }
     # The switch the first gym sets, which Surf and Strength ask for.
     GYM1 = 4
+    # The switch the stock Kernel.pbRockSmash asks for before the move or the Pickaxe.
+    ROCK_SWITCH = 10
+    # The switch Kernel.pbCut asks for before the move.
+    CUT_SWITCH = 6
 
     # True for a move whose rule this game rewrites.
     def self.handles?(move)
-      move == :SURF || move == :STRENGTH || move == :ROCKSMASH || ITEMS.has_key?(move)
+      [:SURF, :STRENGTH, :ROCKSMASH, :CUT].include?(move) || ITEMS.key?(move)
     end
 
     # true / false / nil (unreadable) for a move handles? covers, by the game's rule.
@@ -41,6 +37,8 @@ module PokeAccess
         party.nil? ? nil : !strength_move.nil?
       when :ROCKSMASH
         party.nil? ? nil : !fighting_move.nil?
+      when :CUT
+        $game_switches[CUT_SWITCH] ? PokeAccess::FieldMoves.knows?(:CUT) : false
       end
     end
 
@@ -55,6 +53,27 @@ module PokeAccess
       return nil if id.nil?
       n = PokeAccess::Engine.bag_quantity(id)
       n.nil? ? nil : n > 0
+    end
+
+    # True for a gate on a "Rock" whose page calls the stock Kernel.pbRockSmash rather than doInsurgenceRockSmash.
+    def self.stock_rock?(gate)
+      return false unless gate[:move] == :ROCKSMASH && gate[:ev]
+      PokeAccess::Routes::Effects.script_text(gate[:ev]) =~ /\bpbRockSmash\b/ ? true : false
+    end
+
+    # true / false / nil: whether the stock Kernel.pbRockSmash breaks a rock now, by switch 10 and then the Pickaxe or
+    # a Pokemon that knows Rock Smash.
+    def self.stock_rock_clear?
+      return false unless $game_switches[ROCK_SWITCH]
+      bag?(:PICKAXE) ? true : PokeAccess::FieldMoves.knows?(:ROCKSMASH)
+    end
+
+    # Rock Smash as the game spells it, for the stock rocks (the name override says the Fighting move instead).
+    def self.rock_smash_name
+      PokeAccess::Data.move_name(PokeAccess::Data.move_id(:ROCKSMASH))
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
     end
 
     # The party, or nil with no player.
@@ -98,7 +117,8 @@ module PokeAccess
         id = (PBItems.const_get(ITEMS[move]) rescue nil)
         id ? PokeAccess::Data.item_name(id) : nil
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -110,6 +130,15 @@ PokeAccess::Game.define("insurgence") do
   end
   override("PokeAccess::FieldMoves", :name) do |_mod, original, args|
     n = PokeAccess::InsurgenceFieldMoves.name(args[0])
+    n.nil? || n.to_s.empty? ? original.call : n
+  end
+  override("PokeAccess::FieldMoves", :clear?) do |_mod, original, args|
+    ins = PokeAccess::InsurgenceFieldMoves
+    ins.stock_rock?(args[0]) ? ins.stock_rock_clear? : original.call
+  end
+  override("PokeAccess::FieldMoves", :clearer) do |_mod, original, args|
+    ins = PokeAccess::InsurgenceFieldMoves
+    n = ins.stock_rock?(args[0]) ? ins.rock_smash_name : nil
     n.nil? || n.to_s.empty? ? original.call : n
   end
 end

@@ -1,8 +1,7 @@
 module PokeAccess
-  # Soulstones' encounter list (EncounterListUI_withforms, an edited copy of raZ's Simple Encounter List with one page
-  # per encounter type, turned with left and right): each page read once getEncData fills @encarray2, headed as the
-  # screen paints it, "map: encounter type". A lone 7 is the screen's no-encounters sentinel, not a species. This copy
-  # paints every species' icon in colour and no Pokedex mark, so each species is said by its name alone.
+  # Soulstones' encounter list (EncounterListUI_withforms, an edited copy of raZ's Simple Encounter List): each page is
+  # read once getEncData fills @encarray2, headed "map: encounter type", each species by its name alone (this copy
+  # paints no Pokedex mark); a lone 7 is the screen's no-encounters sentinel, not a species.
   module Soulstones1Encounters
     # The page's header as painted: the map name and the encounter type of the page (@type[@index]).
     def self.header(scene)
@@ -43,7 +42,8 @@ module PokeAccess
       PokeAccess::Info.set_info(:text, pg ? "#{whole}, #{pg}" : whole)
       said = "#{said}, #{pg}" if pg && PokeAccess::Verbosity.keep?(:positions, :medium)
       PokeAccess.speak(said, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

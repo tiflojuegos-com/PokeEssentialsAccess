@@ -14,7 +14,8 @@ module PokeAccess
       key = RADIAL[idx]
       label = key ? PokeAccess::I18n.t(key) : nil
       PokeAccess.speak(label, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -26,7 +27,8 @@ module PokeAccess
       return if floor.empty? || cap.empty?
       PokeAccess::PausePanel.say([PokeAccess::I18n.t(:rel_panel_floor, :n => floor),
                                   PokeAccess::I18n.t(:rel_panel_cap, :n => cap)])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -45,7 +47,8 @@ module PokeAccess
     # again; update_button does not run then.
     def self.returned
       PokeAccess::Cursor.reset(@scene, :radial) if @scene
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

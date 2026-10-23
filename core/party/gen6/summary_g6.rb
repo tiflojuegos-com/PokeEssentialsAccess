@@ -17,7 +17,8 @@ module PokeAccess
       m = met_text(pk); parts.push(m) if m
       c = characteristic_text(pk); parts.push(c) if c
       parts.empty? ? nil : "#{PokeAccess::I18n.t(:sm_memo)}. #{parts.join('. ')}."
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -39,7 +40,8 @@ module PokeAccess
       place = ot if ot && ot.to_s != ""
       place = PokeAccess::I18n.t(:sm_met_far) if place.nil? || place.to_s == ""
       PokeAccess::I18n.t(:sm_met_at, :how => how, :place => place)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -58,7 +60,8 @@ module PokeAccess
         end
       end
       PokeAccess::I18n.t("sm_char_#{best * 5 + (iv[best] % 5)}".to_sym)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -75,7 +78,8 @@ module PokeAccess
       t += " " + nat if nat
       ab = PokeAccess::Summary.ability_line(pk, painted)
       ab ? "#{t} #{ab}" : t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -89,25 +93,54 @@ module PokeAccess
       return PokeAccess::I18n.t(:sm_ribbons_none) if rb.empty?
       names = rb.map { |r| (PBRibbons.getName(r) rescue nil) }.compact
       PokeAccess::I18n.t(:sm_ribbons, :n => rb.length) + (names.empty? ? "" : (". " + names.join(", ")))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # The move-to-forget prompt: the move being learned, then the current moves (move_list_text).
-    def self.relearn_text(pk, move_to_learn)
+    # The move-to-forget prompt: the move being learned, then the current moves (move_list_text); for a move an item
+    # asks for (an Ether's), whose question the game puts first, only the moves, each with its PP.
+    # param choosing true on a scene pbStartChooseMoveScreen opened
+    def self.relearn_text(pk, move_to_learn, choosing = false)
+      return move_list_text(pk, true) if choosing
       t = ""
       if PokeAccess::MoveInfo.real_id?(move_to_learn)
         nm = (PokeAccess::Data.move_name(move_to_learn) rescue nil)
         t += PokeAccess::I18n.t(:sm_learn, :move => nm) + ". " if nm && !nm.to_s.empty?
       end
       "#{t}#{PokeAccess::I18n.t(:sm_choose_forget)}. #{move_list_text(pk)}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # The current moves by name, each with its position while positions are said; drawSelectedMove reads one
-    # in full.
-    def self.move_list_text(pk)
+    # What the move-to-forget loop says each time it starts: relearn_text, then, from the second time (a refused HM, a
+    # B under an Ether's question), the selection back on the first move, where the painted cursor does not go.
+    def self.forget_prompt(scene, move_to_learn)
+      pk = PokeAccess.ivar(scene, :@pokemon)
+      again = PokeAccess.ivar(scene, :@access_forget_asked)
+      scene.instance_variable_set(:@access_forget_asked, true)
+      t = relearn_text(pk, move_to_learn, PokeAccess.ivar(scene, :@access_choosing_move) ? true : false)
+      return t unless again && pk
+      first = (pk.moves[0] rescue nil)
+      PokeAccess::Info.set_info(:move, first) if first
+      at = PokeAccess::I18n.t(:sm_position, :n => 1) + ", " + PokeAccess::Summary.move_slot_name(pk, 0).to_s
+      PokeAccess.sentences([t, at])
+    end
+
+    # A move detail as drawSelectedMove paints it: the move with its data, the first since the cursor opened after
+    # the Pokemon's own types, which the page draws above the moves.
+    def self.move_detail_text(scene, pk, mid)
+      line = PokeAccess::Info.move_by_id_info(pk, mid, :summary_move)
+      return line if PokeAccess.ivar(scene, :@access_detail_typed)
+      scene.instance_variable_set(:@access_detail_typed, true)
+      types = PokeAccess::Data.pokemon_types(pk)
+      types.empty? ? line : PokeAccess.sentences([PokeAccess::I18n.t(:sum_type, :t => types.join(' ')), line])
+    end
+
+    # The current moves by name, each with its position while positions are said and, with pp, its PP;
+    # drawSelectedMove reads one in full.
+    def self.move_list_text(pk, pp = false)
       return PokeAccess::I18n.t(:sm_no_moves) unless pk && pk.moves
       out = []
       4.times do |i|
@@ -115,16 +148,24 @@ module PokeAccess
         id = m ? PokeAccess::MoveInfo.id_of(m) : nil
         next unless PokeAccess::MoveInfo.real_id?(id)
         nm = (PokeAccess::Data.move_name(id) rescue nil) || PokeAccess::I18n.t(:info_move)
-        out.push(PokeAccess::Verbosity.keep?(:positions, :medium) ? PokeAccess::I18n.t(:sm_move_pos, :n => i + 1, :name => nm) : nm)
+        row = PokeAccess::Verbosity.keep?(:positions, :medium) ? PokeAccess::I18n.t(:sm_move_pos, :n => i + 1, :name => nm) : nm
+        left = pp ? (m.pp rescue nil) : nil
+        tot = left ? PokeAccess.attr_of(m, :totalpp, :total_pp) : nil
+        row += ", " + PokeAccess::I18n.t(:mv_pp, :pp => left, :tot => tot) if tot
+        out.push(row)
       end
       out.empty? ? PokeAccess::I18n.t(:sm_no_moves) : PokeAccess::I18n.t(:sm_moves, :list => out.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       PokeAccess::I18n.t(:sm_no_moves)
     end
 
     # The scene class to hook, or "" (binding nothing) off a gen-6 engine; where both aliases exist, the ancestral
     # one, since a gen-6 fork may build only the v17 name (Engine.era_scene).
     SCENE = PokeAccess::Engine.era_scene(:gen6, "PokemonSummaryScene", "PokemonSummary_Scene")
+
+    # The screen class that runs the scene's loops, or "" off a gen-6 engine: the v16 name, else the v17 one.
+    SCREEN = PokeAccess::Engine.era_scene(:gen6, "PokemonSummary", "PokemonSummaryScreen")
 
     # The Pokemon a page redraw is about: the first argument, else the scene's @pokemon (Awakening passes none).
     def self.subject(scene, args)
@@ -155,7 +196,7 @@ PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageOne) do |s
     unless PokeAccess::Summary.egg?(pk)
       dex = PokeAccess::Summary.painted_dex_number(pairs)
       heart = PokeAccess::Summary.heart_of(pk, pairs.select { |r| r[1] == :formatted }.map { |r| r[0] })
-      t = PokeAccess::Info.summary_text(pk, dex)
+      t = PokeAccess::Info.summary_text(pk, dex, PokeAccess::Summary.painted_trainer_id(pairs))
       t = "#{t} #{heart}" if t && heart
       t = PokeAccess::Summary.with_hints(t, pairs.map { |r| r[0] })
       PokeAccess::Summary.speak_page(s, pk, 1, t, true)
@@ -208,10 +249,22 @@ PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFive, :opt
   PokeAccess::Summary.speak_page(s, pk, 5, PokeAccess::SummaryGen6.ribbons_text(pk))
 end
 
-# Move detail: each move read with its data when selected.
+# Move detail: each move read with its data when selected, the first after the Pokemon's types.
 PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawSelectedMove) do |s, _r, args|
   pk, mid = PokeAccess::SummaryGen6.selected_move(s, args)
-  PokeAccess.speak(PokeAccess::Info.move_by_id_info(pk, mid, :summary_move), true)
+  PokeAccess.speak(PokeAccess::SummaryGen6.move_detail_text(s, pk, mid), true)
+end
+
+# Opening the move cursor: its first detail says the Pokemon's types again.
+PokeAccess::Hooks.before_hook(PokeAccess::SummaryGen6::SCENE, :pbMoveSelection, :optional => true) do |s, _a|
+  s.instance_variable_set(:@access_detail_typed, nil)
+end
+
+# An item that restores a move's PP (an Ether) asks for the move on the move-to-forget scene, under its own question:
+# marked on that scene, so its prompt is not the one for forgetting.
+PokeAccess::Hooks.before_hook(PokeAccess::SummaryGen6::SCREEN, :pbStartChooseMoveScreen, :optional => true) do |s, _a|
+  scene = PokeAccess.ivar(s, :@scene)
+  scene.instance_variable_set(:@access_choosing_move, true) if scene
 end
 
 # Each frame: keeps the info key on the Pokemon shown (up/down switches it in place) unless a detail is focused,
@@ -223,7 +276,7 @@ PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :pbUpdate) do |scen
   PokeAccess::Summary.ribbon_poll(scene)
 end
 
-# Learning a move with a full moveset: the new move and the current four, queued.
+# Learning a move with a full moveset, or choosing one for an item: forget_prompt, queued.
 PokeAccess::Hooks.before_hook(PokeAccess::SummaryGen6::SCENE, :pbChooseMoveToForget) do |scene, args|
-  PokeAccess.speak(PokeAccess::SummaryGen6.relearn_text(scene.instance_variable_get(:@pokemon), args[0]), false)
+  PokeAccess.speak(PokeAccess::SummaryGen6.forget_prompt(scene, args[0]), false)
 end

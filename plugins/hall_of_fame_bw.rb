@@ -19,7 +19,8 @@ module PokeAccess
       out.push(PokeAccess::I18n.t(:hofbw_id, :n => sprintf("%05d", id))) if id
       out.push(PokeAccess::I18n.t(:hofbw_caught, :map => caught_in(pk))) if caught_in(pk)
       out
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -30,7 +31,8 @@ module PokeAccess
       id = (pk.obtain_map rescue nil)
       m = id.is_a?(Integer) && id > 0 ? (pbGetMapNameFromId(id) rescue nil) : nil
       (m && !m.to_s.empty?) ? m.to_s : PokeAccess::I18n.t(:hofbw_unknown_place)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -38,7 +40,8 @@ module PokeAccess
     def self.sex_suffix(pk)
       g = PokeAccess::Party.gender_glyph(pk)
       g ? " #{g}" : ""
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       ""
     end
 
@@ -61,7 +64,8 @@ module PokeAccess
       lv = (pk.level rescue nil)
       parts.push(PokeAccess::I18n.t(:hofbw_level, :n => lv)) if lv
       parts.empty? ? nil : parts.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -77,7 +81,8 @@ module PokeAccess
         second = time ? PokeAccess::I18n.t(:hofbw_finale, :name => name, :time => time) : name
       end
       PokeAccess::Util.join_parts([first, second], " ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -115,7 +120,8 @@ module PokeAccess
                [nm, :brief], [shown_sp, :brief], [level, :medium]]
       more.each { |m| parts.push([m, :full]) }
       PokeAccess.speak_clean(PokeAccess::Verbosity.line(:hall_of_fame, parts), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -145,4 +151,4 @@ PokeAccess::Hooks.after_hook("HallDeLaFama", :create_gen5_final_windows, :option
   PokeAccess.say_dialogue(t) if t
 end
 
-PokeAccess::Verbosity.define_reading(:hall_of_fame, :vb_hall_of_fame, :vbh_hall_of_fame)
+PokeAccess::Verbosity.define_reading(:hall_of_fame, :vb_hall_of_fame, :vbh_hall_of_fame, :game)

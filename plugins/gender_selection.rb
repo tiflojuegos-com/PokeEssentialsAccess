@@ -5,21 +5,11 @@ module PokeAccess
     BOY = 2
     GIRL = 4
 
-    # The i18n key for a cursor value; nil for the confirm values, a step that runs whole inside input.
-    def self.label_key(sel)
-      return :gsel_boy if sel == BOY
-      return :gsel_girl if sel == GIRL
-      nil
-    end
-
-    # Speaks the highlighted choice as the cursor moves, deduped per scene.
-    def self.announce(scene)
-      sel = PokeAccess.ivar(scene, :@select)
-      PokeAccess::Cursor.announce(scene, :gender_sel, sel, true) do
-        k = label_key(sel)
-        k ? PokeAccess::I18n.t(k) : nil
-      end
-    rescue StandardError
+    # The spoken name of a cursor value; nil for the neutral start and the confirm values, a step that runs whole
+    # inside input.
+    def self.label(sel)
+      return PokeAccess::I18n.t(:gsel_boy) if sel == BOY
+      return PokeAccess::I18n.t(:gsel_girl) if sel == GIRL
       nil
     end
   end
@@ -30,7 +20,9 @@ PokeAccess::Hooks.before_hook("PokemonGenderSelection", :main_method, :optional 
   PokeAccess.speak(PokeAccess::Verbosity.with_hint(PokeAccess::I18n.t(:gsel_help), PokeAccess::I18n.t(:gsel_help_hint)), true)
 end
 
-# hook_container, since input runs the confirm step's pbConfirmMessage, whose reader the guard would drop as nested.
-PokeAccess::Hooks.after_hook("PokemonGenderSelection", :input, :optional => true, :hook_container => true) do |s, _r, _a|
-  PokeAccess::GenderSelection.announce(s)
+# The highlighted choice as the cursor moves, every read cutting in; hook_container, since input runs the confirm
+# step's pbConfirmMessage, whose reader the guard would drop as nested.
+PokeAccess::FocusReader.define("PokemonGenderSelection", :on => :input, :index => :@select, :slot => :gender_sel,
+                               :queue => false, :optional => true, :hook_container => true) do |sel|
+  PokeAccess::GenderSelection.label(sel)
 end

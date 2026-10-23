@@ -11,7 +11,8 @@ module PokeAccess
     # Whether the Pokedex has seen a species, which the banner draws as its icon instead of a silhouette.
     def self.seen?(species)
       $Trainer.seen?(species) ? true : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -31,7 +32,8 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:if_radar_rare, :list => names(rare_seen))) unless rare_seen.empty?
       parts.push(PokeAccess::I18n.t(:if_radar_rare_unseen, :n => rare_unseen.length)) unless rare_unseen.empty?
       parts.empty? ? nil : PokeAccess.sentences(parts)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

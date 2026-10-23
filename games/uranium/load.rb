@@ -25,7 +25,8 @@ module PokeAccess
       parts.push(PokeAccess::LoadPanel.team((save.trainer rescue nil)))
       parts.concat(modes(save))
       parts.compact.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -42,7 +43,8 @@ module PokeAccess
       return nil unless slots.is_a?(Array) && idx && slots[idx]
       save = slots[idx].newer
       ([save.title.to_s] + modes(save)).join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -71,7 +73,8 @@ module PokeAccess
       r = PokeAccess.ivar(scene, :@access_autosub_rows)
       return unless r.is_a?(Array) && r.length >= 7
       PokeAccess::Cursor.announce(scene, :ls_autosub, [slot, index], true, false) { sub_text(r, index, slot) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

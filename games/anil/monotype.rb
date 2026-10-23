@@ -18,7 +18,8 @@ module PokeAccess
         return PokeAccess::I18n.t(PokeAccess.ivar(scene, :@primary_list) ? :mono_other : :mono_back)
       end
       PokeAccess::I18n.t(:mono_type, :type => type_name(tl[idx]))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -27,7 +28,8 @@ module PokeAccess
     def self.read(scene)
       t = text(scene)
       PokeAccess::Cursor.announce(scene, :mono_type, t, true, false) { t } unless t.nil?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

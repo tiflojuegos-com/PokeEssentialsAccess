@@ -11,7 +11,8 @@ module PokeAccess
       mons = ((opts[idx][1] || []).map { |s| s ? (GameData::Species.get(s).name rescue s.to_s) : nil }.compact)
       mons.empty? ? PokeAccess::I18n.t(:starter_region_only, :region => region) :
                     PokeAccess::I18n.t(:starter_region, :region => region, :mons => mons.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -19,7 +20,8 @@ module PokeAccess
     def self.read(scene)
       t = text(scene)
       PokeAccess::Cursor.announce(scene, :starter_region, t, true) { t }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -38,7 +40,8 @@ module PokeAccess
       PokeAccess::Cursor.reset(scene, :starter_region)
       t = text(scene)
       PokeAccess::Cursor.announce(scene, :starter_region, t, true, false) { t }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

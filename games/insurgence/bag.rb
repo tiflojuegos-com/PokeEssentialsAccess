@@ -18,7 +18,8 @@ module PokeAccess
       worn = ($Trainer.clothes rescue nil)
       out.push(:shop_worn) if worn.is_a?(Array) && worn[0, 5].include?(itemid)
       out
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 

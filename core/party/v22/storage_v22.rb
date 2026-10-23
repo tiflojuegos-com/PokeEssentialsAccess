@@ -29,7 +29,8 @@ module PokeAccess
           PokeAccess::I18n.t(:pc_empty) + pos
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -42,7 +43,8 @@ module PokeAccess
       head = PokeAccess::I18n.t(:pc_box, :name => name)
       return head if here.nil? || here.to_s.empty?
       here.index(head) == 0 ? here : "#{head}. #{here}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

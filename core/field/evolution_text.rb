@@ -22,7 +22,8 @@ module PokeAccess
       @last = t
       return if t == PokeAccess.clean(PokeAccess.last_dialogue.to_s)
       PokeAccess.speak(t, false, :dialogue)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -36,4 +37,4 @@ PokeAccess::Hooks.around_hook("PokemonEvolutionScene", :pbEvolution, :optional =
     PokeAccess::EvolutionText.close
   end
 end
-PokeAccess::Keys.on_frame { PokeAccess::EvolutionText.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::EvolutionText.poll }

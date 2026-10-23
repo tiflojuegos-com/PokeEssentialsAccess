@@ -19,7 +19,8 @@ module PokeAccess
       panel = panels[idx.to_s]
       return unless panel
       PokeAccess::Cursor.announce(nil, :awk_cards, [idx, panels.__id__], true) { card_line((panel.pj rescue nil)) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -42,7 +43,8 @@ module PokeAccess
     def self.date_alert?(info)
       rank = info.rango_visible
       ::FatesCartas.j_citaDesbloqueada?(info.index, rank) && !::FatesCartas.j_citaCompletada?(info.index, rank)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -63,7 +65,8 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:awk_prof_date_ready)) if ready
       parts.push(PokeAccess::KeyHints.localize(PokeAccess::I18n.t(:awk_prof_keys))) if PokeAccess::Verbosity.hints?
       PokeAccess.clean(parts.join(". "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -82,7 +85,8 @@ module PokeAccess
       title = PokeAccess::I18n.t(:awk_bonus_title, :name => PokeAccess.clean(pj.nombre.to_s))
       row = @bonus[:levels].empty? ? PokeAccess::I18n.t(:list_empty) : bonus_row
       PokeAccess.speak(title + ". " + row, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       @bonus = nil
     end
 
@@ -106,7 +110,8 @@ module PokeAccess
         lvl = b[:levels][b[:sel]]
         PokeAccess.speak(b[:info] ? PokeAccess.clean(b[:bonos][lvl][:descripcion].to_s) : bonus_row, true)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -123,7 +128,8 @@ module PokeAccess
     def self.mod_ivar(sym)
       k = @cards_class
       k ? (k.instance_variable_get(sym) rescue nil) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

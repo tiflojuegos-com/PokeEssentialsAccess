@@ -13,6 +13,7 @@
     photos
     location_banner
     trainer_card
+    passability
   ],
   :plugins => %w[incubator luka_title spin_tiles fancy_badges]
 }

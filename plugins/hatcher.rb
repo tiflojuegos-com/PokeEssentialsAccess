@@ -4,4 +4,4 @@ PokeAccess::Hooks.before_hook("Hatcher", :refresh, :optional => true) { |_scene,
 PokeAccess::Hooks.after_hook("Hatcher", :refresh, :optional => true) { |scene, _result, _args| PokeAccess::Incubator.announce(scene) }
 PokeAccess::Hooks.after_hook("Hatcher", :dispose, :optional => true) { |_s, _r, _a| PokeAccess::Info.clear_text }
 
-PokeAccess::Verbosity.define_reading(:incubator, :vb_incubator, :vbh_incubator)
+PokeAccess::Verbosity.define_reading(:incubator, :vb_incubator, :vbh_incubator, :game)

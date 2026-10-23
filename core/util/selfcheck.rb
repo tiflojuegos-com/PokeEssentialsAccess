@@ -13,7 +13,7 @@ module PokeAccess
       out.push(probe("pbDrawTextPositions (captura)") { !!defined?(pbDrawTextPositions) })
       out.push(probe("_INTL (traductor del juego)") { !!defined?(_INTL) })
       out.push(probe("pictures (pantallas de imagen)") { !!($game_screen && $game_screen.pictures) })
-      out.push(probe("audio 3D (PA3D_steam.dll con PA3D_Pitch)") { !!(PokeAccess::Audio3D.available? && PokeAccess::Audio3D::PITCH) })
+      out.push(probe("audio 3D (PA3D_steam.dll con PA3D_Pitch)") { !!(PokeAccess::Sound::Native.available? && PokeAccess::Sound::Native.has?(:pitch)) })
       out.push(probe("data/ escribible") do
         f = "#{PokeAccess::Paths::DATA}/selfcheck_probe.tmp"
         File.open(f, "w") { |h| h.write("x") }
@@ -46,7 +46,7 @@ module PokeAccess
         "Array#+ mutador (MTS): #{mts ? 'SI' : 'no'}",
         "extractores registrados: #{(PokeAccess::Menus::EXTRACTORS.length rescue '?')}",
         "cuadros con texto registrados: #{(PokeAccess::PictureCues::TEXTS.length rescue '?')}",
-        "audio 3D: dispositivo #{(PokeAccess::Audio3D.device_rate rescue nil) || 'sin arrancar'} Hz, latencia #{(PokeAccess::Audio3D.device_latency rescue nil) || '?'} ms"
+        "audio 3D: dispositivo #{(PokeAccess::Sound::Pa3d.device_rate rescue nil) || 'sin arrancar'} Hz, latencia #{(PokeAccess::Sound::Pa3d.device_latency rescue nil) || '?'} ms"
       ]
     end
 
@@ -59,7 +59,7 @@ module PokeAccess
         lines.push("#{ok ? '[ok]  ' : '[MAL] '}#{label}#{detail ? " -> #{detail}" : ''}")
       end
       facts.each { |f| lines.push("[dato] #{f}") }
-      miss = (PokeAccess::Hooks.missing + PokeAccess::Hooks.unbound rescue []) || []
+      miss = (PokeAccess::Hooks.missing.dup.concat(PokeAccess::Hooks.unbound) rescue []) || []
       lines.push("hooks sin atar aqui: #{miss.length}")
       miss.each { |m| lines.push("  falta #{m}") }
       saved = ((File.open("#{PokeAccess::Paths::DATA}/selfcheck.txt", "a") { |f| f.write(lines.join("\n") + "\n\n") }; true) rescue false)

@@ -13,7 +13,8 @@ module PokeAccess
       value = PokeAccess.clean((Ekans_Game.rhs_text(c) rescue "").to_s)
       text = value.empty? ? name : "#{name}, #{value}"
       PokeAccess::Cursor.announce(scene, :ekans_row, [i, value], true) { text }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -26,13 +27,14 @@ module PokeAccess
         t = PokeAccess.clean(cell[0].to_s)
         next if t.empty?
         y = cell[2]
-        order.push(y) unless rows.has_key?(y)
+        order.push(y) unless rows.key?(y)
         rows[y] ||= []
         rows[y].push(t)
       end
       return nil if order.empty?
       order.map { |y| rows[y].join(", ") }.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

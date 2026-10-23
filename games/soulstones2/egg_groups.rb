@@ -13,7 +13,8 @@ module PokeAccess
                 groups.uniq.map { |g| (GameData::EggGroup.get(g).name rescue g.to_s) }
               end
       names.empty? ? nil : PokeAccess::I18n.t(:sum_egg_groups, :g => names.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

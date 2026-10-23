@@ -11,7 +11,8 @@ module PokeAccess
       name = (o.name rescue "").to_s
       v = PokeAccess::Options.value_of(o, (win[i] rescue 0))
       name.empty? ? v.to_s : "#{name}: #{v}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

@@ -8,7 +8,8 @@ module PokeAccess
       s = sprites.is_a?(Hash) ? sprites["pokedex"] : nil
       return nil unless s && s.respond_to?(:dexlist) && s.respond_to?(:index)
       s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -33,7 +34,8 @@ module PokeAccess
                [PokeAccess::I18n.t(mine ? :dex_caught : :dex_seen), :medium]]
       parts.push([PokeAccess::I18n.t(:pk_shiny), :full]) if mine && gold?(sp)
       PokeAccess::Verbosity.info_line(:dex_entry, parts)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -48,7 +50,8 @@ module PokeAccess
       return false unless (PokedexListSprite::USE_GOLD_NUMBER_FOR_SHINY rescue false)
       form = ($player.pokedex.last_form_seen(species) rescue nil)
       form.is_a?(Array) && form[2] ? true : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -56,7 +59,8 @@ module PokeAccess
     def self.seen?(species)
       return true if species.nil?
       ($player.seen?(species) rescue true) ? true : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       true
     end
 
@@ -66,7 +70,8 @@ module PokeAccess
       return if spr.nil?
       t = text(spr)
       PokeAccess::Cursor.announce(scene, :hgss_dex, [(spr.index rescue nil), t], true) { t }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

@@ -13,6 +13,7 @@
     turbo
     animated_pokemon
     trainer_sensor
+    passability
   ],
   :plugins => %w[incubator item_crafting logros summary_habilidades dp_pausemenu simple_encounter_list bag_search_entry slide_banners luka_title fancy_badges]
 }

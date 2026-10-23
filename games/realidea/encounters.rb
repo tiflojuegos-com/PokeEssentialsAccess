@@ -13,7 +13,8 @@ module PokeAccess
       tail = PokeAccess::I18n.t(:rea_enc_owned, :n => owned)
       PokeAccess::Info.set_info(:text, PokeAccess.sentences([PokeAccess::EncounterList.summary(head, entries, true), tail]))
       PokeAccess.speak(PokeAccess.sentences([PokeAccess::EncounterList.summary(head, entries), tail]), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -28,7 +29,8 @@ module PokeAccess
     def self.none(scene)
       return unless PokeAccess.ivar(scene, :@num_enc).nil?
       PokeAccess.speak(PokeAccess::I18n.t(:enc_none, :loc => ($game_map.name rescue nil).to_s), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

@@ -17,6 +17,16 @@ PokeAccess::Game.define("pokemon_z") do
   # Z's two statuses past the vanilla five (PBStatuses ids), capitalised here; the game writes them lowercase.
   names(:status_names, 6 => "Caduco", 7 => "Hemorragia")
 
-  # Z surfs on a mount, never with a Pokemon's move: Kernel.pbSurf asks for the Montura Surf in the bag.
-  field_move_item(:SURF, :SURFMONTURA)
+  # Z surfs on a mount, never with a Pokemon's move: Kernel.pbSurf asks for Surf's badge and the Montura Surf.
+  field_move_tool(:SURF, :SURFMONTURA, true)
+
+  # Its Kernel.pbSurf refuses while someone walks along without the following Pokemon (its pbHasDependentEvents? is
+  # false whenever the "Dependent" event is one of them); the switch it would let them past by,
+  # Following_Activated_Switch, Z never defines, so that check raises.
+  surf_company(:dependents)
+
+  # Its maps clear with alchemy, not field moves: a bush gives way to a Hachuela Endeble and a rock to a Polvo
+  # Explosivo, each used up by the event that takes it.
+  field_gate(/pbDeleteItem\(:HACHAENDEBLE/, :loc_bush, :HACHAENDEBLE)
+  field_gate(/pbDeleteItem\(:POLVOEXPLOSIVO/, :loc_rock_smash, :POLVOEXPLOSIVO)
 end

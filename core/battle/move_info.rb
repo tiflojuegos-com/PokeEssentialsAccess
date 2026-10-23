@@ -55,7 +55,8 @@ module PokeAccess
       m.pbOnStartUse(battler, [battler.pbDirectOpposing])
       c = m.calcCategory
       c.is_a?(Integer) ? c : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -67,7 +68,8 @@ module PokeAccess
       c = PokeAccess::Data.move_category(id_of(m)) unless c.is_a?(Integer) || c.is_a?(Symbol)
       c = CATEGORY_SYMS[c] if c.is_a?(Symbol)
       c.is_a?(Integer) ? c : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -81,7 +83,8 @@ module PokeAccess
       pw = PokeAccess.attr_of(data, :power, :base_damage)
       leveled(reading, nm, ty, pw || 0, (data.accuracy rescue 0), :cat => category_word((data.category rescue nil)),
               :desc => (data.description rescue ""))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -97,7 +100,8 @@ module PokeAccess
       tot = nil unless tot.is_a?(Integer) && tot > 0
       leveled(reading, nm.to_s, ty, pw, acc, :cat => category_word((PokeAccess::Data.move_category(id) rescue nil)),
               :pp => tot, :total_pp => tot, :desc => desc)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -108,22 +112,28 @@ module PokeAccess
       :learn_move   => { :type => :medium, :cat => :full, :power => :full, :acc => :full, :pp => :full, :desc => :full }
     }
 
+    # What a game's screen paints beside a move's type for a reading, found by the move's name as the screen finds it
+    # (Sevii's summary, its contest category), or nil: none on the stock screens. Said from full.
+    def self.type_note(_reading, _name); nil; end
+
     # line at a reading's level, the parts it does not reach left out; with no reading, the whole line.
     def self.leveled(reading, name, type_name, power, accuracy, opts = {})
       return line(name, type_name, power, accuracy, opts) if reading.nil?
       from = PART_LEVELS[reading] || {}
       keep = lambda { |part| PokeAccess::Verbosity.keep?(reading, from[part] || :full) }
       line(name, keep.call(:type) ? type_name : nil, keep.call(:power) ? power : nil,
-           keep.call(:acc) ? accuracy : nil,
+           keep.call(:acc) ? accuracy : nil, :note => (keep.call(:note) ? type_note(reading, name) : nil),
            :cat => (keep.call(:cat) ? opts[:cat] : nil), :pp => (keep.call(:pp) ? opts[:pp] : nil),
            :total_pp => opts[:total_pp], :desc => (keep.call(:desc) ? opts[:desc] : nil))
     end
 
-    # Assembles "name. type[. category]. power. accuracy[. pp][. description]"; a nil part is left out, :pp needs
-    # :total_pp too, and only a real 0 power or accuracy says "no damage" or "never misses".
+    # Assembles "name. type[. note][. category]. power. accuracy[. pp][. description]"; a nil part is left out, :pp
+    # needs :total_pp too, and only a real 0 power or accuracy says "no damage" or "never misses".
     def self.line(name, type_name, power, accuracy, opts = {})
       s = name.to_s
       s += ". " + PokeAccess::I18n.t(:mv_type, :t => type_name) if type_name && !type_name.to_s.empty?
+      note = opts[:note]
+      s += ". " + note.to_s if note && !note.to_s.empty?
       cat = opts[:cat]
       s += ". " + cat.to_s if cat && !cat.to_s.empty?
       s += ". " + PokeAccess::I18n.t(:mv_power, :p => power_phrase(power)) unless power.nil?

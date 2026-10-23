@@ -1,8 +1,7 @@
 module PokeAccess
-  # The field notes of the engine Reborn, Rejuvenation and Desolation share (Window_FieldEffectNotes, on the
-  # Pokegear's Field Notes and, in Reborn and Rejuvenation, on a battle's): a list of notes whose rows mix text with
-  # icons. The generic command reader moves through it; each row is the note as painted with its icons worded, its
-  # stage tab and whether confirming opens more. A new list opens with the field's name.
+  # The field notes of the engine Reborn, Rejuvenation and Desolation share (Window_FieldEffectNotes): a new list
+  # opens with the field's name, and each row is said as painted with its icons worded, its stage tab and whether
+  # confirming opens more.
   module FieldNotesRV
     # Icon names of the notes => the i18n key of their word; type icons (typeFIRE, and the field icons that paint a
     # type's label, fieldGrass) are named by the type.
@@ -71,7 +70,8 @@ module PokeAccess
       return PokeAccess.clean(getFieldName(fe)) if respond_to?(:getFieldName, true)
       data = $cache.FEData[fe]
       data ? PokeAccess.clean(data.name) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

@@ -3,33 +3,28 @@ module PokeAccess
   # championship, the Nuzlocke game over and the post-game letter.
   module UraniumField
     # Runs a paint of the eighth gym's counter (on creation, and when the white count changes) and says the lines it
-    # painted; the first, queued, with the goal that opens the door: half of the room's tiles white. The info key
-    # keeps the counter and the goal while the counter is on show.
+    # painted; the first, queued, with the goal that opens the door: half of the room's tiles white. Both are kept
+    # for the info key (gym_text).
     def self.gym_counter(win, opening)
       ret = nil
       pairs = PokeAccess::PaintCapture.sample { ret = yield }
-      if (PokeAccess.ivar(win, :@overlay).disposed? rescue false)
-        gym_gone(win)
-        return ret
-      end
+      return ret if (PokeAccess.ivar(win, :@overlay).disposed? rescue false)
       lines = PokeAccess::PaintCapture.lines(pairs).map { |l| unpadded(l) }
       return ret if lines.empty?
       text = PokeAccess.sentences(lines)
       goal = PokeAccess::I18n.t(:ura_gym8_goal, :n => PokeAccess.ivar(win, :@tiles).to_i / 2)
       whole = PokeAccess.sentences([text, goal])
-      PokeAccess::Info.set_info(:text, whole)
-      win.instance_variable_set(:@access_gym_info, whole)
+      @gym = [win, whole]
       PokeAccess.speak(opening ? whole : text, !opening)
       ret
     end
 
-    # Takes the counter off the info key once its overlay is gone (the room solved, the map left), unless another
-    # screen has put its own line there since.
-    def self.gym_gone(win)
-      kept = PokeAccess.ivar(win, :@access_gym_info)
-      return if kept.nil?
-      win.instance_variable_set(:@access_gym_info, nil)
-      PokeAccess::Info.clear_text if PokeAccess::Info.info_text == kept
+    # The counter and its goal while the counter is on show, else nil (its overlay gone: the room solved, the map
+    # left): the info key's line on the map (Info.map_owner).
+    def self.gym_text
+      win, text = @gym
+      return nil unless win
+      (PokeAccess.ivar(win, :@overlay).disposed? rescue true) ? nil : text
     end
 
     # A painted line with the padding zeros of its numbers dropped ("07" is said as 7).
@@ -67,7 +62,7 @@ end
 PokeAccess::Game.define("uranium") do
   around("GymWindow", :initialize) { |win, nxt, _a| PokeAccess::UraniumField.gym_counter(win, true) { nxt.call } }
   around("GymWindow", :update) { |win, nxt, _a| PokeAccess::UraniumField.gym_counter(win, false) { nxt.call } }
-  before("GymWindow", :dispose) { |win, _a| PokeAccess::UraniumField.gym_gone(win) }
+  PokeAccess::Info.map_owner(:uranium_gym) { PokeAccess::UraniumField.gym_text }
   around("ScoreWindow", :initialize) { |_w, nxt, _a| PokeAccess::UraniumField.scoreboard { nxt.call } }
   before("Scene_Gameover", :main) { |_s, _a| PokeAccess.speak(PokeAccess::TitleScreen.prompt(:ura_gameover), false) }
   kernel("pbDisplayLetter", :before) { |args, _r| PokeAccess::UraniumField.letter(args[0], args[1]) }

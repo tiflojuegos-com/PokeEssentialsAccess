@@ -16,7 +16,8 @@ module PokeAccess
       team = (PokeAccess::LoadPanel.team(pl) if pl)
       parts.push(team) if team
       parts.empty? ? PokeAccess::I18n.t(:pc_empty) : parts.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

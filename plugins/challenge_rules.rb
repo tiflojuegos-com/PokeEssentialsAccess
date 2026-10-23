@@ -13,7 +13,8 @@ module PokeAccess
       return (name.is_a?(String) ? name : nil) if tog.nil?
       state = (tog == 1) ? PokeAccess::I18n.t(:val_on) : PokeAccess::I18n.t(:val_off)
       name.is_a?(String) ? "#{name}, #{state}" : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -44,7 +45,8 @@ module PokeAccess
       entry = @lists.last
       restore(entry) if popped && entry
       entry
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -62,7 +64,8 @@ module PokeAccess
     # True while a rule list is open; keeps the description listener off ordinary dialogue.
     def self.open?
       !top.nil?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -81,7 +84,8 @@ module PokeAccess
       return PokeAccess.speak(txt, true) unless entry[2].equal?(win)
       return unless (PokeAccess::Config.read_help rescue true) && PokeAccess::Verbosity.descriptions?
       PokeAccess.speak(txt, false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -103,7 +107,8 @@ module PokeAccess
       return if txt.empty?
       PokeAccess::Info.set_info(:text, txt)
       PokeAccess.speak(txt, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

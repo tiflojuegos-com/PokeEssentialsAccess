@@ -1,8 +1,8 @@
 module PokeAccess
-  # Rejuvenation's two entry screens of the Pokedex and PC searches (TextEntry.rb): the type pick (pbEnterTypes), two
-  # reels that paint only a type's icon, chosen with up and down and swapped with left and right; and the bounded
-  # text entry (pbEnterBoundedText), typed on the keyboard with up to five matches listed under it and the one picked
-  # with up and down painted blue. Its keyboard window never calls the core's update, so the mod's keys stay held here.
+  # Rejuvenation's Pokedex and PC search entries (TextEntry.rb): the type pick (pbEnterTypes), two reels painting only a
+  # type's icon, and the bounded text entry (pbEnterBoundedText) with up to five matches, the picked one painted blue.
+  # Its keyboard window never calls the core's update, so the mod's keys stay held here. Also the letter grid its free
+  # text opens without the keyboard.
   module RejuvEntry
     # A reel's type as the icon shows it, or the word for none on the second reel's blank.
     def self.type_word(reel)
@@ -84,5 +84,17 @@ PokeAccess::Game.define("rejuvenation") do
 
   after("Window_BoundedTextEntry_Keyboard", :update, :optional => true, :hook_container => true) do |win, _r, _a|
     PokeAccess::RejuvEntry.follow(win)
+  end
+
+  # The letter grid that stands in for the keyboard while the Use Keyboard option is off
+  # (PokemonCharacterGridEntryScene): the stock cursor-mode screen renamed, three tabs and -5 to -1 its controls, read
+  # as core reads that one.
+  around("PokemonCharacterGridEntryScene", :pbStartScene, :optional => true) do |_scene, nxt, args|
+    PokeAccess.speak(PokeAccess::CursorNaming.caption(args[0], args[3], args[4], args[5]), false)
+    nxt.call
+  end
+  after("PokemonCharacterGridEntryScene", :pbUpdate, :optional => true) do |scene, _r, _a|
+    (PokeAccess::Keys.typing! rescue nil)
+    PokeAccess::CursorNaming.poll(scene)
   end
 end

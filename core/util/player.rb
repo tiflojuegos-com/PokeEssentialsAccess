@@ -16,7 +16,8 @@ module PokeAccess
       return nil unless v.is_a?(Numeric)
       fr = (Graphics.frame_rate rescue 0).to_i
       fr > 0 ? v.to_i / fr : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -29,7 +30,8 @@ module PokeAccess
       fc = (Graphics.frame_count rescue nil)
       return nil unless fc && fr > 0
       fc.to_i / fr
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -41,7 +43,8 @@ module PokeAccess
       mon = (pbGetAbbrevMonthName(t.mon) rescue nil) if mon.nil? || mon.to_s.empty?
       mon = t.mon.to_s if mon.nil? || mon.to_s.empty?
       PokeAccess::I18n.t(:tcard_date, :d => t.day, :m => mon, :y => t.year)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -71,7 +74,8 @@ module PokeAccess
       return (a[sp] ? true : false) unless a.nil?
       row = PokeAccess::Data.optional(:dex_row, sp)
       row ? (row[pred] ? true : false) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -85,7 +89,8 @@ module PokeAccess
         n = b.count { |x| x } if b.is_a?(Array)
       end
       n
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

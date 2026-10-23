@@ -25,7 +25,8 @@ module PokeAccess
       return nil unless d && d[3].is_a?(Array) && $game_player
       rows = d[3].map { |g| patch(g, $game_player.x, $game_player.y) }.compact
       rows.empty? ? nil : rows.join("; ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

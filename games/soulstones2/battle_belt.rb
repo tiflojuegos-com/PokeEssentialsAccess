@@ -17,7 +17,8 @@ module PokeAccess
         PokeAccess::I18n.t(label, :item => what)
       end
       PokeAccess::I18n.t(:ss2_belt, :items => parts.join(", "))
-    rescue StandardError
+    rescue StandardError => err
+      PokeAccess.swallowed(err)
       nil
     end
   end

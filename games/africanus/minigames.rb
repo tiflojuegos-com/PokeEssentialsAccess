@@ -22,13 +22,14 @@ module PokeAccess
       when :archer then archer(@active); archer_score(@active)
       when :tables then tables(@active)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
     # Plays the gauge tick for a 0.0-1.0 closeness (1.0 = dead on the perfect point).
     def self.tick(closeness)
-      PokeAccess::Spatial.gauge(closeness)
+      PokeAccess::Sound.gauge(closeness)
     end
 
     # Cage kick: the "kickpoint" sprite slides between @cursorMinY and @cursorMaxY, perfect at PERFECT_KICK_Y.
@@ -45,7 +46,8 @@ module PokeAccess
       span = ((hi - lo).abs / 2.0)
       span = 1.0 if span <= 0
       tick(1.0 - ((y - perfect).abs / span))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -56,7 +58,8 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :afr_kick, n.to_i, false) do
         PokeAccess::I18n.t(:afr_kick, :n => n.to_i, :total => kicks_to_fall)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -79,7 +82,8 @@ module PokeAccess
       span = [(mid - lo).abs, (hi - mid).abs].max
       span = 1.0 if span <= 0
       tick(1.0 - ((y - mid).abs / span))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -91,7 +95,8 @@ module PokeAccess
         pts = arrow_points(scene)
         pts ? PokeAccess::I18n.t(:afr_archer, :arrow => n.to_i, :n => pts) : nil
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -116,7 +121,8 @@ module PokeAccess
         open = (scene.can_access_table?(idx) rescue true)
         (name.nil? || open) ? name : PokeAccess::I18n.t(:afr_table_locked, :name => name)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

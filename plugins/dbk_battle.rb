@@ -11,7 +11,8 @@ module PokeAccess
       name = MECH[cmd] ? PokeAccess::I18n.t(MECH[cmd]) : cmd.to_s
       on = (battle.pbBattleMechanicIsRegistered?(idx, cmd) rescue nil)
       on.nil? ? name : PokeAccess::I18n.t(on ? :dbk_on : :dbk_off, :m => name)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

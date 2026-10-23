@@ -11,7 +11,8 @@ module PokeAccess
       form = (PokeAccess.ivar(scene, :@form) || 0).to_i
       fspecies = (pbGetFSpeciesFromForm(species, form) rescue species)
       PokeAccess::Data.species_types(fspecies).reject { |n| n.to_s.empty? }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -46,7 +47,8 @@ module PokeAccess
         end
       end
       points
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

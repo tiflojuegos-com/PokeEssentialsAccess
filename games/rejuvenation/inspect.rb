@@ -1,8 +1,7 @@
 module PokeAccess
-  # Rejuvenation's Inspect report (pbShowBattleStats, read by core InspectRV) paints types and statuses as icons: the
-  # rows Typing, Added, Jurisdiction, Reflected and Shadow end in <icon=typeX> marks, and a status row carries an
-  # <img=...statusX>. They are worded in each row and in the whole report on the info key. Ctrl's team preview is the
-  # game's own ttsPartyPreview, relayed.
+  # Rejuvenation's Inspect report (pbShowBattleStats, read by rv_common's InspectRV) paints types as <icon=typeX> marks
+  # and statuses as <img=...statusX>, worded in each row and in the whole report on the info key. Ctrl's team preview,
+  # the game's own ttsPartyPreview, is relayed.
   module RejuvInspect
     TYPE_RUN = /(?:<icon=type(\w+)>\s*)+/
     TYPE_ICON = /<icon=type(\w+)>/
@@ -10,7 +9,7 @@ module PokeAccess
 
     # The name of a type icon's type, through the game's getTypeName.
     def self.type_word(type)
-      PokeAccess::DataRV.type_name(type.to_sym) || type.capitalize
+      PokeAccess::DataRV.type_name(type.to_sym) || PokeAccess::Util.capitalized(type)
     end
 
     # A report row with a run of type icons as their names, a list, and a status icon as the status's word; the rest of

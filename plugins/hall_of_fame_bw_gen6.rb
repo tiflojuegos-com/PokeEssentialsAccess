@@ -1,7 +1,6 @@
-# The gen-6 BW Hall of Fame script (HallOfFameScene with writePokemonDataPC; Realidea, Uranium), a rework that never
-# calls what core hooks: read on moveSprite (each frame of an entrant's slide, deduped by index; -1 is the trainer),
-# the entry's closing card, the PC viewer's record as painted (writeNormalDataPC) and card (writePokemonDataPC). The
-# viewer picks an entrant only by a click on it: the accept key stands for a click on the front one.
+# The gen-6 BW Hall of Fame script (HallOfFameScene with writePokemonDataPC), which never calls what core hooks: read on
+# moveSprite (deduped by index; -1 is the trainer), the closing card and the PC viewer's record and card. The viewer
+# picks an entrant only by a click on it, so the accept key stands for a click on the front one.
 module PokeAccess
   module HallOfFameBWGen6
     @pc = nil
@@ -10,7 +9,8 @@ module PokeAccess
     def self.member_line(pk)
       return nil unless pk
       PokeAccess::I18n.t(:pc_slot, :name => pk.name, :level => pk.level)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -34,7 +34,8 @@ module PokeAccess
       whole[0] = signed
       PokeAccess::Info.set_info(:text, whole.join(", "))
       PokeAccess::Verbosity.line(:hall_of_fame, parts)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       member_line(pk)
     end
 
@@ -61,7 +62,8 @@ module PokeAccess
       return false unless s && !PokeAccess.ivar(s, :@selectedrecord) && Input.trigger?(Input::C)
       front = (PokeAccess.ivar(s, :@positions) || [])[0]
       front ? (args[0] == front[0] - 48 && args[1] == front[1] - 48) : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -72,7 +74,8 @@ module PokeAccess
       line = PokeAccess::Util.join_parts(rows.map { |r| PokeAccess.clean(r) }, ", ")
       key = PokeAccess::KeyHints.localize(PokeAccess::I18n.t(:hofbw_card_key))
       PokeAccess.speak(PokeAccess::Verbosity.with_hint(line, key), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -122,4 +125,4 @@ PokeAccess::Hooks.after_hook("HallOfFameScene", :writeTrainerData, :optional => 
 end
 PokeAccess::Hooks.after_hook("HallOfFameScene", :pbEndScene, :optional => true) { |_s, _r, _a| PokeAccess::Info.clear_text }
 
-PokeAccess::Verbosity.define_reading(:hall_of_fame, :vb_hall_of_fame, :vbh_hall_of_fame)
+PokeAccess::Verbosity.define_reading(:hall_of_fame, :vb_hall_of_fame, :vbh_hall_of_fame, :game)

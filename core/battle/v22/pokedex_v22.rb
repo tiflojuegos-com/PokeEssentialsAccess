@@ -33,7 +33,8 @@ module PokeAccess
         (fn && !fn.to_s.empty?) ? PokeAccess::I18n.t(:pdx_form, :name => name, :f => fn) : PokeAccess::I18n.t(:pdx_forms, :name => name)
       else info_text(vis, name, data)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -66,7 +67,8 @@ module PokeAccess
     def self.speak(vis)
       key = [PokeAccess.ivar(vis, :@page), (vis.index rescue nil)]
       PokeAccess::Cursor.announce(vis, :dex_page, key) { body(vis) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

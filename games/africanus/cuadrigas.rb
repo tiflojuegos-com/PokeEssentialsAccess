@@ -50,7 +50,8 @@ module PokeAccess
     def self.poll
       return unless @scene
       @kind == :tutorial ? tutorial(@scene) : race(@scene)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

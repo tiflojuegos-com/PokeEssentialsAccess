@@ -29,7 +29,8 @@ module PokeAccess
         bright.push([i, pk]) if pk && box.getPokemon(i).opacity >= 255
       end
       PokeAccess.speak(hits_text((storage[cur].name rescue nil), bright), false) unless bright.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

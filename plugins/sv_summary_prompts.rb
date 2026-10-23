@@ -24,4 +24,4 @@ end
   PokeAccess::Hooks.before_hook("PokemonSummary_Scene", m, :optional => true) { |_s, _a| PokeAccess::SVSummaryPrompts.arm }
 end
 # Flushed from the frame poller, which the panel's loop reaches through Input.update on its first frame.
-PokeAccess::Keys.on_frame { PokeAccess::SVSummaryPrompts.flush }
+PokeAccess::Frame.each_pulse { PokeAccess::SVSummaryPrompts.flush }

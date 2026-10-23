@@ -20,7 +20,8 @@ module PokeAccess
       @heard = false
       @text = t
       true
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -36,7 +37,8 @@ module PokeAccess
         @said = 0
       end
       flush(w, chars) if (w.pausing? rescue false) || !(w.busy? rescue true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -64,10 +66,11 @@ module PokeAccess
       tail = PokeAccess.take_tail
       PokeAccess.speak(tail, false, kind) if tail
       @win = nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       @win = nil
     end
   end
 end
 
-PokeAccess::Keys.on_frame { PokeAccess::DialoguePages.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::DialoguePages.poll }

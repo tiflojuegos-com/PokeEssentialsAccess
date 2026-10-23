@@ -6,7 +6,8 @@ module PokeAccess
     def self.level_999?(b)
       on = ($game_switches[:Level_999] rescue false) ? true : false
       on && (b.index % 2) == 1
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
   end

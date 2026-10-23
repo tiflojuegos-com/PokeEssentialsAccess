@@ -5,7 +5,8 @@ module PokeAccess
     # are 0-based; the class decides, not a version number.
     def self.one_based?
       defined?(GameData) && GameData.const_defined?(:PlayerMetadata)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -34,7 +35,8 @@ module PokeAccess
       g = gender_word(id)
       base = PokeAccess::I18n.t(:ap_number, :n => one_based? ? id : id + 1)
       PokeAccess.speak("#{base}#{g ? ', ' + g : ''}", true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -54,7 +56,8 @@ module PokeAccess
       return nil unless defined?(pbGetMetadata) && defined?(MetadataPlayerA)
       meta = (pbGetMetadata(0, MetadataPlayerA + id) rescue nil)
       meta ? meta[0] : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -65,7 +68,8 @@ module PokeAccess
       return nil unless defined?(pbGetTrainerTypeGender)
       g = (pbGetTrainerTypeGender(tt) rescue nil)
       g == 2 ? nil : g
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -80,7 +84,8 @@ module PokeAccess
     def self.selecting?
       return true if ($Trainer rescue nil).nil? && ($player rescue nil).nil?
       ($PokemonGlobal.playerID rescue 0).to_i < 0
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -92,7 +97,8 @@ module PokeAccess
       return if g == @last_picture_gender
       @last_picture_gender = g
       PokeAccess.speak(PokeAccess::I18n.t(g), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -122,3 +128,6 @@ PokeAccess::Hooks.wrap_global("pbChangePlayer", "hook_pbChangePlayer_before", :b
 PokeAccess::Hooks.wrap_global("pbChangePlayer", "hook_pbChangePlayer", :after) { |args, _r| PokeAccess::Appearance.changed(args[0]) }
 
 PokeAccess::Caches.register(:appearance_gender) { PokeAccess::Appearance.forget_picture_gender }
+
+# While the player picks an appearance the cues hold and the locator keys are the selection's.
+PokeAccess::Control.condition(:appearance, :both) { PokeAccess::Appearance.selecting? }

@@ -5,7 +5,8 @@ module PokeAccess
     # Formats a tenth-units integer (decimetres, hectograms) as one decimal, with the language's decimal_sep.
     def self.fmt_dec(v)
       fmt_float(v / 10.0)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       v.to_s
     end
 
@@ -13,7 +14,8 @@ module PokeAccess
     def self.fmt_float(f)
       s = format("%.1f", f.to_f)
       (PokeAccess::I18n.t(:decimal_sep).to_s == ",") ? s.gsub(".", ",") : s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       f.to_s
     end
 

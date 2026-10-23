@@ -64,7 +64,8 @@ module PokeAccess
       t = label(@sel)
       PokeAccess.speak(t, true) if t
       say_points if @points
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

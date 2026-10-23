@@ -1,6 +1,6 @@
 module PokeAccess
   # The PWT scoreboard (AdvancedWorldTournament#displayScoreboard), read once its names are painted: each as
-  # written, a beaten entrant (no longer in the running list) said so.
+  # written, a beaten entrant (one out of the running list) said so.
   module PWT
     def self.open(tourney)
       @tourney = tourney
@@ -31,7 +31,8 @@ module PokeAccess
         rows.push(out ? "#{name}, #{PokeAccess::I18n.t(:pwt_out)}" : name)
       end
       rows.empty? ? nil : PokeAccess::I18n.t(:pwt_board, :list => rows.join("; "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -45,4 +46,4 @@ PokeAccess::Hooks.around_hook("AdvancedWorldTournament", :displayScoreboard, :op
     PokeAccess::PWT.close
   end
 end
-PokeAccess::Keys.on_frame { PokeAccess::PWT.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::PWT.poll }

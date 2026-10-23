@@ -9,6 +9,8 @@ module AccessPreload
   @loaded = false
   @stalled = false
   @frames = 0
+  @reset = false
+  @title = nil
 
   # Records that the preload script itself executed, independent of boot succeeding, so a missing boot
   # marker can be told apart from preloadScript not running at all.
@@ -54,8 +56,39 @@ module AccessPreload
   rescue StandardError
   end
 
-  # Evaluates the toolkit once the game is ready for it (see ready?).
+  # The game's pbCallTitle as defined now (Main, the last script, defines it); nil in a game without one.
+  def self.title_method
+    Object.instance_method(:pbCallTitle)
+  rescue StandardError
+    nil
+  end
+
+  # Notes an F12 reset (mkxp-z's Reset, raised out of Graphics.update) once the toolkit is loaded: the engine then
+  # evaluates the game's scripts anew, not this preload, and their definitions replace the toolkit's wrappers.
+  def self.note_reset(e)
+    return unless @loaded && defined?(::Reset) && e.is_a?(::Reset)
+    @reset = true
+    @frames = 0
+    @title = title_method
+  end
+
+  # Once the game's scripts ran again (Main defined pbCallTitle anew, or READY_FRAME frames passed in a game without
+  # it) and no script thread still loads, has the toolkit put back the wrappers they replaced.
+  def self.after_reset
+    @frames += 1
+    return if scripts_loading?
+    now = title_method
+    return if now ? now == @title : @frames < READY_FRAME
+    @reset = false
+    PokeAccess::Hooks.after_reset if defined?(PokeAccess::Hooks) && PokeAccess::Hooks.respond_to?(:after_reset)
+  rescue Exception => e
+    raise if e.is_a?(SystemExit)
+    (File.open(ERROR_LOG, "a") { |f| f.write("after reset: #{e.class}: #{e.message}\n") } rescue nil)
+  end
+
+  # Evaluates the toolkit once the game is ready for it (see ready?); after a reset, puts its wrappers back instead.
   def self.try_load
+    return after_reset if @reset
     return if @loaded
     @frames += 1
     unless ready?
@@ -80,6 +113,9 @@ module AccessPreload
         r = update__access_preload(*a)
         AccessPreload.try_load
         r
+      rescue Exception => e
+        AccessPreload.note_reset(e)
+        raise
       end
     end
   end

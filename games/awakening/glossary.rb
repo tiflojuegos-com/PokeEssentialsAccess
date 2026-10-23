@@ -25,7 +25,8 @@ module PokeAccess
                         PokeAccess.clean((row.is_a?(Array) ? row[0] : row).to_s)
         name.empty? ? nil : PokeAccess::Verbosity.list_entry(name, i + 1, cmds.length)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -40,7 +41,8 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :awk_hist_section, real, true) do
         PokeAccess::Verbosity.list_entry(section_label(scene, names[real]), real + 1, names.length)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -51,18 +53,19 @@ module PokeAccess
       return PokeAccess::I18n.t(:awk_glos_locked) unless unlocked
       shown = (Glosario_Historia_Secciones::TRADUCCIONES_NOMBRES[raw.to_s] rescue nil) || raw.to_s
       PokeAccess.clean(shown)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       PokeAccess.clean(raw.to_s)
     end
 
-    # A section's text, page by page: the section and page are locals of mostrar_texto's loop, read off its
-    # drawn title and "n/m" stamp (the argument goes stale when paging past either end) while @cursor is hidden.
+    # A section's text, each page said once per drawn title and "n/m" stamp: section and page are locals of
+    # mostrar_texto's loop (its argument goes stale when paging past either end), read while @cursor is hidden.
     @open = nil
     @title = nil
-    @page = nil
+    @shown = nil
 
-    def self.watch(scene); @open = scene; @title = nil; @page = nil; end
-    def self.unwatch; @open = nil; @title = nil; @page = nil; end
+    def self.watch(scene); @open = scene; @title = nil; @shown = nil; end
+    def self.unwatch; @open = nil; @title = nil; @shown = nil; end
 
     def self.on_draw(text)
       return unless @open
@@ -74,14 +77,15 @@ module PokeAccess
       i = $1.to_i - 1
       title = @title
       @title = nil
-      return if i == @page
+      return if [title, i] == @shown
       return unless (PokeAccess.ivar(@open, :@cursor).visible == false rescue false)
       name = section_for(@open, title)
       return unless name
-      @page = i
+      @shown = [title, i]
       t = body(@open, name, i)
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -91,7 +95,8 @@ module PokeAccess
       names = PokeAccess.ivar(scene, :@nombres_secciones)
       return nil unless names.is_a?(Array)
       names.detect { |raw| section_label(scene, raw) == title }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -114,7 +119,8 @@ module PokeAccess
       label = section_label(scene, name)
       return "#{label}. #{text}" unless PokeAccess::Verbosity.keep?(:positions, :medium)
       PokeAccess::I18n.t(:awk_glos_bio, :name => label, :page => i + 1, :pages => pages.length, :text => text)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

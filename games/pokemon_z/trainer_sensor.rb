@@ -15,7 +15,8 @@ module PokeAccess
       on = (sensor.triggered? rescue false) ? true : false
       PokeAccess.speak(PokeAccess::I18n.t(:trainer_near), false) if on && !@shown && opaque?(sensor)
       @shown = on
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

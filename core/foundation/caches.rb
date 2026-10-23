@@ -1,12 +1,15 @@
 module PokeAccess
   # Registry of per-run cache resets (audio3d's emitters, the locator's targets, the pathfinder's grid...), all run
-  # by reset_all on :map_changed, which loading a save fires too, even onto the same map.
+  # by reset_all on :map_changed, which loading a save fires too, even onto the same map. They run in registration
+  # order, kept in a list: a Hash has no order under Ruby 1.8.7.
   module Caches
-    @resets = {}
+    @resets = []
 
-    # Registers the block that drops a module's cached state; registering the same name again replaces it.
+    # Registers the block that drops a module's cached state; registering the same name again replaces it in place.
     def self.register(name, &block)
-      @resets[name] = block
+      i = @resets.index { |r| r[0] == name }
+      i ? @resets[i] = [name, block] : @resets.push([name, block])
+      name
     end
 
     # Runs every registered reset; a failing one is logged once and does not stop the others.
@@ -21,7 +24,7 @@ module PokeAccess
     end
 
     # The registered cache names (for diagnostics).
-    def self.names; @resets.keys; end
+    def self.names; @resets.map { |r| r[0] }; end
   end
 end
 

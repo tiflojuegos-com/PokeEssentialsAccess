@@ -23,5 +23,7 @@
     speech_bubbles
     game_lang
     shuffle_progress
+    passability
+    intro_movie
   ]
 }

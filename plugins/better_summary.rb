@@ -9,7 +9,8 @@ module PokeAccess
       return if name.empty?
       desc = PokeAccess.clean((a.description rescue "").to_s)
       PokeAccess.speak(PokeAccess::Util.join_parts([name, desc] + extras(pkmn)), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -21,7 +22,8 @@ module PokeAccess
       it = ((pkmn.hasItem? rescue false) ? (pkmn.item.name rescue nil) : nil)
       out.push(PokeAccess::I18n.t(:sum_item, :i => it || PokeAccess::I18n.t(:bs_no_item)))
       out
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
   end

@@ -6,4 +6,4 @@ PokeAccess::Hooks.after_hook("Incubadora", :refresh, :optional => true) do |scen
 end
 PokeAccess::Hooks.after_hook("Incubadora", :dispose, :optional => true) { |_s, _r, _a| PokeAccess::Info.clear_text }
 
-PokeAccess::Verbosity.define_reading(:incubator, :vb_incubator, :vbh_incubator)
+PokeAccess::Verbosity.define_reading(:incubator, :vb_incubator, :vbh_incubator, :game)

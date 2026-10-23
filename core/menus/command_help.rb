@@ -34,7 +34,8 @@ module PokeAccess
       PokeAccess::Info.set_info(:text, txt)
       return unless (PokeAccess::Config.read_help rescue true) && PokeAccess::Verbosity.descriptions?
       @held ? @held[0].push(txt) : PokeAccess.speak(txt, false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -50,7 +51,7 @@ module PokeAccess
   end
 end
 
-PokeAccess::Keys.on_frame { PokeAccess::CommandHelp.release }
+PokeAccess::Frame.each_pulse { PokeAccess::CommandHelp.release }
 
 # Marks the running variant around pbShowCommandsWithHelp, pbShowCommandsWithHelpAndText (Pokémon Z's ability
 # changer) and Reminiscencia's pbShowCommandsRogue; Añil's MessageUI helper is marked from its profile.

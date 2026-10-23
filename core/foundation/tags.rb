@@ -59,7 +59,7 @@ module PokeAccess
     # Forgets an object's whole record (name, category, hidden) and persists; set with "" clears only the name.
     def self.delete(mid, eid)
       evs = store[mid]
-      return unless evs && evs.has_key?(eid)
+      return unless evs && evs.key?(eid)
       evs.delete(eid)
       store.delete(mid) if evs.empty?
       save
@@ -115,7 +115,7 @@ module PokeAccess
     end
 
     def self.has_entry?(store, key)
-      !!(store[key[0]] && store[key[0]].has_key?(key[1]))
+      !!(store[key[0]] && store[key[0]].key?(key[1]))
     end
 
     def self.put_entry(store, key, r)

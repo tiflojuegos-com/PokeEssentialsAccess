@@ -27,7 +27,8 @@ module PokeAccess
           name
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -59,7 +60,8 @@ module PokeAccess
       t = PokeAccess.clean(text.to_s)
       return if t.empty?
       PokeAccess.speak(t, false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -84,7 +86,8 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :rem_help_list, idx, true) do
         PokeAccess::Verbosity.list_entry(name, idx + 1, total)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -112,7 +115,8 @@ module PokeAccess
       return if lines.empty?
       t = lines.join(". ")
       PokeAccess::Cursor.announce(@help, :rem_help_info, t, true) { t }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

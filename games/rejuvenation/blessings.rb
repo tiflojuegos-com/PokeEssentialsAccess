@@ -1,8 +1,6 @@
 module PokeAccess
-  # The blessings of Rejuvenation's Xen tower: the pick after a floor (BlessingsScene), up to three painted boxes, each
-  # a blessing's name with its rank in Roman numerals over its description, chosen with up and down; and the overlay
-  # of those gained (BlessingsOverlay, X on the tower's map or Shift in battle), a grid of icons whose info window
-  # names the one under the cursor.
+  # The blessings of Rejuvenation's Xen tower: the pick after a floor (BlessingsScene), up to three painted boxes, and
+  # the overlay of those gained (BlessingsOverlay), a grid of icons whose info window names the one under the cursor.
   module RejuvBlessings
     # How many places the pick's arrow stops at: each box, and a third, empty one once there are two, since the
     # arrow wraps at three.
@@ -19,15 +17,9 @@ module PokeAccess
       rank = PokeAccess.ivar(PokeAccess.sprite(scene, "blessing#{i}"), :@rank)
       PokeAccess::I18n.t(:rj_blessing, :name => PokeAccess.clean(getBlessingName(b)), :rank => rank,
                          :desc => PokeAccess.clean(getBlessingDesc(b, rank)), :i => i + 1, :n => n)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
-    end
-
-    # Says the focused blessing when the arrow lands on a new one: the first queued, later moves cutting in.
-    def self.follow(scene)
-      i = PokeAccess.ivar(scene, :@index)
-      return unless i.is_a?(Integer)
-      PokeAccess::Cursor.announce(scene, :rj_blessing, i, true, false) { text(scene, i) }
     end
 
     # The blessing under the overlay's cursor as its info window paints it: name, rank and description, then its
@@ -42,7 +34,8 @@ module PokeAccess
       line = PokeAccess::I18n.t(:rj_blessing, :name => PokeAccess.clean(getBlessingName(b)), :rank => rank,
                                 :desc => PokeAccess.clean(getBlessingDesc(b, rank, true)), :i => i + 1, :n => list.length)
       PokeAccess.sentences([line] + rules)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -67,8 +60,8 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("rejuvenation") do
-  after("BlessingsScene", :changeIndex, :optional => true) do |scene, _r, _a|
-    PokeAccess::RejuvBlessings.follow(scene)
+  focus_reader("BlessingsScene", :on => :changeIndex, :slot => :rj_blessing, :optional => true) do |i, scene|
+    PokeAccess::RejuvBlessings.text(scene, i)
   end
 
   before("BlessingsOverlay", :focus, :optional => true) do |ov, _a|

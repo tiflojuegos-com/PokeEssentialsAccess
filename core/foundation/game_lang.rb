@@ -30,7 +30,8 @@ module PokeAccess
       f.to_s.index(".").nil? &&
         (File.exist?("Data/messages_#{f}_core.dat") || File.exist?("Data/messages_#{f}_game.dat") ||
          File.exist?("Data/messages_#{f}.dat"))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -47,7 +48,8 @@ module PokeAccess
       return nil if name.nil? || name.to_s.empty?
       return nil unless message_file?(file)
       name.to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -57,10 +59,11 @@ module PokeAccess
       n = declared_name
       return nil unless n
       key = n.to_s.downcase.gsub(/[^a-z]/, "")
-      return NAMES[key] if NAMES.has_key?(key)
+      return NAMES[key] if NAMES.key?(key)
       hit = NAMES.keys.find { |k| key.index(k) == 0 }
       hit ? NAMES[hit] : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

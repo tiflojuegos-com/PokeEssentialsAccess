@@ -1,7 +1,6 @@
-# The species cursor Soulstones 2's edited Encounter List UI adds (JumpUp/JumpDown), said with its position; the
-# info key keeps the species with its state. The shared reader reads each page whole. A negative @idx (JumpUp after
-# a page change) marks the species from the end, as the game draws it. Action shows or hides a layer of type icons
-# over the species: while shown, the cursor adds the types, and the switch itself is said.
+# The species cursor Soulstones 2's edited Encounter List UI adds (JumpUp/JumpDown), said with its position, and with
+# the types while Action shows their icons (the toggle is said); the info key keeps the species with its state. A
+# negative @idx (JumpUp after a page change) counts from the end, as the game draws it.
 module PokeAccess
   module SS2EncounterTypes
     # The species under the cursor as [its place on the page, species, how many the page holds], or nil.

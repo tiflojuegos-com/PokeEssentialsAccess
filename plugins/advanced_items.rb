@@ -12,7 +12,8 @@ module PokeAccess
       return if name.empty?
       who = holder_name(cmds[idx])
       PokeAccess::Cursor.announce(scene, :advanced_items, idx) { who ? "#{name}, #{who}" : name }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -25,7 +26,8 @@ module PokeAccess
       pk = (party.is_a?(Array) ? party[i] : nil)
       n = (pk.name rescue nil)
       (n && !n.to_s.empty?) ? n : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -46,12 +48,12 @@ module PokeAccess
   module RockClimbAIFM
     # True if (x,y) is climbable rock.
     def self.rock?(x, y)
-      PokeAccess::Terrain.flag_at?(x, y, :rockclimb)
+      PokeAccess::World::Terrain.flag?(x, y, :rockclimb)
     end
 
     # Where a climb begun from (x,y) facing d sets the player down, as [x, y], or nil.
     def self.climb(x, y, d)
-      pf = PokeAccess::Pathfinder
+      cap = PokeAccess::Routes::Moves::ARRIVAL_CAP
       dd = PokeAccess::DIR_DELTA[d]
       cx = x + dd[0]; cy = y + dd[1]
       return nil unless rock?(cx, cy)
@@ -59,9 +61,9 @@ module PokeAccess
       while (hold = next_hold(cx, cy, d))
         cx, cy = hold
         steps += 1
-        return nil if steps > pf::ARRIVAL_CAP
+        return nil if steps > cap
       end
-      pf.landing(cx + dd[0], cy + dd[1])
+      PokeAccess::World::Probe.landing(cx + dd[0], cy + dd[1])
     end
 
     # The next tile of rock the plugin moves a climber to from (x,y) facing d, or nil at the end of it.
@@ -76,8 +78,19 @@ module PokeAccess
   end
 end
 
-PokeAccess::Pathfinder.assist_source do |x, y, dir, lvl|
+PokeAccess::Routes::Moves.assist_source(:front_flags => [:rockclimb]) do |x, y, dir, lvl|
   l = PokeAccess::RockClimbAIFM.climb(x, y, dir[2])
   next nil if l.nil?
-  PokeAccess::Pathfinder::Step.new(l[0], l[1], lvl, 1, { :kind => :field, :label => :loc_rock_climb, :move => :ROCKCLIMB, :x => x + dir[0], :y => y + dir[1] })
+  PokeAccess::Routes::Moves::Step.new(l[0], l[1], lvl, 1, { :kind => :field, :label => :loc_rock_climb, :move => :ROCKCLIMB, :x => x + dir[0], :y => y + dir[1] })
+end
+
+# The climb moves the player by itself frame after frame ($PokemonGlobal.forced_rockclimb?): a forced move, told where
+# it left them.
+PokeAccess::Control.carrier(:rock_climb) { $PokemonGlobal.forced_rockclimb? }
+
+# The plugin's player passability (Game_Map#playerPassable?) also reads the lava surf and the rock climb, which join
+# the probe's mode.
+PokeAccess::World::Probe.mode_reader do
+  g = $PokemonGlobal
+  [(g.lavasurfing rescue nil) ? true : false, (g.rockclimb rescue nil) ? true : false]
 end

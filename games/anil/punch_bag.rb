@@ -32,8 +32,9 @@ module PokeAccess
       return if PokeAccess.ivar(s, :@pa_arrow_x) == x.round
       s.instance_variable_set(:@pa_arrow_x, x.round)
       half = (PokeAccess.const_at("PunchBag::Scene::BAR_LEFT_SIZE") || 128).to_f
-      PokeAccess::Spatial.gauge(1.0 - ((x - mid).abs / half))
-    rescue StandardError
+      PokeAccess::Sound.gauge(1.0 - ((x - mid).abs / half))
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

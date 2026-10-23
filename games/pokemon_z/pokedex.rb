@@ -30,7 +30,8 @@ module PokeAccess
         move_page(out, scene, :@machineMovesArray, page - infoP - lvlP - eggP)
       end
       out.join(" ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

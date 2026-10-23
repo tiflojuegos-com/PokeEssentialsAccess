@@ -1,7 +1,7 @@
 module PokeAccess
   # The input orchestrator (PokeAccess::Keys, not RGSS ::Input): the mod's on/off, the global poll, the suppression
-  # windows, configured key names and the per-frame pollers. Raw keys are Keyboard's and focus is Focus's, reached
-  # through delegations and re-exports; the diagnostics live in input/diag.rb.
+  # windows and the configured key names. Raw keys are Keyboard's, focus is Focus's and the per-frame beat is Frame's;
+  # the diagnostics live in input/diag.rb.
   module Keys
     GAKS  = PokeAccess::Keyboard::GAKS
     GFW   = PokeAccess::Focus::GFW
@@ -24,15 +24,15 @@ module PokeAccess
     def self.mark_focused; PokeAccess::Focus.mark_focused; end
 
     # True only on the frame one of the mod's global gestures fires: Ctrl+Alt+<function key>, the shape all
-    # three of them share (F8 toggle, F9 diag dump, F10 spoken diag). slot keeps their edges independent.
-    def self.hotkey?(slot, fkey)
+    # three of them share (F8 toggle, F9 diag dump, F10 spoken diag).
+    def self.hotkey?(fkey)
       kb = PokeAccess::Keyboard
-      kb.combo_triggered?(slot, kb::VK_CONTROL, kb::VK_ALT, fkey)
+      kb.chord_pressed?(kb::VK_CONTROL, kb::VK_ALT, fkey)
     end
 
     # Toggles the whole mod with Ctrl+Alt+F8, polled even while disabled; re-enabling retries a failed speech init.
     def self.toggle_poll
-      return unless hotkey?(:mod_toggle, PokeAccess::Keyboard::VK_F8)
+      return unless hotkey?(PokeAccess::Keyboard::VK_F8)
       @enabled = !@enabled
       (PokeAccess.retry_init! rescue nil) if @enabled
       PokeAccess.speak(PokeAccess::I18n.t(@enabled ? :mod_on : :mod_off), true, :system)
@@ -63,33 +63,26 @@ module PokeAccess
     def self.key(name)
       code = PokeAccess::Config.keys[name]
       return false unless code
-      hit = PokeAccess::Keyboard.triggered?(name, code)
+      hit = PokeAccess::Keyboard.pressed?(code)
       (PokeAccess::Recorder.note_key(name) rescue nil) if hit
       hit
     end
 
-    # True while the configured shift key (Config.keys[:shift]) is held.
+    # True while the configured shift key (Config.keys[:shift]) is held; an unbound one is never held.
     def self.shift_down?
-      PokeAccess::Keyboard.raw_down?(PokeAccess::Config.keys[:shift])
+      code = PokeAccess::Config.keys[:shift]
+      code ? PokeAccess::Keyboard.raw_down?(code) : false
     end
 
     # True while the control key is held (configurable, like shift_down?).
     def self.ctrl_down?
-      PokeAccess::Keyboard.raw_down?(PokeAccess::Config.keys[:ctrl])
-    end
-
-    # Whether the puzzle reader answers the info key: only on the map under free control, since a puzzle with no
-    # solved state stays active all session.
-    def self.puzzle_owns_info?
-      return false if (PokeAccess::Spatial.keys_locked? rescue false)
-      return false unless ($scene.is_a?(Scene_Map) rescue true)
-      (PokeAccess::Puzzles.active? rescue false)
-    rescue StandardError
-      false
+      code = PokeAccess::Config.keys[:ctrl]
+      code ? PokeAccess::Keyboard.raw_down?(code) : false
     end
 
     # The once-per-frame poll: the global hotkeys, then the contextual keys (info, hp, field, history, verbosity) and
-    # the coordinates key, this one only while the player is free; each answer is filed under its category.
+    # the coordinates key, this one only while the locator keys are free (a message or a cutscene leaves them free) and
+    # out of battle; each answer is filed under its category.
     def self.global_poll
       PokeAccess::Speech.as(:system) do
         toggle_poll
@@ -116,7 +109,7 @@ module PokeAccess
         PokeAccess::Speech.as(:info) { PokeAccess::Battle.announce_hp(shift_down?) }
       elsif key(:field)
         field_key
-      elsif key(:coords) && !(PokeAccess::Spatial.busy? rescue false)
+      elsif key(:coords) && PokeAccess::Control.keys? && !PokeAccess::Battle.in_battle?
         PokeAccess::Speech.as(:nav) { coords_key }
       elsif key(:hist_prev)
         history_key(-1)
@@ -127,8 +120,8 @@ module PokeAccess
       end
     end
 
-    # The info key: the last dialogue with shift, the focused row whole with ctrl, a puzzle's state on the map, else
-    # what the screen published. Ctrl on a screen with no row says what the key alone says.
+    # The info key: the last dialogue with shift, the focused row whole with ctrl, else what the screen published (on
+    # the map, its owners' line: Info.map_text). Ctrl on a screen with no row says what the key alone says.
     def self.info_key
       row = ctrl_down? ? PokeAccess::Info.row_text : nil
       if shift_down?
@@ -136,8 +129,6 @@ module PokeAccess
         PokeAccess.speak((d && !d.to_s.empty?) ? d : PokeAccess::I18n.t(:no_recent_dialogue), true)
       elsif row
         PokeAccess.speak(row, true)
-      elsif puzzle_owns_info?
-        PokeAccess::Puzzles.read
       else
         PokeAccess.speak(PokeAccess::Info.info_text, true)
       end
@@ -146,10 +137,17 @@ module PokeAccess
     # The field key: a marker on the player's tile with ctrl (navigation), else the conditions (information).
     def self.field_key
       if ctrl_down?
-        PokeAccess::Speech.as(:nav) { PokeAccess::Locator.mark_here }
+        PokeAccess::Speech.as(:nav) { mark_key }
       else
         PokeAccess::Speech.as(:info) { PokeAccess::Battle.announce_field }
       end
+    end
+
+    # Ctrl with the field key: a marker on the player's tile, unless a battle (which keeps the map scene) or a screen
+    # locks the locator keys, where it says markers go on the map.
+    def self.mark_key
+      return PokeAccess::Locator.mark_here if PokeAccess::Control.keys? && !PokeAccess::Battle.in_battle?
+      PokeAccess.speak(PokeAccess::I18n.t(:mark_map_only), true)
     end
 
     # The coordinates key: hide the unreachable targets with ctrl, rename the map with shift, else where the
@@ -176,44 +174,5 @@ module PokeAccess
         PokeAccess::History.step(dir)
       end
     end
-
-    # Registers a block to run once per frame after the global poll, in every scene (Game.define's poll_each_frame).
-    def self.on_frame(&blk); (@frame_pollers ||= []) << blk if blk; end
-
-    # Runs every registered per-frame callback, each guarded so one failure cannot stop the others.
-    def self.run_frame_pollers
-      (@frame_pollers || []).each_with_index do |cb, i|
-        begin
-          cb.call
-        rescue StandardError => e
-          PokeAccess.log_once("frame_poller_#{i}", e)
-        end
-      end
-    end
   end
-end
-
-# Input.update hook: the remap, the global poll and every per-frame poller, each frame in every context, measured
-# as :input_frame and guarded as a whole.
-begin
-  class << Input
-    unless method_defined?(:update__access_orig)
-      alias_method :update__access_orig, :update
-      def update(*a)
-        r = update__access_orig(*a)
-        begin
-          PokeAccess::Perf.measure(:input_frame) do
-            begin; PokeAccess::Remap.update; rescue StandardError => e; PokeAccess.log_once("remap_update", e); end
-            begin; PokeAccess::Keys.global_poll; rescue StandardError => e; PokeAccess.log_once("global_poll", e); end
-            begin; PokeAccess::Keys.run_frame_pollers; rescue StandardError => e; PokeAccess.log_once("frame_pollers", e); end
-          end
-        rescue StandardError => e
-          PokeAccess.log_once("input_frame", e)
-        end
-        r
-      end
-    end
-  end
-rescue StandardError => e
-  PokeAccess.write_marker("hook_input: #{e.message}\n")
 end

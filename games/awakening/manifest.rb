@@ -21,6 +21,7 @@
     tea_time
     psyduck_hunt
     quests
+    passability
   ],
-  :plugins => %w[advanced_pokedex easy_questing gender_selection item_crafting logros text_log book_scene hatcher simple_encounter_list magic_gachapon slide_banners luka_title pokemon_achievements quest_marker kyu_autosave]
+  :plugins => %w[advanced_pokedex easy_questing gender_selection item_crafting logros text_log book_scene hatcher simple_encounter_list magic_gachapon slide_banners luka_title pokemon_achievements quest_marker kyu_autosave teleport_menu]
 }

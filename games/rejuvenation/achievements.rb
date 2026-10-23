@@ -15,7 +15,8 @@ module PokeAccess
       PokeAccess::I18n.t(:rj_achievement, :name => PokeAccess.clean(a[:name]), :lvl => mine.getLevel(k),
                          :max => levels.length, :desc => PokeAccess.clean(a[:description]),
                          :prog => mine.getProgress(k), :goal => mine.getMilestone(k))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

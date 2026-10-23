@@ -1,8 +1,6 @@
-# Reborn's Theme Teams pick in the Nightclub (pbShowThemeTeams): the trainers on offer drawn as their overworld sprites,
-# six to a row, with an arrow over the one picked and no text at all. The names, the pick and the arrow are locals of
-# the function: a line trace bound to it alone (TracePoint with a target, Ruby 2.6 on; Reborn runs 3.1) keeps the
-# frame of its first line, and each frame of its loop the trainer under the arrow is read from there, said as the arrow
-# is drawn and each time it moves.
+# Reborn's Theme Teams pick (pbShowThemeTeams) draws the trainers as sprites with an arrow and no text, keeping names,
+# pick and arrow in locals: a line trace bound to it alone (TracePoint with a target, Ruby 2.6 on; Reborn runs 3.1)
+# keeps its frame, from which the trainer under the arrow is said as the arrow is drawn and each time it moves.
 module PokeAccess
   module RebornThemeTeams
     # The pick as the game defines it, taken before the profile wraps it: the trace binds to its own lines.
@@ -30,7 +28,8 @@ module PokeAccess
       first = @said.nil?
       @said = at[0]
       PokeAccess.speak(PokeAccess::Verbosity.list_entry(at[1], at[0] + 1, at[2]), !first)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -45,7 +44,8 @@ module PokeAccess
       trace = TracePoint.new(:line) { |tp| PokeAccess::RebornThemeTeams.catch_frame(tp) }
       trace.enable(:target => ORIGINAL)
       trace
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

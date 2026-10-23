@@ -10,7 +10,8 @@ module PokeAccess
     # True for a Nuclear Pokemon the summary marks RAD: corrupted and not yet cured.
     def self.corrupted?(pk)
       (pk.isNuclear? && !pk.nuclearFree) ? true : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -62,7 +63,8 @@ module PokeAccess
       ev = pk.ev
       PokeAccess::I18n.t(:sm_ivev, :hpi => iv[0], :hpe => ev[0], :ai => iv[1], :ae => ev[1], :di => iv[2], :de => ev[2],
                          :sai => iv[4], :sae => ev[4], :sdi => iv[5], :sde => ev[5], :si => iv[3], :se => ev[3])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

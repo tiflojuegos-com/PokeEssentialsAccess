@@ -58,7 +58,8 @@ module PokeAccess
         return scene.pbGetHealingSpot(xy[0], xy[1])
       rescue ArgumentError
         nil
-      rescue StandardError
+      rescue StandardError => e
+        PokeAccess.swallowed(e)
         return nil
       end
       (scene.pbGetHealingSpot(PokeAccess.ivar(scene, :@map), xy[0], xy[1]) rescue nil)
@@ -71,7 +72,8 @@ module PokeAccess
       v = ($PokemonGlobal.visitedMaps rescue nil)
       return true if v.nil?
       v[id] ? true : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       true
     end
 
@@ -187,7 +189,7 @@ PokeAccess::TownMap::DIRS = [[:prev, :left], [:next, :right], [:route, :up], [:w
 # Drops the open scene on a map change too, in case a close hook failed to bind and left the keys hijacked.
 PokeAccess::Caches.register(:town_map_open) { PokeAccess::TownMap.closed(nil) }
 
-PokeAccess::Keys.on_frame do
+PokeAccess::Frame.each_pulse do
   scene = PokeAccess::TownMap.open_scene
   if scene && (PokeAccess::Keys.enabled rescue true) && (PokeAccess::Keys.focused? rescue true)
     PokeAccess::TownMap::DIRS.each do |sym, dir|

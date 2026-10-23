@@ -45,7 +45,8 @@ module PokeAccess
       names = rows.select { |c| (c.controlAction rescue nil) == label }.map { |c| (c.keyName rescue nil).to_s }
       names = names.reject { |n| n.empty? }.uniq
       names.empty? ? nil : names.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -68,7 +69,8 @@ module PokeAccess
         c.checked = !c.checked
         PokeAccess.speak(PokeAccess::I18n.t(c.checked ? :val_on : :val_off), true)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

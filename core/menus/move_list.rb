@@ -9,7 +9,8 @@ module PokeAccess
       return nil unless moves.is_a?(Array) && idx && idx >= 0 && idx < moves.length
       m = moves[idx]
       m.is_a?(Array) ? m[0] : m
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -19,7 +20,8 @@ module PokeAccess
       idx = (PokeAccess.sprite(scene, "commands").index rescue nil)
       return "" unless moves.is_a?(Array) && idx && idx >= 0 && idx < moves.length && moves[idx].is_a?(Array)
       PokeAccess.clean(moves[idx][1].to_s)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       ""
     end
 
@@ -46,7 +48,8 @@ module PokeAccess
       head = title(scene)
       line = "#{head}. #{line}" if head && !head.empty? && PokeAccess::Cursor.changed?(scene, :move_list_title, head)
       PokeAccess.speak(line, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

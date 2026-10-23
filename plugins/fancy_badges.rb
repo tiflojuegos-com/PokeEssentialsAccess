@@ -6,7 +6,8 @@ module PokeAccess
     def self.badge_name(n)
       names = PokeAccess.const_at("FANCY_BADGE_NAMES") || PokeAccess.const_at("FancyBadges::NAMES")
       names.is_a?(Array) ? names[n.to_i] : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

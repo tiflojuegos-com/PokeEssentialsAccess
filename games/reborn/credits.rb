@@ -16,7 +16,8 @@ module PokeAccess
       lines = lines.reject { |l| l =~ /\A<[LT]>/ } if anna
       lines = lines.reject { |l| l =~ /\A<[AH]>/ } unless anna || ($game_switches[1941] rescue false)
       lines
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

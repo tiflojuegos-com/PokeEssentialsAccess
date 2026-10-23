@@ -1,7 +1,6 @@
-# FL's Advanced Pokedex (Relict, Soulstones; Awakening behind switch 199): a fourth entry page whose sub-pages, the
-# species' data and its moves by level, egg, machine and tutor, displaySubPage paints outside drawPage. Read from the
-# paint, column by column, then "sub-page n/total"; on the way in the name and types lead. The v17 copies leave a label
-# with no value empty ("HOLD ITEMS: " above "EVO: ..."); Relict's writes "None".
+# FL's Advanced Pokedex: a fourth entry page whose sub-pages displaySubPage paints outside drawPage, read from the
+# paint column by column, then "sub-page n/total", the name and types first on the way in. The v17 copies leave a
+# label with no value empty ("HOLD ITEMS: " above "EVO: ..."); Relict's writes "None".
 module PokeAccess
   module AdvancedPokedex
     # A painted row that opens with a label of its own ("EVO: Ivysaur at level 16", or a bare "HOLD ITEMS:").
@@ -77,7 +76,8 @@ module PokeAccess
       return list.map { |t| (GameData::Type.get(t).name rescue t.to_s) } if list.is_a?(Array) && !list.empty?
       ids = [PokeAccess.ivar(scene, :@type1), PokeAccess.ivar(scene, :@type2)].compact.uniq
       ids.map { |t| PokeAccess::Data.type_name(t) }.compact
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -87,7 +87,8 @@ module PokeAccess
       return if t.nil?
       return unless PokeAccess::Cursor.changed?(scene, :adv_dex, t)
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

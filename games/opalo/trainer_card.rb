@@ -44,7 +44,8 @@ module PokeAccess
       parts.push(started) if started
       parts.push(PokeAccess::I18n.t(:tcard_to_badges, :key => PokeAccess::KeyHints.key(:c, "C"))) if PokeAccess::Verbosity.hints?
       parts.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -68,7 +69,8 @@ module PokeAccess
       end
       parts.push(PokeAccess::I18n.t(:tcard_to_main, :key => PokeAccess::KeyHints.key(:c, "C"))) if PokeAccess::Verbosity.hints?
       parts.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

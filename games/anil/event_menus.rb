@@ -3,10 +3,8 @@ module PokeAccess
   # confirmation sets (MenuCompSel switch 110 "Modo Completo", MenuRandSel switch 111 "Modo Radical").
 end
 
-# The new-game character slider (one picture swapped between three portraits, the player set only on confirm), the
-# picture that asks for more detail of the chosen look (three portraits side by side over the Left, Middle and Right
-# choice, described by position) and the mode menu of the "Modo Juego" map the intro ends on, named by picture; the
-# slider's third portrait is the character Yellow, said by name in every language.
+# The new-game character slider, the look-detail picture (three portraits over the Left, Middle and Right choice) and
+# the "Modo Juego" mode menu, named by picture; the slider's third portrait, Yellow, is said by name in every language.
 PokeAccess::Game.define("anil") do
   picture_texts(
     "introGirl" => :ap_girl,

@@ -19,6 +19,14 @@ module PokeAccess
       @params = nil
       @param = nil
     end
+
+    # A filter's sub-screen opening: its dedup slots reset, those of the older screen's one sub-list window too, which
+    # every filter shares and which reopens on the value it was left on.
+    def self.sub_list_opened(scene)
+      PokeAccess::Cursor.reset(scene, :dex_search_param)
+      aux = PokeAccess.sprite(scene, "auxlist")
+      PokeAccess::Cursor.reset(aux, :cmd_focus) if aux
+    end
   end
 end
 
@@ -33,9 +41,10 @@ end
   PokeAccess::Hooks.before_hook(cn, :pbDexSearch, :optional => true) do |scene, _a|
     PokeAccess::Cursor.reset(scene, :dex_search)
     PokeAccess::Cursor.reset(scene, :dex_search_param)
+    PokeAccess::Cursor.reset(scene, :dex_search_group)
   end
   PokeAccess::Hooks.before_hook(cn, :pbDexSearchCommands, :optional => true) do |scene, _a|
-    PokeAccess::Cursor.reset(scene, :dex_search_param)
+    PokeAccess::DexSearch.sub_list_opened(scene)
   end
 end
 

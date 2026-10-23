@@ -25,7 +25,8 @@ module PokeAccess
         text = PokeAccess.sentences([PokeAccess.clean(ask.to_s), text])
       end
       PokeAccess.speak_clean(text, !first, :menu) unless text.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

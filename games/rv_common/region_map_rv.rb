@@ -20,7 +20,8 @@ module PokeAccess
         out.push(name) if [sx, sy] == [x, y] && name
       end
       out
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
   end

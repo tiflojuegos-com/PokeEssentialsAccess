@@ -8,14 +8,13 @@ module PokeAccess
       rows = ordered(PokeAccess::PaintCapture.take_pairs(:sum_habilidades))
       return if rows.empty?
       PokeAccess.speak_clean(rows.join(", "), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # The sheet's rows as take_pairs gives them, in paint order but for three: a label ending in a colon takes the
-    # value painted right of it on its line (the ability, painted after the header below it), a lone sex sign joins
-    # the row left of it on its line (the name), and a paragraph follows the row above it at its left edge (the
-    # ability's description, painted last).
+    # The sheet's rows in paint order but for three: a label ending in a colon takes the value right of it on its line,
+    # a lone sex sign joins the row left of it, and a paragraph follows the row above it at its left edge.
     def self.ordered(pairs)
       rest = Array(pairs).dup
       out = []
@@ -67,7 +66,8 @@ module PokeAccess
       return text unless page == 3 && text && scene.respond_to?(:Habilidades) && PokeAccess::Verbosity.hints?
       key = PokeAccess::KeyHints.localize(PokeAccess::I18n.t(:sumh_key))
       text.to_s.end_with?(key) ? text : PokeAccess.sentences([text, key])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       text
     end
   end
@@ -78,7 +78,7 @@ PokeAccess::Hooks.before_hook("PokemonSummaryScene", :Habilidades, :optional => 
   PokeAccess::Summary.forget_page(s)
   PokeAccess::PaintCapture.arm(:sum_habilidades)
 end
-PokeAccess::Keys.on_frame { PokeAccess::SummaryHabilidades.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::SummaryHabilidades.poll }
 
 PokeAccess::Hooks.override(PokeAccess::Summary, :speak_page, :tag => "summary_habilidades") do |_mod, original, args|
   args[3] = PokeAccess::SummaryHabilidades.with_key(args[0], args[2], args[3])

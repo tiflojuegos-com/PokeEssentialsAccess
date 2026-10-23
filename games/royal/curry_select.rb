@@ -16,7 +16,8 @@ module PokeAccess
       when :Type, :TypeText, :TypeIcon then (GameData::Type.get(pbBerryGetNaturalGift(item)[0]).name rescue nil)
       else (GameData::BerryColor.get(data.color).name rescue nil)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

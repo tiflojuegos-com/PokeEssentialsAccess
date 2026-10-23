@@ -14,7 +14,8 @@ module PokeAccess
       return false if defined?(::Pokemon) && v.is_a?(::Pokemon)
       return true if defined?(GameData::Species) && v.is_a?(GameData::Species)
       v.respond_to?(:head_pokemon)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -31,13 +32,13 @@ module PokeAccess
       base = nb
       id = (side == 0) ? (a * base + b) : (b * base + a)
       (GameData::Species.get(id) rescue nil)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # A fusion as spoken: its name plus which Pokemon gives the head and which the body. With the screen, at the
-    # Pokemon choice reading's level: from medium the types it draws under the sprite and whether the Pokedex has
-    # not seen it (its tinted sprite), at full what the tint's colour tells and the level it draws.
+    # A fusion as spoken: its name and the Pokemon that give its head and body; with the screen, also the types and
+    # unseen mark it draws from the Pokemon choice reading's medium level, and the tint's colour and the level at full.
     # param side the screen's side (0 left, 1 right) the fusion is drawn on, for its tint
     def self.describe(sp, scene = nil, side = nil)
       return nil if sp.nil?
@@ -58,7 +59,8 @@ module PokeAccess
       level = PokeAccess.ivar(scene, :@access_if_level)
       parts.push([PokeAccess::I18n.t(:if_fusion_level, :n => level), :full]) if level
       PokeAccess::Verbosity.line(:pokemon_choice, parts)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -72,7 +74,8 @@ module PokeAccess
     # Whether the Pokedex has not seen a fusion, which draw_window tints; a game that cannot tell says nothing.
     def self.unseen?(sp)
       !$Trainer.seen?(sp.id_number)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -84,14 +87,16 @@ module PokeAccess
       pif = PokeAccess.ivar(scene, side == 0 ? :@sprite_left : :@sprite_right)
       return PokeAccess::I18n.t(:if_sprite_local) if (pif.local_path rescue nil)
       PokeAccess::I18n.t(customSpriteExistsSpecies(sp.id_number) ? :if_sprite_custom : :if_sprite_auto)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
     # Keeps the level drawFusionInformation paints ("Lv. N", the same on both sides) where the screen draws one.
     def self.note_level(scene, level)
       scene.instance_variable_set(:@access_if_level, level) if PokeAccess.ivar(scene, :@draw_level) && level
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -107,7 +112,8 @@ module PokeAccess
           d || (PokeAccess.ivar(scene, :@poke1) ? PokeAccess::I18n.t(:if_fusion_unknown) : nil)
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -121,4 +127,4 @@ PokeAccess::Game.define("infinitefusion_common") do
   after("DoublePreviewScreen", :updateSelectionGraphics) { |s, _r, _a| PokeAccess::IFFusionPreview.focus(s) }
 end
 
-PokeAccess::Verbosity.define_reading(:pokemon_choice, :vb_pokemon_choice, :vbh_pokemon_choice)
+PokeAccess::Verbosity.define_reading(:pokemon_choice, :vb_pokemon_choice, :vbh_pokemon_choice, :pokemon)

@@ -1,17 +1,14 @@
 module PokeAccess
-  # Shared plumbing for the shareable text dictionaries (Tags, Marks, MapNames): a "key=value" FILE per store, an
-  # IMPORT merged adding only what the store lacks (then renamed *_import.imported.txt) and an EXPORT copy. A
-  # store declares FILE, IMPORT and EXPORT and these hooks:
-  #
+  # Shared plumbing for the text dictionaries (Tags, Marks, MapNames): a "key=value" FILE per store, an IMPORT merged
+  # adding only what the store lacks (then renamed *_import.imported.txt) and an EXPORT copy. Files are stamped
+  # "# game: <profile>" and another game's import is refused, unless the store's game_bound? is false.
+  # A store declares FILE, IMPORT and EXPORT and these hooks:
   #   header                     -> the comment lines at the top of the file (an Array of Strings)
   #   parse_line(dest, key, val) -> reads one data line into a store hash
   #   each_stored(store)         -> yields (key, value) in file order
   #   has_entry?(store, key)     -> whether the store holds that key (imports never overwrite)
   #   put_entry(store, key, val) -> writes one entry
   #   line_for(key, value)       -> the one-line serialisation of an entry
-  #
-  # Files are stamped "# game: <profile>" and another game's import is refused (its keys are map ids); a store
-  # with game_bound? false does neither.
   module Dictionary
     # Whether the store's keys belong to one game, so its files are stamped and another game's refused.
     def game_bound?
@@ -48,18 +45,16 @@ module PokeAccess
       v.to_s.gsub(/[\t\r\n]+/, " ").strip
     end
 
-    # Reads FILE into a fresh store, then merges IMPORT when import_status allows it, saving only if that added
-    # something, and retires the merged file.
+    # Reads FILE into a fresh store, then merges IMPORT when import_status allows it (merge_import); returns how
+    # many entries that merge added.
     def load_file
       @store = {}
       parse_into(@store, const_get(:FILE))
-      if import_status[0] == :ready
-        save if merge_new(parse_import) > 0
-        retire_import
-      end
+      merge_import
     rescue StandardError => e
       PokeAccess.log_once("dict_load_#{name}", e)
       @store ||= {}
+      0
     end
 
     # Parses a dictionary file into a store hash through the store's own parse_line. :strip_value false
@@ -108,13 +103,20 @@ module PokeAccess
       game == "generic" && mine.to_s[0, 8] == "generic:"
     end
 
-    # The menu's import: merges a ready IMPORT and retires it; returns how many entries it added.
-    def import_now
+    # Merges a ready IMPORT into the loaded store, saving only if that added something, and retires the merged
+    # file; returns how many entries it added.
+    def merge_import
       return 0 unless import_status[0] == :ready
       added = merge_new(parse_import)
       save if added > 0
       retire_import
       added
+    end
+
+    # The menu's import: merges a ready IMPORT and retires it, through the first load on a store not read yet;
+    # returns how many entries it added.
+    def import_now
+      @store.nil? ? load_file : merge_import
     end
 
     # Where a merged IMPORT goes: the same name with .imported before the extension.

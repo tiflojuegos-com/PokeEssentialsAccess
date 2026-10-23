@@ -29,7 +29,8 @@ module PokeAccess
       return unless @entries
       t = PokeAccess.clean(text.to_s)
       @labels.push(t) unless t.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -43,7 +44,8 @@ module PokeAccess
       name = @labels[@sel]
       return if name.nil? || name.empty?
       PokeAccess.speak(PokeAccess::Verbosity.list_entry(name, @sel + 1, @entries), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

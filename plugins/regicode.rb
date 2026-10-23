@@ -6,7 +6,8 @@ module PokeAccess
     def self.clean(text)
       spaced = text.to_s.gsub("\\", ". ").gsub("/", ", ").gsub("-", " ")
       PokeAccess.clean(spaced)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

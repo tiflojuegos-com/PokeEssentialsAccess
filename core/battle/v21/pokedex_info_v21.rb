@@ -13,7 +13,7 @@ module PokeAccess
     def self.page_id(scene, page)
       id = (scene.instance_variable_get(:@page_id) rescue nil)
       return id if id
-      return VANILLA_PAGES[page] if VANILLA_PAGES.has_key?(page)
+      return VANILLA_PAGES[page] if VANILLA_PAGES.key?(page)
       page.is_a?(Integer) ? :page_other : nil
     end
 
@@ -33,7 +33,8 @@ module PokeAccess
       name = data ? (data.name rescue nil) : nil
       name = (PokeAccess::Data.species_name(species) rescue nil) if name.nil? || name.to_s.empty?
       (name.nil? || name.to_s.empty?) ? nil : [data, name]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -57,7 +58,8 @@ module PokeAccess
       return [] if owned == false
       types = (data.types rescue nil) || [(data.type1 rescue nil), (data.type2 rescue nil)].compact.uniq
       types.map { |t| (GameData::Type.get(t).name rescue t.to_s) }.reject { |n| n.to_s.empty? }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -65,7 +67,8 @@ module PokeAccess
     def self.area_text(name, painted = nil, places = nil)
       t = painted.to_s.strip.empty? ? PokeAccess::I18n.t(:pdx_zone, :name => name) : painted.to_s
       places && !places.empty? ? "#{t}. #{PokeAccess::I18n.t(:pdx_places, :list => places.join(', '))}" : t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       PokeAccess::I18n.t(:pdx_zone, :name => name)
     end
 
@@ -80,7 +83,8 @@ module PokeAccess
       squares = []
       lit.each_with_index { |on, idx| squares.push([idx % width, idx / width]) if on }
       PokeAccess::DexEntry.places_at(points, squares)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -117,7 +121,8 @@ module PokeAccess
         end
       end
       points
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -144,7 +149,8 @@ module PokeAccess
       when :page_weight then [measure_text(name, (data.weight rescue 0), :pdx_weight, :w, owned), comparator_text(scene, true)].compact.join(". ")
       else                  info_text(scene, name, data, owned)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -182,7 +188,8 @@ module PokeAccess
       arr = (pl.owned rescue nil)
       return (arr[species] ? true : false) if arr.is_a?(Array)
       nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -193,7 +200,8 @@ module PokeAccess
       v = value.to_i
       return name unless v > 0
       "#{name}. #{PokeAccess::I18n.t(key, var => PokeAccess::Pokedex.fmt_dec(v), :n => v / 10.0)}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       name
     end
 
@@ -213,7 +221,8 @@ module PokeAccess
       v = weight ? (scene.pbGetComparisonWeight(id) rescue nil) : (scene.pbGetComparisonHeight(id) rescue nil)
       measure = v.nil? ? "" : "#{v} #{weight ? 'kg' : 'm'}"
       PokeAccess::I18n.t(:pdx_compare, :name => nm, :v => measure)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -274,7 +283,8 @@ module PokeAccess
       return if t.nil? || t.empty?
       return unless PokeAccess::Cursor.changed?(scene, :pdx_page, t)
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -305,7 +315,8 @@ module PokeAccess
       parts = [[data.name, :brief], [mark, :brief], [pos, :brief], [PokeAccess.clean(desc.to_s), :full]]
       PokeAccess::Info.set_info(:text, PokeAccess::Verbosity.full_line([data.name, mark, PokeAccess.clean(desc.to_s)], ". "))
       PokeAccess::Verbosity.line(:dex_page, parts, ". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -330,7 +341,8 @@ module PokeAccess
       return unless @notes_armed
       return if PokeAccess.clean(text.to_s).empty?
       @notes.push([text.to_s, x.to_i, y.to_i])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -371,7 +383,8 @@ module PokeAccess
       label = k ? PokeAccess::I18n.t(k) : nil
       full = PokeAccess.sentences([label, notes_text])
       data_dedup(scene, full.empty? ? nil : full)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -389,7 +402,8 @@ module PokeAccess
         body = cmds.empty? ? PokeAccess::I18n.t(:row_empty) : move_line(scene, idx, cmds.length)
         [head, body].compact.join(". ")
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -410,7 +424,8 @@ module PokeAccess
       parts = [[PokeAccess::MoveInfo.leveled(:learn_move, *args), :brief], [mark, :medium],
                [PokeAccess::Verbosity.position(idx + 1, total), :brief], [desc, :full]]
       PokeAccess::Verbosity.line(:learn_move, parts, ". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -432,14 +447,13 @@ module PokeAccess
         return crystal.name if crystal
       end
       nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # Reads the focused cell of a data sub-list, list[page*DATA_PAGE_SIZE + index]: the species, or the way back for
-    # the :RETURN the list ends in, which no species resolves; the page on a change of page where there are several;
-    # the box beneath (a family member's evolution method, its stats...) from the Pokedex page reading's full level.
-    # The info key keeps name and box.
+    # Reads the focused cell of a data sub-list, list[page*DATA_PAGE_SIZE + index]: the species (back for the closing
+    # :RETURN), the page when it turns, the box beneath at the dex page's full level; the info key keeps name and box.
     def self.species_list_read(scene, list, index, page, maxpage = nil)
       return unless list.is_a?(Array)
       sp = list[(page.to_i * DATA_PAGE_SIZE) + index.to_i]
@@ -455,7 +469,8 @@ module PokeAccess
       body = notes_text
       PokeAccess::Info.set_info(:text, PokeAccess.sentences([nm, body]))
       data_dedup(scene, PokeAccess::Verbosity.line(:dex_page, [[nm, :brief], [pg, :brief], [body, :full]], ". "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

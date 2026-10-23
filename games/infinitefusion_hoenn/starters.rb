@@ -14,7 +14,8 @@ module PokeAccess
         label = PokeAccess::Verbosity.info_line(:dex_entry, parts(scene, idx, name))
         single?(scene) ? label : PokeAccess::Verbosity.list_entry(label, idx + 1, list.length)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -31,7 +32,8 @@ module PokeAccess
     # True for the one-starter variant, whose row pads two invisible placeholders (its @index is always 1).
     def self.single?(scene)
       scene.class.to_s == "StartersSelectionSceneSingle"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
   end

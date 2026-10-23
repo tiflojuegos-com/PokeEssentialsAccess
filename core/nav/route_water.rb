@@ -1,95 +1,102 @@
 module PokeAccess
-  # Pathfinder, across water: for a target out of walking reach, the flood runs again with surfing allowed and each
-  # tile keeps the shore the flood first pushed off from on its way there, the shore to walk to.
+  # Pathfinder, across water: for a target out of walking reach, a search with surfing allowed (Routes::Launch) finds
+  # where its way leaves the ground the player walks to for water (Routes::Regions on foot; while they are still being
+  # walked, the water's edge), the shore to walk to and push off from.
   module Pathfinder
-    # Surfable water the flood may cross: the engine's surfable tags, less falling water, which only
-    # Waterfall climbs and no route can ask for.
-    def self.surf_water?(x, y)
-      return false unless PokeAccess::Terrain.surfable_at?(x, y)
-      k = PokeAccess::Terrain.kind(x, y)
-      k != :waterfall && k != :waterfall_crest
-    rescue StandardError
-      false
-    end
+    # The tiles a surf ends on near (tx,ty): the tile itself and the four beside it.
+    SURF_AROUND = [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]]
+    # How many launches are kept.
+    LAUNCHES = 16
 
-    # A surfing move walking cannot make, as a Step or nil: pushing off from a shore open toward the water, water to
-    # water (falls included), or coming ashore on a tile open on the water side with nothing solid on it.
-    def self.water_step(cx, cy, dir, lvl, wet)
-      nx = cx + dir[0]; ny = cy + dir[1]; d = dir[2]
-      return nil unless ($game_map.valid?(nx, ny) rescue false)
-      return falls_step(nx, ny, d, lvl) if wet && falling_water?(nx, ny)
-      if surf_water?(nx, ny)
-        return nil unless wet || ($game_map.passable?(cx, cy, d) rescue false)
-        return Step.new(nx, ny, lvl)
-      end
-      return nil unless wet
-      return nil unless ($game_map.passable?(nx, ny, 10 - d) rescue false)
-      return nil if solid_event_at?(nx, ny) || exit_step?(nx, ny, d)
-      Step.new(nx, ny, lvl)
-    end
-
-    # Falling water met afloat: carried down from its crest, and climbed with Waterfall when the party may be
-    # able to, each to the water past it.
-    def self.falls_step(x, y, d, lvl)
-      l = if d == 2
-            PokeAccess::Terrain.kind(x, y) == :waterfall_crest ? fall_end(x, y, 1) : nil
-          elsif d == 8 && PokeAccess::FieldMoves.can?(:WATERFALL) != false
-            waterfall_ascent(x, y)
-          end
-      (l && surf_water?(l[0], l[1])) ? Step.new(l[0], l[1], lvl) : nil
-    end
-
-    # True if an event the player cannot walk through stands on (x,y).
-    def self.solid_event_at?(x, y)
-      ($game_map.events.values.any? do |e|
-        e.x == x && e.y == y && !(e.through rescue false) && !e.character_name.to_s.empty?
-      end) ? true : false
-    rescue StandardError
-      false
-    end
-
-    # The flood with surfing allowed, cached per player tile.
-    def self.amphibious_set
-      key = [($game_player.x rescue 0), ($game_player.y rescue 0), ($game_map.map_id rescue 0)]
-      return @amph if @amph_key == key && @amph
-      @amph_key = key
-      @amph = with_level_kept { PokeAccess::Terrain.memoizing(held_terrain) { flood(true)[0] } }
-    rescue StandardError
-      {}
-    end
+    @launches = []
+    @surf_company = nil
 
     # The first launch on the way to (tx,ty) as [shore x, shore y, facing], or nil when surfing gets nowhere
-    # near it, the player is already afloat, or the party is known not to be able to surf.
+    # near it, the player is already afloat, or the party is known not to be able to surf. One its search finished is
+    # kept while what it depends on stands (launch_key): a walker's step leaves it.
     def self.surf_plan(tx, ty)
       return nil if ($PokemonGlobal.surfing rescue false)
       return nil if PokeAccess::FieldMoves.can?(:SURF) == false
       return nil if PokeAccess::MapMeta.always_bicycle?(($game_map.map_id rescue 0))
-      set = amphibious_set
-      [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]].each do |dx, dy|
-        v = set[pkey(tx + dx, ty + dy)]
-        return v if v.is_a?(Array)
+      tiles = SURF_AROUND.map { |dx, dy| [tx + dx, ty + dy] }
+      return nil if Routes::Regions.water.status(tiles)[0] == :no
+      foot = Routes::Regions.foot
+      key = launch_key(tx, ty, foot)
+      hit = @launches.assoc(key)
+      return hit[1] && hit[1].dup if hit
+      searching do |op|
+        cuts = op.cuts
+        l = launch(Routes::Goal.new(tiles, tx, ty), foot)
+        keep_launch(key, l) if op.cuts == cuts
+        l
       end
-      nil
-    rescue StandardError
-      nil
-    end
-
-    # The route onto the shore to surf from toward (tx,ty) (surf_plan), cached per player tile and target; nil when
-    # surfing does not reach it.
-    def self.surf_launch(tx, ty)
-      k = [($game_player.x rescue -1), ($game_player.y rescue -1), ($game_map.map_id rescue -1), tx, ty]
-      return @surf_route if @surf_key == k
-      @surf_key = k
-      pl = surf_plan(tx, ty)
-      @surf_route = pl ? find_path_onto(pl[0], pl[1]) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # The facing to push off in when the player stands on the shore planned for (tx,ty), else nil.
-    def self.launch_dir(tx, ty)
-      pl = surf_plan(tx, ty)
-      (pl && pl[0] == ($game_player.x rescue nil) && pl[1] == ($game_player.y rescue nil)) ? pl[2] : nil
+    # The launch toward goal, searched with the walkers the regions lend through lent too
+    # (Routes::Regions.lendable_walkers), so that where they stand is no part of it: a tile is walked to when the
+    # regions on foot, walked whole, reach it, else when it is no water.
+    def self.launch(goal, foot)
+      cost = Routes::CostModel.new((PokeAccess::Config.route_style rescue :shortest))
+      whole = foot.done?
+      PokeAccess::World::Probe.lend_through(Routes::Regions.lendable_walkers) do
+        Routes::Launch.toward(goal, cost) do |x, y|
+          whole ? foot.known([[x, y]])[0] == :yes : !Routes::Moves.surf_water?(x, y)
+        end
+      end
     end
+
+    # What a launch toward (tx,ty) depends on: the target, the player's tile and bridge level, the map, the vehicle
+    # and the event pages (event_epoch), any change of the events but a walker's the regions lend through
+    # (water_event_change), the route style, and whether the regions on foot it reads (foot) are walked whole.
+    def self.launch_key(tx, ty, foot)
+      [tx, ty, $game_player.x, $game_player.y, bridge_level, event_epoch, @water_events.to_i,
+       (PokeAccess::Config.route_style rescue nil), foot.done?]
+    end
+
+    # Counts a change of the events (World::Events.on_change) unless it is a walker the regions lend through coming,
+    # going or taking a step (Routes::Regions.lent?), which a launch lends through too.
+    def self.water_event_change(tiles, r, how)
+      return if how != :change && PokeAccess::World::Events.mover?(r) && Routes::Regions.lent?(r, tiles)
+      @water_events = @water_events.to_i + 1
+    end
+
+    # Keeps a launch, the oldest dropped past LAUNCHES.
+    def self.keep_launch(key, l)
+      @launches.push([key, l])
+      @launches.shift while @launches.length > LAUNCHES
+    end
+
+    # Drops the kept launches (new tiles, a reset).
+    def self.forget_launches; @launches = []; end
+
+    # True unless the game keeps the player from surfing while someone walks along with them: by the check of its own
+    # pbSurf its profile declares (surf_company), else by can_ride_vehicle_with_follower? (from Essentials v20); true
+    # in a game with neither.
+    def self.surf_with_company?
+      kind, lets = @surf_company
+      return true if kind == :anyone
+      pl = $game_player
+      if kind == :dependents && pl.respond_to?(:pbHasDependentEvents?)
+        return true unless pl.pbHasDependentEvents?
+        return lets && lets.call ? true : false
+      end
+      return true unless pl.respond_to?(:can_ride_vehicle_with_follower?)
+      pl.can_ride_vehicle_with_follower? ? true : false
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      true
+    end
+
+    # Declares the check the game's own pbSurf makes for surfing with someone along, in place of
+    # can_ride_vehicle_with_follower?: :anyone, none; :dependents, a refusal while anyone walks along as a dependent
+    # event (its pbHasDependentEvents?), unless the block, when given, answers true.
+    def self.surf_company(kind, &lets); @surf_company = [kind, lets]; end
   end
 end
+
+PokeAccess::World::Events.on_change { |tiles, r, how| PokeAccess::Pathfinder.water_event_change(tiles, r, how) }
+PokeAccess::World::Epoch.on(:tiles) { PokeAccess::Pathfinder.forget_launches }
+PokeAccess::World::Epoch.on(:reset) { PokeAccess::Pathfinder.forget_launches }

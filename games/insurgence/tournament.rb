@@ -16,7 +16,8 @@ module PokeAccess
         rows.push(out ? "#{name}, #{PokeAccess::I18n.t(:pwt_out)}" : name)
       end
       rows.empty? ? nil : PokeAccess::I18n.t(:pwt_board, :list => rows.join("; "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

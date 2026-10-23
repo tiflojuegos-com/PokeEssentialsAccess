@@ -1,8 +1,6 @@
 module PokeAccess
-  # The Move Tutor app of the engine Reborn and Rejuvenation share (on Reborn's Pokegear and Rejuvenation's CyberNav):
-  # the tutor moves in a hidden list the generic reader says by name, over a page that paints each move's type icon
-  # and PP and, under each party member's icon, a tick where it can learn the focused move, a dash where it knows it
-  # and a cross where it cannot; Rejuvenation greys a move still to be paid for. Each profile binds its own scene.
+  # The Move Tutor app of the engine Reborn and Rejuvenation share: the focused move's type, PP and each party member's
+  # mark (can learn, knows, cannot), after the name the generic reader says; each profile binds its own scene.
   module MoveTutorRV
     # The codes pbPartyCanLearnThisMove? gives a member, as the screen's marks.
     UNABLE = 0
@@ -19,7 +17,8 @@ module PokeAccess
       data = (move ? $cache.moves[move] : nil)
       return unless data && PokeAccess::Cursor.changed?(scene, :rv_tutor, [list.index, entry])
       PokeAccess.speak(PokeAccess.sentences(details(data, entry.is_a?(Array))), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

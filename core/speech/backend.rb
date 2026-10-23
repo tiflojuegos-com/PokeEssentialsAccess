@@ -2,7 +2,7 @@ module PokeAccess
   # The screen-reader bridge: prism_pea.dll (bridge/prism_pea.c), a flat cdecl layer over prism.dll, both per arch in
   # lib/ (added to the DLL search path). PeaShutdown stays unbound on purpose: the mod has no teardown point, and a
   # call could cut the reader off mid-line.
-  (Win32API.new("kernel32", "SetDllDirectoryA", ["p"], "i").call(DLL_DIR + "\0") rescue nil)
+  (Win32API.new("kernel32", "SetDllDirectoryA", ["p"], "i").call(PokeAccess::Paths::LIB + "\0") rescue nil)
   PEA_INIT     = (Win32API.new("prism_pea.dll", "PeaInitialize",  [],         "i") rescue nil)
   PEA_SPEAK    = (Win32API.new("prism_pea.dll", "PeaSpeak",       ["p", "i"], "i") rescue nil)
   PEA_STOP     = (Win32API.new("prism_pea.dll", "PeaStop",        [],         "i") rescue nil)
@@ -22,7 +22,8 @@ module PokeAccess
     @ready = ((PEA_INIT.call rescue 0) != 0)
     log_once("prism_init", "PeaInitialize failed (no speech backend could start)") unless @ready
     @ready
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     false
   end
 

@@ -10,7 +10,8 @@ module PokeAccess
       box = storage.currentBox
       width = (PokemonBox::BOX_WIDTH rescue 6)
       g.mons.count { |dx, dy| storage[box, g.mock_pivot + dx + dy * width] rescue nil }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -20,7 +21,8 @@ module PokeAccess
       g = PokeAccess.ivar(scene, :@grabber)
       return nil unless g && g.carrying
       (g.carried_mons || []).count { |m| m && m[0] }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -51,4 +53,4 @@ end
 PokeAccess::Hooks.after_hook("PokemonStorageScene", :pbSetArrow, :optional => true) do |scene, _r, _a|
   PokeAccess::StorageUtilities.poll(scene)
 end
-PokeAccess::Keys.on_frame { PokeAccess::StorageUtilities.flush }
+PokeAccess::Frame.each_pulse { PokeAccess::StorageUtilities.flush }

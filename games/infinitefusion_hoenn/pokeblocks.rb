@@ -59,7 +59,8 @@ module PokeAccess
       return nil unless pk
       PokeAccess::Info.set_info(:pokemon, pk, PokeAccess::Verbosity.whole { condition_line(pk) })
       condition_line(pk)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -95,7 +96,8 @@ module PokeAccess
       pk = (PokeAccess.ivar(scene, :@party)[PokeAccess.ivar(scene, :@index)] rescue nil)
       @fed = pk
       @before = pk ? conditions(pk).map { |_k, v| v.to_i } : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       @fed = nil
     end
 
@@ -110,7 +112,8 @@ module PokeAccess
       rose = []
       conditions(pk).each_with_index { |(k, v), i| rose.push(condition_word(k, v)) if v.to_i > before[i].to_i }
       PokeAccess.speak(PokeAccess::I18n.t(:pbk_rose, :list => rose.join(", ")), false) unless rose.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -121,7 +124,8 @@ module PokeAccess
       c = (::GameData::BerryData.get(it).block_color_name.to_s rescue "")
       t = [d, c].reject { |s| s.to_s.empty? }.join(" ")
       PokeAccess::Info.set_info(:text, t.empty? ? nil : PokeAccess.clean(t))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

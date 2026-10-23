@@ -1,11 +1,11 @@
 module PokeAccess
-  # The screen reader that games of the engine Reborn and Rejuvenation share carry inside: a global tts(text,
-  # interrupt) over $tts, to which Rejuvenation adds a lowercase: keyword. Two readers would talk over each other, so
-  # while the mod can speak the game's is muted, and what the game hands tts on the screens a profile names is said by
-  # the mod. Nothing binds until a profile installs it; Desolation has no such reader.
+  # The own screen reader of the engine Reborn and Rejuvenation share (a global tts(text, interrupt) over $tts, plus a
+  # lowercase: keyword in Rejuvenation): muted while the mod can speak, with what it is handed on a profile's screens
+  # said by the mod. Nothing binds until a profile installs it; Desolation has no such reader.
   module OwnVoiceRV
     @live = []
     @last_frame = nil
+    @cut_first = false
     @always = []
     @always_frame = nil
     @active = false
@@ -15,14 +15,17 @@ module PokeAccess
       return if $tts.nil?
       return unless PokeAccess.init_speech!
       $tts = nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # A relayed screen comes up: what it hands tts is said until leave.
-    def self.enter
+    # A relayed screen comes up: what it hands tts is said until leave, its first line queued, or cutting in when
+    # moved (a cursor's move, each its own call).
+    def self.enter(moved = false)
       @live.push(PokeAccess.message_depth)
       @last_frame = nil
+      @cut_first = moved
     end
 
     def self.leave; @live.pop; end
@@ -30,10 +33,10 @@ module PokeAccess
     # Whether one of those screens is up.
     def self.relaying?; !@live.empty?; end
 
-    # Runs a block as one of those screens; as it is while no profile installed the relay.
-    def self.relayed
+    # Runs a block as one of those screens (see enter for moved); as it is while no profile installed the relay.
+    def self.relayed(moved = false)
       return yield unless @active
-      enter
+      enter(moved)
       begin
         yield
       ensure
@@ -53,10 +56,8 @@ module PokeAccess
       (TextPlaceholders.removeFrom(t) rescue t).to_s
     end
 
-    # One line the game handed its reader, said while a relayed screen is up and no message sits on it (the dialogue
-    # reader says those); a line matching an always pattern is said anywhere, the first of its frame cutting in and
-    # the rest of that frame queued behind it (an event's script may say several at once). On a relayed screen the
-    # first line of a later frame cuts in, as a cursor move does; the rest of that frame queues behind it.
+    # Says a line the game handed its reader: on a relayed screen with no message over it (the dialogue reader says
+    # those), or anywhere when it matches an always pattern; the first line of a new frame cuts in, the rest queue.
     def self.relay(text, interrupt = false)
       return unless @active
       t = speakable(text)
@@ -71,10 +72,11 @@ module PokeAccess
       end
       return if PokeAccess.message_depth > @live.last
       now = (Graphics.frame_count rescue 0)
-      cut = interrupt || (!@last_frame.nil? && now != @last_frame)
+      cut = interrupt || (@last_frame.nil? ? @cut_first : now != @last_frame)
       @last_frame = now
       PokeAccess.speak_clean(t, cut ? true : false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -84,22 +86,24 @@ module PokeAccess
       opts = args.last
       return unless relaying? && opts.is_a?(Hash) && opts[:tts] == false
       PokeAccess.say_dialogue_skip(args[0].to_s)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # Installs the relay for a profile: mutes the game's reader, follows its tts, and runs the profile's screens as
-    # relayed. The field notes and the time and weather app have readers of the mod's own (FieldNotesRV, TimeWeatherRV).
-    # param screens [class name, method] pairs of the game's own screens with no reader of the mod's
+    # Installs a profile's relay: mutes the game's reader, follows its tts and relays the profile's screens.
+    # param screens [class name, method] pairs of the game's own screens with no reader of the mod's, a third :moved
+    # on a call that moves a cursor (enter)
     # param always patterns of lines said on any screen (Reborn's Blindstep coordinates)
     def self.install(screens = [], always = [])
       @active = true
       @always = always
       mute
       follow_tts
-      screens.each do |cname, meth|
+      screens.each do |cname, meth, how|
+        moved = how == :moved
         PokeAccess::Hooks.around_hook(cname, meth, :optional => true) do |_s, nxt, _a|
-          PokeAccess::OwnVoiceRV.relayed { nxt.call }
+          PokeAccess::OwnVoiceRV.relayed(moved) { nxt.call }
         end
       end
     end

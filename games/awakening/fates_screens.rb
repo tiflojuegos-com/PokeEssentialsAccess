@@ -20,7 +20,8 @@ module PokeAccess
         body = "" if open && !PokeAccess::Verbosity.descriptions?
         body.empty? ? head : [head, body].join(". ")
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -35,7 +36,8 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:awk_talisman_progress, :n => pct.to_i)) unless pct.nil?
       parts.push(PokeAccess::KeyHints.localize(PokeAccess::I18n.t(:awk_talisman_ready), nil, true)) if pct && pct.to_i >= 100 && PokeAccess::Verbosity.hints?
       parts.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       PokeAccess::I18n.t(:awk_talisman_locked)
     end
 
@@ -52,7 +54,8 @@ module PokeAccess
         parts.push(PokeAccess::I18n.t(:awk_slot, :n => i + 1, :name => name))
       end
       PokeAccess.speak(parts.join(". "), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -77,7 +80,8 @@ module PokeAccess
       shown = lines.is_a?(Array) ? (scroll...(scroll + rows)).reject { |i| seen.include?(i) }.map { |i| lines[i] }.compact : []
       t2 = PokeAccess.clean(shown.join(" "))
       PokeAccess.speak(t2, true) unless t2.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -98,7 +102,8 @@ module PokeAccess
         PokeAccess::Info.set_info(:item, list[idx]) if list[idx]
         (desc.empty? || !PokeAccess::Verbosity.descriptions?) ? head : "#{head}. #{desc}"
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -120,7 +125,8 @@ module PokeAccess
           name
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -132,7 +138,8 @@ module PokeAccess
       return PokeAccess::I18n.t(:awk_glos_locked) unless unlocked
       shown = (Glosario_Personajes::TRADUCCIONES_PERSONAJES[raw.to_s] rescue nil) || raw.to_s
       PokeAccess.clean(shown)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       PokeAccess.clean(raw.to_s)
     end
 
@@ -157,7 +164,8 @@ module PokeAccess
       @page = i
       t = biography(scene, name, i, first)
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -175,7 +183,8 @@ module PokeAccess
       label = ([label] + bio_heads(data)).join(". ") if heads
       return "#{label}. #{text}" unless PokeAccess::Verbosity.keep?(:positions, :medium)
       PokeAccess::I18n.t(:awk_glos_bio, :name => label, :page => i + 1, :pages => pages.length, :text => text)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

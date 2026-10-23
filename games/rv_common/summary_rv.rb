@@ -1,8 +1,7 @@
 module PokeAccess
-  # The summary of the engine Reborn, Rejuvenation and Desolation share (PokemonSummaryScene): after the skills page,
-  # drawPageFour paints each stat's EV and IV and drawPageFive the moves, with no ribbons page after them. In Reborn
-  # and Rejuvenation C on the skills or EV & IV page opens the ability page (drawAbilPage), and the moves page swaps
-  # with the Z-moves page (drawZMovePage), whose move cursor draws each Z-move in detail (drawSelectedZeeMove).
+  # The summary of the engine Reborn, Rejuvenation and Desolation share (PokemonSummaryScene): drawPageFour paints the
+  # EVs and IVs and drawPageFive the moves, with no ribbons page; in Reborn and Rejuvenation C on the skills or EV & IV
+  # page opens the ability page (drawAbilPage) and the moves page swaps with the Z-moves page (drawZMovePage).
   module SummaryRV
     # The EV & IV page's rows as [PBStats index, stat name key]: the engine numbers the stats in the painted order.
     ROWS = [[0, :st_hp], [1, :st_atk], [2, :st_def], [3, :st_spatk], [4, :st_spdef], [5, :st_speed]]
@@ -19,7 +18,8 @@ module PokeAccess
       rows = PokeAccess::Summary.eviv_rows(pk, ROWS)
       extra = [PokeAccess::Summary.nature_effect_line(pk), PokeAccess::Summary.ability_line(pk, painted)].compact
       ([PokeAccess::I18n.t(:rv_sum_eviv) + ". " + rows.join(". ") + "."] + extra).join(" ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -61,11 +61,9 @@ module PokeAccess
       ((y.to_f - top) / SLOT_HEIGHT).floor
     end
 
-    # A column of moves as painted, by slot: [name, type name, pp, total pp], nil where the slot is empty. The name is
-    # the slot's first text, the PP its "pp/total" figure, the type the Icons/type<TYPE> icon drawn at its height.
+    # A column of moves as painted, by slot: [name, type name, pp, total pp], nil where the slot is empty.
     # param pairs the texts as take_pairs gives them
     # param icons the rows drawn through pbDrawImagePositions
-    # param column [left, right, top] of the column, the summary's by default
     def self.slots(pairs, icons, column = COLUMN)
       left, right, top = column
       out = []
@@ -136,13 +134,15 @@ module PokeAccess
     # The summary scene class, the gen-6 lineage's.
     SCENE = PokeAccess::Engine.era_scene(:gen6, "PokemonSummaryScene", "PokemonSummary_Scene")
 
-    # Hooks the pages: the override puts the core's reads on this summary's pages, the rest read what they paint.
+    # Hooks the pages: the override puts the core's reads on this summary's pages, the rest read what they paint; page
+    # one paints the original trainer in one colour, so it tells no sex.
     def self.bind
       scene = SCENE
       PokeAccess::Hooks.override("PokeAccess::Summary", :speak_page, :tag => "rv_summary") do |_mod, original, args|
         PokeAccess::SummaryRV.repage(args)
         original.call
       end
+      PokeAccess::Hooks.override("PokeAccess::Summary", :ot_sex, :tag => "rv_summary") { |_mod, _original, _args| nil }
       PokeAccess::Hooks.before_hook(scene, :drawPageFour) { |_s, _a| PokeAccess::PaintCapture.arm(:summary_eviv_rv) }
       PokeAccess::Hooks.around_hook(scene, :drawAbilPage, :optional => true) do |s, nxt, args|
         r = nil

@@ -63,7 +63,8 @@ module PokeAccess
     # The stat list this game is playing with.
     def self.stats
       (::Settings::PURIST_MODE rescue false) ? FULL : MIXED
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       MIXED
     end
 
@@ -79,7 +80,8 @@ module PokeAccess
       prev = PokeAccess::Cursor.current(scene, :ev_alloc)
       return unless PokeAccess::Cursor.changed?(scene, :ev_alloc, focus[0])
       PokeAccess.speak(row(focus), !prev.nil?)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

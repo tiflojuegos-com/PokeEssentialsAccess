@@ -12,20 +12,23 @@ module PokeAccess
     # The direction key for the spin in progress, from the player's facing.
     def self.spin_key
       SPIN_DIRS[$game_player.direction]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # Announces a spin's start, each change of direction (the flag stays on through a chain of turns) and its stop.
+    # Announces a spin's start and each change of direction (the flag stays on through a chain of turns), cutting in,
+    # and its stop queued, after where the spin left the player (ForcedMove, said the frame before).
     def self.spin_poll
       on = ($PokemonGlobal.spinning rescue false) ? true : false
       key = on ? (spin_key || :fs_spin_on) : nil
       return if key == @spin_last
       was = @spin_last
       @spin_last = key
-      return PokeAccess.speak(PokeAccess::I18n.t(:fs_spin_stop), true) if key.nil? && !was.nil?
+      return PokeAccess.speak(PokeAccess::I18n.t(:fs_spin_stop), false) if key.nil? && !was.nil?
       PokeAccess.speak(PokeAccess::I18n.t(key), true) if key
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -37,7 +40,8 @@ module PokeAccess
       return if on == @lens_on
       @lens_on = on
       PokeAccess.speak(PokeAccess::I18n.t(on ? :fs_lens_on : :fs_lens_off), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -50,7 +54,7 @@ module PokeAccess
   end
 end
 
-PokeAccess::Keys.on_frame do
+PokeAccess::Frame.each_pulse do
   PokeAccess::FieldStates.spin_poll
   PokeAccess::FieldStates.lens_poll
 end

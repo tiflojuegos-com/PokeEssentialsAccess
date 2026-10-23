@@ -37,7 +37,7 @@ module PokeAccess
     # The word for a sub-screen cell below the options: on a height or weight slider -1 lets that limit go (the
     # screen paints 0.0 or its top there), elsewhere the BELOW cell, Cancel from -3 down.
     def self.below_key(mode, i)
-      return :dxs_no_limit if i == -1 && MEASURE_TOPS.has_key?(mode)
+      return :dxs_no_limit if i == -1 && MEASURE_TOPS.key?(mode)
       BELOW[i] || :dxs_cancel
     end
 
@@ -55,7 +55,7 @@ module PokeAccess
     def self.value_text(mode, list, i)
       item = list[i]
       return nil if item.nil?
-      return measure(item) if MEASURE_TOPS.has_key?(mode) && item.is_a?(Numeric)
+      return measure(item) if MEASURE_TOPS.key?(mode) && item.is_a?(Numeric)
       return PokeAccess::Data.type_name(item) if mode == TYPE && item.is_a?(Integer)
       return PokeAccess::I18n.t(:list_pos, :i => i + 1, :n => list.length) if mode == SHAPE && item.is_a?(Integer)
       option_text(item)
@@ -81,7 +81,7 @@ module PokeAccess
       return nil unless params.is_a?(Array) && idx >= 0 && idx < FIELDS.length
       slots = SLOTS[idx]
       list = PokeAccess.ivar(scene, LISTS[idx])
-      if MEASURE_TOPS.has_key?(idx) && list.is_a?(Array) && !list.empty?
+      if MEASURE_TOPS.key?(idx) && list.is_a?(Array) && !list.empty?
         lo, hi = slots.map { |s| params[s].nil? ? -1 : params[s].to_i }
         return range_text(idx, list, lo, hi)
       end
@@ -92,7 +92,8 @@ module PokeAccess
       end
       vals = vals.compact.reject { |v| v.to_s.empty? }
       vals.empty? ? PokeAccess::I18n.t(:dxs_unset) : vals.join(" - ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -105,7 +106,8 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :dex_search, [i, val], true) do
         val ? "#{label}, #{val}" : label
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -124,7 +126,8 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :dex_search_param, [mode, i], true) do
         title ? "#{title}, #{opt}" : opt.to_s
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

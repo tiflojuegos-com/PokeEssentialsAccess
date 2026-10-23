@@ -66,13 +66,9 @@ module PokeAccess
 end
 
 PokeAccess::Events.on(:map_changed) { |_mid| PokeAccess::IF2Weather.announcing }
+PokeAccess::Events.on(:map_named) { |_mid| PokeAccess::IF2Weather.flush }
 
 PokeAccess::Game.define("infinitefusion_hoenn") do
   after("WeatherIcon", :initialize) { |icon, _r, _a| PokeAccess::IF2Weather.entered(icon) }
-  override("PokeAccess::Locator", :announce_map_change) do |_mod, original, _args|
-    r = original.call
-    PokeAccess::IF2Weather.flush
-    r
-  end
   after("PokeRadarAppScene", :showWeatherIcon) { |s, _r, _a| PokeAccess::IF2Weather.radar(s) }
 end

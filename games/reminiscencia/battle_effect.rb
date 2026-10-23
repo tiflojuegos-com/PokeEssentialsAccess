@@ -35,7 +35,8 @@ module PokeAccess
         parts.push([PokeAccess::I18n.t(:rem_bt_foe_types, :name => (pk.name rescue ""), :t => types.join(" ")), :full])
       end
       PokeAccess.speak(PokeAccess::Verbosity.line(:battle_move, parts, ". "), false, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -70,16 +71,20 @@ module PokeAccess
     end
 
     # The hit points line as the floating text over the target paints it: the change in hit points, or with the
-    # percent option its share of the total, a loss led by its effectiveness word; then what is left, as the box.
+    # percent option its share of the total, a loss led by its effectiveness word; then what is left, as the box. A hit
+    # that leaves the hit points as they were (a Disguise, Endure) still takes its word, so no later loss borrows it.
     def self.hp_change(pkmn, oldhp)
       return unless pkmn && oldhp
       diff = (pkmn.hp - oldhp rescue 0)
-      return if diff == 0
+      if diff == 0
+        effect_word(pkmn)
+        return
+      end
       bt = PokeAccess::Battle
       verb = PokeAccess::I18n.t(diff < 0 ? :bt_lose : :bt_gain)
       rest = bt.shown_hp(pkmn, (pkmn.index.odd? rescue false))
       line = if percent?
-               PokeAccess::I18n.t(:rem_bt_hp_change_pct, :name => pkmn.name, :verb => verb,
+               PokeAccess::I18n.t(:bt_hp_change_pct, :name => pkmn.name, :verb => verb,
                                   :n => percent_text(diff, pkmn.totalhp), :rest => rest)
              else
                PokeAccess::I18n.t(:bt_hp_change, :name => pkmn.name, :verb => verb, :n => diff.abs, :rest => rest)

@@ -1,19 +1,23 @@
 module PokeAccess
   # Config menu, verbosity: the scheme in use, a new scheme and the player's own (use, edit, rename, copy, delete).
-  # The editor lists this game's readings, then the level of those the scheme does not name; each change is saved.
+  # A scheme just made asks whether to use it now. The editor lists this game's readings, then the level of those the
+  # scheme does not name; each change is saved.
   module ConfigMenu
-    # What can be done to one of the player's schemes, in menu order, each with its label.
-    SCHEME_ACTIONS = [[:use, :vb_act_use], [:edit, :vb_act_edit], [:rename, :tag_rename], [:copy, :vb_act_copy],
-                      [:delete, :entry_forget]]
+    # What can be done to one of the player's schemes, in menu order, each with its label and its help.
+    SCHEME_ACTIONS = [[:use, :vb_act_use, :vb_act_use_help], [:edit, :vb_act_edit, :vb_act_edit_help],
+                      [:rename, :tag_rename, :vb_act_rename_help], [:copy, :vb_act_copy, :vb_act_copy_help],
+                      [:delete, :entry_forget, :vb_act_delete_help]]
 
     # The longest name a scheme may be given.
     SCHEME_NAME_MAX = 20
 
     # The verbosity screen: the scheme-in-use setting, a new scheme, then the player's own schemes by name.
     def self.verbosity_rows
-      rows = PokeAccess::Config.schema_group(:verbosity).map { |r| { :kind => :setting, :row => r } }
+      rows = setting_rows(:verbosity)
       rows.push({ :kind => :scheme_action, :op => :new, :label => :vb_new, :help => :vb_new_help })
-      PokeAccess::VerbositySchemes.names.each { |n| rows.push({ :kind => :scheme, :name => n }) }
+      PokeAccess::VerbositySchemes.names.each do |n|
+        rows.push({ :kind => :scheme, :name => n, :help => :vb_scheme_help })
+      end
       rows.push({ :kind => :back, :label => :back })
       rows
     end
@@ -23,17 +27,34 @@ module PokeAccess
       name.to_s == PokeAccess::Verbosity.active.to_s ? t(:vb_in_use, :name => name) : name.to_s
     end
 
+    # The answers to whether a scheme just made is used now: yes, then no.
+    def self.scheme_use_rows
+      [{ :kind => :scheme_action, :op => :use_now, :label => :vb_yes },
+       { :kind => :scheme_action, :op => :not_now, :label => :vb_no }]
+    end
+
     # What can be done to the scheme entered.
     def self.scheme_action_rows
-      rows = SCHEME_ACTIONS.map { |op, label| { :kind => :scheme_action, :op => op, :label => label } }
+      rows = SCHEME_ACTIONS.map do |op, label, help|
+        { :kind => :scheme_action, :op => op, :label => label, :help => help }
+      end
       rows.push({ :kind => :back, :label => :back })
       rows
     end
 
-    # The editor's rows: every reading declared here, then the level of the ones the scheme does not name.
+    # The editor's rows: a submenu per group with readings declared here, then the level of the ones the scheme does
+    # not name.
     def self.scheme_edit_rows
-      rows = PokeAccess::Verbosity.readings.map { |r| { :kind => :reading, :reading => r[0] } }
+      groups = PokeAccess::Verbosity::GROUPS.reject { |g, _label| PokeAccess::Verbosity.readings_in(g).empty? }
+      rows = groups.map { |g, label| { :kind => :reading_group, :group => g, :label => label } }
       rows.push({ :kind => :reading, :reading => PokeAccess::Verbosity::OTHERS })
+      rows.push({ :kind => :back, :label => :back })
+      rows
+    end
+
+    # A group's submenu in the editor: its readings, then back.
+    def self.reading_group_rows(group)
+      rows = PokeAccess::Verbosity.readings_in(group).map { |r| { :kind => :reading, :reading => r[0] } }
       rows.push({ :kind => :back, :label => :back })
       rows
     end
@@ -65,15 +86,18 @@ module PokeAccess
       say("#{PokeAccess::Verbosity.reading_name(reading)}, #{reading_level_text(reading)}")
     end
 
-    # Runs a scheme action: a new scheme, from the verbosity screen, or one on the scheme entered.
+    # Runs a scheme action: a new scheme, from the verbosity screen, the answer to whether to use one just made, or
+    # one on the scheme entered.
     def self.run_scheme_action(op)
       case op
-      when :new    then create_scheme(current_levels)
-      when :use    then use_scheme
-      when :edit   then enter(:scheme_edit, t(:vb_editing, :name => @scheme))
-      when :rename then rename_scheme
-      when :copy   then create_scheme(scheme_levels)
-      when :delete then delete_scheme
+      when :new     then create_scheme(current_levels)
+      when :use_now then open_new_scheme(true)
+      when :not_now then open_new_scheme(false)
+      when :use     then use_scheme
+      when :edit    then enter(:scheme_edit, t(:vb_editing, :name => @scheme))
+      when :rename  then rename_scheme
+      when :copy    then create_scheme(scheme_levels)
+      when :delete  then delete_scheme
       end
     end
 
@@ -85,8 +109,8 @@ module PokeAccess
       out
     end
 
-    # Asks for a name, saves a scheme with the given levels under it and opens its editor over the verbosity
-    # screen, whose cursor is left on the new scheme's row for the way back.
+    # Asks for a name, saves a scheme with the given levels under it and asks over the verbosity screen, whose cursor
+    # is left on the new scheme's row for the way back, whether to use it now.
     def self.create_scheme(levels)
       name = ask_scheme_name
       return unless name
@@ -94,7 +118,19 @@ module PokeAccess
       @mode, @index = @stack.pop if @mode == :scheme_actions
       @index = scheme_row(name) || @index
       @scheme = name
-      enter(:scheme_edit, t(:vb_created, :name => name))
+      @armed = nil
+      @stack.push([@mode, @index]); @mode = :scheme_use; @index = 0
+      say("#{t(:vb_created, :name => name)}. #{t(:vb_use_ask)} #{describe}")
+    end
+
+    # Answers whether to use the scheme just made: puts it in use on yes, saying so, then opens its editor in the
+    # question's place.
+    def self.open_new_scheme(use)
+      PokeAccess::Verbosity.use(@scheme.to_sym) if use
+      @mode = :scheme_edit; @index = 0
+      parts = [t(:vb_editing, :name => @scheme), describe]
+      parts.unshift(t(:vb_now, :name => @scheme)) if use
+      say(parts.join(". "))
     end
 
     # Puts the scheme entered in use.

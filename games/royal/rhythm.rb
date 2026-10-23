@@ -22,7 +22,7 @@ module PokeAccess
         next if (n.hit rescue true)
         x = (n.x rescue nil)
         next if x.nil? || x < sel
-        return n if DIRS.has_key?((n.note rescue nil))
+        return n if DIRS.key?((n.note rescue nil))
       end
       nil
     end

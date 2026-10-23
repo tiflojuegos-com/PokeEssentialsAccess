@@ -9,7 +9,7 @@ module PokeAccess
     # become "?", a leading BOM is dropped, and a line the block raises on is logged and skipped alone.
     def self.each(path, opts = {})
       return unless File.exist?(path)
-      strip_value = !opts.has_key?(:strip_value) || opts[:strip_value]
+      strip_value = !opts.key?(:strip_value) || opts[:strip_value]
       first = true
       File.foreach(path) do |raw|
         if raw.respond_to?(:scrub) && !raw.valid_encoding?

@@ -1,7 +1,5 @@
-# Desolation's quest log (Scripts/Pokemon Desolation/Quest_Log.rb): a list of main or side quests, swapped with left
-# and right, and a quest's page of objectives, turned with left and right when they overflow. The list's rows are the
-# generic reader's; this says which list is up, the row again back on the list, and each quest page, its title and
-# state first.
+# Desolation's quest log (Scripts/Pokemon Desolation/Quest_Log.rb): says which quest list (main or side) is up, the row
+# again back on the list, and each quest page, its title and state first; the list's rows are the generic reader's.
 module PokeAccess
   module DesolationQuests
     # The state word of a quest or objective: 2 done, 1 in progress, anything else none.

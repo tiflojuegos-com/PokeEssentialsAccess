@@ -1,14 +1,13 @@
 module PokeAccess
-  # Infinite Fusion's speech bubbles (its edition of Carmaniac's plugin): pbCallBub sets the next message window to
-  # float over (1) or point with an arrow at (2) an event, which is all that tells who says a line when it is not
-  # the event being talked to. Such a line is led by where that event stands from the player, and by the player's own
-  # tag for it when there is one.
+  # Infinite Fusion's speech bubbles (its edition of Carmaniac's plugin): a line pbCallBub hangs over or points at an
+  # event other than the one talked to is led by where it stands from the player, and by the player's tag for it if any.
   module IFSpeechBubbles
     # The event the running map interpreter belongs to, or nil when none runs.
     def self.running_event_id
       interp = pbMapInterpreter
       (interp && interp.running?) ? PokeAccess.ivar(interp, :@event_id) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -27,7 +26,8 @@ module PokeAccess
       return unless (kind == 1 || kind == 2) && id.is_a?(Integer) && id > 0 && id != running_event_id
       ev = $game_map.events[id]
       PokeAccess.before_next_line(speaker(ev)) if ev
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

@@ -6,7 +6,8 @@ module PokeAccess
       return [o.optstart, (o.respond_to?(:optend) ? o.optend : nil)] if o.respond_to?(:optstart)
       return [o.lowest_value, (o.respond_to?(:highest_value) ? o.highest_value : nil)] if o.respond_to?(:lowest_value)
       nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -20,7 +21,8 @@ module PokeAccess
     def self.slider?(o)
       k = slider_class
       k ? o.is_a?(k) : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -97,19 +99,29 @@ module PokeAccess
       pair && pair[0] == v ? pair[1] : nil
     end
 
-    # The exit row's word as painted (kept by the drawItem hook below); nil while unpainted, so the reader asks
-    # again, and the mod's own word from the third miss.
-    def self.exit_label(win)
-      t = PokeAccess.clean(PokeAccess.ivar(win, :@access_exit_label).to_s)
+    # The word a row past the options paints (the exit row, and Sevii's Set Controls before it), as the drawItem hook
+    # below keeps it per row; nil while unpainted, so the reader asks again, and the mod's own word from the third miss.
+    def self.exit_label(win, idx)
+      kept = PokeAccess.ivar(win, :@access_exit_labels)
+      t = PokeAccess.clean((kept.is_a?(Hash) ? kept[idx] : nil).to_s)
       return t unless t.empty?
       misses = PokeAccess.ivar(win, :@access_exit_misses).to_i + 1
       win.instance_variable_set(:@access_exit_misses, misses)
       misses < 3 ? nil : PokeAccess::I18n.t(:sm_exit)
     end
 
-    # Marks an options screen's end, so the screen under a submenu resets its row dedup and says the row again.
+    # Keeps the word a row past the options painted, for exit_label.
+    def self.keep_exit_label(win, idx, word)
+      kept = PokeAccess.ivar(win, :@access_exit_labels)
+      kept = win.instance_variable_set(:@access_exit_labels, {}) unless kept.is_a?(Hash)
+      kept[idx] = word
+    end
+
+    # Marks an options screen's end, or its Set Controls', so the menu under it (an options screen under a submenu,
+    # the load screen's commands) resets its row dedup and says the row again.
     def self.returned!; @returned = true; end
 
+    # Takes the mark returned! left, resetting this window's row dedup.
     def self.consume_return(win)
       return unless @returned
       @returned = false
@@ -134,14 +146,14 @@ PokeAccess::Hooks.after_hook("Window_PokemonOption", :update, :hook_container =>
   end
 end
 
-# The last row's word, and a number row's value, kept as they are painted.
+# The words of the rows past the options, and a number row's value, kept as they are painted.
 PokeAccess::Hooks.around_hook("Window_PokemonOption", :drawItem, :optional => true) do |win, nxt, args|
   opts = PokeAccess.ivar(win, :@options)
   idx = args[0]
-  if opts.is_a?(Array) && idx == opts.length
+  if opts.is_a?(Array) && idx.is_a?(Integer) && idx >= opts.length
     ret = nil
     word = PokeAccess::PaintCapture.shadow_sample { ret = nxt.call }.first
-    win.instance_variable_set(:@access_exit_label, word) if word
+    PokeAccess::Options.keep_exit_label(win, idx, word) if word
     ret
   elsif opts.is_a?(Array) && idx.is_a?(Integer) && opts[idx] && PokeAccess::Options.number_row?(opts[idx])
     ret = nil
@@ -153,7 +165,8 @@ PokeAccess::Hooks.around_hook("Window_PokemonOption", :drawItem, :optional => tr
   end
 end
 
-PokeAccess::Engine.scene_classes("PokemonOption_Scene", "PokemonOptionScene").each do |cn|
+# An options screen's end is a return, and so is the end of FL's Set Controls, which Sevii opens from an options row.
+PokeAccess::Engine.scene_classes("PokemonOption_Scene", "PokemonOptionScene", "PokemonControlsScene").each do |cn|
   PokeAccess::Hooks.after_hook(cn, :pbEndScene, :optional => true, :hook_container => true) do |_s, _r, _a|
     PokeAccess::Options.returned!
   end

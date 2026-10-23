@@ -179,7 +179,8 @@ module PokeAccess
     # Whether one of the keys a menu walks its boxes with is down this frame.
     def self.key_moved?
       NAV_KEYS.any? { |k| Input.const_defined?(k) && Input.repeat?(Input.const_get(k)) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       true
     end
 
@@ -213,7 +214,8 @@ module PokeAccess
       end
       return [] unless mark
       [mark == :balanced ? PokeAccess::I18n.t(:ss2_adv_training_balanced) : PokeAccess::I18n.t(:ss2_adv_training, :s => mark)]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -222,7 +224,8 @@ module PokeAccess
       return [] unless (pk.hasItem? rescue false)
       return [PokeAccess::I18n.t(:dbk_item, :i => pk.item.name)] if style == :Ultra
       [PokeAccess::I18n.t(:ss2_adv_holds)]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -418,7 +421,8 @@ module PokeAccess
     def self.lit_dir(scene)
       arrows = scene.ui_sprites
       (0..3).find { |i| ((arrows["route_arrow_#{i}"].color.alpha rescue 0).to_i > 0) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -437,7 +441,8 @@ module PokeAccess
       words.push(tile_name(scene, stop)) if stop && named?(scene, stop)
       return nil if words.empty?
       words.inject { |a, b| PokeAccess::I18n.t(:ss2_adv_then, :a => a, :b => b) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -518,7 +523,8 @@ module PokeAccess
       GameData::Type.each { |ty| type ||= ty if ty.icon_position == pos }
       return nil unless type
       style == :Tera ? PokeAccess::I18n.t(:ss2_adv_tera, :t => type.name) : PokeAccess::I18n.t(:mv_type, :t => type.name)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -559,7 +565,8 @@ module PokeAccess
       a = PokeAccess.ivar(scene, :@adventure)
       return unless a
       say_counter(scene, :ss2_adv_hearts, PokeAccess::I18n.t(:ss2_adv_hearts, :n => a.hearts, :max => a.max_hearts))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -571,7 +578,8 @@ module PokeAccess
       n = a.keys.to_i
       return if n == 0 && PokeAccess::Cursor.current(scene, :ss2_adv_keys).nil?
       say_counter(scene, :ss2_adv_keys, PokeAccess::I18n.t(:ss2_adv_keys, :n => n))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -579,7 +587,8 @@ module PokeAccess
     def self.floor(scene)
       f = PokeAccess.clean((scene.ui_sprites["floor"].text rescue "").to_s)
       say_counter(scene, :ss2_adv_floor, PokeAccess::I18n.t(:ss2_adv_floor, :f => f)) unless f.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -631,5 +640,5 @@ PokeAccess::Game.define("soulstones2") do
   poll_each_frame { PokeAccess::SS2Adventure.poll_route }
 end
 
-PokeAccess::Verbosity.define_reading(:pokemon_choice, :vb_pokemon_choice, :vbh_pokemon_choice)
-PokeAccess::Verbosity.define_reading(:map_square, :vb_map_square, :vbh_map_square)
+PokeAccess::Verbosity.define_reading(:pokemon_choice, :vb_pokemon_choice, :vbh_pokemon_choice, :pokemon)
+PokeAccess::Verbosity.define_reading(:map_square, :vb_map_square, :vbh_map_square, :map)

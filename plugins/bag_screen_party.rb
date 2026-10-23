@@ -33,7 +33,8 @@ module PokeAccess
       ann = PokeAccess.ivar(panel, :@text)
       PokeAccess::Info.set_info(:pokemon, pk, PokeAccess::Verbosity.whole { member(pk, ann) })
       PokeAccess::UIV21.speak_changed(:party, member(pk, ann), i)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -60,7 +61,8 @@ module PokeAccess
     def self.setting(name)
       k = PokeAccess.const_at("BagScreenWiInParty")
       (k && k.const_defined?(name)) ? k.const_get(name) == true : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -109,7 +111,8 @@ module PokeAccess
       PokeAccess::Info.add_to_row(text, :bagp_ann)
       return unless PokeAccess::Verbosity.keep?(:bag_item, :medium)
       PokeAccess.speak(text, false, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -126,7 +129,7 @@ PokeAccess::Hooks.around_hook("PokemonBag_Scene", :pbChoosePokemon, :optional =>
   begin; nxt.call; ensure; PokeAccess::BagParty.unwatch; end
 end
 
-PokeAccess::Keys.on_frame { PokeAccess::BagParty.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::BagParty.poll }
 
 # While the item list is browsed, the per-frame pbUpdateAnnotation rewrites each panel's word for the focused item
 # (a machine or an evolution stone); the item's row is read first, by the list's own update.

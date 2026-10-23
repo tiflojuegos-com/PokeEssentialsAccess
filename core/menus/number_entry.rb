@@ -14,25 +14,28 @@ module PokeAccess
     # amount; nil drops it.
     def self.aside=(t); @aside = t; end
 
-    # Speaks a quantity line's amount and price, deduped on [window, text] (every prompt builds a fresh window), then
-    # the aside the prompt left; the window itself is held, since 1.8.7 recycles object ids.
+    # Speaks a quantity line's amount and price, deduped on [window, text] (every prompt builds a fresh window), the
+    # first amount of a window queued behind its question and the next ones interrupting, then the aside the prompt
+    # left; the window itself is held, since 1.8.7 recycles object ids.
     def self.on_text(win, raw)
       t = PokeAccess.clean(raw.to_s.gsub(LAYOUT, " "))
       return unless t =~ LINE
       amount = $1.to_i; price = $2; unit = $3
       price = price.gsub(/[.,]/, "") if price
-      return if @last && @last[0].equal?(win) && @last[1] == t
+      same = @last && @last[0].equal?(win)
+      return if same && @last[1] == t
       @last = [win, t]
       msg = amount.to_s
       if price
         msg += ", " + (unit ? "#{price.to_i} #{unit}" :
                               PokeAccess::I18n.t(PokeAccess::Config.money_label, :n => price.to_i))
       end
-      PokeAccess.speak(msg, true)
+      PokeAccess.speak(msg, same ? true : false)
       return unless @aside
       PokeAccess.speak(@aside, false)
       @aside = nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -61,7 +64,8 @@ module PokeAccess
       elsif num != ln
         PokeAccess.speak(num.to_s, true)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

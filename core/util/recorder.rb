@@ -16,8 +16,8 @@ module PokeAccess
     FLUSH_EVERY = 120
     HEADER = /\A=== PokeAccess diag/
 
-    # The diag sections dumped into the transcript at start, on a map change and on a scene change. diag_perf
-    # and diag_polls stay out: the first resets its window, the second runs a benchmark.
+    # The diag sections dumped into the transcript at start, on a map change and on a scene change. diag_perf stays
+    # out because it resets its timing window, and diag_polls because what it lists does not change with map or scene.
     SNAP_START = [:diag_focus, :diag_map, :diag_locator, :diag_pathfinder, :diag_surface,
                   :diag_audio3d, :diag_scene, :diag_runtime]
     SNAP_MAP   = [:diag_map, :diag_locator, :diag_pathfinder, :diag_surface]
@@ -55,7 +55,8 @@ module PokeAccess
       snapshot(SNAP_START, "start")
       flush
       File.basename(@path)
-    rescue StandardError
+    rescue StandardError => err
+      PokeAccess.swallowed(err)
       @on = false
       nil
     end
@@ -68,7 +69,8 @@ module PokeAccess
       PokeAccess::Speech.unobserve(:recorder)
       flush
       @count
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       0
     end
 
@@ -84,7 +86,8 @@ module PokeAccess
       @lines.push("#{sprintf('%.2f', PokeAccess.clock)}\t#{kind}\t#{clean.join("\t")}")
       @count += 1
       flush if @lines.length >= FLUSH_EVERY
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -120,7 +123,8 @@ module PokeAccess
       end
       @last_snap[why] = lines
       lines.each { |line| note("diag", why, line) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -137,7 +141,7 @@ module PokeAccess
       due.each { |s| snapshot(s[0], s[1]) }
     end
 
-    # The per-frame sample: the input pressed, and on change the map, position, scene (class and busy_reason,
+    # The per-frame sample: the input pressed, and on change the map, position, scene (class and Control.reason,
     # which tells overlay menus apart) and locator selection; a new map or scene queues a snapshot.
     def self.sample
       return unless @on
@@ -150,13 +154,14 @@ module PokeAccess
         defer(SNAP_MAP, "map") if moved_map
         on_change("pos", :pos, $game_player.x, $game_player.y)
       end
-      state = [($scene ? $scene.class.to_s : "nil"), (PokeAccess::Spatial.busy_reason.inspect rescue "?")]
+      state = [($scene ? $scene.class.to_s : "nil"), PokeAccess::Control.reason.inspect]
       defer(SNAP_SCENE, "scene") if on_change("scene", :scene, state[0], state[1])
       l = PokeAccess::Locator
       ti = l.instance_variable_get(:@ti)
       tg = l.instance_variable_get(:@target)
       on_change("sel", :sel, ti, ((tg && tg.name) rescue "")) unless ti.nil?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -169,7 +174,8 @@ module PokeAccess
       dir = (Input.repeat?(Input::UP) || Input.repeat?(Input::DOWN) ||
              Input.repeat?(Input::LEFT) || Input.repeat?(Input::RIGHT) rescue false)
       dir ? "dir" : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -180,5 +186,5 @@ module PokeAccess
   end
 end
 
-# Sampled on Keys.on_frame (Input.update), which also runs inside the menus' own blocking loops.
-PokeAccess::Keys.on_frame { (PokeAccess::Recorder.sample rescue nil) }
+# Sampled on every pulse (Frame.each_pulse, after Input.update), which also runs inside the menus' own blocking loops.
+PokeAccess::Frame.each_pulse { (PokeAccess::Recorder.sample rescue nil) }

@@ -14,7 +14,8 @@ module PokeAccess
         :lock  => Win32API.new("kernel32", "GlobalLock", ["l"], "l"),
         :unlock => Win32API.new("kernel32", "GlobalUnlock", ["l"], "i"),
         :copy  => Win32API.new("kernel32", "RtlMoveMemory", ["l", "p", "i"], "v") }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -22,7 +23,8 @@ module PokeAccess
     # unpack("U*") depends on $KCODE.
     def self.set_text(str)
       set_codepoints(codepoints_of(str.to_s))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -54,12 +56,14 @@ module PokeAccess
         begin
           Input.clipboard = utf8(cps)
           return true
-        rescue StandardError
+        rescue StandardError => e
+          PokeAccess.swallowed(e)
           nil
         end
       end
       win32(cps)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -117,7 +121,8 @@ module PokeAccess
       end
       @api[:close].call
       true
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
   end

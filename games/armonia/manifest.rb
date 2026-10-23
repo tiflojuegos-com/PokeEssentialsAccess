@@ -9,6 +9,7 @@
     fly_map
     follower
     cutscenes
+    passability
   ],
   :plugins => %w[gender_selection summary_habilidades hatcher luka_title starter_selection fancy_badges]
 }

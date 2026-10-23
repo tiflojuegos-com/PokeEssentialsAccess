@@ -13,7 +13,8 @@ module PokeAccess
       return nil unless first && (first.code rescue nil) == 108
       words = (first.parameters.first rescue nil).to_s.split
       words.first == "quest_marker" ? words[1] : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -22,13 +23,11 @@ module PokeAccess
       pic = picture(ev)
       key = pic ? word(pic) : nil
       key ? PokeAccess::I18n.t(key) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
 end
 
-PokeAccess::Hooks.override(PokeAccess::Locator, :name_marks, :tag => "quest_marker") do |_mod, original, args|
-  mark = PokeAccess::QuestMarker.mark(args[0])
-  mark ? (original.call || []) | [mark] : original.call
-end
+PokeAccess::Locator.register_rule(:mark) { |t| PokeAccess::QuestMarker.mark(t) }

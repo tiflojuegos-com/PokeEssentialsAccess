@@ -7,6 +7,7 @@
     tablas
     cuadrigas
     pictures
+    passability
   ],
   :plugins => %w[easy_questing logros luka_title fancy_badges]
 }

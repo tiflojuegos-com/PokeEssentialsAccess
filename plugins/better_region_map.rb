@@ -10,7 +10,8 @@ module PokeAccess
       rows = data.is_a?(Array) ? data[2] : nil
       return nil unless rows.is_a?(Array)
       rows.find { |e| e[0] == x && e[1] == y }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -37,7 +38,8 @@ module PokeAccess
       tw = (BetterRegionMap::TileWidth rescue 16.0).to_f
       th = (BetterRegionMap::TileHeight rescue 16.0).to_f
       [((spr.x - (win.x rescue 0) - tw / 2) / tw).round, ((spr.y - (win.y rescue 0) - th / 2) / th).round]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -68,7 +70,8 @@ module PokeAccess
       t = PokeAccess::Cursor.on_change(scene, :better_map, xy) { square_text(scene, xy[0], xy[1]) }
       return if t.nil? || t.empty?
       PokeAccess::RegionMap.speak_marked(t, interrupt)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -78,7 +81,8 @@ module PokeAccess
       return nil if r.nil?
       n = (pbGetMessage(MessageTypes::RegionNames, r) rescue nil)
       (n && !n.to_s.strip.empty?) ? PokeAccess.clean(n.to_s) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -87,7 +91,8 @@ module PokeAccess
       data = PokeAccess.ivar(scene, :@data)
       rows = data.is_a?(Array) ? data[2] : nil
       rows.is_a?(Array) ? rows.map { |e| [e[0], e[1]] } : []
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -132,4 +137,4 @@ PokeAccess::Hooks.after_hook("BetterRegionMap", :dispose, :optional => true) do 
   PokeAccess::Info.clear_text
 end
 
-PokeAccess::Verbosity.define_reading(:map_square, :vb_map_square, :vbh_map_square)
+PokeAccess::Verbosity.define_reading(:map_square, :vb_map_square, :vbh_map_square, :map)

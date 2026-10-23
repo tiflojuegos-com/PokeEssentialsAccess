@@ -15,7 +15,8 @@ module PokeAccess
       return nil if lines.empty?
       lines = with_rank(lines, pk)
       PokeAccess.sentences(PokeAccess::PaintCapture.pair_labels(lines))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -27,7 +28,8 @@ module PokeAccess
       return nil if whole.empty?
       PokeAccess::Info.set_info(:text, PokeAccess.sentences(whole))
       PokeAccess.sentences(grid_parts(pk, pairs, id, rank, false))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

@@ -29,9 +29,7 @@ module PokeAccess
     def self.deduce
       return :battle if (PokeAccess::Battle.in_battle? rescue false)
       return :dialogue if (PokeAccess.message_depth > 0 rescue false)
-      return :menu unless ($scene.is_a?(Scene_Map) rescue false)
-      return :menu if (($game_temp && $game_temp.in_menu) rescue false)
-      :nav
+      PokeAccess::Control.on_map? ? :nav : :menu
     end
 
     # The key of a category's spoken name, or nil for one the history does not offer.

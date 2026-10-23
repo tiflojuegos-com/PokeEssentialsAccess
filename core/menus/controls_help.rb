@@ -1,7 +1,6 @@
-# The opening's controls help (ButtonEventScene): its paragraphs are collected per screen as the scene registers
-# them, through addLabelForScreen (modern copy) or addLabel from the constructor (gen-6, one screen), and read when
-# that screen is put up. The gen-6 screen draws each key as a picture beside its paragraph (helpCkey, helpF5key...),
-# which leads the paragraph at its height.
+# The opening's controls help (ButtonEventScene): paragraphs are collected per screen as the scene registers them
+# (addLabelForScreen, or addLabel from the gen-6 constructor) and read when that screen is put up; a gen-6 key
+# picture (helpCkey, helpF5key...) leads the paragraph drawn at its height.
 module PokeAccess
   module ControlsHelp
     # Stores one paragraph on the scene, under the screen it belongs to, with the height it is drawn at.
@@ -9,7 +8,8 @@ module PokeAccess
       labels = (PokeAccess.ivar(scene, :@access_labels) || {})
       (labels[number] ||= []).push([text.to_s, y])
       scene.instance_variable_set(:@access_labels, labels)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -21,7 +21,8 @@ module PokeAccess
       keys = (PokeAccess.ivar(scene, :@access_keys) || [])
       keys.push([y.to_i, key])
       scene.instance_variable_set(:@access_keys, keys)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -63,7 +64,8 @@ module PokeAccess
         out += (out.empty? ? "" : (out =~ /[.!?:;]\z/ ? " " : ". ")) + t
       end
       PokeAccess.speak_clean(out, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

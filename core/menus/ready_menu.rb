@@ -8,9 +8,12 @@ module PokeAccess
       txt = PokeAccess.clean(PokeAccess::Menus.focused_text(win).to_s)
       return if txt.empty?
       PokeAccess::Cursor.announce(scene, :ready_last, [side(scene), (win.index rescue nil), txt], true) do
-        row_text(scene, win, txt)
+        row = row_text(scene, win, txt)
+        col = PokeAccess::Cursor.changed?(scene, :ready_side, side(scene)) ? column(scene) : nil
+        col ? "#{col}. #{row}" : row
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -19,12 +22,28 @@ module PokeAccess
       idx = PokeAccess.ivar(scene, :@index)
       idx.is_a?(Array) ? idx[2] : nil
     end
+
+    # The focused column and how many entries the other one holds ("Objetos, 2 movimientos a la izquierda"), said
+    # as the menu opens and on each change of side; nil while the other column is empty or the screen is one list.
+    def self.column(scene)
+      s = side(scene)
+      cmds = PokeAccess.ivar(scene, :@commands)
+      return nil if s.nil? || !cmds.is_a?(Array)
+      other = cmds[s == 0 ? 1 : 0]
+      return nil unless other.is_a?(Array) && !other.empty?
+      PokeAccess::I18n.t(s == 0 ? :ready_side_moves : :ready_side_items, :n => other.length)
+    end
   end
 end
 
 # pbUpdate runs each frame and re-syncs the hidden window; read the focus on change.
 PokeAccess::Hooks.after_hook("PokemonReadyMenu_Scene", :pbUpdate) do |scene, _r, _a|
   PokeAccess::ReadyMenu.poll(scene)
+end
+
+# The command loop runs again after a cancelled Fly map: the entry still focused is said once more.
+PokeAccess::Hooks.before_hook("PokemonReadyMenu_Scene", :pbShowCommands, :optional => true) do |scene, _a|
+  PokeAccess::Cursor.reset(scene, :ready_last)
 end
 
 module PokeAccess
@@ -39,7 +58,8 @@ module PokeAccess
       list = s.nil? ? cmds : cmds[s]
       row = list.is_a?(Array) ? list[idx] : nil
       (row.is_a?(Array) && row.length >= 2) ? row : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -54,7 +74,8 @@ module PokeAccess
       end
       qty = item_quantity(e[0])
       qty ? PokeAccess::I18n.t(:bag_item, :name => txt, :qty => qty) : txt
-    rescue StandardError
+    rescue StandardError => err
+      PokeAccess.swallowed(err)
       txt
     end
 
@@ -63,7 +84,8 @@ module PokeAccess
       return nil if itemid.nil? || PokeAccess::Menus.bag_hides_qty?(itemid)
       n = PokeAccess::Engine.bag_quantity(itemid)
       (n.nil? || n <= 0) ? nil : n
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

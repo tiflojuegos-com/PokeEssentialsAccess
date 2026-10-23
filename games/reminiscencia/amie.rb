@@ -35,7 +35,8 @@ module PokeAccess
       return unless (Time.now.to_f - PokeAccess.ivar(scene, :@eatTime).to_f) > len * 4
       pbSEPlay("NEWEat.ogg")
       scene.instance_variable_set(:@eatTime, Time.now)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

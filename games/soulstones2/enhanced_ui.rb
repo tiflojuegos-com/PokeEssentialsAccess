@@ -26,7 +26,8 @@ module PokeAccess
     # Remembers the effectiveness strip of the draw in progress, as one state index per foe, left to right.
     def self.note_effect_icons(rows)
       @icons = (rows || []).map { |r| (r[3].to_i / EFFECT_ICON_WIDTH) rescue nil }.compact
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       @icons = []
     end
 
@@ -38,7 +39,8 @@ module PokeAccess
     # Remembers the flag icons of the draw in progress, as frame indexes in the order they are painted.
     def self.note_flag_icons(rows)
       @flags = (rows || []).map { |r| (r[3].to_i / FLAG_ICON_WIDTH) rescue nil }.compact
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       @flags = []
     end
 
@@ -59,7 +61,8 @@ module PokeAccess
     def self.note_effects(rows)
       texts = (rows || []).map { |r| r[0].to_s }
       @effects = texts.each_slice(2).to_a
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       @effects = []
     end
 
@@ -89,7 +92,8 @@ module PokeAccess
         out.push(nm.empty? ? w : PokeAccess::I18n.t(:mv_eff_vs, :name => nm, :eff => w))
       end
       out.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -121,7 +125,8 @@ module PokeAccess
       d = PokeAccess::PaintCapture.text(desc)
       parts.push(d) unless d.to_s.strip.empty?
       parts.empty? ? nil : parts
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -189,7 +194,8 @@ module PokeAccess
       parts.push(ch) if ch
       r = parts.reject { |x| x.to_s.empty? }
       r.empty? ? nil : r.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -208,7 +214,8 @@ module PokeAccess
       fx = battler.effects
       n = (fx[PBEffects::FocusEnergy] rescue 0).to_i + (fx[PBEffects::CriticalBoost] rescue 0).to_i
       n > 4 ? 4 : n
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       0
     end
 
@@ -217,13 +224,21 @@ module PokeAccess
     def self.revealed_ability?(battler)
       rec = ($RevealedAbility[battler.index] rescue nil)
       rec.is_a?(Hash) && rec[0].is_a?(Hash) && rec[0] != { :pkmn => nil, :abil => nil }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
     # The types the panel draws (pbAddTypesDisplay): with Illusion on a foe, the disguise's plus any added third
-    # type; terastallized, the original ones; "???" for a species never met or a celestial battler.
+    # type; terastallized, the original ones; "???" for a species never met, a celestial battler or one left with no
+    # typing (Burn Up, Double Shock).
     def self.painted_types(battler)
+      list = drawn_types(battler)
+      list.is_a?(Array) && list.empty? ? [:QMARKS] : list
+    end
+
+    # painted_types' typing before an empty one is drawn as "???".
+    def self.drawn_types(battler)
       poke = ((battler.opposes? rescue false) ? (battler.displayPokemon rescue nil) : (battler.pokemon rescue nil))
       illusion = ((battler.effects[PBEffects::Illusion] rescue nil) && !(battler.pbOwnedByPlayer? rescue true)) ? true : false
       return [:QMARKS] if unknown_species?(battler, poke)
@@ -235,7 +250,8 @@ module PokeAccess
       t3 = (battler.effects[PBEffects::Type3] rescue nil)
       list.push(t3) if t3
       list
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       (battler.types rescue nil)
     end
 
@@ -243,13 +259,14 @@ module PokeAccess
     # (unless the game is set to always show types), and any celestial battler.
     def self.unknown_species?(battler, poke)
       return true if (battler.celestial? rescue false)
-      return false if (Settings::ALWAYS_DISPLAY_TYPES rescue false)
+      return false if (::Settings::ALWAYS_DISPLAY_TYPES rescue false)
       return false if (battler.pbOwnedByPlayer? rescue true)
       sp = (poke.species rescue nil)
       return false if sp.nil?
       return false if ($player.pokedex.owned?(sp) rescue false)
       (($player.pokedex.battled_count(sp) rescue 0)).to_i <= 0
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -261,7 +278,8 @@ module PokeAccess
       names = [list].flatten.compact.uniq.map { |ty| ty == :QMARKS ? PokeAccess::I18n.t(:pdx_unknown_short) : (PokeAccess::Data.type_name(ty) rescue nil) }
       names = names.compact.reject { |s| s.to_s.empty? }
       names.empty? ? nil : PokeAccess::I18n.t(:mv_type, :t => names.join("/"))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -316,7 +334,8 @@ module PokeAccess
       nm = "#{nm} #{sign}" if sign
       owner = (battle.pbGetOwnerFromBattlerIndex(b.index).name rescue nil)
       (owner && !owner.to_s.empty?) ? PokeAccess::I18n.t(:dbk_owner, :name => nm, :owner => owner) : nm.to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

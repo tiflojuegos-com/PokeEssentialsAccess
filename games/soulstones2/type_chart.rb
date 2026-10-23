@@ -35,7 +35,8 @@ module PokeAccess
       return if PokeAccess.message_depth > @depth.to_i
       return if !PokeAccess::Verbosity.hints? && PokeAccess.clean(text.to_s) =~ KEY_LINE
       PokeAccess.speak_clean(text, false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -52,7 +53,8 @@ module PokeAccess
       sp = (list[PokeAccess.ivar(scene, :@index).to_i] rescue nil)
       t = sp ? matchup_text(GameData::Species.get(sp)) : nil
       PokeAccess.speak(t, true) if t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

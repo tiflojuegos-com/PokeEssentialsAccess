@@ -118,7 +118,8 @@ module PokeAccess
       cat = PokeAccess::MoveInfo.category_word(fight_category(move, battler))
       PokeAccess::MoveInfo.leveled(:battle_move, nm.to_s, ty, PokeAccess.attr_of(move, :power, :baseDamage),
                                    (move.accuracy rescue 0), :cat => cat, :pp => pp, :total_pp => tot)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       (move.name rescue PokeAccess::I18n.t(:info_move))
     end
 
@@ -134,7 +135,8 @@ module PokeAccess
       kept = bar ? PokeAccess.ivar(bar, :@ability_name) : nil
       return kept if kept.is_a?(String) && !kept.empty?
       second ? (battler.ability2Name rescue nil) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -145,18 +147,24 @@ module PokeAccess
       ab = shown.is_a?(String) ? shown : (battler.abilityName rescue nil)
       return nil if ab.nil? || ab.to_s.empty?
       PokeAccess::I18n.t(:bt_ability, :name => nm, :ability => ab)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # Spoken hp change for a battler (lost for damage): exact hp for the player's own, a percentage for a foe.
+    # Spoken hp change for a battler (lost for damage): in hit points for the player's own and, for a foe, whose box
+    # paints only its bar, as the change of the percentage left unless the game paints the figures.
     def self.hp_change_text(battler, amt, lost)
       return nil unless battler && amt && amt.to_i > 0
+      bt = PokeAccess::Battle
       foe = (battler.opposes? rescue false)
-      verb = PokeAccess::I18n.t(lost ? :bt_lose : :bt_gain)
-      rest = PokeAccess::Battle.hp_phrase(battler.hp, battler.totalhp, foe)
-      PokeAccess::I18n.t(:bt_hp_change, :name => battler.name, :verb => verb, :n => amt.to_i, :rest => rest)
-    rescue StandardError
+      vars = { :name => battler.name, :verb => PokeAccess::I18n.t(lost ? :bt_lose : :bt_gain), :n => amt.to_i,
+               :rest => bt.hp_phrase(battler.hp, battler.totalhp, foe) }
+      return PokeAccess::I18n.t(:bt_hp_change, vars) unless foe && !bt.foe_change_painted?(battler)
+      old = lost ? battler.hp + amt.to_i : battler.hp - amt.to_i
+      bt.percent_change_text(old, battler.hp, battler.totalhp, vars)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

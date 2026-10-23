@@ -18,7 +18,8 @@ module PokeAccess
       else
         announce_items(bag)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -99,7 +100,8 @@ module PokeAccess
         spr = PokeAccess.sprite(bag, "overlay2_#{i + 1}")
         @labels[i] = text.to_s if spr && spr.bitmap.equal?(bitmap)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

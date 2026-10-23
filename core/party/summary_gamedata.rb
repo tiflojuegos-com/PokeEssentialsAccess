@@ -23,7 +23,8 @@ module PokeAccess
       when :page_moves   then moves_text(pk)
       when :page_ribbons then ribbons_text(pk)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -40,8 +41,7 @@ module PokeAccess
       end
     end
 
-    # Page one: name, header icons, dex number, species, types, held item and trainer lines; an egg has its own
-    # page instead (Summary.say_egg_page).
+    # Page one: name, header icons, dex number, species, types, held item and trainer lines; eggs use say_egg_page.
     # param dex the Pokedex number the page paints (Summary.painted_dex_number), or nil
     # param heart the paragraph a Shadow Pokemon's page paints in place of the experience, or nil
     def self.info_text(pk, dex = nil, heart = nil)
@@ -55,7 +55,8 @@ module PokeAccess
       t += PokeAccess::Summary.item_fact(pk) + " "
       t += PokeAccess::Summary.trainer_facts(pk).join(" ")
       heart ? "#{t} #{heart}" : t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -67,7 +68,8 @@ module PokeAccess
       return from_paint if from_paint
       nat = (pk.nature ? pk.nature.name : nil rescue nil)
       (nat && !nat.to_s.empty?) ? "#{memo}. #{PokeAccess::I18n.t(:sm_nature, :n => nat)}." : "#{memo}."
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -79,7 +81,8 @@ module PokeAccess
       from = PokeAccess::I18n.t(:sm_met_egg)
       from = "#{from}: #{place}" unless place.empty?
       PokeAccess::Util.join_parts([from, PokeAccess::Incubator.hatch_state(pk)])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -95,7 +98,8 @@ module PokeAccess
       t += " " + nat if nat
       ab = PokeAccess::Summary.ability_line(pk, painted)
       ab ? "#{t} #{ab}" : t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -139,7 +143,8 @@ module PokeAccess
       hp_name = hp ? type_name(hp) : nil
       rows.push(PokeAccess::I18n.t(:sm_hidden_power, :t => hp_name)) if hp_name
       "#{PokeAccess::I18n.t(:sm_stats)}. #{rows.join('. ')}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -151,7 +156,8 @@ module PokeAccess
         :hpi => iv[:HP], :hpe => ev[:HP], :ai => iv[:ATTACK], :ae => ev[:ATTACK],
         :di => iv[:DEFENSE], :de => ev[:DEFENSE], :sai => iv[:SPECIAL_ATTACK], :sae => ev[ev_sp],
         :sdi => iv[:SPECIAL_DEFENSE], :sde => ev[:SPECIAL_DEFENSE], :si => iv[:SPEED], :se => ev[:SPEED])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -177,7 +183,8 @@ module PokeAccess
       nat = PokeAccess::Summary.nature_effect_line(pk)
       rows.push(nat) if nat
       "#{PokeAccess::I18n.t(:sm_stats)}. #{rows.join('. ')}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       stats_text(pk)
     end
 
@@ -197,7 +204,8 @@ module PokeAccess
     def self.ribbons_text(pk)
       n = (pk.numRibbons rescue 0).to_i
       n > 0 ? PokeAccess::I18n.t(:sm_ribbons, :n => n) : PokeAccess::I18n.t(:sm_ribbons_none)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -225,7 +233,8 @@ module PokeAccess
       cat = data ? PokeAccess::MoveInfo.category_word((data.display_category(pk, move) rescue (data.category rescue nil))) : nil
       PokeAccess::MoveInfo.leveled(:summary_move, nm.to_s, ty, pw, acc, :cat => cat, :pp => pp, :total_pp => tot,
                                    :desc => desc)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       (move.name rescue PokeAccess::I18n.t(:info_move))
     end
   end

@@ -7,7 +7,8 @@ module PokeAccess
       return nil unless files.is_a?(Array) && files[idx].is_a?(Array)
       nm = files[idx][1]
       (nm && !nm.to_s.empty?) ? nm.to_s : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -39,7 +40,8 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :ls_autosub, [arrayindex, index], true, false) do
         index.to_i == 0 ? "#{r[0]}. #{r[1]}, #{r[3]}" : "#{r[2]}, #{r[4]}"
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

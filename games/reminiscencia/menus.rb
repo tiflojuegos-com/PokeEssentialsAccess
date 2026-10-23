@@ -10,13 +10,13 @@ module PokeAccess
                   :rem_mode_infinite, :rem_mode_simulator, :rem_mode_unknown]
     @stack = []
 
-    # Pushes a menu as active and announces its focused option, and the panel for the pause menu; suspends the 3D
-    # audio, which nothing else silences in these menus.
+    # Pushes a menu as active and announces its focused option, and the panel for the pause menu; the control check
+    # sees it at once, so the soundscape falls silent under it.
     # param kind which menu: :load_main, :load_modes, :pause or :worldmap
     def self.open(scene, kind)
       PokeAccess::MenuReturn.reset_nesting if @stack.empty?
       @stack.push({ :scene => scene, :kind => kind, :last => nil })
-      (PokeAccess::Audio3D.suspend rescue nil)
+      PokeAccess::Control.changed!
       poll
       PokeAccess::PausePanel.say(pause_panel(scene)) if kind == :pause
     end
@@ -25,6 +25,7 @@ module PokeAccess
     def self.close
       @stack.pop
       @stack.last[:last] = nil if @stack.last
+      PokeAccess::Control.changed!
     end
 
     # Forgets the top menu's focus without popping, so the next poll re-announces it.
@@ -38,8 +39,22 @@ module PokeAccess
       @stack.last[:ended] = true if @stack.last
     end
 
-    # True while any of these menus is open; Spatial.busy? reads it to pause the field cues under these overlays.
+    # True while any of these menus is open: the control condition that holds the cues under these overlays.
     def self.active?; !@stack.empty?; end
+
+    # Whether the pause menu (callMenuNuevo), or a screen opened from it, is up.
+    def self.pause_open?
+      @pause_open ? true : false
+    end
+
+    # Runs the pause menu with pause_open? true, put back however it ends.
+    def self.pause_run
+      was = @pause_open
+      @pause_open = true
+      yield
+    ensure
+      @pause_open = was
+    end
 
     # Reads the top menu's focused option when it changes and holds the menu lock; nothing while the bag is in front.
     def self.poll
@@ -143,7 +158,8 @@ module PokeAccess
     def self.in_dungeon?
       d = ($dungeon_maps rescue nil)
       d && $game_map && d.include?($game_map.map_id)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
   end
@@ -194,4 +210,16 @@ PokeAccess::MenuReturn.on_return { PokeAccess::ReminMenu.refocus }
 [["PokemonScreen", :pbPokemonScreen], ["PokemonBagScreen", :pbStartScreen], ["PokemonSave", :pbSaveScreen],
  ["PokemonOption", :pbStartScreen], ["Logros_Scene", :initialize]].each do |cname, meth|
   PokeAccess::MenuReturn.bare(cname, meth)
+end
+
+# These overlays never set in_menu: while one is open the cues and the soundscape hold.
+PokeAccess::Control.condition(:remin_menu, :hold) { PokeAccess::ReminMenu.active? }
+
+# The pause menu (callMenuNuevo, from Scene_Map#call_menu) never sets in_menu either: the map counts as covered while
+# it runs, so the lines said in it with no category are filed as a menu's.
+PokeAccess::Game.define("reminiscencia") do
+  kernel("callMenuNuevo", :around) { |_args, nxt| PokeAccess::ReminMenu.pause_run { nxt.call } }
+  override("PokeAccess::Control", :on_map?) do |_m, original, _a|
+    original.call && !PokeAccess::ReminMenu.pause_open?
+  end
 end

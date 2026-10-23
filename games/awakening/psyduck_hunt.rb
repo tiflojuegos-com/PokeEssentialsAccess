@@ -25,7 +25,8 @@ module PokeAccess
       return if prev.nil?
       parts = changes(prev, now)
       PokeAccess.speak(parts.join(". "), true) unless parts.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

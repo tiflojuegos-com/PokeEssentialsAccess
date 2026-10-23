@@ -1,7 +1,6 @@
-# Royal's jump-rope minigame on route 6 (JumpMinigame::Play, bo4p5687's "Minigame Jump"). The rope is only drawn, so
-# a tick marks the time to jump: the earliest frame from which a jump is still in the air when the rope passes under
-# the Pokemon (the end of phase 2, where the game counts it), so a jump on the tick, or a reaction up to the Pokemon's
-# time in the air later, clears it. The jump counter, "faster" and the end are said as painted.
+# Royal's jump-rope minigame (JumpMinigame::Play, bo4p5687's "Minigame Jump"): the rope is only drawn, so a tick marks
+# the earliest frame from which a jump is still in the air when the rope passes under the Pokemon, where the game
+# counts it; the jump counter, "faster" and the end are said as painted.
 module PokeAccess
   module RoyalJumpRope
     # Pixels pkmnJump moves the Pokemon each frame, up and down.
@@ -52,8 +51,9 @@ module PokeAccess
       left = frames_to_pass(play)
       return if left.nil? || left > airtime(play)
       play.instance_variable_set(:@pa_rope_cued, true)
-      PokeAccess::Spatial.gauge(1.0)
-    rescue StandardError
+      PokeAccess::Sound.gauge(1.0)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -75,7 +75,8 @@ module PokeAccess
       parts = [count_text(n)]
       parts.push(_INTL("¡Más rápido!")) if faster?(n)
       PokeAccess.speak_clean(PokeAccess.sentences(parts), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -84,7 +85,8 @@ module PokeAccess
       return unless PokeAccess.ivar(play, :@over)
       n = PokeAccess.ivar(play, :@timesJ).to_i
       PokeAccess.speak_clean(PokeAccess.sentences([_INTL("¡Se acabó!"), count_text(n)]), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

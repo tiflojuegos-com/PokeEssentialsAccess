@@ -11,7 +11,8 @@ module PokeAccess
       @arrows = {}
       ARROWS.each { |name, d| @arrows[::PBTerrain.const_get(name)] = d if ::PBTerrain.const_defined?(name) }
       @arrows
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       @arrows = {}
     end
 
@@ -23,22 +24,23 @@ module PokeAccess
 
     # The way the arrow at (x,y) spins the player, or nil.
     def self.dir_at(x, y)
-      arrows[PokeAccess::Terrain.number_at(x, y)]
-    rescue StandardError
+      arrows[PokeAccess::World::Terrain.number(x, y)]
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
     # Where a spin started on (x,y) facing face ends, as [x, y], or false when it would never end.
     def self.spin(x, y, face)
-      pf = PokeAccess::Pathfinder
+      cap = PokeAccess::Routes::Moves::ARRIVAL_CAP
       steps = 0
       loop do
-        break unless pf.passable_at?(x, y, face)
+        break unless PokeAccess::World::Probe.step?(x, y, face)
         break if (extra_stop?(x, y) rescue false)
         face = dir_at(x, y) || face
-        break unless pf.passable_at?(x, y, face)
+        break unless PokeAccess::World::Probe.step?(x, y, face)
         steps += 1
-        return false if steps > pf::ARRIVAL_CAP
+        return false if steps > cap
         dd = PokeAccess::DIR_DELTA[face]
         x += dd[0]; y += dd[1]
       end
@@ -47,7 +49,10 @@ module PokeAccess
   end
 end
 
-PokeAccess::Pathfinder.arrival_rule do |x, y, _d|
+PokeAccess::Routes::Moves.arrival_rule(:tags => lambda { PokeAccess::SpinTiles.arrows.keys }) do |x, y, _d|
   face = PokeAccess::SpinTiles.dir_at(x, y)
   face ? PokeAccess::SpinTiles.spin(x, y, face) : nil
 end
+
+# The spin carries the player tile after tile ($PokemonGlobal.spinning): a forced move, told where it left them.
+PokeAccess::Control.carrier(:spin_tiles) { $PokemonGlobal.spinning }

@@ -9,7 +9,8 @@ module PokeAccess
       return nil unless keys && idx && idx >= 0 && idx < keys.length
       entry = DATING_PLACES[keys[idx]]
       (entry.is_a?(Array) && entry[2]) ? entry[2].to_s : keys[idx].to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -32,7 +33,8 @@ module PokeAccess
     # Keeps the panel drawDataWindow just painted on the scene, for the next announce.
     def self.note_panel(scene, pairs, icons)
       scene.instance_variable_set(:@access_task_panel, panel_text(pairs, icons))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -47,7 +49,8 @@ module PokeAccess
       panel = PokeAccess.ivar(scene, :@access_task_panel)
       t = (panel.nil? || panel.to_s.empty?) ? place_name(idx) : panel
       PokeAccess.speak_clean(t, !moved)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

@@ -26,7 +26,8 @@ module PokeAccess
       n = spare_lives(b)
       rest = n > 0 ? PokeAccess::I18n.t(:awk_lives_left, :n => n) : PokeAccess::I18n.t(:awk_lives_last)
       PokeAccess.speak(PokeAccess::I18n.t(:awk_life_lost, :name => b.name, :rest => rest), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

@@ -13,7 +13,8 @@ module PokeAccess
         PokeAccess::Menus.button_label(list[idx][0])
       end
       panel(list)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -33,7 +34,8 @@ module PokeAccess
     # focused entry again.
     def self.returned
       PokeAccess::Cursor.reset(@menu, :dpmenu) if @menu
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -50,6 +52,12 @@ PokeAccess::Hooks.around_hook("DP_PauseMenu", :main, :optional => true) do |menu
 end
 
 PokeAccess::MenuReturn.on_return { PokeAccess::DPMenu.returned }
+
+# An RMXP-style scene opened from the menu (the Pokegear) runs whole inside pbLoadRpgxpScene, with no fade around it:
+# its end is a return. Not a MenuReturn seam, under which the scene's own returns would nest and stay silent.
+PokeAccess::Hooks.wrap_kernel("pbLoadRpgxpScene", "plugin_dp_pausemenu_rpgxp", :after) do |_args, _r|
+  PokeAccess::DPMenu.returned
+end
 
 # Pokemon Z's DexNav list (EncounterListUI) opens inside the menu loop without any return seam.
 PokeAccess::MenuReturn.bare("EncounterListUI", :initialize, :optional => true)

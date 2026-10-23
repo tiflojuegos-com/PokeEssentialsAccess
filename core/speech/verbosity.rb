@@ -13,21 +13,35 @@ module PokeAccess
     OTHERS = :others
 
     # That entry's row in the scheme editor, shaped like a declared reading's.
-    OTHERS_ROW = [OTHERS, :vb_others, :vbh_others]
+    OTHERS_ROW = [OTHERS, :vb_others, :vbh_others, nil]
+
+    # The groups the scheme editor files readings under, in its order, each with its label key; :game holds what only
+    # this game's plugins and profile read (quests, the hall of fame), while one of theirs that belongs to a core group
+    # (a region map square, a Pokemon choice) is filed there.
+    GROUPS = [[:general, :vbg_general], [:map, :vbg_map], [:battle, :vbg_battle], [:pokemon, :vbg_pokemon],
+              [:items, :vbg_items], [:dex, :vbg_dex], [:game, :vbg_game]]
 
     @readings = []
 
-    # Declares a reading the scheme editor lists, with the keys of its spoken name and of its help (what each level
-    # says of it). Declaring one again replaces it where it stands, so a profile can reword a reading it shares.
-    def self.define_reading(reading, name_key, help_key)
-      row = [reading, name_key, help_key]
+    # Declares a reading the scheme editor lists under a group, with the keys of its spoken name and of its help (what
+    # each level says of it). Declaring one again replaces it where it stands, so a profile can reword a reading it
+    # shares.
+    def self.define_reading(reading, name_key, help_key, group)
+      unless GROUPS.assoc(group)
+        PokeAccess.log_once("verbosity_group_#{reading}", "unknown verbosity group #{group.inspect} for #{reading}")
+        group = :game
+      end
+      row = [reading, name_key, help_key, group]
       i = @readings.index { |r| r[0] == reading }
       i ? @readings[i] = row : @readings.push(row)
       reading
     end
 
-    # The declared readings as [reading, name key, help key] rows, in the order the editor lists them.
+    # The declared readings as [reading, name key, help key, group] rows, in the order the editor lists them.
     def self.readings; @readings; end
+
+    # The declared readings filed under a group, in declaration order.
+    def self.readings_in(group); @readings.select { |r| r[3] == group }; end
 
     # A reading's row, the others entry's, or nil for a reading never declared.
     def self.reading_row(reading)
@@ -156,7 +170,7 @@ module PokeAccess
 
     # Puts a scheme in use and saves the choice.
     def self.use(scheme)
-      PokeAccess::Config.verbosity = scheme
+      PokeAccess::Config.set(:verbosity, scheme)
       (PokeAccess::Settings.write rescue nil)
     end
 
@@ -180,17 +194,20 @@ module PokeAccess
 end
 
 # The core's readings, the first the scheme editor lists.
-PokeAccess::Verbosity.define_reading(:party, :vb_party, :vbh_party)
-PokeAccess::Verbosity.define_reading(:battle_move, :vb_battle_move, :vbh_battle_move)
-PokeAccess::Verbosity.define_reading(:battle_marks, :vb_battle_marks, :vbh_battle_marks)
-PokeAccess::Verbosity.define_reading(:summary_move, :vb_summary_move, :vbh_summary_move)
-PokeAccess::Verbosity.define_reading(:learn_move, :vb_learn_move, :vbh_learn_move)
-PokeAccess::Verbosity.define_reading(:bag_item, :vb_bag_item, :vbh_bag_item)
-PokeAccess::Verbosity.define_reading(:shop_item, :vb_shop_item, :vbh_shop_item)
-PokeAccess::Verbosity.define_reading(:pc_slot, :vb_pc_slot, :vbh_pc_slot)
-PokeAccess::Verbosity.define_reading(:dex_entry, :vb_dex_entry, :vbh_dex_entry)
-PokeAccess::Verbosity.define_reading(:dex_page, :vb_dex_page, :vbh_dex_page)
-PokeAccess::Verbosity.define_reading(:ribbon, :vb_ribbon, :vbh_ribbon)
-PokeAccess::Verbosity.define_reading(:positions, :vb_positions, :vbh_positions)
-PokeAccess::Verbosity.define_reading(:hints, :vb_hints, :vbh_hints)
-PokeAccess::Verbosity.define_reading(:descriptions, :vb_descriptions, :vbh_descriptions)
+PokeAccess::Verbosity.define_reading(:party, :vb_party, :vbh_party, :pokemon)
+PokeAccess::Verbosity.define_reading(:battle_move, :vb_battle_move, :vbh_battle_move, :battle)
+PokeAccess::Verbosity.define_reading(:battle_marks, :vb_battle_marks, :vbh_battle_marks, :battle)
+PokeAccess::Verbosity.define_reading(:summary_move, :vb_summary_move, :vbh_summary_move, :pokemon)
+PokeAccess::Verbosity.define_reading(:learn_move, :vb_learn_move, :vbh_learn_move, :pokemon)
+PokeAccess::Verbosity.define_reading(:bag_item, :vb_bag_item, :vbh_bag_item, :items)
+PokeAccess::Verbosity.define_reading(:shop_item, :vb_shop_item, :vbh_shop_item, :items)
+PokeAccess::Verbosity.define_reading(:pc_slot, :vb_pc_slot, :vbh_pc_slot, :items)
+PokeAccess::Verbosity.define_reading(:dex_entry, :vb_dex_entry, :vbh_dex_entry, :dex)
+PokeAccess::Verbosity.define_reading(:dex_page, :vb_dex_page, :vbh_dex_page, :dex)
+PokeAccess::Verbosity.define_reading(:ribbon, :vb_ribbon, :vbh_ribbon, :pokemon)
+PokeAccess::Verbosity.define_reading(:positions, :vb_positions, :vbh_positions, :general)
+PokeAccess::Verbosity.define_reading(:hints, :vb_hints, :vbh_hints, :general)
+PokeAccess::Verbosity.define_reading(:descriptions, :vb_descriptions, :vbh_descriptions, :general)
+PokeAccess::Verbosity.define_reading(:room_note, :vb_room_note, :vbh_room_note, :map)
+PokeAccess::Verbosity.define_reading(:route_transfers, :vb_route_transfers, :vbh_route_transfers, :map)
+PokeAccess::Verbosity.define_reading(:teleport, :vb_teleport, :vbh_teleport, :map)

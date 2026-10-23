@@ -52,7 +52,8 @@ module PokeAccess
       @dance = PokeAccess::I18n.t(:rea_ori_dance, :list => dance_list)
       hint = PokeAccess::KeyHints.localize(PokeAccess::I18n.t(:rea_ori_sheet_key))
       PokeAccess.speak(PokeAccess::Verbosity.hints? ? PokeAccess.sentences([hint, @dance]) : @dance, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -74,16 +75,19 @@ module PokeAccess
       ((sw[[DANCE_MAP, 10, "A"]] rescue false) && !(sw[[DANCE_MAP, 10, "B"]] rescue false)) ? true : false
     end
 
-    # The notes' arrows, by the names the song gives them.
-    NOTE_KEYS = { "up" => :dir_up, "down" => :dir_down, "left" => :dir_left, "right" => :dir_right }
+    # The notes' arrows, by the names the song gives them: the direction the guide's chime sounds toward and the word.
+    NOTES = { "up" => [8, :dir_up], "down" => [2, :dir_down], "left" => [4, :dir_left], "right" => [6, :dir_right] }
+    # Seconds before a note comes within reach of the selector that its arrow sounds; the reach lasts about a quarter
+    # of a second (10 or 11 frames at the game's 40 a second), and a run's notes come 0.15 s apart.
+    CUE_LEAD = 0.2
 
     @idol = nil
 
     def self.hold_idol(scene); @idol = scene; end
     def self.release_idol; @idol = nil; end
 
-    # Each frame of the rhythm game: the arrow of each note as it comes within its reach of the selector (30 px
-    # either side, the window a press counts in), once per note, in the song's order.
+    # Each frame of the rhythm game: the arrow of each note CUE_LEAD seconds before it comes within reach of the
+    # selector (30 px either side, the window a press counts in), once per note, in the song's order.
     def self.idol_poll
       s = @idol
       return unless s
@@ -94,13 +98,31 @@ module PokeAccess
       done = PokeAccess.ivar(s, :@pa_idol_note) || -1
       notes.each_with_index do |n, i|
         next if i <= done
-        key = NOTE_KEYS[(n.note rescue nil).to_s]
-        next unless key && !(n.hit rescue true) && ((n.x rescue 9999) - sx).abs < ((n.range rescue 30) || 30)
+        arrow = NOTES[(n.note rescue nil).to_s]
+        next unless arrow && !(n.hit rescue true) && idol_due?(n, sx)
         s.instance_variable_set(:@pa_idol_note, i)
-        PokeAccess.speak(PokeAccess::I18n.t(key), true)
+        idol_cue(arrow)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
+    end
+
+    # Whether a note's arrow is due: nearer the selector than its reach plus the steps it takes in CUE_LEAD seconds
+    # (its step_distance a frame), and not past its reach yet.
+    def self.idol_due?(note, sx)
+      reach = (note.range rescue 30) || 30
+      lead = CUE_LEAD * Graphics.frame_rate * (note.step_distance rescue 0).to_f
+      off = (note.x rescue 9999) - sx
+      off < reach + lead && off > -reach
+    end
+
+    # A note's arrow as the guide's flat chime toward it, at the minigames' volume; the word, cutting in, with those
+    # sounds off.
+    def self.idol_cue(arrow)
+      vol = PokeAccess::Sound::Mixer.volume(:minigame)
+      return PokeAccess.speak(PokeAccess::I18n.t(arrow[1]), true) unless vol && vol > 0
+      PokeAccess::Sound.flat(PokeAccess::Sound::Catalog.entry(:guide), arrow[0], vol)
     end
   end
 end
@@ -115,9 +137,10 @@ PokeAccess::Game.define("realidea") do
     params = PokeAccess.ivar(interp, :@parameters)
     PokeAccess::ReaJade.route_set(params[0], params[1]) if params.is_a?(Array)
   end
-  puzzle(PokeAccess::ReaJade::DANCE_MAP, :kind => :stages,
-         :stages => [{ :when => lambda { PokeAccess::ReaJade.dance_live? },
-                       :title => lambda { PokeAccess::ReaJade.dance }, :quiet => true }])
+  mechanic(:state, PokeAccess::ReaJade::DANCE_MAP) do
+    active { PokeAccess::ReaJade.dance_live? }
+    info { PokeAccess::ReaJade.dance }
+  end
 
   before("Pokemonysusgritos", :initialize, :optional => true) { |s, _a| PokeAccess::Cursor.reset(s, :rea_cry) }
   after("Pokemonysusgritos", :input, :optional => true) do |scene, _r, _a|

@@ -23,7 +23,8 @@ module PokeAccess
           File.open(probe, "w") { |f| f.write("1") }
           (File.delete(probe) rescue nil)
           true
-        rescue StandardError
+        rescue StandardError => e
+          PokeAccess.swallowed(e)
           false
         end
       end

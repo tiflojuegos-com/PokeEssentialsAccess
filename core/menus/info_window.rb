@@ -34,7 +34,7 @@ module PokeAccess
       k = PokeAccess.const_at(cname)
       return false unless k
       @watches.push([k, key.to_s, slot, opts[:interrupt] ? true : false, opts[:optional] ? true : false, opts[:reading]])
-      return @bound[cname] if @bound.has_key?(cname)
+      return @bound[cname] if @bound.key?(cname)
       @bound[cname] = false
       closers = [opts[:close]].flatten.compact.map { |n| n.to_sym }
       closers = CLOSERS if closers.empty?
@@ -92,7 +92,8 @@ module PokeAccess
         end
         say(scene, key, slot, interrupt, optional)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -101,7 +102,8 @@ module PokeAccess
       win = PokeAccess.sprite(scene, key)
       return unless win && (win.visible rescue true) != false
       PokeAccess::Info.add_to_row(PokeAccess.clean_fields((win.text rescue nil).to_s), slot)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -119,7 +121,8 @@ module PokeAccess
       first = !(@said ||= {})[slot]
       @said[slot] = true
       PokeAccess.speak(t, interrupt && !first, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -134,7 +137,8 @@ module PokeAccess
       return if t.to_s.strip.empty?
       return unless PokeAccess::Cursor.changed?(scene, :dex_header, t.to_s)
       PokeAccess.speak(t, false, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -144,7 +148,8 @@ module PokeAccess
       return nil unless sp
       n = (PokeAccess::Data.species_name(sp) rescue nil)
       (n.nil? || n.to_s.empty?) ? nil : n.to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -154,13 +159,14 @@ module PokeAccess
       return if @silent.include?(tag) || @silent.length >= 20
       @silent.push(tag)
       nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
 end
 
-PokeAccess::Keys.on_frame { PokeAccess::InfoWindow.tick }
+PokeAccess::Frame.each_pulse { PokeAccess::InfoWindow.tick }
 
 # Drops the live scene on map change, in case its close was never seen.
 PokeAccess::Caches.register(:info_window) { PokeAccess::InfoWindow.leave }

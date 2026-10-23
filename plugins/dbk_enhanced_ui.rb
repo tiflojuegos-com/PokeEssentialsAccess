@@ -42,7 +42,8 @@ module PokeAccess
         return atk > spatk ? 0 : 1
       end
       PokeAccess::MoveInfo.target_category(move, battler) || PokeAccess::MoveInfo.category_of(move)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       PokeAccess::MoveInfo.category_of(move)
     end
 
@@ -60,7 +61,8 @@ module PokeAccess
         elsif ((battler.dynamax? rescue false) || (special == :dynamax && mode == 2)) && move.respond_to?(:convert_dynamax_move)
           move = move.convert_dynamax_move(battler, battle, idx)
         end
-      rescue StandardError
+      rescue StandardError => e
+        PokeAccess.swallowed(e)
       end
       parts = []
       name = PokeAccess.clean((move.name rescue ""))
@@ -80,7 +82,8 @@ module PokeAccess
       eff = effectiveness(scene, move, t)
       parts.push(eff) if eff
       parts.empty? ? nil : parts
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -100,7 +103,8 @@ module PokeAccess
       out.push(PokeAccess::I18n.t(:mv_priority, :n => pri)) unless pri.to_s == "---"
       out.push(PokeAccess::I18n.t(:mv_effect, :n => p[3])) if p && p[3].to_s != "---"
       out
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -114,10 +118,8 @@ module PokeAccess
       s.to_s == "---" ? PokeAccess::I18n.t(:mv_acc_perfect) : s.to_s
     end
 
-    # The panel's figures and bonus line, caught from its own draw call while it paints: the only four centred rows
-    # (the labels are left-aligned), which holds in every copy whatever it translates or shifts, and the left-aligned
-    # row pushed after them when pbGetFinalModifiers gives one ("Poder potenciado por Torrente."), its stop dropped
-    # as the reading joins its phrases with commas.
+    # The panel's figures and bonus line, caught from its own draw call: the only four centred rows, in every copy,
+    # and the left-aligned row after them when pbGetFinalModifiers gives one, its final stop dropped.
     @painted = nil
     @bonus = nil
     @armed = false
@@ -134,7 +136,8 @@ module PokeAccess
       after = rows[(last + 1)..-1].select { |r| r.is_a?(Array) && r[3] == :left }
       t = after.empty? ? "" : PokeAccess.clean(after.first[0].to_s).sub(/\.+\z/, "")
       @bonus = t.empty? ? nil : t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -170,7 +173,8 @@ module PokeAccess
         words.push(PokeAccess::I18n.t(key)) if key
       end
       words
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -188,7 +192,8 @@ module PokeAccess
       return nil if out.empty?
       return out[0][1] if out.length == 1
       out.map { |n, e| PokeAccess::I18n.t(:mv_eff_vs, :name => n, :eff => e) }.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -207,7 +212,7 @@ module PokeAccess
     # battler, never with the reveal setting, else until the species is battled or owned.
     def self.unknown_species?(b)
       return true if (b.celestial? rescue false)
-      return false if (Settings::SHOW_TYPE_EFFECTIVENESS_FOR_NEW_SPECIES rescue false)
+      return false if (::Settings::SHOW_TYPE_EFFECTIVENESS_FOR_NEW_SPECIES rescue false)
       sp = (b.displayPokemon.species rescue nil)
       return false if sp.nil?
       ($player.pokedex.battled_count(sp) == 0 && !$player.pokedex.owned?(sp)) rescue false
@@ -260,19 +265,22 @@ module PokeAccess
       return ((poke.types.clone rescue nil) || []) if illusion && !(battler.tera? rescue false)
       return ((battler.pbPreTeraTypes rescue nil) || []) if (battler.tera? rescue false)
       (battler.pbTypes(true) rescue nil) || (battler.types rescue nil)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       (battler.types rescue nil)
     end
 
-    # The battler's types as the panel paints them, for both sides, or nil; "unknown" for a species the panel hides
-    # (DBKMoveInfo.unknown_species?).
+    # The battler's types as the panel paints them, for both sides, or nil; "unknown" where it paints "???": a species
+    # it hides (DBKMoveInfo.unknown_species?) or a battler left with no typing (Burn Up, Double Shock).
     def self.types(battler)
       return PokeAccess::I18n.t(:pdx_unknown_value) if (PokeAccess::DBKMoveInfo.unknown_species?(battler) rescue false)
       list = display_types(battler)
+      return PokeAccess::I18n.t(:pdx_unknown_value) if list.is_a?(Array) && list.empty?
       names = ([list].flatten.compact.uniq.map { |ty| (PokeAccess::Data.type_name(ty) rescue nil) })
       names = names.compact.reject { |s| s.to_s.empty? }
       names.empty? ? nil : PokeAccess::I18n.t(:mv_type, :t => names.join("/"))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -283,7 +291,8 @@ module PokeAccess
       parts = identity_parts(battler) + condition_parts(battler, owned) + detail_parts(battler, owned)
       r = parts.reject { |x| x.to_s.empty? }
       r.empty? ? nil : r.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -374,7 +383,8 @@ module PokeAccess
       out.push(e[1]) if e[1] && e[1].to_s != "--" && !e[1].to_s.empty?
       out.push(e[2]) if e[2] && !e[2].to_s.empty?
       out.empty? ? nil : PokeAccess.clean(out.join(". "))
-    rescue StandardError
+    rescue StandardError => err
+      PokeAccess.swallowed(err)
       nil
     end
   end
@@ -427,7 +437,8 @@ module PokeAccess
       return line unless show_desc
       d = (item.description rescue nil)
       (d && !d.to_s.empty?) ? "#{line}. #{PokeAccess.clean(d.to_s)}" : line
-    rescue StandardError
+    rescue StandardError => err
+      PokeAccess.swallowed(err)
       nil
     end
 
@@ -447,7 +458,8 @@ module PokeAccess
       nm = "#{nm} #{sign}" if sign
       owner = (battle.pbGetOwnerFromBattlerIndex(b.index).name rescue nil)
       (owner && !owner.to_s.empty?) ? PokeAccess::I18n.t(:dbk_owner, :name => nm, :owner => owner) : nm.to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

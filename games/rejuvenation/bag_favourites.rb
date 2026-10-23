@@ -6,7 +6,8 @@ module PokeAccess
 
     def self.marks(bag, itemid)
       (bag.respond_to?(:isFavorite?) && bag.isFavorite?(itemid)) ? [:mb_favourite] : []
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
   end

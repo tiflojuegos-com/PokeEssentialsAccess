@@ -1,8 +1,6 @@
 module PokeAccess
-  # Insurgence's H-Mode7 maps (a MapInfos name with [HM7]: the soaring maps and a few story scenes) are drawn by
-  # MGC_Hmode7.dll, which writes into the original player's bitmaps and cannot run under mkxp-z, so every map stays
-  # flat. The soaring HUD's place name, which the game works out only in H-Mode7 (Scene_Map#update,
-  # 021_Scene_Map.rb), is said here as the player flies over each place.
+  # Says the soaring HUD's place name as the player flies over each place: Insurgence works it out only in H-Mode7
+  # (Scene_Map#update), whose MGC_Hmode7.dll cannot run under mkxp-z, so its [HM7] maps stay flat.
   module InsurgenceSoaring
     # The soaring maps (Torren, Holon) and the game's function listing their places as [map id, x0, y0, x1, y1, ...]
     # (179_ChallengeChampionship.rb).
@@ -21,7 +19,8 @@ module PokeAccess
       return nil if fn.nil?
       @areas ||= {}
       @areas[map_id] ||= Kernel.send(fn)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -38,7 +37,8 @@ module PokeAccess
       return if area <= 0
       name = PokeAccess::Locator.map_name(area)
       PokeAccess.speak(name, !arrived, :nav) unless name.nil? || name.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

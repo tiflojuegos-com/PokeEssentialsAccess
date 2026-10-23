@@ -1,5 +1,5 @@
-# Awakening's battle HUD: the impulse meters beside the databoxes, the fight menu's impulse button (F) and route D's
-# cursed-energy gem, which the command menu paints under switch 650.
+# Awakening's battle HUD: the impulse meters beside the databoxes, the fight menu's impulse button (F), the caption of
+# the move picker some impulses open, and route D's cursed-energy gem, which the command menu paints under switch 650.
 module PokeAccess
   module AwakeningBattleHud
     IMPULSE_MAX = 5
@@ -49,7 +49,8 @@ module PokeAccess
       elsif v == 1 && last == 2
         PokeAccess.speak(PokeAccess::I18n.t(:awk_impulse_off), true)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -84,7 +85,8 @@ module PokeAccess
         ready = "#{t}. #{PokeAccess::I18n.t(:awk_gem_ready)}"
         PokeAccess::Verbosity.with_hint(ready, PokeAccess::KeyHints.localize(PokeAccess::I18n.t(:awk_gem_key)))
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -102,4 +104,10 @@ PokeAccess::Game.define("awakening") do
     PokeAccess::AwakeningBattleHud.button(disp, args[0], PokeAccess::AwakeningBattleHud.battle_of(disp))
   end
   before("PokeBattle_Scene", :pbCommandMenuEx, :optional => true) { |s, _a| PokeAccess::AwakeningBattleHud.gem(s) }
+
+  # The caption of the move picker an impulse's third level opens (each move's own pbMessage: a text window over a
+  # command list), queued before the list's first move.
+  %w[PokeBattle_Move_250 PokeBattle_Move_309 PokeBattle_Move_312].each do |cname|
+    before(cname, :pbMessage) { |_move, args| PokeAccess.say_screen_message(args) }
+  end
 end

@@ -34,6 +34,19 @@ module PokeAccess
       end
     end
 
+    WEEKDAYS = [:wday_0, :wday_1, :wday_2, :wday_3, :wday_4, :wday_5, :wday_6]
+
+    # The game's clock as the app shows it, the time and the day of the week, from pbGetTimeNow (Unreal Time when it
+    # runs, which is not the computer's clock); nil without one.
+    def self.clock
+      t = (pbGetTimeNow rescue nil)
+      return nil unless t.respond_to?(:hour) && t.respond_to?(:wday)
+      [format("%02d:%02d", t.hour, t.min), PokeAccess::I18n.t(WEEKDAYS[t.wday])].join(", ")
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
     # Hooks the paint of the app and its frame.
     def self.bind
       PokeAccess::Hooks.around_hook("Scene_TimeWeather", :pbTimeText, :optional => true) do |scene, nxt, _a|
@@ -53,3 +66,8 @@ module PokeAccess
 end
 
 PokeAccess::TimeWeatherRV.bind if PokeAccess::DataRV.engine?
+
+# The field key says the game's own clock, which the engine runs apart from the computer's.
+PokeAccess::Hooks.override(PokeAccess::Battle, :clock_text, :tag => "rv_common") do |_mod, original, _args|
+  PokeAccess::DataRV.engine? ? PokeAccess::TimeWeatherRV.clock : original.call
+end

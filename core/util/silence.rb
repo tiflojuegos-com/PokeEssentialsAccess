@@ -64,7 +64,7 @@ module PokeAccess
   end
 end
 
-PokeAccess::Keys.on_frame { PokeAccess::Silence.tick }
+PokeAccess::Frame.each_pulse { PokeAccess::Silence.tick }
 
 PokeAccess::Keys.register_diag_section(:diag_silence, :scene) do |o|
   q = PokeAccess::Silence.quiet

@@ -1,7 +1,6 @@
-# Reborn's fight menu: the move line says the type the move will really have (Reborn's pbType: the field, abilities,
-# crests), a second type the field adds, and whether the field boosts or weakens it, as the game's own pbFieldNotesBattle
-# works it out for the button's highlight; with Z-Move on, the Z-move takes the move's place. Z-Move sits on its own
-# zButton, beside the mega and ultra ones core already reads.
+# Reborn's fight menu: the move line says the type the move will really have (Reborn's pbType), a second type the field
+# adds and whether the field boosts or weakens it, as pbFieldNotesBattle works it out; with the Z-Move button (zButton)
+# on, the Z-move takes the move's place.
 module PokeAccess
   module RebornFight
     # Whether the Z-Move button is on and the focused move has a Z-move to become.
@@ -21,7 +20,8 @@ module PokeAccess
         PokeAccess.speak_clean(PokeAccess::Verbosity.line(:battle_move, parts(b, m, base, z), ". "), interrupt, :menu)
         PokeAccess::Info.set_info(:move, m)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -74,7 +74,8 @@ module PokeAccess
       return unless k.is_a?(Array)
       PokeAccess.speak(PokeAccess::I18n.t(k[0], :name => PokeAccess::I18n.t(k[1])), true)
       read(disp, false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

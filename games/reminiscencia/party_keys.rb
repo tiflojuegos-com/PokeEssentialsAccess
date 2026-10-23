@@ -18,7 +18,8 @@ module PokeAccess
       return if last.nil? || last.equal?(party[0])
       PokeAccess.speak(PokeAccess::I18n.t(:rem_party_lead, :name => party[0].name), true)
       PokeAccess::Party.announce_member(scene, party, PokeAccess.ivar(scene, :@activecmd))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

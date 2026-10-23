@@ -93,6 +93,19 @@ module PokeAccess
       (e && PokeAccess::Locator.sprite_species(e.character_name.to_s)) || PokeAccess::I18n.t(:rea_laser_mirror)
     end
 
+    # True for a crystal or a prism of the beam room the player is in (Bronzor, a Pokemon, aside).
+    def self.room_piece?(ev)
+      r = room
+      return false unless r && ev
+      id = ev.id
+      id == r[:emitter] || id == r[:receptor] || (r[:mirrors].include?(id) && id != r[:bronzor])
+    end
+
+    # True for the event a beam room draws its beam with.
+    def self.beam?(ev)
+      !room.nil? && !ev.nil? && ev.id == BEAM
+    end
+
     # A mirror as it is spoken: its prism number, or Bronzor.
     def self.mirror_name(r, id)
       return bronzor_name(r) if id == r[:bronzor]
@@ -156,7 +169,8 @@ module PokeAccess
       return unless r && r[:mirrors].include?(id.to_i)
       return if id.to_i == r[:bronzor] && !bronzor_placed?(r)
       PokeAccess.speak(mirror_line(r, id.to_i), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -171,7 +185,8 @@ module PokeAccess
       line = shot_line(r, b, t)
       hint = (t[0] != :hit && PokeAccess::Puzzles.assist?) ? next_step(r, t) : nil
       PokeAccess.speak(hint ? "#{line}. #{hint}" : line, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -182,7 +197,8 @@ module PokeAccess
       hit = (result == true)
       return if hit == (@last[1][0] == :hit)
       PokeAccess.speak(PokeAccess::I18n.t(hit ? :rea_laser_real_hit : :rea_laser_real_miss), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -204,7 +220,8 @@ module PokeAccess
       parts = [PokeAccess::I18n.t(:rea_laser_placed, :name => bronzor_name(r)), mirror_line(r, r[:bronzor], false)]
       parts.push(PokeAccess::I18n.t(:rea_laser_placed_hint)) if PokeAccess::Puzzles.assist?
       PokeAccess.speak(parts.join(". "), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -218,7 +235,7 @@ module PokeAccess
     def self.info_line
       r = room
       return "" unless r
-      fx, fy = PokeAccess::Spatial.front_tile
+      fx, fy = PokeAccess::Control.front_tile
       piece = piece_at(r, fx, fy)
       line = piece && piece_line(r, piece)
       line && !line.empty? ? line : board_line(r)
@@ -249,7 +266,7 @@ module PokeAccess
     def self.assist_line
       r = room
       return "" unless r
-      fx, fy = PokeAccess::Spatial.front_tile
+      fx, fy = PokeAccess::Control.front_tile
       piece = piece_at(r, fx, fy)
       e = piece.is_a?(Integer) && event(piece)
       return (verdict_of(r, e) || "") if e && !(piece == r[:bronzor] && !bronzor_placed?(r))
@@ -298,15 +315,18 @@ PokeAccess::Game.define("realidea") do
   kernel("launchLaser", :before) { |a, _r| PokeAccess::RealideaLasers.firing(a) }
   kernel("launchLaser", :after) { |_a, r| PokeAccess::RealideaLasers.fired(r) }
   poll_each_frame { PokeAccess::RealideaLasers.poll }
-  override("PokeAccess::Locator", :target_name) do |_mod, original, args|
-    tag = (PokeAccess::Tags.get($game_map.map_id, args[0].id) rescue nil)
-    (tag.nil? || tag.to_s.empty? ? PokeAccess::RealideaLasers.piece_name(args[0]) : nil) || original.call
-  end
+
+  # The crystals and prisms are filed as objects, not people; the drawn beam stays out of the lists and the sonar, as
+  # the room's line and each shot say where it goes.
+  event_name { |ev| PokeAccess::RealideaLasers.piece_name(ev) }
+  event_category(:objects) { |ev| PokeAccess::RealideaLasers.room_piece?(ev) }
+  event_hidden { |ev| PokeAccess::RealideaLasers.beam?(ev) }
   PokeAccess::RealideaLasers::ROOMS.each_key do |mid|
-    puzzle(mid, :kind => :stages, :solved => lambda { PokeAccess::RealideaLasers.solved? },
-                :spots => PokeAccess::RealideaLasers.spots(mid),
-                :stages => [{ :when => lambda { true },
-                              :title => lambda { PokeAccess::RealideaLasers.info_line },
-                              :hint => lambda { PokeAccess::RealideaLasers.assist_line } }])
+    mechanic(:state, mid) do
+      PokeAccess::RealideaLasers.spots(mid).each { |s| spot s }
+      info { PokeAccess::RealideaLasers.info_line }
+      hint lambda { PokeAccess::RealideaLasers.assist_line }
+      solved { PokeAccess::RealideaLasers.solved? }
+    end
   end
 end

@@ -37,7 +37,8 @@ module PokeAccess
       end
       PokeAccess::Info.set_info(:text, PokeAccess::EncounterList.summary(loc, entries, true))
       PokeAccess.speak(PokeAccess::EncounterList.summary(loc, entries), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -59,5 +60,5 @@ module PokeAccess
 end
 
 PokeAccess::Hooks.after_hook("EncounterListUI", :getEncData, :optional => true) { |s, _r, _a| PokeAccess::SimpleEncounterList.filled(s) }
-PokeAccess::Keys.on_frame { PokeAccess::SimpleEncounterList.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::SimpleEncounterList.poll }
 PokeAccess::Caches.register(:simple_encounter_list) { PokeAccess::SimpleEncounterList.reset }

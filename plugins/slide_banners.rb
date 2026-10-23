@@ -13,7 +13,8 @@ module PokeAccess
       @painted.reject! { |b, _t| b.equal?(bitmap) }
       @painted.push([bitmap, t])
       @painted.shift while @painted.length > KEEP
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -22,7 +23,8 @@ module PokeAccess
       return unless rows.is_a?(Array)
       texts = rows.map { |r| r.is_a?(Array) ? r[0].to_s : nil }.compact.reject { |t| t.strip.empty? }
       painted(bitmap, texts.uniq.join(", ")) unless texts.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -31,7 +33,8 @@ module PokeAccess
       i = @painted.index { |b, _t| b.equal?(bitmap) }
       return if i.nil?
       PokeAccess.speak_clean(@painted.delete_at(i)[1], false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

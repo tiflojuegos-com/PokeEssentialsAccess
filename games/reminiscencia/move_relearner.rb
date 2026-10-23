@@ -21,7 +21,8 @@ module PokeAccess
       item = PokeAccess::I18n.t(:rem_heartscale_name)
       cost_text = PokeAccess::I18n.t(:rem_heartscale_cost, :n => cost, :item => item)
       "#{base} #{cost_text}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -48,7 +49,8 @@ module PokeAccess
       text = detail_text(scene)
       return if text.nil? || text.to_s.empty?
       PokeAccess::Info.set_info(:text, text)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

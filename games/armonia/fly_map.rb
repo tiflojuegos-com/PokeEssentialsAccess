@@ -16,7 +16,8 @@ module PokeAccess
         end
       end
       out
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -31,7 +32,8 @@ module PokeAccess
     # Keeps the map the player's head is drawn on, once pbStartScene has built the screen; nil without a head.
     def self.note_head(s)
       s.instance_variable_set(:@access_head_map, PokeAccess.sprite(s, "player") ? PokeAccess.ivar(s, :@map) : nil)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

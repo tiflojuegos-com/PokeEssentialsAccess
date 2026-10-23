@@ -16,10 +16,11 @@ module PokeAccess
       a = m[1].to_i; b = m[2].to_i
       return nil if a == 0
       [:run, a > 0 ? 6 : 4, a.abs, a, b]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
 end
 
-PokeAccess::Pathfinder.touch_source { |ev| PokeAccess::MarinSideStairs.run_of(ev) }
+PokeAccess::Routes::Effects.touch_source { |ev| PokeAccess::MarinSideStairs.run_of(ev) }

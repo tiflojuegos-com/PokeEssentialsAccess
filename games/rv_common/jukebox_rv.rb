@@ -11,7 +11,8 @@ module PokeAccess
       bgm = (sys.respond_to?(:getDefaultBGM) ? sys.getDefaultBGM : nil) || sys.playing_bgm
       name = bgm ? bgm.name.to_s : ""
       name.empty? ? nil : name
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

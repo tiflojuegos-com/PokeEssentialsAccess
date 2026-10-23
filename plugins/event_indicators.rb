@@ -21,12 +21,11 @@ module PokeAccess
       return nil if s.nil? || (s.disposed? rescue true) || !(s.visible rescue false)
       key = type_key((s.type rescue nil))
       key ? PokeAccess::I18n.t(key) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
 end
 
-PokeAccess::Hooks.override(PokeAccess::Locator, :name_marks, :tag => "event_indicators") do |_m, original, args|
-  original.call + [PokeAccess::EventIndicators.mark(args[0])].compact
-end
+PokeAccess::Locator.register_rule(:mark) { |t| PokeAccess::EventIndicators.mark(t) }

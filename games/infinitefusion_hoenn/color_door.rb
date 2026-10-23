@@ -26,7 +26,8 @@ module PokeAccess
                              :color => color_name(code[idx]))
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

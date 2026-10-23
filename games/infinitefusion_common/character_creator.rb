@@ -29,7 +29,8 @@ module PokeAccess
       idx = opts.is_a?(Array) ? opts.index { |o| ROWS[o.to_s] == :name } : nil
       PokeAccess::Cursor.store(pres, :charcreate, [idx, value]) if idx && idx == PokeAccess.ivar(pres, :@current_index)
       PokeAccess.speak(PokeAccess::I18n.t(:chr_value, :name => PokeAccess::I18n.t(:chr_name), :value => value), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -44,7 +45,8 @@ module PokeAccess
         row = value.nil? ? name : PokeAccess::I18n.t(:chr_value, :name => name, :value => value)
         PokeAccess::Verbosity.list_entry(row, idx + 1, opts.length)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -89,7 +91,8 @@ module PokeAccess
     def self.class_const(name)
       k = PokeAccess.const_at("CharacterSelectMenuPresenter")
       (k && k.const_defined?(name)) ? k.const_get(name) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

@@ -7,7 +7,8 @@ module PokeAccess
       raw = raw_lines(scene)
       return [] unless raw.is_a?(Array)
       raw.map { |l| PokeAccess.clean(l.to_s.split("<s>").join(", ")).strip }.reject { |l| l.empty? }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 

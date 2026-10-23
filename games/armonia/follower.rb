@@ -25,7 +25,8 @@ module PokeAccess
       name = (now.name rescue nil)
       return if name.nil? || name.to_s.empty?
       PokeAccess.speak_clean(PokeAccess::I18n.t(:arm_follow_lead, :name => name), asked)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -36,7 +37,8 @@ module PokeAccess
       pk = lead
       return false if pk.nil? || (pk.hp rescue 0).to_i <= 0
       !(pk.isEgg? rescue false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -44,7 +46,8 @@ module PokeAccess
     def self.toggled(asked)
       return unless asked
       PokeAccess.speak(PokeAccess::I18n.t($Follow_Hidden ? :arm_follow_hidden : :arm_follow_shown), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -64,4 +67,8 @@ PokeAccess::Game.define("armonia") do
     PokeAccess::ArmoniaFollower.toggled(asked)
     r
   end
+
+  # Its Kernel.pbSurf (0189_follow.rb) refuses while anyone but the follower (the event named FOLLOW_EVENTNAME)
+  # walks along as a dependent event.
+  surf_company(:dependents) { $PokemonGlobal.dependentEvents.all? { |e| e.nil? || e[8] == FOLLOW_EVENTNAME } }
 end

@@ -1,8 +1,7 @@
 module PokeAccess
-  # Uranium's icon pause menu (PokemonMenu_Scene): pbUpdateSelect lights one IconMenu a frame and paints its caption
-  # from @textos. The lit icon's caption is said as it changes; once per menu, the map line and the running icon's
-  # state; the running toggle (A) as it flips. While the menu is up, the info key has the team preview with its item
-  # and mail icons.
+  # Uranium's icon pause menu (PokemonMenu_Scene), whose pbUpdateSelect lights one IconMenu and paints its caption:
+  # the lit icon's caption as it changes, the map line and the running state once per menu, the running toggle (A)
+  # as it flips, and on the info key the team preview with its item and mail icons.
   module UraniumMenu
     # The icons in @textos order.
     ICONS = %w[iconPokedex iconPokemon iconBag iconPokepod iconCard iconSave iconOption iconExit]

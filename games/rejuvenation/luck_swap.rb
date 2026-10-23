@@ -12,7 +12,8 @@ module PokeAccess
       return nil if name.empty?
       pos = PokeAccess::I18n.t(:list_pos, :i => PokeAccess.ivar(scene, :@index) + 1, :n => PokeAccess.ivar(scene, :@length))
       [name, pos].join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

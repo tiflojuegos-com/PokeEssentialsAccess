@@ -3,17 +3,19 @@ module PokeAccess
   # change; pbGetMapDetails(x,y) gives the detail the bar paints beside it (a point of interest), said after the
   # place where descriptions are said and kept for the info key.
   module RegionMap
-    # Announces the square under the cursor when it changes, stores its description for the info key, and marks the
-    # bottom bar's dedup slot with the name (speak_marked) so the bar does not repeat it.
+    # Says the square under the cursor when it or its fly mark changes (a move interrupts, the same square queues),
+    # keeps its description for the info key and marks the bottom bar's dedup slot with the name (speak_marked).
     def self.announce(scene, name, x, y)
       return if building?
       first = PokeAccess.ivar(scene, :@access_first_sq).nil?
       scene.instance_variable_set(:@access_first_sq, [x, y]) if first
       scene.instance_variable_set(:@access_player_sq, [x, y]) if first && PokeAccess.ivar(scene, :@access_you_later)
-      t = PokeAccess::Cursor.on_change(scene, :region_map, [x, y]) { square_text(scene, name, x, y) }
+      was = PokeAccess::Cursor.current(scene, :region_map)
+      key = [x, y, fly_here?(scene, x, y)]
+      t = PokeAccess::Cursor.on_change(scene, :region_map, key) { square_text(scene, name, x, y) }
       return if t.nil?
       remember_details(scene, x, y)
-      speak_marked(t, !first, name)
+      speak_marked(t, !first && !(was.is_a?(Array) && was[0, 2] == [x, y]), name)
     end
 
     # The square's line: its place, or its coordinates where it has none (a move over blank sea is still heard), the
@@ -49,14 +51,43 @@ module PokeAccess
       spot ? PokeAccess::TownMap.visited?(spot) : false
     end
 
-    # Once the map is up with the player's head drawn, marks the opening square as the player's and says so; after a
-    # silent build (building), the first square's line says it instead.
+    # Once the map is up: says the player is on the opening square (say_you), then, while key hints are said, the help
+    # the screen painted for its fly mode as it opened, where it offers one (fly_mode).
     def self.opened(scene)
+      say_you(scene)
+      help = PokeAccess.ivar(scene, :@access_fly_help)
+      scene.instance_variable_set(:@access_fly_help, nil)
+      PokeAccess.speak(help, false) if help && PokeAccess::Verbosity.hints?
+    end
+
+    # With the player's head drawn, marks the opening square as the player's and says so, led by its fly mark if that
+    # was drawn after the square was read; before any square is read, leaves it to the first square's line.
+    def self.say_you(scene)
       return unless PokeAccess.sprite(scene, "player")
       sq = PokeAccess.ivar(scene, :@access_first_sq)
       return scene.instance_variable_set(:@access_you_later, true) unless sq
       scene.instance_variable_set(:@access_player_sq, sq)
-      PokeAccess.speak(PokeAccess::I18n.t(:rmap_you), false)
+      parts = [PokeAccess::I18n.t(:rmap_you)]
+      late = PokeAccess::Cursor.current(scene, :region_map) == [sq[0], sq[1], false] && fly_here?(scene, sq[0], sq[1])
+      PokeAccess::Cursor.changed?(scene, :region_map, [sq[0], sq[1], true]) if late
+      parts.unshift(PokeAccess::I18n.t(:brm_fly)) if late
+      PokeAccess.speak(parts.join(", "), false)
+    end
+
+    # On a repaint that changes the fly mode, the first line of the help painted: said, cutting in, on a switch; kept
+    # for opened as the map opens, except on a wall map, whose action button switches nothing.
+    def self.fly_mode(scene, painted)
+      mode = PokeAccess.ivar(scene, :@mode)
+      was = PokeAccess.ivar(scene, :@access_fly_mode)
+      scene.instance_variable_set(:@access_fly_mode, mode)
+      return if was == mode
+      help = Array(painted).map { |r| PokeAccess.clean(r.to_s) }.reject { |r| r.empty? }[0]
+      return unless help
+      return PokeAccess.speak(help, true) unless was.nil?
+      scene.instance_variable_set(:@access_fly_help, help) unless PokeAccess.ivar(scene, :@wallmap)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
     end
 
     # Runs a map screen's build with its squares and bottom bar unsaid, for a screen that asks for a square's place
@@ -86,14 +117,16 @@ module PokeAccess
       d = (scene.pbGetMapDetails(x, y) rescue nil)
       d = PokeAccess.clean(d.to_s) if d
       (d.nil? || d.empty?) ? nil : d
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
     # Keeps the focused place's detail for the info key, or clears it where there is none.
     def self.remember_details(scene, x, y)
       PokeAccess::Info.set_info(:text, details(scene, x, y))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -103,8 +136,11 @@ module PokeAccess
       scene.instance_variable_set(:@access_first_sq, nil)
       scene.instance_variable_set(:@access_player_sq, nil)
       scene.instance_variable_set(:@access_you_later, nil)
+      scene.instance_variable_set(:@access_fly_mode, nil)
+      scene.instance_variable_set(:@access_fly_help, nil)
       PokeAccess::Info.clear_text
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -128,5 +164,15 @@ PokeAccess::Engine.scene_classes("PokemonRegionMapScene", "PokemonRegionMap_Scen
   PokeAccess::Hooks.after_hook(cn, :pbEndScene) do |s, _r, _a|
     PokeAccess::RegionMap.forget(s)
     PokeAccess::TownMap.closed(s)
+  end
+  # The v21 town map's fly mode, switched with the action button: the help it paints is said as it opens and on a
+  # switch.
+  PokeAccess::Hooks.around_hook(cn, :refresh_fly_screen, :optional => true) do |s, nxt, _a|
+    PokeAccess::PaintCapture.arm(:fly_mode)
+    begin
+      nxt.call
+    ensure
+      PokeAccess::RegionMap.fly_mode(s, PokeAccess::PaintCapture.take(:fly_mode, :positions))
+    end
   end
 end

@@ -2,8 +2,10 @@ module PokeAccess
   # What the info key reads: the focused move, item, Pokemon, trainer or foe, or a ready line; and, with Ctrl, the
   # focused row whole.
   module Info
+    @map_owners = []
+
     # Stores what the info key reads next and the focused row for Ctrl+T.
-    # param kind one of :move/:item/:pokemon/:trainer/:battle_foe/:text (a ready string)
+    # param kind one of :move/:item/:pokemon/:trainer/:battle_foe/:text (a ready string)/:map (map_text)
     # param row the focused row as the full level says it, or nil where the screen has none
     def self.set_info(kind, data, row = nil)
       @kind = kind
@@ -47,9 +49,91 @@ module PokeAccess
       when :trainer    then trainer_info
       when :battle_foe then PokeAccess::Battle.foe_info
       when :text       then @data
+      when :map        then map_text
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
+    end
+
+    # Registers an owner of the info key on the map under a name (registering a name again replaces it): a block
+    # answering its line, or nil to pass. Owners are asked in order (the puzzles first, then the profiles' screens
+    # over the map) only when the key is pressed.
+    def self.map_owner(name, &blk)
+      i = @map_owners.index { |o| o[0] == name }
+      if i
+        @map_owners[i] = [name, blk]
+      else
+        @map_owners.push([name, blk])
+      end
+    end
+
+    # What the info key says on the map: the first owner that answers, else where the last forced move left the player
+    # while they stand there (ForcedMove.line) and then where each press leaves them on terrain that moves them by
+    # itself (forced_ways), either alone when the other is not, else the trainer.
+    def self.map_text
+      @map_owners.each do |name, fn|
+        begin
+          t = fn.call
+        rescue StandardError => e
+          PokeAccess.log_once("map_owner_#{name}", e)
+          t = nil
+        end
+        return t if t && !t.to_s.empty?
+      end
+      lines = [PokeAccess::ForcedMove.line, forced_ways].compact
+      lines.empty? ? trainer_info : lines.join("; ")
+    end
+
+    # The presses up, right, down and left in the order said.
+    WAY_ORDER = [8, 6, 2, 4]
+
+    # Where each press leaves the player when one of them is carried on past the tile it steps to (ice, a spin tile,
+    # a slider, a current: Routes::Moves.step's :slide or :carry), "up: 4 up; right: 3 right and 2 down; ...", the
+    # pressed way's tiles first, a doorway or a map edge out as the exit; nil where every press is a plain step.
+    def self.forced_ways
+      p = $game_player
+      return nil unless p && $game_map
+      moves = PokeAccess::Routes::Moves
+      lvl = PokeAccess::Pathfinder.bridge_level.to_i > 0 ? 1 : 0
+      dirs = PokeAccess::Routes::DIRS
+      steps = WAY_ORDER.map { |d| [d, moves.step(p.x, p.y, lvl, dirs.find { |v| v[2] == d }, moves::LEDGE)] }
+      return nil unless steps.any? { |_d, s| s && (s.kind == :slide || s.kind == :carry) }
+      steps.map { |d, s| s ? way_line(d, s.x - p.x, s.y - p.y) : way_line(d, 0, 0, exit_way?(p.x, p.y, d)) }.join("; ")
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # One press's part of forced_ways: its way, then the tiles it leaves the player from where they stand (dx, dy),
+    # along the way pressed first, else the exit it leads out by (out) or that it does not move them.
+    def self.way_line(d, dx, dy, out = false)
+      text = PokeAccess::Routes::Text
+      legs = []
+      legs.push(text.leg(dx < 0 ? 4 : 6, dx.abs)) if dx != 0
+      legs.push(text.leg(dy < 0 ? 8 : 2, dy.abs)) if dy != 0
+      legs.reverse! if d == 8 || d == 2
+      to = legs.empty? ? PokeAccess::I18n.t(out ? :loc_exit : :loc_way_still) : text.and_list(legs)
+      PokeAccess::I18n.t(:loc_way, :dir => text.dir(d), :to => to)
+    end
+
+    # Whether a press from (x,y) toward d walks or bumps into a touch event that leaves the map (a door, stairs), or
+    # steps off it by an edge that leads on, which Routes::Moves.step answers as no move.
+    def self.exit_way?(x, y, d)
+      dd = PokeAccess::DIR_DELTA[d]
+      e = PokeAccess::Routes::Effects
+      fx = x + dd[0]; fy = y + dd[1]
+      t = e.touch_at(fx, fy, d, true) || e.touch_at(fx, fy, d, false)
+      (!t.nil? && t[0] == :exit) || edge_exit?(x, y, d)
+    end
+
+    # Whether a press from the border tile (x,y) toward d steps off the map by an edge that leads to another, the step
+    # open as the engine says (Locator.connection_edges, Locator.edge_open?).
+    def self.edge_exit?(x, y, d)
+      loc = PokeAccess::Locator
+      loc.connection_edges.values.any? do |tiles|
+        tiles.any? { |w| w[0] == x && w[1] == y && w[2] == d && loc.edge_open?(w) }
+      end
     end
 
     #builders
@@ -71,7 +155,8 @@ module PokeAccess
       tipo = PokeAccess::Data.move_type_name(mid) if tipo.nil? || tipo.to_s.empty?
       cat = PokeAccess::MoveInfo.category_word(PokeAccess::MoveInfo.category_of(m))
       PokeAccess::MoveInfo.leveled(reading, name.to_s, tipo, bd, acc, :cat => cat, :pp => pp, :total_pp => tot, :desc => desc)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       (PokeAccess::Data.move_name(PokeAccess::MoveInfo.id_of(m)) || PokeAccess::I18n.t(:info_move))
     end
 
@@ -102,7 +187,8 @@ module PokeAccess
         return mv if mv
       end
       nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -148,7 +234,8 @@ module PokeAccess
 
     # The full pokemon data sheet: name and sex sign, header icons, dex number, species, types, nature, ability,
     # item and six stats, then the first page's trainer lines (original trainer, ID, experience, next level).
-    def self.summary_text(pk, dex = nil)
+    # param id the trainer ID the page painted, or nil to say the Pokemon's own
+    def self.summary_text(pk, dex = nil, id = nil)
       return nil unless pk
       nm = "#{(pk.name rescue "?")}#{PokeAccess::Party.sign_phrase(pk)}"
       t = PokeAccess::I18n.t(:sum_data_of, :name => nm, :level => (pk.level rescue "?")) + " "
@@ -164,10 +251,11 @@ module PokeAccess
       stats = (PokeAccess::I18n.t(:sum_stats, :hp => pk.hp, :tot => pk.totalhp, :atk => pk.attack,
                                   :def => pk.defense, :spa => pk.spatk, :spd => pk.spdef, :spe => pk.speed) rescue nil)
       t += stats if stats
-      facts = PokeAccess::Summary.trainer_facts(pk)
+      facts = PokeAccess::Summary.trainer_facts(pk, id)
       t += " " + facts.join(" ") unless facts.empty?
       t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -240,7 +328,8 @@ module PokeAccess
       return nil unless tr
       parts = PokeAccess::Config.trainer_parts.map { |key| trainer_part(key, tr) }.compact
       parts.empty? ? nil : parts.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -250,7 +339,8 @@ module PokeAccess
       return nil unless reader
       t = reader.call(tr)
       (t.nil? || t.to_s.empty?) ? nil : t.to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

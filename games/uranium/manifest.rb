@@ -11,6 +11,7 @@
     battle_bag
     language
     bag
+    key_items
     pokedex
     options
     berry_mart
@@ -19,6 +20,8 @@
     summary
     trainer_card
     pokepod
+    passability
+    field_moves
   ],
-  :plugins => %w[hall_of_fame_bw_gen6 punch_bag]
+  :plugins => %w[ebs_scene ebs_ui hall_of_fame_bw_gen6 punch_bag]
 }

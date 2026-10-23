@@ -119,13 +119,14 @@ module PokeAccess
       PokeAccess::PaintCapture.arm(:ss2_den_rewards)
     end
 
-    # Speaks the rewards page once painted: the positions batch only (the first description goes to a hidden
-    # box), keeping sex-sign rows and dropping other rows with no letter or digit, then the page's icons.
+    # Speaks the rewards page once painted, as it reads: the positions batch only (the first description goes to a
+    # hidden box) from the outcome on top down, the sex sign beside the level, keeping sex-sign rows and dropping other
+    # rows with no letter or digit, then the page's icons.
     def self.say_rewards
       scene = @rewards_scene
       return unless scene && PokeAccess::PaintCapture.pending?(:ss2_den_rewards)
       @rewards_scene = nil
-      rows = PokeAccess::PaintCapture.take_by_source(:ss2_den_rewards)[:positions] || []
+      rows = PokeAccess::PaintCapture.take_laid_out(:ss2_den_rewards, :positions)
       kept = rows.select { |r| r.to_s =~ /[A-Za-z0-9]/ || PokeAccess::Party::SIGNS.include?(r.to_s.strip) }
       PokeAccess.speak(PokeAccess::PaintCapture.text(kept + reward_icons(scene)), false)
     end

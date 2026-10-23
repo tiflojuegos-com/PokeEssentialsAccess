@@ -86,4 +86,4 @@ PokeAccess::Game.define("reminiscencia") do
   end
 end
 
-PokeAccess::Verbosity.define_reading(:rem_blessing, :vb_rem_blessing, :vbh_rem_blessing)
+PokeAccess::Verbosity.define_reading(:rem_blessing, :vb_rem_blessing, :vbh_rem_blessing, :game)

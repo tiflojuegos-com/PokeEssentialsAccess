@@ -13,5 +13,5 @@ PokeAccess::Game.define("emerald") do
 end
 
 PokeAccess::InfoWindow.watch("PokemonMart_Scene_BattlePoints", "qtywindow", :bpm_bag,
-                             PokeAccess::Shops::MART_LIFECYCLE.merge(:reading => [:shop_item, :medium]))
+                             PokeAccess::Shops::MART_LIFECYCLE.dup.merge!(:reading => [:shop_item, :medium]))
 PokeAccess::InfoWindow.watch("PokemonMart_Scene_BattlePoints", "coinswindow", :bpm_points, PokeAccess::Shops::MART_LIFECYCLE)

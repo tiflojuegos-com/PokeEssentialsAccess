@@ -1,9 +1,7 @@
 module PokeAccess
-  # Rejuvenation's Game Boy Color trainer card (PokemonTrainerCardSceneGBC: the BADGECARD item, the Virtual League's),
-  # painted in a GSC font whose ID, No., Lv and PP are glyphs set on control characters, so each face is read from the
-  # data it paints. The front: the virtual player's name, ID and money and the virtual badges it draws. Turned: the
-  # Virtual League team, an arrow over each member's row (species, level, HP, an item icon) and CANCEL. C on a member
-  # opens its summary, three pages (info, moves, stats) turned with left and right, the members with up and down.
+  # Rejuvenation's Game Boy Color trainer card (PokemonTrainerCardSceneGBC, the Virtual League's BADGECARD) paints in a
+  # GSC font whose ID, No., Lv and PP are glyphs on control characters, so each face is read from the data it paints:
+  # the front, the Virtual League team on the back, and each member's three-page summary.
   module RejuvCardGBC
     # The heights the back paints CANCEL and its title at.
     CANCEL_Y = 260

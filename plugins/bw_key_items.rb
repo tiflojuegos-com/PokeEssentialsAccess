@@ -12,7 +12,7 @@ module PokeAccess
     def self.picture_name(item)
       return nil unless item.is_a?(String)
       s = item.sub(/_key\z/i, "").sub(/\Aitem\d*_?/i, "").tr("_", " ").strip
-      s.empty? ? nil : s.capitalize
+      s.empty? ? nil : PokeAccess::Util.capitalized(s)
     end
   end
 end

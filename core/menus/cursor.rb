@@ -28,7 +28,8 @@ module PokeAccess
       return false if key == current(holder, slot)
       store(holder, slot, key)
       true
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -47,7 +48,8 @@ module PokeAccess
     def self.reset(holder, slot)
       slot, ivar = slot_pair(slot)
       holder ? holder.instance_variable_set(ivar, nil) : @global.delete(slot)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -56,7 +58,8 @@ module PokeAccess
     def self.pending?(holder, slot)
       prev = current(holder, slot)
       prev.nil? || retry_marker?(prev)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -64,7 +67,8 @@ module PokeAccess
     def self.on_change(holder, slot, key)
       return nil unless changed?(holder, slot, key)
       yield
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

@@ -4,6 +4,19 @@ module PokeAccess
     # The scene to hook, gated on the GameData API since a gen-6 fork may declare PokemonSummary_Scene too; ""
     # binds nothing.
     SCENE = PokeAccess::Engine.era_scene(:gamedata, "PokemonSummary_Scene", "PokemonSummaryScene")
+    # The screen whose loops ask for a move on the move-to-forget scene, gated alike.
+    SCREEN = PokeAccess::Engine.era_scene(:gamedata, "PokemonSummaryScreen", "PokemonSummary")
+
+    # The move-to-forget prompt: the move being learned, that one is to be forgotten, then the moves; for a move an
+    # item asks for (an Ether's), whose question the game puts first, only the moves, each with its PP.
+    def self.forget_prompt(scene, move_to_learn)
+      moves = PokeAccess::SummaryGameData.moves_text(PokeAccess.ivar(scene, :@pokemon))
+      return moves if PokeAccess.ivar(scene, :@access_choosing_move)
+      learn = move_to_learn ? PokeAccess::Data.move_name(move_to_learn) : nil
+      lead = (learn && !learn.to_s.empty?) ? "#{PokeAccess::I18n.t(:sm_learn, :move => learn)}. " : ""
+      "#{lead}#{PokeAccess::I18n.t(:sm_choose_forget)}. #{moves}"
+    end
+
     # Speaks the page drawn, or the egg page for an egg, through Summary.speak_page.
     def self.speak_page(scene, page)
       pk = PokeAccess.ivar(scene, :@pokemon)
@@ -16,7 +29,8 @@ module PokeAccess
       pid = PokeAccess.ivar(scene, :@page_id)
       named = pid.nil? ? page == 1 : pid == :page_info
       PokeAccess::Summary.speak_page(scene, pk, pid || page, t, named)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -50,10 +64,15 @@ PokeAccess::Hooks.after_hook(PokeAccess::SummaryV21::SCENE, :drawSelectedMove) d
   PokeAccess::SummaryV21.speak_move(scene, args[1])
 end
 
-# Learning a move with a full moveset: the new move (drawn as a fifth row) and the current four, queued.
+# An item that restores a move's PP (an Ether) asks for the move on the move-to-forget scene, under its own question
+# (anil/303_UI_Summary.rb:1375-1386): marked on that scene, so its prompt is not the one for forgetting.
+PokeAccess::Hooks.before_hook(PokeAccess::SummaryV21::SCREEN, :pbStartChooseMoveScreen, :optional => true) do |s, _a|
+  scene = PokeAccess.ivar(s, :@scene)
+  scene.instance_variable_set(:@access_choosing_move, true) if scene
+end
+
+# Learning a move with a full moveset (the new move drawn as a fifth row), or choosing one for an item: forget_prompt,
+# queued.
 PokeAccess::Hooks.before_hook(PokeAccess::SummaryV21::SCENE, :pbChooseMoveToForget) do |scene, args|
-  pk = PokeAccess.ivar(scene, :@pokemon)
-  learn = args[0] ? PokeAccess::Data.move_name(args[0]) : nil
-  lead = (learn && !learn.to_s.empty?) ? "#{PokeAccess::I18n.t(:sm_learn, :move => learn)}. " : ""
-  PokeAccess.speak("#{lead}#{PokeAccess::I18n.t(:sm_choose_forget)}. #{PokeAccess::SummaryGameData.moves_text(pk)}", false)
+  PokeAccess.speak(PokeAccess::SummaryV21.forget_prompt(scene, args[0]), false)
 end

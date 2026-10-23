@@ -14,12 +14,13 @@ module PokeAccess
     # cleared) keeps its class, so its internal name is never said.
     def self.event_name(ev)
       m = COPY.match(ev.name.to_s)
-      return species(m[2]) || m[2].split("_")[0].capitalize if m && m[1] == "dialogue_poke"
+      return species(m[2]) || PokeAccess::Util.capitalized(m[2].split("_")[0]) if m && m[1] == "dialogue_poke"
       key = ITEM_SPRITES[ev.character_name.to_s] || (m && (m[1] == "gold" ? :rel_item_gold : :loc_object))
       return nil unless key
       it = (m && m[1] == "item") ? item(m[2]) : nil
       it ? PokeAccess::I18n.t(:loc_object_named, :name => it) : PokeAccess::I18n.t(key)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -48,38 +49,25 @@ module PokeAccess
       !($PokemonGlobal.sawStairs rescue true)
     end
 
-    # True while Event Indicators draws its bubble over the event (EventIndicator#visible, set on every update).
+    # True while Event Indicators draws its bubble over the event (EventIndicator#visible, set on every update); a
+    # target that is no map event never has one.
     def self.indicator?(ev)
+      id = PokeAccess::Locator.event_id_of(ev)
+      return false if id.nil?
       list = ($scene.spriteset.event_indicator_sprites rescue nil)
-      sp = list.is_a?(Array) ? list[ev.id] : nil
+      sp = list.is_a?(Array) ? list[id] : nil
       return false if sp.nil? || (sp.disposed? rescue true)
       (sp.visible rescue false) ? true : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
-    end
-
-    # A name with the indicator's mark while its bubble shows.
-    def self.with_indicator(ev, name)
-      indicator?(ev) ? "#{name}, #{PokeAccess::I18n.t(:rel_indicator)}" : name
     end
   end
 end
 
 PokeAccess::Game.define("relict") do
-  override("PokeAccess::Locator", :target_name) do |_mod, original, args|
-    ev = args[0]
-    if ev.is_a?(PokeAccess::Locator::SurfaceTarget)
-      original.call
-    else
-      tag = (PokeAccess::Tags.get($game_map.map_id, ev.id) rescue nil)
-      own = (tag.nil? || tag.to_s.empty?) ? PokeAccess::RelictTower.event_name(ev) : nil
-      PokeAccess::RelictTower.with_indicator(ev, own || original.call)
-    end
-  end
-  override("PokeAccess::Locator", :event_category) do |_mod, original, args|
-    PokeAccess::RelictTower.item?(args[0]) ? :objects : original.call
-  end
-  override("PokeAccess::Locator", :tag_hidden?) do |_mod, original, args|
-    original.call || PokeAccess::RelictTower.unseen_stairs?(args[0])
-  end
+  event_name { |ev| PokeAccess::RelictTower.event_name(ev) }
+  name_mark { |ev| PokeAccess::RelictTower.indicator?(ev) ? PokeAccess::I18n.t(:rel_indicator) : nil }
+  event_category(:objects) { |ev| PokeAccess::RelictTower.item?(ev) }
+  event_hidden { |ev| PokeAccess::RelictTower.unseen_stairs?(ev) }
 end

@@ -100,7 +100,8 @@ module PokeAccess
       PokeAccess::RegionMap.speak_marked(t, true) unless t.nil? || t.empty?
       return PokeAccess::Cursor.reset(scene, :if2_qm_popup) if quests_at(scene, xy[0], xy[1]).empty?
       popup(scene)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -120,7 +121,8 @@ module PokeAccess
         end
         PokeAccess.sentences([_INTL("{1} Quests", PokeAccess.ivar(panel, :@location_name).to_s)] + rows)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

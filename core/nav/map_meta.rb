@@ -1,6 +1,7 @@
 module PokeAccess
   # A map's Essentials metadata, read the same way in both eras: gen-6 keeps it in pbGetMetadata rows by
-  # numeric field, the GameData games in GameData::MapMetadata.
+  # numeric field, the GameData games in GameData::MapMetadata, an engine with tables of its own through its data
+  # provider (Data.optional(:map_metadata), by the GameData names).
   module MapMeta
     # The gen-6 metadata fields, by their index in the pbGetMetadata row.
     OUTDOOR = 1
@@ -8,9 +9,11 @@ module PokeAccess
     HEALING_SPOT = 5
     DIVE_MAP = 8
 
-    # One field of a map's metadata: the GameData accessor, else the gen-6 row. :none when this engine has
-    # no map metadata at all, which is not the same as a map that has none.
+    # One field of a map's metadata: the data provider's, else the GameData accessor, else the gen-6 row. :none when
+    # this engine has no map metadata at all, which is not the same as a map that has none.
     def self.field(mid, modern, gen6_const, gen6_index)
+      own = PokeAccess::Data.optional(:map_metadata, mid)
+      return own[modern] if own.is_a?(Hash)
       if defined?(::GameData::MapMetadata)
         md = ::GameData::MapMetadata
         m = md.respond_to?(:try_get) ? md.try_get(mid) : (md.get(mid) rescue nil)
@@ -19,7 +22,8 @@ module PokeAccess
       return :none unless Object.private_method_defined?(:pbGetMetadata) || Kernel.respond_to?(:pbGetMetadata)
       idx = Object.const_defined?(gen6_const) ? Object.const_get(gen6_const) : gen6_index
       Kernel.send(:pbGetMetadata, mid, idx)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       :none
     end
 
@@ -55,10 +59,14 @@ module PokeAccess
       @surface_of[mid]
     end
 
-    # dive map => the map above it, for every map that declares one.
+    # dive map => the map above it, for every map that declares one, the first by map id: from the data provider's
+    # (Data.optional(:dive_maps)), else GameData::MapMetadata, else the gen-6 rows.
     def self.surface_index
       out = {}
-      if defined?(::GameData::MapMetadata) && ::GameData::MapMetadata.respond_to?(:each)
+      own = PokeAccess::Data.optional(:dive_maps)
+      if own.is_a?(Hash)
+        own.keys.sort.each { |m| d = own[m]; out[d] ||= m if d.is_a?(Integer) && d > 0 }
+      elsif defined?(::GameData::MapMetadata) && ::GameData::MapMetadata.respond_to?(:each)
         ::GameData::MapMetadata.each { |m| d = (m.dive_map_id rescue nil); out[d] ||= m.id if d.is_a?(Integer) && d > 0 }
       elsif Object.private_method_defined?(:pbLoadMetadata) || Kernel.respond_to?(:pbLoadMetadata)
         idx = Object.const_defined?("MetadataDiveMap") ? Object.const_get("MetadataDiveMap") : DIVE_MAP
@@ -68,7 +76,8 @@ module PokeAccess
         end
       end
       out
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       {}
     end
 
@@ -81,7 +90,8 @@ module PokeAccess
         @foreign = [mid, m]
       end
       @foreign[1].terrain_tag(x, y)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

@@ -1,57 +1,78 @@
 # Census of the classes that give a third-party plugin away: which surveyed games ship each one,
-# by PROFILE name. Read by plugins_spec to check that every profile declaring a plugin has it and
+# by PROFILE name. Read by plugins_test to check that every profile declaring a plugin has it and
 # every profile having one declares it -- a forgotten declaration is a silent screen, and that is
 # the failure this whole layer trades for. Regenerate with build_fangame_census.rb after adding a
 # plugin or refreshing a dump. Do not edit by hand.
 # format: <DetectionProbe> = <profile>, <profile>...   (empty = no surveyed game ships it)
 # A probe is a class name, or Class#method for a plugin that brings no class of its own and is
 # only given away by a method it adds to one the engine already has.
-# surveyed profiles (22): africanus, anil, armonia, awakening, desolation, emerald, fireash, infinitefusion, infinitefusion_hoenn, insurgence, opalo, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, royal, soulstones1, soulstones2, uranium, vanilla
+# surveyed profiles (24): africanus, anil, armonia, awakening, desolation, emerald, fireash, gruelinggold, infinitefusion, infinitefusion_hoenn, insurgence, opalo, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, royal, sevii, soulstones1, soulstones2, uranium, vanilla
 AdvancedWorldTournament = emerald
 AlbumFotos_Scene = anil, royal
-Battle#pbToggleSpecialActions = anil, emerald, relict, royal
+BallCatch = 
+Battle#pbToggleSpecialActions = anil, emerald, gruelinggold, relict, royal
 BetterRegionMap = infinitefusion, infinitefusion_hoenn
+BlocUnownScene = 
 BookScene = awakening, realidea
-DP_PauseMenu = anil, pokemon_z
+CableClub_Scene#pbDisplayDots = anil, sevii
+CharacterPageDisplayScene = 
+CharacterSelection = 
+CharacterSelectionScene = 
+DP_PauseMenu = anil, pokemon_z, sevii
+DiplomaScene = sevii
 EggMoveLearner_Scene = anil
 Ekans_Interface_Main = royal
-EncounterListUI = awakening, pokemon_z, realidea
-EncounterList_Scene = anil, emerald, relict, royal, soulstones2
+EncounterListUI = awakening, pokemon_z, realidea, sevii
+EncounterList_Scene = anil, emerald, gruelinggold, relict, royal, soulstones2
 EventIndicator#can_vertical_move? = emerald
 GachaScene = awakening, royal
-Game_Character#on_middle_of_stair? = anil, realidea, royal
+Game_Character#on_middle_of_stair? = anil, gruelinggold, realidea, royal
 Game_Screen#aUpdateRadar = soulstones1, soulstones2
-GenOneStyle = africanus, armonia, awakening, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea
+GenOneStyle = africanus, armonia, awakening, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, sevii
 GetKeyItemScene = anil, reminiscencia, royal
+HM_Catalogue = gruelinggold
 HallOfFameScene#writePokemonDataPC = realidea, uranium
 HallOfFameViewerScene = anil, royal
-Hatcher = anil, armonia, awakening, realidea, royal, soulstones2
+Hatcher = anil, armonia, awakening, realidea, royal, sevii, soulstones2
 Incubadora = opalo, pokemon_z
+ItemBerryPots_Scene = gruelinggold, royal
 ItemCraft_Scene = awakening, emerald, pokemon_z, soulstones2
 Log = awakening, realidea, reminiscencia
 Logros_Scene = africanus, awakening, pokemon_z, reminiscencia, royal
 MementoSprite = royal
-ModularTitleScreen = anil, emerald, royal
+Menu2#redrawSelector = 
+MenuPanel1 = 
+ModularSelection_Scene = 
+ModularTitleScreen = anil, emerald, gruelinggold, royal
+MysteryGiftScene = 
+NewChoiceSel = sevii, uranium
 Object#autosaveAnim = awakening
+Object#pbBlackJack = 
+Object#pbPiano = 
 Object#renderBadgeAnimation = africanus, anil, armonia, opalo, pokemon_z, realidea, royal
 PartyPicture = anil, royal
+PokeBattle_Scene#showAbilityMessage = sevii, uranium
+PokeTetra = 
 PokedexListSprite = emerald
 Pokemon#dynamax_lvl = fireash, royal
 Pokemon#hptype = soulstones2
-Pokemon#legacy_data = anil, emerald, relict, royal
+Pokemon#legacy_data = anil, emerald, gruelinggold, relict, royal
 PokemonBag#favourite? = anil, royal
 PokemonBagPartyPanel = anil, emerald, relict, royal, soulstones2
-PokemonControlsScene = insurgence, soulstones1
+PokemonControlsScene = insurgence, sevii, soulstones1
 PokemonGenderSelection = armonia, awakening, realidea
 PokemonGlobalMetadata#spinning = opalo, realidea
-PokemonItemFind_Scene = anil, emerald, reminiscencia, royal, soulstones1, soulstones2
+PokemonItemFind_Scene = anil, emerald, gruelinggold, reminiscencia, royal, soulstones1, soulstones2
 PokemonPartyShowcase_Scene = soulstones2
 PokemonPokedexInfo_Scene#displaySubPage = awakening, relict, soulstones1
 PokemonPokegearTheme_Scene = anil, royal
+PokemonPokegear_Scene#initialize_watch = anil, royal
 PokemonRegionMap_Scene#updateSpeciesInfo = royal
 PokemonSave_Scene#pbUpdateSlotInfo = anil, emerald, infinitefusion, infinitefusion_hoenn, royal, soulstones2
 PokemonStarterSelection = armonia
 PokemonSummaryScene#Habilidades = armonia, pokemon_z
+PokemonSummaryScene#drawPageSix = insurgence, sevii
+PokemonSummary_Scene#drawPageFamily = 
 PokemonSummary_Scene#pbAbilityPrompt = anil, emerald
 PokemonSummary_Scene#pbEVAllocation = soulstones2
 PokemonSummary_Scene#showAbilityDescription = anil, royal
@@ -59,25 +80,32 @@ PokemonTrainerCard_Scene#pbDrawTrainerCardBack = anil
 Pokemon_Achievements_Scene = awakening
 PunchBagScene = uranium
 Quest_Marker = awakening, realidea
-Questlog#pbMain = africanus, awakening, infinitefusion, realidea, soulstones1
+Questlog#pbMain = africanus, awakening, infinitefusion, realidea, sevii, soulstones1
 RC = emerald
 RSESTarterChoice = emerald
 RaidDataScene = fireash
 RouletteScene = desolation, reborn, rejuvenation
+Scene#assign_pokemon_text = 
 Scene#pbGetFinalModifiers = anil, emerald, relict, royal
 Scene_Map#addSprite = awakening, pokemon_z, relict, reminiscencia, royal
 ScreenChooseFileSave = fireash
 SelectMoveMenu_Scene = anil
 StarterMenu_Scene = anil
 StorageGrabber = anil, royal, soulstones2
+Teleport_Scene = awakening
 TerrainTag#slide_up = soulstones2
+TiltLabyrinth = royal
 TipCard_Scene = relict, royal
+TrainerCard#dorso1 = 
+TypeQuiz = 
+UnownMessage = 
 VoltseonsPauseMenu = soulstones2
+WallClockScene = 
 WindowTextEntryKeyboardPerKey = anil, pokemon_z, royal
 Window_BasePocketsList = emerald, royal
 Window_Berrydex = infinitefusion_hoenn, royal
 Window_Combination = emerald
 Window_CommandPokemon_Challenge = anil, emerald
-Window_Quest = emerald, rejuvenation, soulstones2
+Window_Quest = emerald, gruelinggold, rejuvenation, soulstones2
 Window_Wardrobe = emerald
 WonderCardAlbumScene = emerald

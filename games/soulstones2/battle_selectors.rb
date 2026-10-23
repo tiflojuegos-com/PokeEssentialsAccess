@@ -13,7 +13,8 @@ module PokeAccess
       return line unless show_desc
       d = PokeAccess.clean((item.description rescue "").to_s)
       d.empty? ? line : "#{line}. #{d}"
-    rescue StandardError
+    rescue StandardError => err
+      PokeAccess.swallowed(err)
       nil
     end
 
@@ -38,7 +39,8 @@ module PokeAccess
       end
       parts.concat(pos[0, 2].map { |h| PokeAccess.clean(h.to_s) }) if PokeAccess::Verbosity.hints? && PokeAccess::Cursor.changed?(scene, :ss2_switch_hint, show)
       parts.reject { |p| p.to_s.empty? }.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

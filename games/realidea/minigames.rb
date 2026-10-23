@@ -16,7 +16,8 @@ module PokeAccess
       when :postres then postres(@active)
       when :postres_baya then postres_baya(@active)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -32,7 +33,8 @@ module PokeAccess
       baile_turn(scene)
       baile_answer(scene)
       baile_grade(scene)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -95,7 +97,8 @@ module PokeAccess
       return if bar.nil? || PokeAccess.ivar(scene, :@pa_barra) == bar
       scene.instance_variable_set(:@pa_barra, bar)
       PokeAccess.speak(PokeAccess::I18n.t(:rea_postre, :n => (bar.to_i * 100 / 300)), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -111,7 +114,8 @@ module PokeAccess
       return unless cur.is_a?(Integer)
       PokeAccess::Cursor.announce(scene, :rea_baya, cur, true) { column_line(scene, cur) }
       baya_spawns(scene, cur)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -167,7 +171,8 @@ module PokeAccess
       n = layers.is_a?(Array) ? layers.length : 0
       key = n > 0 ? :rea_baya_layer : :rea_baya_wrong
       PokeAccess.speak(PokeAccess::I18n.t(key, :name => name, :n => n), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -179,7 +184,8 @@ module PokeAccess
       r = ($Trainer.receta rescue nil)
       return "" unless r.is_a?(Array)
       r.compact.map { |b| BERRY_NAMES[b.to_s] || b.to_s }.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       ""
     end
 
@@ -191,7 +197,8 @@ module PokeAccess
       ppt_focus(scene, !out)
       ppt_start(scene)
       ppt_rival(scene)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -259,7 +266,8 @@ module PokeAccess
       return (sel == 0 ? "Ataca" : "Defiende") if fase == 2 || fase == 3
       comb = PokeAccess.ivar(scene, :@comb)
       (comb.is_a?(Array) && sel < comb.length) ? comb[sel].to_s : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

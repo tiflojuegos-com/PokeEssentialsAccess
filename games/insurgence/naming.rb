@@ -1,9 +1,7 @@
 module PokeAccess
-  # What Insurgence's events are to the player where their names are the mappers' own labels: dormant Hoopa rings,
-  # Manaphy statues (Heart Swap targets), the currents of the Deep Cavern, the secret base doors of the Pokemon Centres
-  # (common event 6, "Secret_base_Entrance") and, once the Tesseract has brought them, the items of Tesseract_Spot_2.
-  # Its clerks call Kernel.pbPokeMartWorker without brackets, its trainer sprites add a variant (trchar050_1) and its
-  # Pokemon sprites a form (718_3); the soaring maps' shadow marker follows the player and is left out.
+  # Names for Insurgence's events whose names are the mappers' own labels: dormant Hoopa rings, Manaphy statues, the
+  # Deep Cavern's currents, secret base doors and what Tesseract_Spot_2 holds. Its clerks call Kernel.pbPokeMartWorker
+  # without brackets, and its sprite names add a variant or form number ("trchar050_1", "718_3").
   module InsurgenceNames
     # A current's name, by the way it carries the player.
     CURRENT = /\Acurrent_(up|down|left|right)\z/
@@ -19,10 +17,20 @@ module PokeAccess
       return PokeAccess::I18n.t(:ins_manaphy_statue) if n.index("HeartSwap_S") == 0 && statue?(ev)
       return PokeAccess::I18n.t(:ins_sb_door) if secret_base_door?(ev)
       return nil unless n.index("HeartSwap_S") == 0 || n == "Tesseract_Spot_2"
-      it = PokeAccess::Locator.item_name(ev)
-      it ? PokeAccess::I18n.t(:loc_object_named, :name => it) : nil
-    rescue StandardError
+      it = (PokeAccess::Config.name_items rescue true) ? PokeAccess::Locator.item_name(ev) : nil
+      return PokeAccess::I18n.t(:loc_object_named, :name => it) if it
+      (n == "Tesseract_Spot_2" && tesseract_find(ev)) || PokeAccess::I18n.t(:loc_object)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
+    end
+
+    # What a Tesseract spot holds that is no item: a wild Pokemon by the species its sprite shows, or a boulder that
+    # rolls by itself as a pushable object; else nil.
+    def self.tesseract_find(ev)
+      sp = PokeAccess::Locator.sprite_species(ev.character_name.to_s)
+      return sp if sp
+      PokeAccess::Routes::Effects.self_pushed?(ev) ? PokeAccess::I18n.t(:loc_pushable) : nil
     end
 
     # "Current, <direction>".
@@ -47,7 +55,8 @@ module PokeAccess
     def self.object?(ev)
       n = ev.name.to_s
       !!(n =~ CURRENT) || n == "Hoopa_Hole" || (n.index("HeartSwap_S") == 0 && statue?(ev))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -64,18 +73,9 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("insurgence") do
-  override("PokeAccess::Locator", :target_name) do |_mod, original, args|
-    ev = args[0]
-    tag = (PokeAccess::Tags.get($game_map.map_id, ev.id) rescue nil)
-    own = (tag.nil? || tag.to_s.empty?) && ev.respond_to?(:name) && !ev.is_a?(PokeAccess::Locator::SurfaceTarget)
-    (own && PokeAccess::InsurgenceNames.name(ev)) || original.call
-  end
-  override("PokeAccess::Locator", :event_category) do |_mod, original, args|
-    PokeAccess::InsurgenceNames.object?(args[0]) ? :objects : original.call
-  end
-  override("PokeAccess::Locator", :in_category?) do |_mod, original, args|
-    PokeAccess::InsurgenceNames.hidden?(args[0]) ? false : original.call
-  end
+  event_name { |ev| PokeAccess::InsurgenceNames.name(ev) }
+  event_category(:objects) { |ev| PokeAccess::InsurgenceNames.object?(ev) }
+  event_hidden { |ev| PokeAccess::InsurgenceNames.hidden?(ev) }
   override("PokeAccess::Locator", :shop_event?) do |_mod, original, args|
     original.call || !!PokeAccess::Locator.script_call_find(args[0]) { |s| s =~ /\bpbPokeMartWorker\b/ }
   end

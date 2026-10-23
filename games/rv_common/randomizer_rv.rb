@@ -1,9 +1,7 @@
 module PokeAccess
-  # The randomizer setup of the engine Reborn and Desolation share (RandomizerScene, opened by the "randomizer"
-  # password): pages of the animation editor's controls (ControlWindow) that answer the mouse alone, and cancel, the
-  # one key the screen takes. J/K/L/I move a focus between them as on the fly map, confirm works a button or a
-  # checkbox, the left and right arrows step a slider; each change is written into the control itself, right after
-  # its window's update, so the scene's own changed? check reads it as a click.
+  # The randomizer setup of the engine Reborn and Desolation share (RandomizerScene): its animation-editor controls
+  # answer the mouse alone, so J/K/L/I move a focus between them, confirm works a button or checkbox and left and right
+  # step a slider; each change is written into the control right after its window's update, read by changed? as a click.
   module RandomizerRV
     # Control kinds by the game's class name; a subclass (OptionalSlider) is found through its ancestors.
     KINDS = { "TextBox" => :text, "Checkbox" => :checkbox, "TextSlider" => :slider, "Slider" => :slider,
@@ -15,9 +13,9 @@ module PokeAccess
     # Enter, which ends typing in a text field (the confirm button would fire on typed letters).
     VK_RETURN = 0x0D
 
-    # Says how the screen is worked, as it opens.
+    # Says how the screen is worked, as it opens, naming the locator's keys and shift as the player has them bound.
     def self.announce
-      PokeAccess.speak(PokeAccess::I18n.t(:rv_randomizer_keys), true)
+      PokeAccess.speak(PokeAccess::I18n.t(:rv_randomizer_keys, PokeAccess::ConfigMenu.key_vars), true)
     end
 
     # The scene is starting: no focus yet.
@@ -127,7 +125,8 @@ module PokeAccess
       win ||= c.parent
       return nil unless win
       [win.x.to_i + c.x.to_i, win.y.to_i + c.y.to_i]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -278,7 +277,7 @@ module PokeAccess
       Input.text_input = true if Input.respond_to?(:text_input=)
       (c.invalidate rescue nil)
       @editing = c
-      PokeAccess::Keyboard.triggered?(:rv_randomizer_enter, VK_RETURN)
+      PokeAccess::Keyboard.consume(VK_RETURN)
       PokeAccess.speak(PokeAccess::I18n.t(:rv_randomizer_typing), true)
     end
 
@@ -294,7 +293,7 @@ module PokeAccess
     # A frame while typing: the mod's keys stay quiet, and Enter ends it and says the text.
     def self.typing_frame
       PokeAccess::Keys.typing!
-      return unless PokeAccess::Keyboard.triggered?(:rv_randomizer_enter, VK_RETURN)
+      return unless PokeAccess::Keyboard.pressed?(VK_RETURN)
       c = @editing
       stop_editing
       PokeAccess.speak(value_of(c), true)

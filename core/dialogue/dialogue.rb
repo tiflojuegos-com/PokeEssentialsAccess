@@ -34,8 +34,9 @@ module PokeAccess
   def self.dialogue_wraps; @dialogue_wraps ||= []; end
   def self.note_dialogue_wrap(form); dialogue_wraps.push(form) unless dialogue_wraps.include?(form); end
 
-  # Cleans, remembers and speaks (queued) a dialogue line, led by any promised head, then any promised tail; a copy
-  # of the same cleaned line within half a second (another hook's) is remembered as it was said but not spoken again.
+  # Cleans, remembers and speaks (queued) a dialogue line, led by any promised head, then any promised tail; an empty
+  # message is no line, so it keeps both for the next. A copy of the same cleaned line within half a second (another
+  # hook's) is remembered as it was said but not spoken again.
   def self.say_dialogue(message)
     note_dialogue_seen
     t = clean(message)
@@ -44,11 +45,12 @@ module PokeAccess
       return
     end
     @last_say = t; @last_say_t = (clock rescue 0)
-    @last_led = t.to_s.strip.empty? ? t : led(take_head, t)
+    empty = t.to_s.strip.empty?
+    @last_led = empty ? t : led(take_head, t)
     note_dialogue(@last_led)
     kind = dialogue_category
     speak(@last_led, false, kind)
-    tail = take_tail
+    tail = empty ? nil : take_tail
     speak(tail, false, kind) if tail
   end
 
@@ -114,19 +116,21 @@ begin
   if pa_msg_singleton
     class << Kernel
       unless method_defined?(:pbMessageDisplay__access_orig)
-        alias_method :pbMessageDisplay__access_orig, :pbMessageDisplay
-        def pbMessageDisplay(msgwindow, message, *args, &block)
-          paged = PokeAccess::DialoguePages.open(msgwindow, message, PokeAccess.letter_by_letter(args))
-          PokeAccess.say_dialogue(message) unless paged
-          PokeAccess.message_enter
-          begin
-            pbMessageDisplay__access_orig(msgwindow, message, *args, &block)
-          ensure
-            PokeAccess.message_leave
-            PokeAccess::DialoguePages.close(msgwindow) if paged
+        PokeAccess::Hooks.keep_bound(self, :pbMessageDisplay) do |_again|
+          alias_method :pbMessageDisplay__access_orig, :pbMessageDisplay
+          def pbMessageDisplay(msgwindow, message, *args, &block)
+            paged = PokeAccess::DialoguePages.open(msgwindow, message, PokeAccess.letter_by_letter(args))
+            PokeAccess.say_dialogue(message) unless paged
+            PokeAccess.message_enter
+            begin
+              pbMessageDisplay__access_orig(msgwindow, message, *args, &block)
+            ensure
+              PokeAccess.message_leave
+              PokeAccess::DialoguePages.close(msgwindow) if paged
+            end
           end
+          PokeAccess::Hooks.pass_keywords(self, :pbMessageDisplay)
         end
-        PokeAccess::Hooks.pass_keywords(self, :pbMessageDisplay)
         PokeAccess.note_dialogue_wrap(:singleton)
       end
     end
@@ -141,20 +145,22 @@ begin
   if pa_msg_bare && (!pa_msg_singleton || PokeAccess::Engine.gamedata?)
     class Object
       unless private_method_defined?(:pbMessageDisplay__pa_inst) || method_defined?(:pbMessageDisplay__pa_inst)
-        alias_method :pbMessageDisplay__pa_inst, :pbMessageDisplay
-        def pbMessageDisplay(msgwindow, message, *args, &block)
-          paged = PokeAccess::DialoguePages.open(msgwindow, message, PokeAccess.letter_by_letter(args))
-          PokeAccess.say_dialogue(message) unless paged
-          PokeAccess.message_enter
-          begin
-            pbMessageDisplay__pa_inst(msgwindow, message, *args, &block)
-          ensure
-            PokeAccess.message_leave
-            PokeAccess::DialoguePages.close(msgwindow) if paged
+        PokeAccess::Hooks.keep_bound(self, :pbMessageDisplay) do |_again|
+          alias_method :pbMessageDisplay__pa_inst, :pbMessageDisplay
+          def pbMessageDisplay(msgwindow, message, *args, &block)
+            paged = PokeAccess::DialoguePages.open(msgwindow, message, PokeAccess.letter_by_letter(args))
+            PokeAccess.say_dialogue(message) unless paged
+            PokeAccess.message_enter
+            begin
+              pbMessageDisplay__pa_inst(msgwindow, message, *args, &block)
+            ensure
+              PokeAccess.message_leave
+              PokeAccess::DialoguePages.close(msgwindow) if paged
+            end
           end
+          PokeAccess::Hooks.pass_keywords(self, :pbMessageDisplay)
+          private :pbMessageDisplay, :pbMessageDisplay__pa_inst
         end
-        PokeAccess::Hooks.pass_keywords(self, :pbMessageDisplay)
-        private :pbMessageDisplay, :pbMessageDisplay__pa_inst
         PokeAccess.note_dialogue_wrap(:bare)
       end
     end

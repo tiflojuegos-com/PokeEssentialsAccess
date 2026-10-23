@@ -21,12 +21,13 @@ module PokeAccess
         maxt = (chamber.class.maximumTempo rescue nil)
         parts.push([PokeAccess::I18n.t(:pchm_tempo, :n => tempo, :max => maxt), :full]) if tempo && maxt
         hg = heart_of(sh)
-        parts.push([PokeAccess::I18n.t(:pchm_heart, :n => hg, :max => heart_max), :medium]) if hg
+        parts.push([PokeAccess::I18n.t(:pchm_heart, :n => hg, :max => heart_max(sh)), :medium]) if hg
         parts.push([PokeAccess::I18n.t(:pchm_purifiable), :brief]) if (chamber.isPurifiable?(i) rescue false)
       end
       parts.push([PokeAccess::I18n.t(:pchm_switching), :brief]) if switching
       PokeAccess::Verbosity.info_line(:pc_slot, parts)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -34,16 +35,20 @@ module PokeAccess
     def self.heart_of(pk)
       return nil unless pk
       PokeAccess.attr_of(pk, :heartgauge, :heart_gauge)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # The full heart-gauge size, wherever this engine keeps the constant.
-    def self.heart_max
+    # The full size of a shadow Pokemon's heart gauge: its own (max_gauge_size, v21), else the engine's constant.
+    def self.heart_max(pk)
+      own = PokeAccess.attr_of(pk, :max_gauge_size)
+      return own if own
       return PokeBattle_Pokemon::HEARTGAUGESIZE if defined?(PokeBattle_Pokemon::HEARTGAUGESIZE)
       return Pokemon::HEART_GAUGE_SIZE if defined?(Pokemon::HEART_GAUGE_SIZE)
       nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -61,7 +66,7 @@ module PokeAccess
         return nil unless sh
         parts = [[PokeAccess::I18n.t(:pc_slot, :name => sh.name, :level => sh.level), :brief]]
         hg = heart_of(sh)
-        parts.push([PokeAccess::I18n.t(:pchm_heart, :n => hg, :max => heart_max), :medium]) if hg
+        parts.push([PokeAccess::I18n.t(:pchm_heart, :n => hg, :max => heart_max(sh)), :medium]) if hg
         flow = (chamber.chamberFlow(set) rescue nil)
         parts.push([PokeAccess::I18n.t(:pchm_flow, :n => flow), :full]) if flow
         tempo = (chamber[set].tempo rescue nil)
@@ -84,7 +89,8 @@ module PokeAccess
       PokeAccess::Info.set_info(:text, whole)
       return whole if PokeAccess::Verbosity.keep?(:pc_slot, :medium)
       occupant ? occupant.name.to_s : PokeAccess::I18n.t(:pc_empty)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

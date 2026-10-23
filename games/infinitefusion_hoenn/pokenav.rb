@@ -8,7 +8,8 @@ module PokeAccess
       t = (btn.id rescue nil) if t.nil? || t.to_s.strip.empty?
       return nil unless t.is_a?(String)
       PokeAccess.clean(t)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -59,7 +60,8 @@ module PokeAccess
       e = (scene.get_energy_for_scan(sp) rescue nil)
       parts.push([PokeAccess::I18n.t(:if2_radar_battery, :n => e), :medium]) if e
       PokeAccess::Verbosity.info_line(:dex_entry, parts)
-    rescue StandardError
+    rescue StandardError => err
+      PokeAccess.swallowed(err)
       nil
     end
 
@@ -76,7 +78,8 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :list_entry, idx, true) do
         PokeAccess.sentences(head + [PokeAccess::Verbosity.list_entry(label, idx + 1, btns.length)])
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -157,7 +160,8 @@ module PokeAccess
         head = PokeAccess::Verbosity.list_entry(desc, idx + 1, list.length)
         [head, reward_at_level(scene, idx, c, whole)].compact.join(". ")
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -184,7 +188,8 @@ module PokeAccess
         parts.push(names.join(", "))
       end
       parts.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -289,4 +294,4 @@ PokeAccess::Game.define("infinitefusion_hoenn") do
   end
 end
 
-PokeAccess::Verbosity.define_reading(:quest, :vb_quest, :vbh_quest)
+PokeAccess::Verbosity.define_reading(:quest, :vb_quest, :vbh_quest, :game)

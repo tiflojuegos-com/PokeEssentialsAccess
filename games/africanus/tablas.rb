@@ -98,7 +98,8 @@ module PokeAccess
       else
         PokeAccess.speak(PokeAccess::I18n.t(:img_fullscreen), true)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

@@ -21,19 +21,9 @@ module PokeAccess
     def self.row(i)
       PokeAccess::Util.join_parts([form_names[i], PokeAccess::I18n.t(state_key(i))], ", ")
     end
-
-    # Says the focused leaf when the focus moves, the first time queued.
-    def self.update(scene)
-      win = PokeAccess.sprite(scene, "command_window")
-      return unless win
-      i = win.index
-      PokeAccess::Cursor.announce(scene, :ins_leaf, i, true, false) { row(i) }
-    end
   end
 end
 
-# The list is claimed before the frame's window update reads it.
 PokeAccess::Game.define("insurgence") do
-  before("Scene_Leaf", :update) { |s, _a| PokeAccess.dedicate(PokeAccess.sprite(s, "command_window")) }
-  after("Scene_Leaf", :update) { |s, _r, _a| PokeAccess::InsurgenceLeaf.update(s) }
+  focus_reader("Scene_Leaf", :index => "command_window", :slot => :ins_leaf) { |i| PokeAccess::InsurgenceLeaf.row(i) }
 end

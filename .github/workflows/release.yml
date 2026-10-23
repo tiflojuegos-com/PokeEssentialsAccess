@@ -55,7 +55,7 @@ jobs:
         run: |
           set -o pipefail
           ruby test/run_all.rb 2>&1 | tee /tmp/suite.log
-          grep -q "=== static checks ===" /tmp/suite.log || { echo "::error::static checks did not run (filtered invocation?)"; exit 1; }
+          grep -q "the whole suite:" /tmp/suite.log || { echo "::error::the run was filtered: not every test ran"; exit 1; }
       - name: profiles
         run: |
           want=$(ls games/*/manifest.rb | wc -l)

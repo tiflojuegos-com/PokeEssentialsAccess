@@ -8,7 +8,8 @@ module PokeAccess
       idx  = scene.instance_variable_get(:@index)
       txt  = (cmds.is_a?(Array) && idx) ? cmds[idx] : nil
       PokeAccess.speak_clean(txt, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -22,7 +23,8 @@ module PokeAccess
         line = (lines.length > 1 && lines[0] =~ /:\z/) ? lines[0] + " " + lines[1..-1].join(", ") : lines.join(", ")
         PokeAccess.speak_clean(line, false)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -32,7 +34,8 @@ module PokeAccess
       t = PokeAccess::PaintCapture.text(rows)
       t = PokeAccess::Util.join_parts([t, clean_text])
       t.empty? ? nil : t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

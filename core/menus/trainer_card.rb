@@ -7,7 +7,8 @@ module PokeAccess
       t = PokeAccess::Info.trainer_info
       started = PokeAccess::Util.started_line
       t && started ? "#{t}. #{started}" : t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -17,7 +18,6 @@ module PokeAccess
 
     # Reads a card face as the block paints it, key hints gated, then the front's badge icons; queued on open,
     # interrupting when the card is turned.
-    # param front whether this is the front, the face with the badges
     # param fallback a callable giving the text for a face that painted no words
     def self.read_face(scene, front, fallback = nil)
       ret = nil
@@ -52,15 +52,16 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:tc_name, :name => p.name)) if (p.name rescue nil)
       id = (sprintf("%05d", p.public_ID) rescue nil); parts.push(PokeAccess::I18n.t(:tc_id, :id => id)) if id
       parts.push(PokeAccess::I18n.t(:tc_money, :n => (p.money rescue 0)))
-      dex = (p.pokedex rescue nil)
-      parts.push(PokeAccess::I18n.t(:tc_pokedex, :owned => dex.owned_count, :seen => dex.seen_count)) if dex && (dex.respond_to?(:owned_count) rescue false)
+      tally = ([p.pokedex.owned_count, p.pokedex.seen_count] rescue nil)
+      parts.push(PokeAccess::I18n.t(:tc_pokedex, :owned => tally[0], :seen => tally[1])) if tally
       badges = PokeAccess::Util.badge_count(p); parts.push(PokeAccess::I18n.t(:tr_badges, :n => badges)) if badges
       hm = PokeAccess::Util.playtime_parts(PokeAccess::Util.playtime_seconds)
       parts.push(PokeAccess::I18n.t(:tr_playtime, :h => hm[0], :m => hm[1])) if hm
       started = PokeAccess::Util.started_line
       parts.push(started) if started
       parts.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

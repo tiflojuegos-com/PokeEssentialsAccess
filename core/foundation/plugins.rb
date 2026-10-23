@@ -23,7 +23,8 @@ module PokeAccess
         v = (pm.version(n) rescue nil)
         (v && !v.to_s.empty?) ? "#{n} #{v}" : n.to_s
       end.sort
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

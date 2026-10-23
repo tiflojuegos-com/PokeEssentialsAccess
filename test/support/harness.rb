@@ -2,9 +2,15 @@
 # :gamedata), in boot.rb's manifest order and through eval as boot.rb does, collecting each file's load error.
 ENGINE = (ENV["PA_ENGINE"] || "gen6").to_sym
 
-# Runtime files (markers, settings, recordings) go to a throwaway folder in the system temp dir, out of the repo.
+# Runtime files (markers, settings, recordings) go to a throwaway folder of this process in the system temp dir, out
+# of the repo, so runs side by side never share one; a process a test starts inherits it, and its maker removes it.
 require "tmpdir"
-ENV["POKEACCESS_DATA_DIR"] ||= File.join(Dir.tmpdir, "pokeaccess-test-data")
+require "fileutils"
+unless ENV["POKEACCESS_DATA_DIR"]
+  ENV["POKEACCESS_DATA_DIR"] = File.join(Dir.tmpdir, "pokeaccess-test-data-#{Process.pid}")
+  data_dir = ENV["POKEACCESS_DATA_DIR"]
+  at_exit { FileUtils.rm_rf(data_dir) }
+end
 
 require File.expand_path(ENGINE == :gamedata ? "stubs/engine_gamedata" : "stubs/engine_gen6", File.dirname(__FILE__))
 
@@ -14,6 +20,24 @@ module Harness
 
   # The load errors collected while loading the toolkit.
   def self.errors; @errors; end
+
+  # The source evaluated for path: the file, or the file with the one change tools/mutate.rb asks for (PA_MUTANT
+  # names a JSON file with the path, a byte range and its replacement).
+  def self.source(path)
+    src = File.read(path)
+    m = mutant
+    return src unless m && File.expand_path(path) == File.expand_path(m["path"])
+    raw = src.b
+    out = raw.byteslice(0, m["start"]) + m["text"].b + raw.byteslice(m["end"], raw.bytesize - m["end"])
+    out.force_encoding(src.encoding)
+  end
+
+  # The mutant PA_MUTANT asks for, or nil.
+  def self.mutant
+    return @mutant if defined?(@mutant)
+    require "json" if ENV["PA_MUTANT"]
+    @mutant = ENV["PA_MUTANT"] ? JSON.parse(File.read(ENV["PA_MUTANT"])) : nil
+  end
 
   # Loads, once, every plugin reader the harness profile did not declare, so specs can exercise any of them; safe
   # since plugin hooks are :optional, while the static specs still check the declarations.
@@ -26,7 +50,7 @@ module Harness
       next if name == "manifest" || @plugins_loaded[name]
       @plugins_loaded[name] = true
       begin
-        eval(File.read(f), TOPLEVEL_BINDING, f)
+        eval(source(f), TOPLEVEL_BINDING, f)
       rescue Exception => e
         @errors << "plugins/#{name}.rb: #{e.class}: #{e.message}"
       end
@@ -65,7 +89,7 @@ module Harness
       next if @plugins_loaded[name]
       @plugins_loaded[name] = true
       begin
-        eval(File.read(f), TOPLEVEL_BINDING, f)
+        eval(source(f), TOPLEVEL_BINDING, f)
       rescue Exception => e
         @errors << "plugins/#{name}.rb: #{e.class}: #{e.message}"
       end
@@ -82,7 +106,7 @@ module Harness
     list.each do |entry|
       f = File.join(ROOT, rel, "#{entry}.rb")
       begin
-        eval(File.read(f), TOPLEVEL_BINDING, f)
+        eval(source(f), TOPLEVEL_BINDING, f)
       rescue Exception => e
         @errors << "#{rel}/#{entry}.rb: #{e.class}: #{e.message}"
       end

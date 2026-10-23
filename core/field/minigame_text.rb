@@ -79,7 +79,8 @@ module PokeAccess
       sides = PokeAccess::I18n.t(:triad_sides, :n => num(card.north), :e => num(card.east),
                                  :s => num(card.south), :w => num(card.west))
       [base, (type ? PokeAccess::I18n.t(:mv_type, :t => type) : nil), sides].compact.join(", ")
-    rescue StandardError
+    rescue StandardError => err
+      PokeAccess.swallowed(err)
       (PokeAccess::Menus.generic_focus(win, i) rescue nil)
     end
 
@@ -93,7 +94,8 @@ module PokeAccess
       when :opponent then poll_opponent
       when :board    then poll_board
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -105,7 +107,8 @@ module PokeAccess
       return if t.nil? || t.to_s.strip.empty?
       return unless PokeAccess::Cursor.changed?(@scene, :triad_help, t.to_s)
       PokeAccess.say_dialogue(t)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -186,7 +189,8 @@ module PokeAccess
       PokeAccess::I18n.t(:triad_card, :name => name,
                          :n => num(card.north), :e => num(card.east),
                          :s => num(card.south), :w => num(card.west))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       (PokeAccess::Data.species_name(species) rescue nil)
     end
 
@@ -205,7 +209,8 @@ module PokeAccess
         free = "#{pos}, #{PokeAccess::I18n.t(:triad_free)}"
         el ? "#{free}, #{PokeAccess::I18n.t(:triad_element, :t => el)}" : free
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       pos
     end
 
@@ -215,7 +220,8 @@ module PokeAccess
       type = (bt.board[y * bt.width + x].type rescue nil)
       return nil if type.nil? || (type.is_a?(Integer) && type < 0)
       PokeAccess::Data.type_name(type)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -226,7 +232,8 @@ module PokeAccess
       @after_foe = true
       PokeAccess.speak(PokeAccess::I18n.t(:triad_foe_plays, :card => card_text(sp),
                                           :row => position[1] + 1, :col => position[0] + 1), false, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -250,7 +257,8 @@ module PokeAccess
       line = PokeAccess::I18n.t(:triad_score, :you => you, :foe => foe)
       line = "#{PokeAccess::I18n.t(:triad_captures, :list => caps.join('; '))}. #{line}" unless caps.empty?
       PokeAccess.speak(line, !queued, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -286,7 +294,8 @@ module PokeAccess
       return if t.nil? || t.to_s.empty?
       return unless PokeAccess::Cursor.changed?(nil, :triad_shop, t)
       PokeAccess.speak(t, false, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -317,7 +326,7 @@ end
     PokeAccess::TripleTriad.opponent_played(args[0], args[1])
   end
 end
-PokeAccess::Keys.on_frame { PokeAccess::TripleTriad.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::TripleTriad.poll }
 
 # The deck list is a plain Window_CommandPokemonEx: outside the deck loop this returns the generic text, never nil
 # (focused_text only falls back on an exception, so nil would silence every command window).

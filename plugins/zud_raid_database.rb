@@ -55,7 +55,8 @@ module PokeAccess
           @values[VALUE_ROWS[y.to_i]] = t.sub(/\A\[/, "").sub(/\]\z/, "")
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -93,7 +94,8 @@ module PokeAccess
         v = @values[idx]
         v ? "#{cmds[idx]}: #{v}" : cmds[idx].to_s
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -157,7 +159,8 @@ module PokeAccess
       pairs = pairs.reject { |p| MOVE_LISTS.any? { |_k, x, _b| p[2] == x } } + full if full
       t = page_text(pairs, sp)
       PokeAccess.speak(t, true) unless t.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -202,4 +205,4 @@ end
 PokeAccess::Hooks.wrap_kernel("drawTextEx", "plugin_zud_raid_drawTextEx", :before) do |args, _r|
   PokeAccess::ZudRaidDatabase.note(args[0], args[5], args[2]) if PokeAccess::ZudRaidDatabase.open?
 end
-PokeAccess::Keys.on_frame { PokeAccess::ZudRaidDatabase.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::ZudRaidDatabase.poll }

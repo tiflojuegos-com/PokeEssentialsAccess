@@ -21,7 +21,8 @@ module PokeAccess
     n = (idx.to_i + 1)
     tot = (PokeAccess.ivar(scene, :@pages) || (tips.is_a?(Array) ? tips.length : nil)).to_i
     (tot > 1) ? PokeAccess::Verbosity.list_entry(parts.join(". "), n, tot) : parts.join(". ")
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     nil
   end
 
@@ -40,7 +41,8 @@ module PokeAccess
     g = (::Settings::TIP_CARDS_GROUPS[groups[sec]] rescue nil)
     t = (g && g[:Title]) ? (_INTL(g[:Title]) rescue g[:Title]).to_s : nil
     (t && !t.empty?) ? clean(t) : nil
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     nil
   end
 end
@@ -76,8 +78,8 @@ PokeAccess::Hooks.around_hook("TipCardGroups_Scene", :pbScene, :optional => true
 end
 
 # The group-list popup (pbShowCommands) redraws nothing when the same group is picked, so the card is re-read as it
-# closes; not wrapped where the plugin's TIP_CARDS_GROUP_LIST turns the popup off.
-unless PokeAccess.const_at("TIP_CARDS_GROUP_LIST") == false
+# closes; not wrapped where the plugin's Settings::TIP_CARDS_GROUP_LIST turns the popup off.
+unless PokeAccess.const_at("Settings::TIP_CARDS_GROUP_LIST") == false
   PokeAccess::Hooks.wrap_kernel("pbShowCommands", "hook_tipcards_grouplist", :around) do |_args, nxt|
     ret = nxt.call
     scene = PokeAccess::TipCards.group_scene

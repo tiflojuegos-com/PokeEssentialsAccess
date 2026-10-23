@@ -23,6 +23,8 @@
     party_keys
     party_panel
     info_screens
+    passability
+    field_moves
   ],
   :plugins => %w[item_find logros text_log slide_banners bw_key_items]
 }

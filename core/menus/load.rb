@@ -12,7 +12,8 @@ module PokeAccess
         return s if s
       end
       nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -47,19 +48,33 @@ module PokeAccess
     end
 
     # The saved team as its icons show it: the species, or an egg.
-    def self.team(trainer)
-      team_line((trainer.party rescue nil))
+    # param shiny true where the screen's icons show a shiny one in its colours
+    def self.team(trainer, shiny = false)
+      team_line((trainer.party rescue nil), shiny)
     end
 
     # The team line for the Pokemon a screen draws as icons, species or egg each; nil for none.
-    def self.team_line(party)
+    # param shiny true where the icons show a shiny one in its colours, which it then says
+    def self.team_line(party, shiny = false)
       return nil unless party.is_a?(Array) && !party.empty?
       names = party.map do |pk|
-        (pk.egg? rescue false) ? PokeAccess::I18n.t(:pty_egg) : PokeAccess::Data.species_name(pk.species).to_s
+        next PokeAccess::I18n.t(:pty_egg) if (pk.egg? rescue false)
+        name = PokeAccess::Data.species_name(pk.species).to_s
+        (shiny && PokeAccess::Party.shiny?(pk)) ? "#{name} #{PokeAccess::I18n.t(:pk_shiny)}" : name
       end
       PokeAccess::I18n.t(:load_party, :list => names.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
+    end
+
+    # Publishes the summary of the save on show (Multi Save's arrows start the screen again on another) for the info
+    # key and Ctrl+T while the cursor is on Continue, the panel that shows it; withdraws it as the cursor leaves.
+    def self.publish(scene)
+      t = PokeAccess.ivar(scene, :@access_summary).to_s
+      on = !t.empty? && ((PokeAccess.sprite(scene, "cmdwindow").index rescue nil) == 0)
+      return unless PokeAccess::Cursor.changed?(scene, :load_info, [on, t])
+      on ? PokeAccess::Info.set_info(:text, t, t) : PokeAccess::Info.clear_text
     end
 
     # The spoken summary of the save on offer, or nil when there is none to continue.
@@ -68,10 +83,11 @@ module PokeAccess
       trainer = args[2]
       lines = painted(scene)
       parts = lines.empty? ? [composed(trainer, args)] : lines.dup
-      parts.push(team(trainer))
+      parts.push(team(trainer, true))
       parts.concat((extras(trainer, args) rescue []))
       parts.compact.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -101,6 +117,16 @@ PokeAccess::Engine.scene_classes("PokemonLoadScene", "PokemonLoad_Scene").each d
   # A container: the panels are built and painted inside, and a guard would skip their capture.
   PokeAccess::Hooks.after_hook(cls, :pbStartScene, :hook_container => true) do |scene, _r, args|
     t = PokeAccess::LoadPanel.summary(args, scene)
+    scene.instance_variable_set(:@access_summary, t)
     PokeAccess.speak(t, false)
   end
+end
+
+# pbUpdate runs each frame of the command loop and updates the command window and the panels inside: a container,
+# so their own readers still speak, and the summary stays on the info key while Continue has the cursor.
+PokeAccess::Hooks.after_hook("PokemonLoadScene", :pbUpdate, :optional => true, :hook_container => true) do |s, _r, _a|
+  PokeAccess::LoadPanel.publish(s)
+end
+PokeAccess::Hooks.after_hook("PokemonLoad_Scene", :pbUpdate, :optional => true, :hook_container => true) do |s, _r, _a|
+  PokeAccess::LoadPanel.publish(s)
 end

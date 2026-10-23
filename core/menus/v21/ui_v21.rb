@@ -10,7 +10,8 @@ module PokeAccess
       said = PokeAccess::Cursor.announce(nil, tag, key.nil? ? text : [key, text], interrupt) { text }
       @party_said = true if said && tag == :party
       said
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -64,7 +65,8 @@ module PokeAccess
         return t
       end
       PokeAccess::Party.member_line(pk, :annotation => annotation, :pokerus_slot => true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -98,7 +100,8 @@ module PokeAccess
       line = PokeAccess::MoveInfo.leveled(:learn_move, *args)
       lbl = "" unless PokeAccess::Verbosity.keep?(:learn_move, :medium)
       lbl.empty? ? line : "#{lbl}. #{line}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -162,7 +165,8 @@ module PokeAccess
       idx = (vis.index rescue (vis.instance_variable_get(:@index) rescue 0))
       return nil unless moves && idx && idx >= 0 && idx < moves.length
       move_from_entry(moves[idx], PokeAccess.ivar(vis, :@pokemon))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -237,7 +241,7 @@ end
 PokeAccess::Hooks.after_hook("MapBottomSprite", :mapname=) do |_s, _r, args|
   PokeAccess::UIV21.region_name(args[0])
 end
-PokeAccess::Keys.on_frame { PokeAccess::UIV21.flush_region_name }
+PokeAccess::Frame.each_pulse { PokeAccess::UIV21.flush_region_name }
 
 # Opening the region map resets its dedup, under both scene spellings; scene_classes, not era_scene, since the reset
 # is the same in either era.
@@ -274,7 +278,9 @@ PokeAccess::Hooks.before_hook("PokemonPokegear_Scene", :pbScene, :optional => tr
   scene.instance_variable_set(:@access_scene_seen, true)
 end
 
-# Scene_Pokegear hides an active command window under its buttons: claimed every frame (dedicate is idempotent).
-PokeAccess::Hooks.after_hook("Scene_Pokegear", :update, :optional => true) do |scene, _r, _a|
+# Scene_Pokegear hides an active command window under its buttons: claimed before every update, the first one
+# included (dedicate is idempotent). A before hook, so update runs unguarded: it opens each app in place, and the
+# buttons' and the apps' readers speak inside it.
+PokeAccess::Hooks.before_hook("Scene_Pokegear", :update, :optional => true) do |scene, _a|
   PokeAccess.dedicate(PokeAccess.sprite(scene, "command_window"))
 end

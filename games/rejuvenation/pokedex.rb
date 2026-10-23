@@ -16,7 +16,8 @@ module PokeAccess
       seen = dex.seen?(species, form) || (whole && dex.seen?(species)) ? true : false
       owned = dex.owned?(species, form) || (whole && dex.owned?(species)) ? true : false
       PokeAccess::Menus.dex_row(c[5].to_i, species, c[1], seen, owned)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -25,7 +26,8 @@ module PokeAccess
       h = PokeAccess.ivar(scene, :@pokedexSprites)
       w = h.is_a?(Hash) ? h[key] : nil
       (w ? w.text : "").to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       ""
     end
 
@@ -38,7 +40,8 @@ module PokeAccess
       return if name.empty? || seen.nil? || owned.nil?
       return unless PokeAccess::Cursor.changed?(scene, :rj_dex_head, [name, seen, owned])
       PokeAccess.speak(PokeAccess::I18n.t(:dex_region_counts, :name => name, :seen => seen, :owned => owned), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -48,7 +51,8 @@ module PokeAccess
       return nil unless entry
       PokeAccess::I18n.t(:dex_region_counts_tot, :name => PokeAccess.clean(entry[:name]), :seen => entry[:seen],
                                                   :owned => entry[:owned], :tot => entry[:total])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

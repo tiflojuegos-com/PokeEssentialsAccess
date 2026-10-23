@@ -36,7 +36,8 @@ module PokeAccess
       @last = key
       l = (PokeAccess.ivar(s, :@logros)[key[0]] rescue nil)
       PokeAccess.speak(PokeAccess.logro_indexed_text(l), true) if l
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -66,7 +67,8 @@ module PokeAccess
     r = PokeAccess::Verbosity.hints? ? reward_note(st) : nil
     return line unless r
     line =~ /[.!?]\z/ ? "#{line} #{r}" : "#{line}. #{r}"
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     nil
   end
 
@@ -87,7 +89,8 @@ module PokeAccess
     return nil if active.nil? || st != active
     painted = (_INTL("[{1}]: " + _INTL("Obtener recompensa"), ::KeybindingReader.key_name(:USE)) rescue nil)
     painted ? PokeAccess::KeyHints.localize(clean(painted)) : I18n.t(:ach_reward)
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     nil
   end
 end
@@ -106,7 +109,7 @@ PokeAccess::Hooks.around_hook("Logros_Scene", :pbUpdate, :optional => true) do |
   end
 end
 
-PokeAccess::Keys.on_frame { PokeAccess::LogrosIndexed.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::LogrosIndexed.poll }
 
 # A diag bench of the per-frame poll; @last is pinned to the live key (key_of) first, so polling speaks nothing.
 PokeAccess::Keys.register_diag_section(:logros_poll, :perf) do |o|

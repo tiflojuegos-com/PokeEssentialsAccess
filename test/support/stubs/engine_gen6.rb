@@ -5,22 +5,7 @@
 #   - Input.trigger?/press? always return false: specs call the handler they exercise directly.
 #   - pbLoadRxData's MapInfos holds only the fixed ids below; an unknown id yields nil.
 
-class Win32API
-  def initialize(*a); end
-  def call(*a); 0; end
-end
-
-module Audio
-  def self.se_play(*a); end
-  def self.se_stop(*a); end
-  def self.bgs_play(*a); end
-  def self.bgm_play(*a); end
-end
-
-# pbSEPlay records what it was asked to play in $se_played, so a filter in front of it can be pinned.
-def pbSEPlay(param, volume = nil, pitch = nil)
-  ($se_played ||= []).push(param)
-end
+require File.expand_path("engine_common", File.dirname(__FILE__))
 
 module Graphics
   def self.update; end
@@ -53,7 +38,7 @@ module Kernel
   def self.pbConfirmMessage(*a); false; end
 end
 
-module MessageTypes; Kinds = 0; Entries = 1; Items = 2; PlaceNames = 3; end
+module MessageTypes; Kinds = 0; Entries = 1; Items = 2; PlaceNames = 3; FormNames = 40; end
 
 class PokemonRegionMapScene
   SQUAREWIDTH = 16
@@ -62,6 +47,12 @@ class PokemonRegionMapScene
   def pbStartScene(*a); @build.call(self, a) if @build; end
   def pbGetMapLocation(_x, _y); ""; end
   def pbEndScene; end
+  # The v21 town map's repaint of its fly mode, which the action button switches (@mode 1): its help and the fly
+  # icons, shown in fly mode only.
+  def refresh_fly_screen
+    pbDrawTextPositions(nil, [[@mode == 1 ? "ACCIÓN: Cancelar Vuelo" : "ACCIÓN: Vuelo", 496, 4]])
+    (@sprites || {}).each { |k, s| s.visible = (@mode == 1) if k.to_s.include?("point") }
+  end
 end
 
 # The region map's bottom bar: the region's name at its top and the place under the cursor, which the screen
@@ -81,6 +72,22 @@ class PokemonEggHatch_Scene
   def initialize(pokemon = nil); @pokemon = pokemon; end
   def pbMain; :hatched_v17; end
 end
+# The trade scene under its gen-6 name: the Pokemon received in @pokemon2, and pbScene2 animating its arrival.
+class PokemonTradeScene
+  def initialize(sent = nil, received = nil); @pokemon = sent; @pokemon2 = received; end
+  def pbScene2; :arrived; end
+end
+# The same scene under its later name (Awakening, and every game from v19 on).
+class PokemonTrade_Scene
+  def initialize(sent = nil, received = nil); @pokemon = sent; @pokemon2 = received; end
+  def pbScene2; :arrived_v19; end
+end
+# The Ready Menu's scene, reduced to its command loop, which the menu runs again after a cancelled Fly map, and the
+# frame update its reader follows; a spec sets its rows (@commands, @index) and its hidden "cmdwindow".
+class PokemonReadyMenu_Scene
+  def pbShowCommands; pbUpdate; end
+  def pbUpdate; end
+end
 # The gen-6 nest page: pbStartScene lays a point sprite per lit square, two pixels up and left of it, over the map,
 # and paints the bottom bar. A spec sets the squares (lit) and the town map.
 class PokemonNestMapScene
@@ -96,12 +103,7 @@ class PokemonNestMapScene
     true
   end
 end
-def pbGetMessage(type, id); "msg#{id}"; end
-def pbGetMessageFromHash(type, id); "place#{id}"; end
 def pbGetMapNameFromId(id); "Mapa #{id}"; end
-# MapInfos for Locator.map_name (id => object with .name), only for the ids the specs visit.
-class TestMapInfo; attr_reader :name; def initialize(id, name = nil); @name = name || "Mapa #{id}"; end; end
-MAPINFO_IDS = [1, 35, 40, 999]
 def pbLoadRxData(path)
   return nil unless path =~ /MapInfos/
   table = MAPINFO_IDS.inject({}) { |h, id| h[id] = TestMapInfo.new(id); h }
@@ -110,8 +112,6 @@ def pbLoadRxData(path)
 end
 def pbHiddenPower(iv); [0, 60]; end
 def getID(mod, sym); (mod.const_get(sym) rescue 0); end
-# The Poke Radar's search: the patches it shook are whatever a spec left in the radar's state.
-def pbPokeRadarHighlightGrass(_showmessage = true); nil; end
 
 module PBItems
   REPEL = 25; RARECANDY = 50; POTION = 1
@@ -184,43 +184,20 @@ module PBEffects
   GrassyTerrain = 11; MistyTerrain = 12; ElectricTerrain = 13; PsychicTerrain = 14
 end
 
-class Table; def self._load(s); allocate; end; def _dump(d); ""; end; end
-class Color; def self._load(s); allocate; end; def _dump(d); ""; end; end
-class Tone;  def self._load(s); allocate; end; def _dump(d); ""; end; end
-
-class Game_Player
-  attr_accessor :x, :y, :direction, :jumping
-  def initialize; @x = 5; @y = 5; @direction = 2; @jumping = false; end
-  def update(*a); end
-  def passable?(x, y, dir); ($game_map.passable?(x, y, dir) rescue true); end
-  def moving?; false; end
-  def jumping?; @jumping; end
-end
-
-# A map event for grid scenarios (what the locator reads); blocking makes its tile impassable.
-class TestEvent
-  attr_accessor :id, :name, :x, :y, :character_name, :direction, :blocking, :through
-  def initialize(id, name, x, y); @id = id; @name = name; @x = x; @y = y; @character_name = "npc"; @direction = 2; @blocking = false; end
-end
-
-# The tileset surface Terrain and Pathfinder read for one-way ledges: a jump direction's passage byte leaves only the
-# side opposite the jump open, as Pathfinder::LEDGE_OPP_BIT expects.
-module TestLedge
-  # RMXP passage bits (0x01 down, 0x02 left, 0x04 right, 0x08 up): each hop direction maps to its opposite side's.
-  OPP_BIT = { 2 => 0x08, 8 => 0x01, 4 => 0x04, 6 => 0x02 }
-  TILE_BASE = 1000
-
-  # The synthetic tile id of a ledge hopped in dir, one per direction so each has its own passage byte.
-  def self.tile_id(dir); TILE_BASE + dir; end
-
-  # The passage byte of a ledge with hop direction dir: every side blocked except the one opposite the jump.
-  def self.passage(dir); 0x0F & ~(OPP_BIT[dir] || 0); end
-end
-
-# RMXP's map data Table (data[x,y,layer]): the ledge tile id on layer 0 of a ledge tile, 0 elsewhere.
+# RMXP's map data Table (data[x,y,layer]): the ledge tile id on layer 0 of a ledge tile, the bridge's on layer 1 of a
+# bridge tile, 0 elsewhere.
 class TestMapData
-  def initialize(ledges); @ledges = ledges; end
+  BRIDGE_TILE = 2015
+  # The top layer's tile for a set_terrain tag: this plus the tag, so the tag follows the tiles as in every engine.
+  TERRAIN_TILE = 3000
+
+  def initialize(ledges, bridges, terrain); @ledges = ledges; @bridges = bridges; @terrain = terrain; end
   def [](x, y, layer)
+    return BRIDGE_TILE if layer == 1 && @bridges[[x, y]]
+    if layer == 2
+      t = @terrain[[x, y]]
+      return t ? TERRAIN_TILE + t : 0
+    end
     d = @ledges[[x, y]]
     (d && layer == 0) ? TestLedge.tile_id(d) : 0
   end
@@ -246,10 +223,15 @@ class Game_Map
   end
 
   # Registers a bridge tile at (x,y) (gen-6 terrain 15 over water 7). Returns self.
-  def place_bridge(x, y); @bridges[[x, y]] = true; (PokeAccess::Terrain.forget_map_memo rescue nil); self; end
+  def place_bridge(x, y)
+    @bridges[[x, y]] = true
+    @terrain_tags[TestMapData::BRIDGE_TILE] = 15
+    (PokeAccess::World::Epoch.touch(:tiles) rescue nil)
+    self
+  end
 
   # Places a gen-6 PBTerrain id at (x,y), as Terrain::KIND maps them (7 water, 10 tall grass, 12 ice...).
-  def set_terrain(x, y, tag); @terrain[[x, y]] = tag; (PokeAccess::Terrain.forget_map_memo rescue nil); self; end
+  def set_terrain(x, y, tag); @terrain[[x, y]] = tag; (PokeAccess::World::Epoch.touch(:tiles) rescue nil); self; end
 
   # True while (x,y) is inside the map bounds; ledge_jump needs it to accept a landing tile.
   def valid?(x, y); x >= 0 && y >= 0 && x < @width && y < @height; end
@@ -257,7 +239,7 @@ class Game_Map
   # Loads an ASCII grid: '#' wall, '.' floor, 'C' counter, '~' water (terrain 7), '@' player start, any other letter
   # or digit an npc event. Returns self.
   def load_grid(rows)
-    (PokeAccess::Terrain.forget_map_memo rescue nil)
+    (PokeAccess::World::Epoch.touch(:tiles) rescue nil)
     @grid = rows; @height = rows.length; @width = rows.map { |r| r.length }.max; @events = {}; eid = 0
     rows.each_index do |y|
       (0...rows[y].length).each do |x|
@@ -274,22 +256,28 @@ class Game_Map
     self
   end
 
-  # Places a one-way ledge at (x,y) hopped in dir (2/4/6/8): passable only when entered moving in dir, terrain tag 1,
-  # and the passage byte that lets ledge_dir_ok? permit exactly dir. Returns self.
+  # Places a one-way ledge at (x,y) hopped in dir (2/4/6/8): passable only when entered moving in dir, with terrain
+  # tag 1. Returns self.
   def place_ledge(x, y, dir)
     @ledges[[x, y]] = dir
     tid = TestLedge.tile_id(dir)
     @terrain_tags[tid] = 1
-    @passages[tid] = TestLedge.passage(dir)
-    (PokeAccess::Terrain.forget_map_memo rescue nil)
+    (PokeAccess::World::Epoch.touch(:tiles) rescue nil)
     self
   end
 
   # Clears all placed ledges (the reset calls it between suites).
   def clear_ledges; init_ledges; end
 
+  # Shuts the step from (x,y) toward dir alone, as a tile passable from some sides only does. Returns self.
+  def block_step(x, y, dir)
+    @shut[[x, y, dir]] = true
+    (PokeAccess::World::Epoch.touch(:tiles) rescue nil)
+    self
+  end
+
   # Drops the ASCII grid, terrain and bridges and restores the default open 20x20 map.
-  def clear_grid; @grid = nil; @width = 20; @height = 20; @terrain = {}; @bridges = {}; (PokeAccess::Terrain.forget_map_memo rescue nil); end
+  def clear_grid; @grid = nil; @width = 20; @height = 20; @terrain.clear; @bridges.clear; (PokeAccess::World::Epoch.touch(:tiles) rescue nil); end
 
   def cell(x, y); (@grid && y >= 0 && x >= 0 && @grid[y] && x < @grid[y].length) ? @grid[y][x, 1] : "#"; end
   def counter?(x, y); cell(x, y) == "C"; end
@@ -308,41 +296,22 @@ class Game_Map
     nx = x + dx; ny = y + dy
     ld = @ledges[[nx, ny]]
     return dir == ld if ld
+    return false if @shut[[x, y, dir]]
     return false if blocking_event_at?(nx, ny)
     return true unless @grid
     !blocked?(nx, ny)
   end
 
-  # Resets the ledges, terrain, bridges and the passage and terrain-tag tables the real Game_Map carries.
+  # Resets the ledges, terrain, bridges and the terrain-tag table the real Game_Map carries.
   def init_ledges
-    @ledges = {}; @passages = {}; @terrain_tags = {}; @terrain = {}; @bridges = {}
-    @data = TestMapData.new(@ledges)
-    (PokeAccess::Terrain.forget_map_memo rescue nil)
+    @ledges = {}; @terrain_tags = {}; @terrain = {}; @bridges = {}; @shut = {}
+    @data = TestMapData.new(@ledges, @bridges, @terrain)
+    (PokeAccess::World::Epoch.touch(:tiles) rescue nil)
   end
   def data; @data; end
 end
 
 class Game_Temp;   attr_accessor :in_menu, :message_window_showing, :in_battle; end
-class Game_System; def map_interpreter; @i ||= Object.new.tap { |o| def o.running?; false; end }; end; end
-class Scene_Map;   def update(*a); end; end
-
-# The selectable-window chain the generic net and the command hook bind to, shaped as in every engine: only the base
-# and the leaf own an #update. Specs move a cursor by setting @index and calling update, as the game does.
-class SpriteWindow_Base
-  attr_accessor :active, :visible, :index
-  def initialize; @active = true; @visible = true; @index = 0; end
-  def disposed?; false; end
-end
-class SpriteWindow_Selectable < SpriteWindow_Base
-  def update(*a); @index; end
-end
-class SpriteWindow_SelectableEx < SpriteWindow_Selectable; end
-class Window_DrawableCommand < SpriteWindow_SelectableEx
-  attr_accessor :commands
-  def initialize(commands = []); super(); @commands = commands; end
-  def update(*a); old = self.index; super; refresh if self.index != old; @index; end
-  def refresh; end
-end
 
 # The frontier rental screen: the list in @sprites["list"], the rented indices in @choices, and pbChoosePokemon, the
 # list's own loop, whose body a spec hands in as on_choose.
@@ -397,6 +366,11 @@ class PokemonLoadScene
   def pbDrawCurrentSaveFile(savename = "", auto = nil)
     pbDrawTextPositions(nil, [[auto.nil? ? savename : savename + " Auto Save", 0, 0]])
   end
+  # A frame of the command loop: it updates the sprites, the "cmdwindow" a spec moves among them, as the game's
+  # pbUpdateSpriteHash does.
+  def pbUpdate
+    (@sprites || {}).each_value { |s| s.update if s.respond_to?(:update) }
+  end
 end
 
 # The classic pause menu scene, reduced to its opening, the info box the Safari and the Bug-Catching
@@ -422,49 +396,12 @@ class SliderOption
   def initialize(name, optstart, optend); @name = name; @optstart = optstart; @optend = optend; end
 end
 
-class EnumOption
-  attr_reader :name, :values
-  def initialize(name, values); @name = name; @values = values; end
-end
-
-# The Pokedex list window. Its rows are arrays here (the gen-6 and v19 shape), the last field being the
-# regional offset flag the screen subtracts before painting the number.
-class Window_Pokedex < Window_DrawableCommand; end
-
-# The engine's text painters (drawTextEx here, pbDrawTextPositions below), which the mod wraps to feed PaintCapture.
-def drawTextEx(_bitmap, _x, _y, _width, _lines, text, _base = nil, _shadow = nil); text; end
-
 # The modal panel the engine blocks on until the confirm key (level-up stat gains); gen-6 takes the text alone.
 def pbTopRightWindow(text); text; end
-
-# The game's translation call: the text untranslated, each {n} replaced by its argument, as the engine does.
-def _INTL(text, *args)
-  t = text.to_s.dup
-  args.each_with_index { |a, i| t.gsub!("{#{i + 1}}", a.to_s) }
-  t
-end
-
-def pbDrawTextPositions(_bitmap, textpos)
-  textpos
-end
-
-def drawFormattedTextEx(_bitmap, _x, _y, _width, text, _base = nil, _shadow = nil, _lineheight = 32)
-  text
-end
-
-# The row painter of the command lists; PaintCapture samples it for one row's word.
-def pbDrawShadowText(_bitmap, _x, _y, _width, _height, string, _base = nil, _shadow = nil, _align = 0)
-  string
-end
 
 # The outline text painter of the sprite screens (Marin's quest log among them).
 def pbDrawOutlineText(_bitmap, _x, _y, _width, _height, string, _base = nil, _shadow = nil, _align = 0)
   string
-end
-
-# The icon painter: the trainer card's badges are icons, which PaintCapture.icons counts.
-def pbDrawImagePositions(_bitmap, images)
-  images
 end
 
 # The gen-6 trainer card, reduced to its front: the rows of the stock card and one badge icon per badge the
@@ -542,7 +479,7 @@ class PokemonControlsScene
   def pbMain
     @steps.each do |step|
       step.respond_to?(:call) ? step.call : (@sprites["textbox"].text = step)
-      PokeAccess::Keys.run_frame_pollers
+      PokeAccess::Frame.run_pollers
     end
     nil
   end
@@ -610,7 +547,12 @@ end
 # The PC box screen: pbShowCommands writes its question into a standing window of its own, puts up the answers and
 # returns once the player has answered.
 class PokemonStorageScene
-  def pbShowCommands(message, commands, index = 0); [message, commands, index]; end
+  # The command menu: the spec's commands_loop run in the scene when one is set (the game's windows and loop), else
+  # its arguments back.
+  attr_accessor :commands_loop
+  def pbShowCommands(message, commands, index = 0)
+    @commands_loop ? instance_exec(message, commands, index, &@commands_loop) : [message, commands, index]
+  end
   def pbDisplay(message); message; end
 
   # The box grid and party column loops the PC re-enters after every command menu, reduced to their entry.
@@ -641,7 +583,7 @@ class PokemonPhoneScene
     @sprites["info"].text = "Registrados <r>12"
     @nav.each do |place|
       @sprites["bottom"].text = "<ac>#{place}"
-      PokeAccess::Keys.run_frame_pollers
+      PokeAccess::Frame.run_pollers
     end
     :phone_done
   end
@@ -657,6 +599,11 @@ class PokemonPokedexScene
   def pbStartScene(*a); self; end
   def pbEndScene(*a); nil; end
   def pbRefresh; :dex_drawn; end
+
+  # The list's subscreens, reduced to their return to it: a species entry, the search, the search results closing.
+  def pbDexEntry(*a); nil; end
+  def pbDexSearch; 0; end
+  def pbCloseSearch; nil; end
 
   # The gen-6 dex entry page's text: the entry paragraph (drawTextEx), then the header, labels, category, height and
   # weight, question marks if not owned; with no dummy pokemon (pre-v16) the values come from the message tables.
@@ -679,13 +626,6 @@ class PokemonPokedexScene
     end
     pbDrawTextPositions(nil, textpos)
   end
-end
-
-# The formatted text window: its constructor sets the text through text=, as the real one does.
-class Window_AdvancedTextPokemon
-  attr_reader :text
-  def initialize(text = ""); self.text = text; end
-  def text=(value); @text = value; end
 end
 
 class HallOfFameScene
@@ -727,7 +667,7 @@ class Questlog
   def pbUpdate
     steps = (Questlog.steps || []).dup
     loop do
-      PokeAccess::Keys.run_frame_pollers
+      PokeAccess::Frame.run_pollers
       step = steps.shift
       break unless step
       send(*step)
@@ -737,7 +677,7 @@ class Questlog
   def pbSwitch(dir); @sel_one = (dir == :DOWN ? 1 : 0); end
 
   def pbList(id)
-    PokeAccess::Keys.run_frame_pollers
+    PokeAccess::Frame.run_pollers
     @sel_two = 0; @page = 0; @scene = 1; @mode = id
     list = (id == 0 ? @ongoing : @completed)
     list.each_with_index { |q, i| pbDrawOutlineText(nil, 11, -124 + (52 * i), 512, 384, q.name, nil, nil, 1) }
@@ -747,7 +687,7 @@ class Questlog
   end
 
   def pbMain
-    PokeAccess::Keys.run_frame_pollers
+    PokeAccess::Frame.run_pollers
     @sel_two = 0; @scene = 0
     pbDrawOutlineText(nil, 0, -176, 512, 384, "Misiones", nil, nil, 1)
     pbDrawOutlineText(nil, 0, -36, 512, 384, "Activas: " + @ongoing.size.to_s, nil, nil, 1)
@@ -758,11 +698,68 @@ class Questlog
     list = (@mode == 0 ? @ongoing : @completed)
     return if list.empty?
     quest = list[@sel_two]
-    PokeAccess::Keys.run_frame_pollers
+    PokeAccess::Frame.run_pollers
     @scene = 2
     pbDrawOutlineText(nil, 188, 162, 512, 384, "De " + quest.npc)
     pbDrawOutlineText(nil, 10, -178, 512, 384, quest.name)
     pbDrawOutlineText(nil, 8, 136, 512, 384, quest.completed ? "Completada" : "Sin completar")
+  end
+end
+
+# Marin's opener of the quest log, as the plugin defines it.
+def pbQuestlog; Questlog.new; end
+
+# The engine's fade around a screen opened in place, reduced to running it.
+def pbFadeOutIn(*_args); yield if block_given?; end
+
+# The opener of an RMXP-style scene from the map (the pause menu's Pokegear): it runs the scene's main until one puts
+# a Scene_Map back as $scene, then restores the map scene it left.
+def pbLoadRpgxpScene(scene)
+  return unless $scene.is_a?(Scene_Map)
+  oldscene = $scene
+  $scene = scene
+  $scene.main while $scene && !$scene.is_a?(Scene_Map)
+  $scene = oldscene
+end
+
+# The gen-6 Pokegear (Scene_Pokegear) and its option buttons: build makes the hidden command window and a button per
+# app, the focused one selected, then main runs update each frame until $scene changes; update reselects every button,
+# updates the window and runs update_command, where B closes and C runs the focused app given to new (the game opens
+# each in place, through pbFadeOutIn, pbShowMap or pbQuestlog).
+class PokegearButton
+  attr_reader :name
+  attr_accessor :selected
+  def initialize(name); @name = name; @selected = false; end
+end
+class Scene_Pokegear
+  attr_reader :sprites
+  def initialize(commands = [], apps = {}); @commands = commands; @apps = apps; end
+  def main
+    build
+    loop do
+      Graphics.update
+      Input.update
+      update
+      break if $scene != self
+    end
+  end
+  def build
+    @sprites = { "command_window" => Window_DrawableCommand.new(@commands) }
+    @sprites["command_window"].visible = false
+    @commands.each_index do |i|
+      @sprites["button#{i}"] = PokegearButton.new(@commands[i])
+      @sprites["button#{i}"].selected = (i == @sprites["command_window"].index)
+    end
+  end
+  def update
+    @commands.each_index { |i| @sprites["button#{i}"].selected = (i == @sprites["command_window"].index) }
+    @sprites["command_window"].update
+    update_command if @sprites["command_window"].active
+  end
+  def update_command
+    return $scene = Scene_Map.new if Input.trigger?(Input::B)
+    app = @apps[@sprites["command_window"].index]
+    app.call if app && Input.trigger?(Input::C)
   end
 end
 
@@ -838,12 +835,41 @@ class PokemonSummaryScene
   def pbMoveSelection; :moves_done; end
   def pbRibbonSelection; :ribbons_done; end
 
+  # The move detail, redrawn for each move the cursor reaches; the move-to-forget scene, opened on the first move's
+  # detail; and its loop, answering the slots a spec queues in @forget_picks (-1 for B), else the first.
+  def drawSelectedMove(pokemon, moveToLearn, moveid); [pokemon, moveToLearn, moveid]; end
+  def pbStartForgetScene(party, partyindex, moveToLearn)
+    @pokemon = party[partyindex]
+    drawSelectedMove(@pokemon, moveToLearn, @pokemon.moves[0].id)
+  end
+  def pbChooseMoveToForget(_moveToLearn); (@forget_picks || []).shift || 0; end
+
   # The egg page: labels and the item through the positions batch, and the memo as one formatted paragraph.
   def drawPageOneEgg(_pk = nil)
     pbDrawTextPositions(nil, [["TRAINER MEMO", 26, 22], ["Item", 66, 324], ["Ninguno", 16, 358]])
     drawFormattedTextEx(nil, 232, 86, 268,
                         "Un Huevo misterioso recibido en Ciudad Verde. Parece que tardara mucho en eclosionar.")
     :egg_page
+  end
+end
+
+# The gen-6 summary's screen and its two loops that ask for a move on the move-to-forget scene: one to forget for a
+# new move, asked again while the pick is a slot in hm_slots (an HM, refused); one for an item to restore (an Ether),
+# asked again on B. The game's messages between the tries are left out.
+class PokemonSummary
+  attr_accessor :hm_slots
+  def initialize(scene); @scene = scene; @hm_slots = []; end
+  def pbStartForgetScreen(party, partyindex, moveToLearn)
+    @scene.pbStartForgetScene(party, partyindex, moveToLearn)
+    ret = @scene.pbChooseMoveToForget(moveToLearn)
+    ret = @scene.pbChooseMoveToForget(moveToLearn) while ret >= 0 && moveToLearn != 0 && @hm_slots.include?(ret)
+    ret
+  end
+  def pbStartChooseMoveScreen(party, partyindex, _message)
+    @scene.pbStartForgetScene(party, partyindex, 0)
+    ret = @scene.pbChooseMoveToForget(0)
+    ret = @scene.pbChooseMoveToForget(0) while ret < 0
+    ret
   end
 end
 
@@ -866,7 +892,7 @@ $game_system = Game_System.new
 $game_switches = Hash.new(false)
 $game_variables = Hash.new(0)
 # A trainer exists by default: with none, Appearance.selecting? takes the player to be on the character picker and
-# Spatial.busy? silences the guide and the soundscape. A spec that wants the picker sets $Trainer = nil.
+# Control holds the guide and the soundscape. A spec that wants the picker sets $Trainer = nil.
 class TestTrainer
   attr_accessor :name, :money, :badges, :publicID
   def initialize
@@ -905,13 +931,3 @@ def pbChangePlayer(id)
   true
 end
 
-# Game_Picture, whose show the mod hooks to narrate picture-only screens (a new-game character slider).
-class Game_Picture
-  attr_reader :number, :name, :x, :y
-  def initialize(number = 1); @number = number; @name = ""; @x = 0; @y = 0; end
-  def show(name, origin = 0, x = 0, y = 0, zoom_x = 100, zoom_y = 100, opacity = 255, blend_type = 0)
-    @name = name; @x = x; @y = y
-    self
-  end
-  def erase; @name = ""; self; end
-end

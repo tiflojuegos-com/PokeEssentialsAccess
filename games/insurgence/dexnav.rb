@@ -28,7 +28,8 @@ module PokeAccess
       xy = spot(scene, i)
       PokeAccess::InsurgenceMouse.click_at(xy)
       !xy.nil?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
   end

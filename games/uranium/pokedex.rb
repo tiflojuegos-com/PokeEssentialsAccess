@@ -1,9 +1,7 @@
 module PokeAccess
   # Uranium's Black/White Pokedex: the species list (Window_Pokedex over Window_DrawableCommandDex, not a
-  # Window_DrawableCommand), read through the core's Window_Pokedex row and said again when the list takes the focus
-  # back; the forms page, which paints its counters on opening and a form's name only when C cycles to it; the entry
-  # page and the registration page after a capture, headed by a caption the core would take for the name; and the
-  # search, whose rows paint their label apart from the value.
+  # Window_DrawableCommand) with the core's row, the forms page, the entry pages headed by a caption the core would
+  # take for the name, and the search, whose rows paint their label apart from the value.
   module UraniumDex
     # The search rows' labels, painted by Window_ComplexCommandPokemon#drawItem beside each value (row 6 is START).
     SEARCH_LABELS = { 1 => "NAME", 2 => "COLOR", 3 => "TYPE 1", 4 => "TYPE 2", 5 => "ORDER" }

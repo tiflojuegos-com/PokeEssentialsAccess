@@ -1,7 +1,9 @@
 module PokeAccess
-  # Insurgence's secret base upgrade shop (Kernel.buySecretBaseUpgrades, 173_Secret_Base_Code.rb): a list of upgrades
-  # and, top right, a "Money:" window the function builds and repaints after a purchase. The window is said, queued,
-  # as it is made (its first resizeToFit) and whenever its text changes.
+  # Insurgence's shops built by a function, not a scene: the secret base upgrade shop (Kernel.buySecretBaseUpgrades,
+  # 173_Secret_Base_Code.rb, and pbBuyUpgradesPre, 181_PokemonBaseBuy.rb) and the Sim Depot's ID shops (pbBuyIDs and
+  # pbBattleIDs, 183_PokemonSimDepot.rb): a list of wares and, top right, a "Money:" window the function builds and
+  # repaints after a purchase. The window is said, queued, as it is made (its first resizeToFit) and whenever its text
+  # changes.
   module InsurgenceUpgrades
     # Runs the shop with its money window watched.
     def self.run
@@ -33,7 +35,9 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("insurgence") do
-  kernel("buySecretBaseUpgrades", :around) { |_args, nxt| PokeAccess::InsurgenceUpgrades.run { nxt.call } }
+  %w[buySecretBaseUpgrades pbBuyUpgradesPre pbBuyIDs pbBattleIDs].each do |fn|
+    kernel(fn, :around) { |_args, nxt| PokeAccess::InsurgenceUpgrades.run { nxt.call } }
+  end
   after("Window_UnformattedTextPokemon", :resizeToFit, :optional => true) do |w, _r, _a|
     PokeAccess::InsurgenceUpgrades.sized(w)
   end

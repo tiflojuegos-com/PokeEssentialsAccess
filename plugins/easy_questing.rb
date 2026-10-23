@@ -63,7 +63,8 @@ module PokeAccess
       list = (mode == 0 ? ql.instance_variable_get(:@ongoing) : ql.instance_variable_get(:@completed))
       idx = PokeAccess.ivar(ql, :@sel_two)
       (list.is_a?(Array) && idx && idx >= 0 && idx < list.length) ? list[idx] : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -91,15 +92,17 @@ module PokeAccess
     end
 
     # When the quest was received, sliced out of Time#to_s the way the second page builds it, so the two
-    # agree. A quest with no usable stamp answers nothing, as the screen's own rescue does.
+    # agree. A stamp it cannot slice is unknown, as the screen's own rescue paints ?????.
     def self.received_at(q)
+      unknown = PokeAccess::I18n.t(:pdx_unknown_short)
       parts = (q.time.to_s.split(" ") rescue nil)
-      return nil unless parts.is_a?(Array) && parts.length >= 4
+      return unknown unless parts.is_a?(Array) && parts.length >= 4
       hm = parts[3].split(":")
-      return nil unless hm.length >= 2
+      return unknown unless hm.length >= 2
       "#{parts[1]} #{parts[2]}, #{hm[0]}:#{hm[1]}"
-    rescue StandardError
-      nil
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      unknown
     end
 
     # The detail's page among its two, while positions are said and the copy shows the marker over its page boxes
@@ -156,7 +159,8 @@ module PokeAccess
           PokeAccess.speak(with_page(ql, line), true)
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -181,7 +185,8 @@ module PokeAccess
       return if key == @last
       @last = key
       PokeAccess::Quests.announce(ql)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -191,7 +196,11 @@ PokeAccess::Hooks.around_hook("Questlog", :pbUpdate, :optional => true) do |ql, 
   PokeAccess::QuestsOpen.watch(ql)
   begin; nxt.call; ensure; PokeAccess::QuestsOpen.unwatch; end
 end
-PokeAccess::Keys.on_frame { PokeAccess::QuestsOpen.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::QuestsOpen.poll }
+
+# pbQuestlog runs the whole log with no fade around it: a return seam, so the menu that opened it (the Pokegear, a
+# pause menu) says its focused option again.
+PokeAccess::MenuReturn.bare_fn("pbQuestlog")
 
 # The paint record opens with the log and each list or page load clears it; the draw listener only records while
 # the log is open.
@@ -209,4 +218,4 @@ PokeAccess::Hooks.wrap_kernel("pbDrawOutlineText", "plugin_quests_paint", :befor
   PokeAccess::Quests.note_paint(args[5])
 end
 
-PokeAccess::Verbosity.define_reading(:quest, :vb_quest, :vbh_quest)
+PokeAccess::Verbosity.define_reading(:quest, :vb_quest, :vbh_quest, :game)

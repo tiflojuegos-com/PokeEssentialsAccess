@@ -2,22 +2,28 @@ module PokeAccess
   # Config menu, Personalization: the verbosity schemes, an editable list per dictionary (tags, marks, map names)
   # and the import and export of all of them; the verbosity screen itself is in config_verbosity.
   module ConfigMenu
-    # The shareable stores: :mod the store module, :list its editable list's label (none for the schemes, whose own
-    # screen lists them), and the labels and result messages of its import and export.
+    # Each shareable store: its module, its editable list's label and help (none for the schemes, listed on their own
+    # screen), and its import's and export's labels, helps and result lines.
     DICTS = {
-      :tags    => { :mod => PokeAccess::Tags, :list => :cat_list_tags,
-                    :import => :act_import, :import_done => :act_import_done,
-                    :export => :act_export, :export_done => :act_export_done, :export_none => :act_export_none },
-      :marks   => { :mod => PokeAccess::Marks, :list => :cat_list_marks,
-                    :import => :act_import_marks, :import_done => :act_import_marks_done,
-                    :export => :act_export_marks, :export_done => :act_export_marks_done, :export_none => :act_export_marks_none },
-      :maps    => { :mod => PokeAccess::MapNames, :list => :cat_list_maps,
-                    :import => :act_import_maps, :import_done => :act_import_maps_done,
-                    :export => :act_export_maps, :export_done => :act_export_maps_done, :export_none => :act_export_maps_none },
+      :tags    => { :mod => PokeAccess::Tags, :list => :cat_list_tags, :list_help => :cat_list_tags_help,
+                    :import => :act_import, :import_help => :act_import_help, :import_done => :act_import_done,
+                    :export => :act_export, :export_help => :act_export_help, :export_done => :act_export_done,
+                    :export_none => :act_export_none },
+      :marks   => { :mod => PokeAccess::Marks, :list => :cat_list_marks, :list_help => :cat_list_marks_help,
+                    :import => :act_import_marks, :import_help => :act_import_marks_help,
+                    :import_done => :act_import_marks_done,
+                    :export => :act_export_marks, :export_help => :act_export_marks_help,
+                    :export_done => :act_export_marks_done, :export_none => :act_export_marks_none },
+      :maps    => { :mod => PokeAccess::MapNames, :list => :cat_list_maps, :list_help => :cat_list_maps_help,
+                    :import => :act_import_maps, :import_help => :act_import_maps_help,
+                    :import_done => :act_import_maps_done,
+                    :export => :act_export_maps, :export_help => :act_export_maps_help,
+                    :export_done => :act_export_maps_done, :export_none => :act_export_maps_none },
       :schemes => { :mod => PokeAccess::VerbositySchemes,
-                    :import => :act_import_schemes, :import_done => :act_import_schemes_done,
-                    :export => :act_export_schemes, :export_done => :act_export_schemes_done,
-                    :export_none => :act_export_schemes_none }
+                    :import => :act_import_schemes, :import_help => :act_import_schemes_help,
+                    :import_done => :act_import_schemes_done,
+                    :export => :act_export_schemes, :export_help => :act_export_schemes_help,
+                    :export_done => :act_export_schemes_done, :export_none => :act_export_schemes_none }
     }
     # The order the stores are offered in (a 1.8.7 Hash keeps none).
     DICT_ORDER = [:tags, :marks, :maps, :schemes]
@@ -31,22 +37,29 @@ module PokeAccess
       DICT_ORDER.inject(0) { |sum, d| sum + (DICTS[d][:mod].rev rescue 0) }
     end
 
-    # The Personalization rows: the verbosity schemes, an editable list per dictionary, import, export and back.
+    # The Personalization rows, each with what the info key says over it: the verbosity schemes, an editable list per
+    # dictionary, import, export and back.
     def self.personal_rows
-      rows = [{ :kind => :enter, :group => :verbosity, :label => :cat_verbosity }]
+      rows = [{ :kind => :enter, :group => :verbosity, :label => :cat_verbosity, :help => :cat_verbosity_help }]
       DICT_ORDER.each do |d|
-        rows.push({ :kind => :enter, :group => MODE_OF_DICT[d], :label => DICTS[d][:list] }) if DICTS[d][:list]
+        dict = DICTS[d]
+        next unless dict[:list]
+        rows.push({ :kind => :enter, :group => MODE_OF_DICT[d], :label => dict[:list], :help => dict[:list_help] })
       end
-      rows.push({ :kind => :enter, :group => :dict_import, :label => :cat_import })
-      rows.push({ :kind => :enter, :group => :dict_export, :label => :cat_export })
+      rows.push({ :kind => :enter, :group => :dict_import, :label => :cat_import, :help => :cat_import_help })
+      rows.push({ :kind => :enter, :group => :dict_export, :label => :cat_export, :help => :cat_export_help })
       rows.push({ :kind => :back, :label => :back })
       rows
     end
 
-    # The import or export submenu: one action per store, then all of them at once.
+    # The import or export submenu: one action per store, then all of them at once, each with its help.
     def self.transfer_rows(op)
-      rows = DICT_ORDER.map { |d| { :kind => :action, :action => [op, d], :label => DICTS[d][op] } }
-      rows.push({ :kind => :action, :action => [op, :all], :label => (op == :import ? :act_import_all : :act_export_all) })
+      help = op == :import ? :import_help : :export_help
+      rows = DICT_ORDER.map do |d|
+        { :kind => :action, :action => [op, d], :label => DICTS[d][op], :help => DICTS[d][help] }
+      end
+      all = op == :import ? [:act_import_all, :act_import_all_help] : [:act_export_all, :act_export_all_help]
+      rows.push({ :kind => :action, :action => [op, :all], :label => all[0], :help => all[1] })
       rows.push({ :kind => :back, :label => :back })
       rows
     end
@@ -64,7 +77,8 @@ module PokeAccess
         when :maps
           PokeAccess::MapNames.each_name { |mid, nm| rows.push({ :kind => :entry, :dict => :maps, :key => mid, :name => nm }) }
         end
-      rescue StandardError
+      rescue StandardError => e
+        PokeAccess.swallowed(e)
         rows = []
       end
       rows.push({ :kind => :note, :label => :list_empty }) if rows.empty?
@@ -72,13 +86,16 @@ module PokeAccess
       rows
     end
 
-    # What can be done to the focused entry: show it again (a hidden object only), rename it, forget it.
+    # What can be done to the focused entry, each with its help: show it again (a hidden object only), rename it,
+    # forget it.
     def self.entry_action_rows(item)
       rows = []
       return [{ :kind => :back, :label => :back }] unless item
-      rows.push({ :kind => :entry_action, :op => :show, :label => :entry_show }) if item[:dict] == :tags && item[:rec]["hidden"]
-      rows.push({ :kind => :entry_action, :op => :rename, :label => :tag_rename })
-      rows.push({ :kind => :entry_action, :op => :forget, :label => :entry_forget })
+      if item[:dict] == :tags && item[:rec]["hidden"]
+        rows.push({ :kind => :entry_action, :op => :show, :label => :entry_show, :help => :entry_show_help })
+      end
+      rows.push({ :kind => :entry_action, :op => :rename, :label => :tag_rename, :help => :tag_rename_help })
+      rows.push({ :kind => :entry_action, :op => :forget, :label => :entry_forget, :help => :entry_forget_help })
       rows.push({ :kind => :back, :label => :back })
       rows
     end
@@ -110,14 +127,14 @@ module PokeAccess
     # the list position queued.
     def self.run_entry_action(op)
       item = @entry
-      name = entry_label(item)
       case op
       when :show
         PokeAccess::Tags.set_hidden(item[:key][0], item[:key][1], false)
-        say(t(:unhidden, :name => name))
+        say(t(:unhidden, :name => entry_label(item)))
       when :rename
         rename_entry(item)
       when :forget
+        name = entry_label(item)
         forget_entry(item)
         say(t(:entry_forgotten, :name => name))
       end
@@ -129,22 +146,22 @@ module PokeAccess
       PokeAccess.write_marker("config_menu entry #{op}: #{e.class}: #{e.message}\n")
     end
 
-    # Renames the focused entry through the map keys' own prompt (a blank name clears it).
+    # Renames the focused entry through the map keys' own prompt; a blank name changes nothing (Forget deletes it).
     def self.rename_entry(item)
       key = item[:key]
       case item[:dict]
       when :tags
         cur = (PokeAccess::Tags.get(key[0], key[1]) rescue nil).to_s
         PokeAccess::Locator.prompt_rename(entry_label(item), cur,
-          [:loc_label_for, :loc_label_prompt, :loc_label_removed, :loc_label_saved]) { |v| PokeAccess::Tags.set(key[0], key[1], v) }
+          [:loc_label_for, :loc_label_prompt, :loc_label_saved]) { |v| PokeAccess::Tags.set(key[0], key[1], v) }
       when :marks
         cur = item[:name].to_s
         PokeAccess::Locator.prompt_rename(cur, cur,
-          [:mark_edit_for, :mark_prompt, :mark_removed, :mark_saved]) { |v| PokeAccess::Marks.set(key[0], key[1], key[2], v) }
+          [:mark_edit_for, :mark_prompt, :mark_saved]) { |v| PokeAccess::Marks.set(key[0], key[1], key[2], v) }
       when :maps
         cur = item[:name].to_s
         PokeAccess::Locator.prompt_rename(cur, cur,
-          [:map_label_for, :map_label_prompt, :map_label_removed, :map_label_saved]) { |v| PokeAccess::MapNames.set(key, v) }
+          [:map_label_for, :map_label_prompt, :map_label_saved]) { |v| PokeAccess::MapNames.set(key, v) }
       end
     end
 
@@ -164,20 +181,24 @@ module PokeAccess
       say(list.map { |d| op == :import ? import_one(d) : export_one(d) }.join(". "))
     end
 
-    # Exports one store; the message names the count or that there was nothing.
+    # Exports one store; the message names the count, that there was nothing, or that its file could not be written.
     def self.export_one(d)
-      n = (DICTS[d][:mod].export rescue nil)
-      n ? t(DICTS[d][:export_done], :n => n) : t(DICTS[d][:export_none])
+      mod = DICTS[d][:mod]
+      n = (mod.export rescue nil)
+      return t(DICTS[d][:export_done], :n => n) if n
+      return t(DICTS[d][:export_none]) if mod.count == 0
+      t(:act_export_failed, :file => File.basename(mod.const_get(:EXPORT)))
     end
 
-    # Imports one store, refusing a file stamped with another game (its keys are map ids, meaningless elsewhere).
+    # Imports one store, refusing a file stamped with another game (its keys are map ids, meaningless elsewhere), said
+    # by the file's name alone.
     def self.import_one(d)
       mod = DICTS[d][:mod]
       file = File.basename(mod.const_get(:IMPORT))
-      status, game = (mod.import_status rescue [:none])
+      status = (mod.import_status rescue [:none])[0]
       case status
       when :none    then t(:act_import_none, :file => file)
-      when :foreign then t(:act_import_foreign, :file => file, :game => game, :mine => (PokeAccess::Game.profile_name rescue "?"))
+      when :foreign then t(:act_import_foreign, :file => file)
       else
         n = (mod.import_now rescue 0)
         PokeAccess::Events.emit(:tags_changed)

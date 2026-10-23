@@ -21,7 +21,8 @@ module PokeAccess
         scene.instance_variable_set(:@access_help_ok, true)
       end
       PokeAccess::Info.set_info(:text, PokeAccess::KeyHints.localize(text, nil, true))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

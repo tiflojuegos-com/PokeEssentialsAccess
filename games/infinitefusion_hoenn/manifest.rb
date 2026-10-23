@@ -4,6 +4,8 @@
   :imports => %w[infinitefusion_common],
   :modules => %w[
     starters
+    dex_search
+    fusion_moves
     color_door
     pokenav
     quests
@@ -13,12 +15,14 @@
     acro_rails
     contests
     overworld
+    secret_base
     region_map
     weather
     title
     fusion_quiz
     hall_of_fame
     fusion_family
+    passability
   ],
   :plugins => %w[berrydex multi_save better_region_map luka_title]
 }

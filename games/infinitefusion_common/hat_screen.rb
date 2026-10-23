@@ -38,7 +38,8 @@ module PokeAccess
     # Whether an arrow was pressed this frame, which at an edge moves nothing.
     def self.arrow_pressed?
       [:LEFT, :RIGHT, :UP, :DOWN].any? { |k| Input.trigger?(Input.const_get(k)) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -61,7 +62,8 @@ module PokeAccess
           PokeAccess.speak(PokeAccess::I18n.t(:if_hat_edge), true)
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

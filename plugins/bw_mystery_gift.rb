@@ -19,7 +19,8 @@ module PokeAccess
       id = (it.is_a?(Symbol) || it.is_a?(String)) ? it : (it.id rescue it)
       nm = PokeAccess::Data.item_name(id)
       (nm.nil? || nm.to_s.empty?) ? nil : nm.to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -52,7 +53,8 @@ module PokeAccess
       first = d[:said].nil?
       d[:said] = name
       PokeAccess.speak(PokeAccess.clean("#{name}, #{kind(gift)}"), !first)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -67,7 +69,8 @@ module PokeAccess
       return unless @download && list.is_a?(Array)
       @download[:gifts] = list
       password_gift(list) if @download[:kind] == :password
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -105,7 +108,8 @@ module PokeAccess
       parts = parts.reject { |p| p.nil? || p.to_s.empty? }
       return if parts.empty?
       PokeAccess.speak(parts.join(". "), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -139,7 +143,8 @@ module PokeAccess
           line
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

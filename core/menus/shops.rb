@@ -47,7 +47,8 @@ module PokeAccess
       return if t.empty? || t =~ PokeAccess::NumberEntry::LINE
       @prompt = nil
       PokeAccess::NumberEntry.aside = t
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -66,7 +67,7 @@ PokeAccess::InfoWindow.watch("BattlePointShop_Scene", "battlepointwindow", :bp_s
 # bag is instead a window of the quantity prompt's own, watched while pbChooseNumber, the prompt's loop, runs.
 PokeAccess::Engine.scene_classes("PokemonMartScene", "PokemonMart_Scene").each do |cls|
   PokeAccess::InfoWindow.watch(cls, "qtywindow", :mart_bag,
-                               PokeAccess::Shops::MART_LIFECYCLE.merge(:optional => true, :reading => [:shop_item, :medium]))
+                               PokeAccess::Shops::MART_LIFECYCLE.dup.merge!(:optional => true, :reading => [:shop_item, :medium]))
   PokeAccess::InfoWindow.watch(cls, "moneywindow", :mart_money, PokeAccess::Shops::MART_LIFECYCLE)
   PokeAccess::Hooks.around_hook(cls, :pbChooseNumber, :optional => true) do |scene, nxt, _a|
     PokeAccess::Shops.prompt_open(scene)

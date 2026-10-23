@@ -18,10 +18,13 @@ if party_sel_class
     PokeAccess::Party.announce_party(scene, scene.instance_variable_get(:@party), ret, args[1])
   end
   # The member the cursor rests on when the list takes a choice (on opening, preselected, back from a sub-menu),
-  # which no move reports; queued behind the help line.
+  # which no move reports; queued behind the help line. A destination mode (switching) tints as its origin the slot
+  # the cursor was on, as the choice paints once this has spoken.
   PokeAccess::Hooks.before_hook(party_sel_class, :pbChoosePokemon, :optional => true) do |scene, args|
+    origin = args[0] ? scene.instance_variable_get(:@activecmd) : -1
+    PokeAccess.say_mode_help(scene, args[0])
     sel = args[1].is_a?(Integer) && args[1] >= 0 ? args[1] : scene.instance_variable_get(:@activecmd)
-    PokeAccess::Party.announce_member(scene, scene.instance_variable_get(:@party), sel)
+    PokeAccess::Party.announce_member(scene, scene.instance_variable_get(:@party), sel, origin)
   end
 end
 
@@ -55,7 +58,8 @@ module PokeAccess
           end
       return unless PokeAccess::Cursor.changed?(scene, :pc_mode, k)
       PokeAccess.speak(PokeAccess::I18n.t(k), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

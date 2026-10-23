@@ -19,32 +19,41 @@ class TestMoveCmd
   def initialize(code, parameters = []); @code = code; @parameters = parameters; end
 end
 
-# A page's graphic (only character_name and pattern are read by the locator).
+# A page's graphic: its sheet, its pattern (column) and the facing that picks its row.
 class TestGraphic
-  attr_accessor :character_name, :pattern
-  def initialize(name, pattern = 0); @character_name = name; @pattern = pattern; end
+  attr_accessor :character_name, :pattern, :direction
+  def initialize(name, pattern = 0, direction = 2); @character_name = name; @pattern = pattern; @direction = direction; end
 end
 
-# A page's appear condition (switch / self-switch validity flags).
+# A page's appear condition (switch, variable and self-switch validity flags with their ids).
 class TestCondition
-  attr_accessor :switch1_valid, :self_switch_valid, :variable_valid, :switch1_id, :self_switch_ch
+  attr_accessor :switch1_valid, :switch2_valid, :self_switch_valid, :variable_valid, :switch1_id, :switch2_id,
+                :variable_id, :variable_value, :self_switch_ch
   def initialize(opts = {})
     @switch1_valid = opts.fetch(:switch1_valid, false)
+    @switch2_valid = opts.fetch(:switch2_valid, false)
     @self_switch_valid = opts.fetch(:self_switch_valid, false)
     @variable_valid = opts.fetch(:variable_valid, false)
     @switch1_id = opts[:switch1_id]
+    @switch2_id = opts[:switch2_id]
+    @variable_id = opts[:variable_id]
+    @variable_value = opts.fetch(:variable_value, 0)
     @self_switch_ch = opts[:self_switch_ch]
   end
 end
 
-# One event page: trigger, graphic, command list and condition.
+# One event page: trigger, graphic, command list, condition, and how it moves by itself (move_type 0 fixed, 1 at
+# random, 2 toward the player, 3 along move_route).
 class TestPage
-  attr_accessor :trigger, :graphic, :list, :condition
+  attr_accessor :trigger, :graphic, :list, :condition, :move_type, :move_route, :through
   def initialize(opts = {})
     @trigger = opts.fetch(:trigger, 0)
-    @graphic = TestGraphic.new(opts.fetch(:sprite, ""), opts.fetch(:pattern, 0))
+    @through = opts.fetch(:through, false)
+    @graphic = TestGraphic.new(opts.fetch(:sprite, ""), opts.fetch(:pattern, 0), opts.fetch(:direction, 2))
     @list = opts.fetch(:list, [])
     @condition = TestCondition.new(opts.fetch(:condition, {}))
+    @move_type = opts.fetch(:move_type, 0)
+    @move_route = opts[:move_route]
   end
 end
 
@@ -84,7 +93,7 @@ end
 # Builds a typed map event. :kind picks the data shape the locator keys on:
 #   :sign    one action page, a Show-Text command, no sprite
 #   :door    one player-touch page with a transfer (cmd 201), no sprite
-#   :lever   two action pages, same sprite, different pattern, page 2 switch-gated, no battle/transfer
+#   :lever   two action pages, same lever sprite, different pattern, page 2 behind the switch page 1 turns on
 #   :trainer two action pages, same sprite, page 2 self-switch-gated, with a pbTrainerBattle script
 #   :npc     one action page with a sprite (a plain person)
 module World
@@ -98,7 +107,7 @@ module World
             when :door
               [TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(201, [0, 5, 1, 1])])]
             when :lever
-              [TestPage.new(:trigger => 0, :sprite => "lever", :pattern => 0),
+              [TestPage.new(:trigger => 0, :sprite => "lever", :pattern => 0, :list => [TestCmd.new(121, [50, 50, 0])]),
                TestPage.new(:trigger => 0, :sprite => "lever", :pattern => 1,
                             :condition => { :switch1_valid => true, :switch1_id => 50 })]
             when :trainer
@@ -111,7 +120,13 @@ module World
             end
     ev = TestGameEvent.new(base.merge(:pages => pages, :active_page => pages[opts.fetch(:active, 0)]))
     ($game_map.events[ev.id] = ev) if $game_map.respond_to?(:events) && $game_map.events.is_a?(Hash)
+    next_frame
     ev
+  end
+
+  # Marks the mod's world unsettled, as the engine's next frame would, so the event placed or cleared is seen.
+  def self.next_frame
+    (PokeAccess::World::Epoch.dirty! rescue nil)
   end
 
   # A touch event (player touch by default, no sprite) running the given command list, placed on the map.
@@ -121,6 +136,7 @@ module World
     ev = TestGameEvent.new(:id => opts.fetch(:id, 1), :x => opts.fetch(:x, 5), :y => opts.fetch(:y, 5),
                            :name => opts.fetch(:name, "EV#{opts.fetch(:id, 1)}"), :pages => [page])
     ($game_map.events[ev.id] = ev) if $game_map.respond_to?(:events) && $game_map.events.is_a?(Hash)
+    next_frame
     ev
   end
 
@@ -148,6 +164,7 @@ module World
   # Clears the test map's events (call between event specs so per-map caches rebuild cleanly).
   def self.clear_events
     $game_map.events.clear if $game_map.respond_to?(:events) && $game_map.events.is_a?(Hash)
+    next_frame
   end
 
   # A gen-6 summary scene (the real stubbed PokemonSummaryScene the hooks wrap); set @pokemon and call

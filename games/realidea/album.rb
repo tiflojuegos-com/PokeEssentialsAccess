@@ -9,7 +9,8 @@ module PokeAccess
        PokeAccess.ivar(scene, :@selec),
        PokeAccess.ivar(scene, :@pagina),
        (scene.instance_variable_get(:@girado) rescue false)]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -17,7 +18,8 @@ module PokeAccess
     def self.positive_or(v)
       n = v.to_i
       n > 0 ? n : 1
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       1
     end
 
@@ -41,7 +43,8 @@ module PokeAccess
       st = filled ? PokeAccess::I18n.t(:album_have) : PokeAccess::I18n.t(:album_empty)
       return "#{PokeAccess::I18n.t(:album_card, :n => card)}, #{st}" unless PokeAccess::Verbosity.keep?(:positions, :medium)
       PokeAccess::I18n.t(:album_slot, :n => card, :page => page, :pages => pages, :state => st)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -51,7 +54,8 @@ module PokeAccess
       return unless PokeAccess::Cursor.changed?(scene, :album_state, st)
       t = line(scene)
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

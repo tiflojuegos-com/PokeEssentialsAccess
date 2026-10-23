@@ -45,7 +45,8 @@ module PokeAccess
       return if PokeAccess.ivar(scene, :@access_panel_said)
       scene.instance_variable_set(:@access_panel_said, true)
       PokeAccess::PausePanel.say(lines(scene))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

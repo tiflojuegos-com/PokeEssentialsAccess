@@ -14,7 +14,8 @@ module PokeAccess
       parts = [[name.to_s, :brief]]
       PokeAccess::Info.set_info(:pokemon, pkmn, PokeAccess::Verbosity.full_line(parts))
       PokeAccess.speak_clean(PokeAccess::Verbosity.line(:pokemon_choice, parts), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -27,7 +28,8 @@ module PokeAccess
       PokeAccess::Info.set_info(:pokemon, pkmn, PokeAccess::Verbosity.full_line([[name, :brief], [types, :medium]]))
       t = PokeAccess::Verbosity.line(:pokemon_choice, [[types, :medium]])
       PokeAccess.speak_clean(t, false) unless t.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -42,4 +44,4 @@ PokeAccess::Hooks.before_hook("PokemonStarterSelection", :pressBall, :optional =
   PokeAccess::StarterSelection.shown(scene)
 end
 
-PokeAccess::Verbosity.define_reading(:pokemon_choice, :vb_pokemon_choice, :vbh_pokemon_choice)
+PokeAccess::Verbosity.define_reading(:pokemon_choice, :vb_pokemon_choice, :vbh_pokemon_choice, :pokemon)

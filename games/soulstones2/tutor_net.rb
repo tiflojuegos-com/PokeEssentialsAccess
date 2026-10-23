@@ -16,7 +16,8 @@ module PokeAccess
       line = "#{line}, #{PokeAccess::I18n.t(k)}" if k
       return unless PokeAccess::Cursor.changed?(scene, :ss2_tutor, [index, line])
       PokeAccess.speak(line, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -50,7 +51,8 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:tut_knows_list, :names => knows.join(", "))) unless knows.empty?
       parts.push(PokeAccess::I18n.t(:tut_nobody)) if parts.empty? && comps.include?(2)
       PokeAccess.speak(parts.join(". "), false) unless parts.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

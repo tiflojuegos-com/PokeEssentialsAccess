@@ -16,7 +16,8 @@ module PokeAccess
       parts = [name, desc].reject { |x| x.nil? || x.to_s.strip.empty? }
       return if parts.empty?
       PokeAccess::Cursor.announce(nil, :item_find, parts, false) { parts.join(". ") }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -27,4 +28,4 @@ PokeAccess::Hooks.around_hook("PokemonItemFind_Scene", :pbShow, :optional => tru
   begin; nxt.call; ensure; PokeAccess::ItemFind.unwatch; end
 end
 
-PokeAccess::Keys.on_frame { PokeAccess::ItemFind.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::ItemFind.poll }

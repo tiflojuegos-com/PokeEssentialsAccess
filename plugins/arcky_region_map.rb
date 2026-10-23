@@ -17,7 +17,8 @@ module PokeAccess
       PokeAccess.speak(spoken, true)
       PokeAccess::Info.set_info(:text, panel_detail(scene, list[i]))
       PokeAccess::Cursor.changed?(nil, :regionmap, PokeAccess.clean(bar_text(i, list.length)))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -33,7 +34,8 @@ module PokeAccess
       bands = encounter_bands(entry[:entries])
       parts.push(PokeAccess::I18n.t(:arm_rate, :list => bands)) unless bands.nil? || bands.empty?
       parts.empty? ? nil : parts.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -54,7 +56,8 @@ module PokeAccess
         out.push(PokeAccess::I18n.t(:arm_chance, :band => band, :pct => pct(data[:chance])))
       end
       out.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -62,7 +65,8 @@ module PokeAccess
     # _INTL expression so it keeps matching in any language.
     def self.bar_text(i, total)
       "#{_INTL("Especie")} #{i + 1}/#{total}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       ""
     end
 
@@ -79,7 +83,8 @@ module PokeAccess
       info = PokeAccess.ivar(scene, :@modeInfo)
       return [] unless info.respond_to?(:values)
       info.values.map { |d| PokeAccess.clean((d[:text] rescue nil).to_s) }.reject { |s| s.empty? }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -125,7 +130,8 @@ module PokeAccess
       return nil if sp.nil?
       n = (PokeAccess::Data.species_name(sp) rescue nil)
       (n && !n.to_s.empty?) ? PokeAccess.clean(n.to_s) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

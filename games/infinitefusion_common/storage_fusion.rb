@@ -9,7 +9,8 @@ module PokeAccess
       return if (PokeAccess.ivar(scene, :@pa_fusing) ? true : false) == state
       scene.instance_variable_set(:@pa_fusing, state)
       PokeAccess.speak(PokeAccess::I18n.t(state ? :if_fuse_on : :if_fuse_off), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -18,7 +19,8 @@ module PokeAccess
     def self.fused?(pk)
       return false if pk.nil?
       dexNum(pk.species) > ::NB_POKEMON
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
   end

@@ -1,8 +1,6 @@
 module PokeAccess
-  # Rejuvenation's Zygarde page of the summary (drawZygardePage, the sixth page of a Zygarde with a custom form,
-  # "ZYGARDE CORES"): each stat's label and value, with the cores invested in it as cells; the types as icons; the
-  # ability, the core effect and the cores left. C opens the allocation (coreAllocation): a selector over the six stats,
-  # the type and the ability that up and down move and left and right change, each change redrawing the page.
+  # Rejuvenation's Zygarde summary page (drawZygardePage, "ZYGARDE CORES"): stats with their cores, types, ability, core
+  # effect and cores left, and the allocation C opens (coreAllocation), whose every change redraws the page.
   module RejuvZygarde
     # The heights the page paints each stat at (its zcellY), top to bottom, and its other rows.
     STAT_Y = [76, 108, 140, 172, 204, 236]
@@ -28,7 +26,8 @@ module PokeAccess
     # The cores invested in each stat, as the page counts its cells.
     def self.cores(pk)
       Array(pk.customForm.checkFlag?(:CoreInvestment))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -39,7 +38,7 @@ module PokeAccess
         "#{row(pairs, STAT_Y[i], PANEL_X)}, #{PokeAccess::I18n.t(:rj_zyg_cores, :n => cores(pk)[i].to_i)}"
       elsif i == STAT_Y.length
         types = [(pk.type1 rescue nil), (pk.type2 rescue nil)].compact.uniq
-        names = types.map { |t| (PokeAccess::DataRV.type_name(t) rescue nil) || t.to_s.capitalize }
+        names = types.map { |t| (PokeAccess::DataRV.type_name(t) rescue nil) || PokeAccess::Util.capitalized(t) }
         "#{row(pairs, TYPE_Y, PANEL_X)} #{names.join(', ')}"
       else
         row(pairs, ABILITY_Y, PANEL_X)
@@ -61,8 +60,7 @@ module PokeAccess
     end
 
     # Runs a draw of the page and reads it: the whole page, or while allocating the row under the selector with the
-    # cores left, the first time with the hint that closes it. A draw that paints nothing (a Pokemon with no cores,
-    # reached with up or down on this page) says nothing.
+    # cores left (the first time with the closing hint); a draw that paints nothing says nothing.
     # param args drawZygardePage's (pokemon, allocation)
     def self.draw(scene, args)
       ret = nil
@@ -90,7 +88,8 @@ module PokeAccess
       return unless PokeAccess::Cursor.changed?(scene, :rj_zyg_sel, sel.index)
       pk = PokeAccess.ivar(scene, :@pokemon)
       PokeAccess.speak(line(pk, PokeAccess.ivar(scene, :@access_rj_zyg), sel.index), true) if pk
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

@@ -1,7 +1,6 @@
-# Pokemon Z picture screens: the alchemy book pages, the berry chart, the two new-game selectors, which light one
-# picture per option, and the sheets three items show (the controls guide, also the intro's first picture, and the
-# two Nuzlocke diplomas). Each text is transcribed from that build's own PNG (es 2.18, en 2.13, fr 2.12); the en build
-# paints the alchemy pages and the diplomas in Spanish, so they have no :en entry and fall back to :es.
+# Pokemon Z picture screens: the alchemy book pages, the berry chart, the two new-game selectors and the sheets three
+# items show, each transcribed from that build's own PNG (es 2.18, en 2.13, fr 2.12); the en build paints the alchemy
+# pages and the Nuzlocke diplomas in Spanish, so they have no :en entry and fall back to :es.
 PokeAccess::Game.define("pokemon_z") do
   picture_texts_multibuild(:es,
     "helpbg" => {
@@ -126,7 +125,8 @@ module PokeAccess
         PokeAccess::PictureCues.reset_last
         PokeAccess::PictureCues.on_picture(picture, nil)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

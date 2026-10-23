@@ -3,7 +3,8 @@
   Tiny integer/string ABI so the Ruby side stays unchanged. HRTF spatialization is done per
   source with Steam Audio's binaural effect; device output and mixing use miniaudio.
   Coordinates are tile units times 100; the listener faces north (-z), map x->x, map y->z.
-  Distance attenuation is linear, clamped between the reference (1) and max (14) tile distance.
+  Distance attenuation is linear, clamped between the reference distance (1 tile) and the distance at which a
+  source falls silent (PA3D_Range, 14 tiles until set).
   Each channel has a playback rate in percent (PA3D_Pitch): the mixer already resamples to the device
   rate with linear interpolation, so a tone is one more factor on that step and costs nothing extra.
 */
@@ -21,11 +22,10 @@
 
 #include "phonon.h"
 
-#define MAXCH 24
+#define MAXCH 32
 #define FRAME 256
 #define RATE  44100
 #define REF_DIST 1.0f
-#define MAX_DIST 14.0f
 #define EXPORT __declspec(dllexport)
 
 typedef struct {
@@ -60,6 +60,10 @@ static volatile int g_lx100 = 0;
 static volatile int g_ly100 = 0;
 static volatile int g_master100 = 100;
 static volatile int g_air = 0;       /* global air-absorption toggle (distant sources lose treble) */
+static volatile float g_max_dist = 14.0f;  /* tiles at which a source falls silent (PA3D_Range) */
+/* what a wall lets through of a fully occluded source, by band (low, mid, high): the lows pass and the highs are cut,
+   so a source behind a wall sounds muffled but stays audible. PA3D_Occl's amount blends from clear toward these. */
+static const float k_wall_transmission[IPL_NUM_BANDS] = { 0.6f, 0.2f, 0.05f };
 static float g_mixL[FRAME];     /* one processed FRAME-block, drained across device callbacks */
 static float g_mixR[FRAME];
 static int g_fifo_read = FRAME;  /* read cursor into the block; == FRAME means "refill next" */
@@ -96,11 +100,12 @@ static float* load_wav_f32(const char* path, int* outCount, int* outRate) {
     return out;
 }
 
-/* linear distance gain, clamped between the reference and max distance. */
+/* linear distance gain, clamped between the reference distance and the one a source falls silent at. */
 static float dist_gain(float dist) {
+    float max = g_max_dist;
     if (dist <= REF_DIST) return 1.0f;
-    if (dist >= MAX_DIST) return 0.0f;
-    return 1.0f - (dist - REF_DIST) / (MAX_DIST - REF_DIST);
+    if (dist >= max) return 0.0f;
+    return 1.0f - (dist - REF_DIST) / (max - REF_DIST);
 }
 
 /* pulls up to FRAME mono samples from a channel into dst, zero-padding the tail; handles loop/stop.
@@ -142,7 +147,12 @@ static void mix_channel(Channel* c) {
         IPLDirectEffectParams dp;
         memset(&dp, 0, sizeof(dp));
         dp.flags = 0;
-        if (c->occ100 > 0) { dp.flags |= IPL_DIRECTEFFECTFLAGS_APPLYOCCLUSION; dp.occlusion = c->occ100 / 100.0f; }
+        if (c->occ100 > 0) {
+            dp.flags |= IPL_DIRECTEFFECTFLAGS_APPLYOCCLUSION | IPL_DIRECTEFFECTFLAGS_APPLYTRANSMISSION;
+            dp.transmissionType = IPL_TRANSMISSIONTYPE_FREQDEPENDENT;
+            dp.occlusion = 1.0f - c->occ100 / 100.0f;
+            memcpy(dp.transmission, k_wall_transmission, sizeof(dp.transmission));
+        }
         if (g_air) {
             dp.flags |= IPL_DIRECTEFFECTFLAGS_APPLYAIRABSORPTION;
             dp.airAbsorption[0] = 1.0f;
@@ -314,15 +324,23 @@ EXPORT void PA3D_Pitch(int ch, int pitch100) {
     g_ch[ch].pitch100 = pitch100;
 }
 
-/* per-channel occlusion amount 0-100 (0 = clear, 100 = fully muffled behind a wall). */
+/* per-channel occlusion amount 0-100, clamped (0 = clear, 100 = fully muffled behind a wall): Steam Audio's
+   occlusion factor is the share left clear, 1 - amount, and the rest passes through k_wall_transmission. */
 EXPORT void PA3D_Occl(int ch, int occ100) {
     if (ch < 0 || ch >= MAXCH || !g_ch[ch].used) return;
+    if (occ100 < 0) occ100 = 0;
+    if (occ100 > 100) occ100 = 100;
     g_ch[ch].occ100 = occ100;
 }
 
 /* global air-absorption toggle: 1 makes distant sources lose treble, 0 off. */
 EXPORT void PA3D_Air(int on) {
     g_air = on ? 1 : 0;
+}
+
+/* the distance in tiles at which a source falls silent, 2 at least (the caller's sonar range plus a margin). */
+EXPORT void PA3D_Range(int tiles) {
+    g_max_dist = (float)(tiles < 2 ? 2 : tiles);
 }
 
 /* the device's actual (native) sample rate, so the caller can load rate-matched assets. 0 if down. */

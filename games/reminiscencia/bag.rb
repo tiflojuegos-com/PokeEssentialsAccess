@@ -46,7 +46,8 @@ module PokeAccess
       @last = key
       PokeAccess.speak(PokeAccess.clean("#{pocket_prefix(win)}#{row}"), true)
       PokeAccess::Menus.mark_bag_pocket(win)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

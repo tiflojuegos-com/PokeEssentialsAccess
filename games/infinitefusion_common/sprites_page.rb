@@ -15,7 +15,8 @@ module PokeAccess
       out = blocked?(scene, list[i]) ? PokeAccess::I18n.t(:if_sprite_excluded) : nil
       PokeAccess::Info.set_info(:text, PokeAccess::Verbosity.full_line([whole, artist, main, out]))
       PokeAccess::Verbosity.line(:dex_page, [[head, :brief], [artist, :full], [main, :brief], [out, :brief]])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -26,7 +27,8 @@ module PokeAccess
       return false unless bl.is_a?(Hash)
       letters = bl[(getSpecies(PokeAccess.ivar(scene, :@species)).species rescue nil)]
       letters.is_a?(Array) && letters.include?((sprite.alt_letter rescue nil))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 

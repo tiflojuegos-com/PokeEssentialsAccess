@@ -63,7 +63,8 @@ module PokeAccess
       return nil unless bag
       n = bag.respond_to?(:quantity) ? bag.quantity(item) : bag.pbQuantity(item)
       n.nil? ? nil : n.to_i
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -78,7 +79,8 @@ module PokeAccess
                  elsif defined?(ESSENTIALSVERSION) then (v = ESSENTIALSVERSION.to_s[/\d+(\.\d+)?/].to_f; v < 1 ? 17.0 : v)
                  else 16.0
                  end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       gamedata? ? 19.0 : 16.0
     end
 
@@ -112,8 +114,10 @@ module PokeAccess
       const = PokeAccess.const_at(name)
       return false if const.nil?
       return true if meth.nil? || meth.empty?
+      return false unless const.is_a?(Module)
       (const.method_defined?(meth) || const.private_method_defined?(meth)) ? true : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
   end

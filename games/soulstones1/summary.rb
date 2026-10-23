@@ -7,7 +7,8 @@ module PokeAccess
     # skills page line says it.
     def self.ability_text(pk)
       PokeAccess::Summary.ability_line(pk)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -17,7 +18,8 @@ module PokeAccess
       ab = ability_text(pk)
       rows.push(ab) if ab
       "#{PokeAccess::I18n.t(:ss1_sum_eviv)}. #{rows.join('. ')}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

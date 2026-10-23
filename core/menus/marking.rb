@@ -47,7 +47,8 @@ module PokeAccess
       return held if held
       storage = PokeAccess.ivar(scene, :@storage)
       selected[0] == -1 ? storage.party[selected[1]] : storage[selected[0], selected[1]]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -70,7 +71,8 @@ module PokeAccess
       signs = (PokemonStorage::MARKINGCHARS rescue nil)
       labels = signs.is_a?(Array) ? signs.map { |c| c.to_s } : NAMES.map { |k| PokeAccess::I18n.t(k) }
       (0...labels.length).select { |i| (m.to_i >> i) & 1 == 1 }.map { |i| labels[i] }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -188,4 +190,4 @@ PokeAccess::Hooks.after_hook("PokemonStorageScene", :pbMarkingSetArrow, :optiona
 end
 
 PokeAccess::Menus.def_extractor("Window_AdvancedCommandPokemon") { |win, i| PokeAccess::Marking.list_row(win, i) }
-PokeAccess::Keys.on_frame { PokeAccess::Marking.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::Marking.poll }

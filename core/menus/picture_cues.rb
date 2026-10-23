@@ -19,9 +19,10 @@ module PokeAccess
       return false unless pics
       (1..50).any? do |i|
         nm = (pics[i].name rescue nil)
-        nm && !nm.to_s.empty? && TEXTS.has_key?(nm.to_s)
+        nm && !nm.to_s.empty? && TEXTS.key?(nm.to_s)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -62,3 +63,6 @@ end
 PokeAccess::PictureCues.register do |name, _args|
   (PokeAccess::Appearance.on_picture(name) rescue nil) if defined?(PokeAccess::Appearance)
 end
+
+# While a menu drawn in pictures is up the cues hold and the locator keys are the menu's.
+PokeAccess::Control.condition(:picture_menu, :both) { PokeAccess::PictureCues.menu_showing? }

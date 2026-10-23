@@ -15,7 +15,8 @@ module PokeAccess
       return false if defined?(GameData)
       c = $cache
       (c && c.respond_to?(:pkmn) && c.respond_to?(:moves) && c.respond_to?(:abil)) ? true : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -76,6 +77,11 @@ module PokeAccess
       plain_table? ? $cache.pkmn[id] : $cache.pkmn[id, 0]
     end
 
+    # True when the species table has a species by that symbol (its [] raises for one it has not).
+    def self.species_known?(id)
+      $cache.pkmn.key?(id)
+    end
+
     # The spoken names of two type symbols, the second possibly nil, each once.
     def self.type_names(first, second)
       [first, second].compact.uniq.map { |t| type_name(t) }.compact
@@ -121,7 +127,8 @@ module PokeAccess
       over = form == 0 ? nil : (base.formData[base.forms[form]] rescue nil)
       over = {} unless over.is_a?(Hash)
       type_names(over[:Type1] || d.Type1, over[:Type2] || d.Type2)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -138,6 +145,31 @@ module PokeAccess
       return nil unless engine?
       d = ($cache.mapdata[map_id] rescue nil)
       d ? (d.MapPosition rescue nil) : nil
+    end
+
+    # A map's metadata under the names GameData::MapMetadata gives it, from the map data the engine keeps in place of
+    # pbGetMetadata's rows; {} for a map it keeps none for, nil off the engine. The engine has no always-bicycle maps.
+    def self.map_metadata(map_id)
+      table = engine? ? ($cache.mapdata rescue nil) : nil
+      return nil if table.nil?
+      d = table[map_id]
+      return {} if d.nil?
+      { :outdoor_map => d.Outdoor, :teleport_destination => d.HealingSpot, :dive_map_id => d.DiveMap }
+    end
+
+    # Every map whose map data names a map under its sea, as { map id => that map's id }; nil off the engine.
+    def self.dive_maps
+      table = engine? ? ($cache.mapdata rescue nil) : nil
+      return nil if table.nil?
+      out = {}
+      table.each_with_index { |d, i| out[i] = d.DiveMap if d && d.DiveMap }
+      out
+    end
+
+    # The common events (RPG::CommonEvent by id) the engine keeps in $cache instead of $data_common_events; nil off the
+    # engine.
+    def self.common_events
+      engine? ? ($cache.RXevents rescue nil) : nil
     end
 
     # The points of a region's town map as [x, y, name, ...], where the engine keeps each region as [name, picture,
@@ -187,7 +219,8 @@ module PokeAccess
     def self.map_infos
       return nil unless engine? && $cache.respond_to?(:mapinfos)
       $cache.mapinfos
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

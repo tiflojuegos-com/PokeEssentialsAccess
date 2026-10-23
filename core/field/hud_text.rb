@@ -37,7 +37,8 @@ module PokeAccess
       @batch.shift while @batch.length > MAX_LABELS
       return if @shown.include?(t)
       PokeAccess.speak(t, false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

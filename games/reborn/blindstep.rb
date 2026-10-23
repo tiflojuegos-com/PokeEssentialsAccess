@@ -9,16 +9,20 @@ module PokeAccess
       s = $Settings
       return false if (s.accessibilityVolume rescue 0).to_i <= 0
       [(s.footstepVolume rescue 0), (s.wallVolume rescue 0), (s.eventVolume rescue 0)].any? { |v| v.to_i > 0 }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
-    # True while the mod's own footsteps, walls or event guide sound.
+    # True while the mod's own footsteps, walls or event guide sound: steps and walls at their families' volume, which
+    # is 0 with the family switched off in Sounds on.
     def self.mod_sounding?
       c = PokeAccess::Config
       return false if c.sound_nav == :off || c.audio3d_volume.to_i <= 0
-      [c.footstep_volume, c.wall_volume, c.event_volume].any? { |v| v.to_i > 0 }
-    rescue StandardError
+      mixer = PokeAccess::Sound::Mixer
+      [mixer.volume(:step), mixer.volume(:wall), c.event_volume].any? { |v| v.to_i > 0 }
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -28,7 +32,8 @@ module PokeAccess
       return unless game_sounding? && mod_sounding?
       @warned = true
       PokeAccess.speak(PokeAccess::I18n.t(:reb_blindstep_overlap), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -37,4 +42,13 @@ module PokeAccess
   end
 end
 
-PokeAccess::Events.on(:map_changed) { PokeAccess::RebornBlindstep.warn_once }
+# After the first map's name, so the notice follows it.
+PokeAccess::Events.on(:map_named) { PokeAccess::RebornBlindstep.warn_once }
+
+# With Blindstep on, the game leaves every random walker where it stands (Game_Character#update: move_type 1 moves
+# unless the switch is on), so the routes take one for the wall it is instead of waiting for it to step aside.
+PokeAccess::Hooks.override(PokeAccess::World::Events, :mover?, :tag => "reborn_blindstep") do |_mod, original, args|
+  page = args[0].page
+  next false if page && (page.move_type rescue 0) == 1 && ($game_switches[:Blindstep] rescue false)
+  original.call
+end

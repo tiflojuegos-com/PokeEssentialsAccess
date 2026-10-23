@@ -8,7 +8,8 @@ module PokeAccess
       idx = PokeAccess.ivar(s, :@index)
       t = PokeAccess::Cursor.on_change(s, :encounter_list, idx) { text_for(s) }
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -28,7 +29,8 @@ module PokeAccess
       end
       PokeAccess::Info.set_info(:text, el.summary(type_name, entries, true))
       el.summary(type_name, entries)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -47,7 +49,8 @@ module PokeAccess
       return :dex_unknown if c && c.alpha.to_i > 0 && c.red.to_i == 0 && c.green.to_i == 0 && c.blue.to_i == 0
       t = (icon.tone rescue nil)
       (t && t.gray.to_i >= 255) ? :dex_seen : :dex_caught
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

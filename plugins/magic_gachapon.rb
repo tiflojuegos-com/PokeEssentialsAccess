@@ -45,7 +45,8 @@ module PokeAccess
       parts.push(button_label(btn)) if btn
       parts.concat(counts) if counts_changed
       PokeAccess.speak_clean(parts.join(". "), true) unless parts.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -98,14 +99,16 @@ module PokeAccess
       return if n.empty?
       key = (qty && qty.to_i > 1) ? :gacha_prize_qty : :gacha_prize
       PokeAccess.speak(PokeAccess::I18n.t(key, :name => n, :q => qty.to_i, :n => stars.to_i), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
     # The tier alone of a reward the game names right after in its own message.
     def self.tier(stars)
       PokeAccess.speak(PokeAccess::I18n.t(:gacha_stars, :n => stars.to_i), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -137,7 +140,8 @@ module PokeAccess
       b = (PokeAccess.ivar(scn, :@banners) || [])[sel]
       d = (b.description rescue nil)
       PokeAccess.speak_clean(d.to_s, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

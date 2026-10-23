@@ -33,7 +33,8 @@ module PokeAccess
       extra.push(set) if !set.empty? && PokeAccess::Cursor.changed?(scene, :ss2_boxset, set)
       extra.push(pin) if !pin.empty? && PokeAccess::Cursor.changed?(scene, :ss2_boxpin, pin)
       PokeAccess.speak_clean((parts + extra).join(", "), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -83,7 +84,8 @@ module PokeAccess
         n += 1 if hit
       end
       n
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -109,7 +111,8 @@ module PokeAccess
       elsif !items.nil?
         ((pk.hasItem? rescue false) ? true : false) == items ? PokeAccess::I18n.t(:ss2_tint_match) : nil
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

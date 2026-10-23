@@ -1,7 +1,7 @@
 module PokeAccess
-  # Game text made speakable (clean): name and money codes substituted, name-box codes turned into the speaker,
-  # other codes and tags removed, <br> read as a space, entities decoded, control bytes blanked (say_dialogue's dedup
-  # needs it).
+  # Game text made speakable (clean): name and money codes substituted, name-box codes turned into the speaker, other
+  # codes and tags removed, <br> read as a space, entities decoded, control bytes blanked for say_dialogue's dedup.
+
   # FIELD_TAGS are the panel separators clean_fields turns into ", ".
   FIELD_TAGS = /<\s*\/?\s*(r|br|ac)\s*\/?\s*>/i
 
@@ -39,7 +39,8 @@ module PokeAccess
       nm = out.to_s if out
     end
     nm =~ /\A\?+\z/ ? PokeAccess::I18n.t(:msg_speaker_unknown) : nm
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     raw.to_s
   end
 
@@ -53,8 +54,11 @@ module PokeAccess
     (who.money rescue nil).to_s
   end
 
+  # A message made speakable, as the file's header lists. An escaped backslash (a pair) goes first, as the games read
+  # it before any other code, so it never starts one.
   def self.clean(message)
     t = message.to_s.dup
+    t.gsub!(/\\\\/, "")
     t.gsub!(/\r?\n/, " ")
     pname = (($player.name rescue nil) || ($Trainer.name rescue nil) || "").to_s
     t.gsub!(/\\[Uu][Pp][Nn]/) { pname.upcase } rescue nil
@@ -69,7 +73,7 @@ module PokeAccess
     t.gsub!(/\\[Nn]/, " ")
     t.gsub!(BARE_CODES, "")
     t.gsub!(/\\[A-Za-z]{1,4}(?![A-Za-z])/, "")
-    t.gsub!(/\\[.!|^<>~\\1]/, "")
+    t.gsub!(/\\[.!|^<>~1]/, "")
     t.gsub!(/\\/, "")
     t.gsub!(/<\s*br\s*\/?\s*>/i, " ")
     t.gsub!(/<\/?[A-Za-z][^>]*>/, "")

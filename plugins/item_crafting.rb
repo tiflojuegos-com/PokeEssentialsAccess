@@ -57,7 +57,8 @@ module PokeAccess
         total += (ad.getQuantity(it) rescue 0) if (it.has_flag?(item) rescue false)
       end
       total
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -95,7 +96,8 @@ module PokeAccess
       return nil if row.is_a?(Array)
       y = (GameData::Recipe.get(row).yield rescue nil)
       (y.is_a?(Integer) && y > 1) ? y : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -110,7 +112,8 @@ module PokeAccess
         PokeAccess::Info.set_info(:item, r[0])
         name.to_s
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -135,7 +138,8 @@ module PokeAccess
         line
       end
       describe(scene, index, r[0])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

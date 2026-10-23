@@ -4,6 +4,8 @@
 #   <module>/v21/      GameData-era Essentials v19-v21.1 (Battle::Scene, GameData, the pre-rework scenes)
 #   <module>/v22/      the v22 UI:: rework (UI::BaseScreen / UI::*Visuals)
 %w[
+  foundation/failures
+  sound/catalog
   foundation/config
   foundation/const
   foundation/plugins
@@ -30,7 +32,7 @@
   data/data_fallback
   data/gen6/data_g6
   data/v21/data_v21
-  speech/markers
+  foundation/clock
   speech/text
   speech/backend
   speech/categories
@@ -46,25 +48,62 @@
   input/native_keys
   input/key_hints
   input/input
+  input/frame
+  input/control
   input/diag
   menus/config_menu
   menus/config_rows
   menus/config_dicts
   menus/config_verbosity
   menus/config_remap
-  nav/terrain
-  audio/spatial
-  audio/glossary
-  audio/audio3d
+  world/epoch
+  world/visits
+  world/engine
+  world/terrain
+  world/flags
+  world/events
+  world/probe
+  world/mechanics
+  world/mechanics/builder
+  world/mechanics/grid
+  world/mechanics/state
+  world/mechanics/facing
+  world/mechanics/links
+  routes/routes
+  routes/effects
+  routes/moves
+  routes/moves_terrain
+  routes/moves_fast
+  routes/limits
+  routes/search
+  routes/jumps
+  routes/flood
+  routes/launch
+  routes/regions
+  routes/regions_router
+  routes/pushes
+  routes/controls
+  routes/planner
+  routes/text
+  sound/native
+  sound/flat
+  sound/pa3d
+  sound/mixer
+  sound/scene
+  sound/scheduler
+  sound/cues
+  sound/feedback
+  sound/glossary
   field/contextual
   field/hud_text
   field/field_states
   field/minigames
   puzzles/puzzles
-  puzzles/stages
+  puzzles/phases
   field/location_banner
   field/turbo
   menus/cursor
+  menus/focus_reader
   menus/menus
   menus/scene_watcher
   menus/menu_return
@@ -89,6 +128,7 @@
   menus/gen6/title_screen_g6
   menus/trainer_card
   menus/credits
+  menus/screen_title
   menus/v21/trainer_card_v21
   battle/battle
   battle/move_info
@@ -146,21 +186,22 @@
   nav/town_map
   nav/locator
   nav/guide
+  nav/forced_move
+  nav/held_carry
+  nav/surfaces
   nav/pathfinder
   nav/route_search
   nav/route_grid
-  nav/route_text
   nav/event_pages
-  nav/route_events
   nav/route_water
   nav/route_gates
-  nav/route_terrain
   nav/field_moves
   nav/map_meta
   dialogue/dialogue
   dialogue/pages
   field/evolution_text
   field/hatch_shiny
+  field/trade_shiny
   field/mail
   field/fishing
   field/phone

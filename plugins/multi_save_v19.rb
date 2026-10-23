@@ -19,9 +19,8 @@ module PokeAccess
       end
     end
 
-    # The chosen file's page as drawInfor paints it, line by line: the title (first row) on its own, the page's
-    # lines and team, then the options painted under the page. Read off the paint, since rebuilding it would load
-    # the save file again.
+    # The chosen file's page as drawInfor paints it: the title, the page's lines and team, then the options under it;
+    # read off the paint, since rebuilding it would load the save file again.
     # param pairs the page's paint, as PaintCapture.sample gives it
     # param team the team line (team_text), or nil
     def self.page_text(pairs, team = nil)
@@ -32,7 +31,8 @@ module PokeAccess
               PokeAccess::PaintCapture.lines(below)
       lines = lines.reject { |l| l.empty? }
       lines.empty? ? nil : lines.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

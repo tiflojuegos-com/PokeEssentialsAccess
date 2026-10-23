@@ -69,7 +69,7 @@ module PokeAccess
       t = text_for(n)
       return if t.nil?
       @last = n
-      PokeAccess.speak(t, PULSE_KEYS.has_key?(n))
+      PokeAccess.speak(t, PULSE_KEYS.key?(n))
     end
 
     # A picture's line: the bound key for a key picture, the bar's label and thirds, the credits' transcription, the
@@ -96,7 +96,8 @@ module PokeAccess
       type = kind == :poi ? ::MessageTypes::PlaceDescriptions : ::MessageTypes::PlaceNames
       t = pbGetMessageFromHash(type, raw)
       (t.nil? || t.to_s.empty?) ? raw : t.to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       raw
     end
 
@@ -114,7 +115,7 @@ module PokeAccess
       return if v.nil?
       return if @tick_at && (v.to_f - @tick_at).abs < PULSE_SPAN / PULSE_STEPS.to_f
       @tick_at = v.to_f
-      PokeAccess::Spatial.gauge((v.to_f - PULSE_LOSE) / PULSE_SPAN)
+      PokeAccess::Sound.gauge((v.to_f - PULSE_LOSE) / PULSE_SPAN)
     end
 
     # True on the wrestling's map while its switch is on.

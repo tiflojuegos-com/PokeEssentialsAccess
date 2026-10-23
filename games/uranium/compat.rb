@@ -1,18 +1,14 @@
-# Pokemon Uranium on mkxp-z. mkxp.json's preloadScript runs this file before the game's scripts (and before the mod's
-# loader), to neutralize what the game loaded through its RPG Maker XP player and mkxp-z cannot run:
+# Pokemon Uranium on mkxp-z: mkxp.json's preloadScript runs this file before the game's scripts and the mod's loader,
+# to neutralize what the game loads for its RPG Maker XP player and mkxp-z cannot run:
 # - RGSS Linker (script 248) raises LoadError: its guard, Kernel's @RGSS_Linker, is set first.
-# - FmodEx (script 249) needs RGSS Linker: its guard, Audio's @bgm_play, is set with the other saved natives, @library
-#   and the volumes, as the game would; that guard also skips the game's volume wrappers, so they are put back here.
-# - KleinBitmap.dll walks RGSS1 bitmap internals and rubyscreen.dll captures the RGSS player's window: every call into
-#   them answers 0, so klein_bitmap_version is 0 and the stat animation never installs.
-# - A script section Ruby 1.8.7 cannot compile (the developer tools, e.g. 253 GENERATE WIKI PAGES with a lookbehind
-#   regex) would end the boot: mkxp-z evaluates each section through eval called on nil, so that call evaluates it at
-#   top level and skips, noting it in accessibility/compat_skipped.txt, a section that does not compile.
-# - The first-boot language picker (script 168, run by pbSetUpSystem while the scripts still load) comes before the
-#   mod can speak: it takes the game language matching Windows' display language, English when none does. The game's
-#   Options menu still opens the picker later.
-# - FontInstaller.install (script 169, also before the mod) copies the game's fonts into Windows' and asks to restart:
-#   mkxp-z draws only with its own fonts and the game's Fonts folder, so the game's install becomes a no-op.
+# - FmodEx (script 249) needs RGSS Linker: its guard, Audio's @bgm_play, is set with the state the game would leave,
+#   and the volume wrappers that guard skips are put back.
+# - KleinBitmap.dll and rubyscreen.dll reach into the RGSS player's bitmaps and window: every call into them answers 0.
+# - A script section Ruby 1.8.7 cannot compile (a developer tool's lookbehind regex) would end the boot: it is skipped
+#   and noted in accessibility/compat_skipped.txt.
+# - The first-boot language picker (script 168) runs before the mod can speak: the player's language is taken, else
+#   English; the Options menu still opens the picker.
+# - FontInstaller.install (script 169) copies the fonts into Windows' and asks to restart: it becomes a no-op.
 module UraniumCompat
   # The DLLs whose calls answer 0 instead of running, by lowercase base name.
   NULL_DLLS = %w[kleinbitmap rubyscreen]
@@ -123,7 +119,7 @@ module UraniumCompat
     step = AFTER_SECTION[file.to_s.sub(/\A\d+:/, "").strip]
     send(step) if step
   rescue StandardError => e
-    note("accessibility/compat_error.txt", ["#{file}: #{e.class}: #{e.message}"] + (e.backtrace || []).first(5), "a")
+    note("accessibility/compat_error.txt", ["#{file}: #{e.class}: #{e.message}"] + (e.backtrace || [])[0, 5], "a")
   end
 
   # Makes LanguageSelection#main answer the first-boot call with first_language instead of the picker; every other
@@ -184,7 +180,7 @@ module UraniumCompat
     null_dlls
     skip_font_installer
   rescue StandardError => e
-    note("accessibility/compat_error.txt", ["#{e.class}: #{e.message}"] + (e.backtrace || []).first(5), "w")
+    note("accessibility/compat_error.txt", ["#{e.class}: #{e.message}"] + (e.backtrace || [])[0, 5], "w")
   end
 
   # Writes the lines to the file (mode "w" or "a"), silently when it cannot: nothing else is loaded yet to log it.

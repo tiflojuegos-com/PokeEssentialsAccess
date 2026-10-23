@@ -16,7 +16,8 @@ module PokeAccess
       trs = PokeAccess.ivar(sc, :@trainers)
       t = (trs ? trs[i] : nil)
       (t.is_a?(Array) && t.length > 3) ? !!t[3] : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
   end

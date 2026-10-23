@@ -19,7 +19,8 @@ module PokeAccess
       return unless got.is_a?(Array) && want.is_a?(Array) && !got.empty?
       i = got.length - 1
       PokeAccess.speak(got[i].to_s, true) if got[i] == want[i]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -36,7 +37,8 @@ module PokeAccess
       i = (0...list.length).find { |k| (list[k].status rescue nil) == PARALYSIS && before[k] != PARALYSIS }
       line = i ? PokeAccess::I18n.t(:rea_ray_hit, :name => (list[i].name rescue "")) : PokeAccess::I18n.t(:rea_ray_miss)
       PokeAccess.speak(line, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

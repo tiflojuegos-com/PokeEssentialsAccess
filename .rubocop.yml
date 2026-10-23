@@ -16,7 +16,7 @@ Metrics:
   Enabled: false
 Naming:
   Enabled: false
-# boot.rb / preload_access.rb / Loader.rb eval the mod's own trusted local files by design.
+# boot.rb and preload_access.rb eval the mod's own trusted local files by design.
 Security:
   Enabled: false
 

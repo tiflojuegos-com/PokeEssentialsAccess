@@ -1,9 +1,7 @@
 module PokeAccess
-  # The Inspect report of the engine Reborn and Rejuvenation share (pbShowBattleStats, on the L and R buttons in
-  # battle): a list under an "Inspecting X:" message, which the generic reader says a line at a time as the cursor
-  # moves. While it is up the info key says it whole, the message first; the command menu takes the key back when
-  # it reopens. Beside the list it paints a button for the field notes and, in Reborn, one for the PULSE Dex, each
-  # only when the game's predicate lets it open them; their hints are said once as the report opens.
+  # The Inspect report of the engine Reborn and Rejuvenation share (pbShowBattleStats): the generic reader says its list
+  # a line at a time, the info key says it whole while it is up (the command menu takes the key back when it reopens),
+  # and the hints of its field notes and PULSE Dex buttons, each when the game paints it, are said once as it opens.
   module InspectRV
     # The buttons in the order they sit: the predicate the game paints each by, the hint's key, and the button and
     # its keyboard letter (the field notes on S, the PULSE Dex on D).
@@ -42,7 +40,8 @@ module PokeAccess
       text = PokeAccess.sentences([report_text(msgwindow, rows)].concat(hints))
       PokeAccess::Info.set_info(:text, text) unless text.empty?
       PokeAccess.speak(PokeAccess.sentences(hints), false) if !hints.empty? && PokeAccess::Verbosity.hints?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

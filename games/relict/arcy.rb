@@ -7,7 +7,8 @@ module PokeAccess
       n = ($PokemonGlobal.dungeonFloor.to_i + 1 rescue nil)
       return if n.nil?
       PokeAccess.speak(PokeAccess::I18n.t(:rel_floor, :n => n), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -23,7 +24,8 @@ module PokeAccess
       parts.push(line) unless line.empty?
       return if parts.empty?
       PokeAccess.speak(parts.join(". "), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -33,7 +35,8 @@ module PokeAccess
       return if st.nil?
       key = [:rel_map_small, :rel_map_large, :rel_map_off][st] || :rel_map_small
       PokeAccess.speak(PokeAccess::I18n.t(key), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -45,7 +48,8 @@ module PokeAccess
       shiny = pk && PokeAccess::Party.shiny?(pk) ? PokeAccess::I18n.t(:pk_shiny_hatch) : nil
       line = [t, shiny].compact.reject { |p| p.empty? }.join(" ")
       PokeAccess.speak(line, false) unless line.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -56,7 +60,8 @@ module PokeAccess
       return if PokeAccess.ivar(scene, :@pa_lives) == n
       scene.instance_variable_set(:@pa_lives, n)
       PokeAccess.speak(PokeAccess::I18n.t(:rel_lives, :n => n.to_i), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -66,12 +71,13 @@ module PokeAccess
       lines = PokeAccess::PaintCapture.lines(pairs)
       return if lines.empty?
       @board = [scene, lines.join(" ")]
-      PokeAccess::Info.set_info(:text, @board[1])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # The clue board while its quiz's viewport is live, else nil.
+    # The clue board while its quiz's viewport is live, else nil: the info key's line over the map (Info.map_owner),
+    # whose frames run under the quiz's messages.
     def self.board_text
       scene, text = @board
       vp = scene && PokeAccess.ivar(scene, :@viewport)
@@ -81,7 +87,6 @@ module PokeAccess
     # Lets go of the clue board as the quiz closes.
     def self.close_board
       @board = nil
-      PokeAccess::Info.clear_text
     end
   end
 end
@@ -97,11 +102,7 @@ PokeAccess::Game.define("relict") do
     ret
   end
   before("ArcyContest", :dispose) { |_s, _a| PokeAccess::RelictArcy.close_board }
-  # The quiz runs over the map, whose frames under its messages would hand the info key back to the trainer.
-  override("PokeAccess::Locator", :refresh_info) do |_mod, original, _args|
-    t = PokeAccess::RelictArcy.board_text
-    (t && !PokeAccess::CommandHelp.current) ? PokeAccess::Info.set_info(:text, t) : original.call
-  end
+  PokeAccess::Info.map_owner(:relict_board) { PokeAccess::RelictArcy.board_text }
   before("GivePlateMessage", :setup) { |s, args| PokeAccess::RelictArcy.plate(s, args[0]) }
   kernel("rewriteDungeonLayoutAll", :after) { |_a, _r| PokeAccess::RelictArcy.layout(nil) }
   before("ShowStarterPokemon", :initialize, :optional => true) { |s, args| s.instance_variable_set(:@pa_starter, args[0]) }

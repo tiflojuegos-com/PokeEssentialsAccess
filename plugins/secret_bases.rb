@@ -15,7 +15,8 @@ module PokeAccess
       return nm.to_s if cur.nil?
       qty = (mx && mx > 0) ? PokeAccess::I18n.t(:sb_qty, :cur => cur, :max => mx) : cur.to_s
       "#{nm}, #{qty}"
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -36,7 +37,8 @@ module PokeAccess
       whole = PokeAccess.sentences([row, desc])
       PokeAccess::Info.set_info(:text, whole, whole)
       PokeAccess::Verbosity.descriptions? ? whole : row
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -59,7 +61,8 @@ module PokeAccess
       return if t.empty? || t == PokeAccess.ivar(scene, :@access_money)
       scene.instance_variable_set(:@access_money, t)
       PokeAccess.speak(t, false, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -78,7 +81,8 @@ module PokeAccess
       PokeAccess::Info.set_info(:text, PokeAccess.sentences([name, desc]),
                                 PokeAccess.sentences([PokeAccess::Info.row_text, desc]))
       PokeAccess.speak(desc, false, :menu) if PokeAccess::Verbosity.descriptions?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -103,7 +107,8 @@ module PokeAccess
       m = (scene.method(:can_place_here?) rescue nil)
       return nil if m.nil?
       ((m.arity == 4) ? m.call(data, x, y, pos) : m.call(data, x, y)) ? true : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -147,7 +152,8 @@ module PokeAccess
         end
         PokeAccess::Verbosity.info_line(:map_square, parts)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -175,10 +181,9 @@ end
   PokeAccess::Hooks.after_hook(cname, :pbEndScene, :optional => true) { |_s, _r, _a| PokeAccess::Info.clear_text }
 end
 
-# The decoration shop (SecretBaseMart_Scene) writes its prompts and results in its own help window, outside
-# pbMessageDisplay: each is said as it is shown, a yes/no's question before its choices. Its money window and the
-# focused decoration's description are read on the frame update every one of its loops runs, after the list's own
-# update has read the row.
+# The decoration shop (SecretBaseMart_Scene) writes its prompts in its own help window, outside pbMessageDisplay: each
+# is said as shown, a yes/no's question before its choices; the money and the focused decoration's description are
+# read on its frame update, after the list's own update has read the row.
 [:pbDisplay, :pbDisplayPaused, :pbConfirm].each do |meth|
   PokeAccess::Hooks.before_hook("SecretBaseMart_Scene", meth, :optional => true) do |_s, args|
     PokeAccess.say_screen_message(args)
@@ -189,4 +194,4 @@ PokeAccess::Hooks.after_hook("SecretBaseMart_Scene", :update, :optional => true)
   PokeAccess::SecretBases.mart_description(scene)
 end
 
-PokeAccess::Verbosity.define_reading(:map_square, :vb_map_square, :vbh_map_square)
+PokeAccess::Verbosity.define_reading(:map_square, :vb_map_square, :vbh_map_square, :map)

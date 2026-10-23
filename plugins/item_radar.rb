@@ -25,7 +25,8 @@ module PokeAccess
       py = $game_player.y
       events = ($game_map.events.values rescue []) || []
       events.select { |e| marks?(e, px, py) }.sort_by { |e| [(e.x - px).abs + (e.y - py).abs, e.id] }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -49,7 +50,8 @@ module PokeAccess
       return if key == @last
       @last = key
       PokeAccess.speak(text(events), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

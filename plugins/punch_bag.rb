@@ -45,8 +45,9 @@ module PokeAccess
       mid = PokeAccess.ivar(s, :@arrowXMiddle)
       span = (PokeAccess.const_at("PunchBagScene::BARLEFTSIZE") || 128).to_f
       return if mid.nil? || span <= 0
-      PokeAccess::Spatial.gauge(1.0 - ((x - mid).abs / span))
-    rescue StandardError
+      PokeAccess::Sound.gauge(1.0 - ((x - mid).abs / span))
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -61,4 +62,4 @@ end
 PokeAccess::Hooks.after_hook("PunchBagScene", :computeScore, :optional => true) do |scene, _r, _a|
   PokeAccess::PunchBag.scored(scene)
 end
-PokeAccess::Keys.on_frame { PokeAccess::PunchBag.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::PunchBag.poll }

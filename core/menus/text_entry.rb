@@ -31,7 +31,58 @@ module PokeAccess
       end
       win.instance_variable_set(:@access_cursor, cur)
       win.instance_variable_set(:@access_textlen, len)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # A character as echoed: a space by its name.
+    def self.char_text(c)
+      c == " " ? PokeAccess::I18n.t(:key_space) : c
+    end
+
+    # What a free-text field over a message (pbFreeText) already holds as it opens, queued behind the question; an
+    # empty field and a password box say nothing.
+    def self.free_text_opened(current, password)
+      t = current.to_s
+      return if password || t.strip.empty?
+      PokeAccess.speak(PokeAccess::I18n.t(:nm_current, :t => t), false)
+    end
+
+    # What a deletion says: the character it took away, or that something was deleted when that is not known.
+    def self.deleted_text(c)
+      c.nil? || c.empty? ? PokeAccess::I18n.t(:te_deleted) : PokeAccess::I18n.t(:te_deleted_char, :c => char_text(c))
+    end
+
+    # The first character of before that after lost, the one a single deletion took away; nil if none was.
+    def self.removed_char(before, after)
+      a = before.to_s.scan(/./m)
+      b = after.to_s.scan(/./m)
+      return nil unless b.length < a.length
+      i = 0
+      i += 1 while i < b.length && a[i] == b[i]
+      a[i]
+    end
+
+    # Runs a keyboard field's deletion (Window_TextEntry#delete, Backspace and Del alike), then says what it took
+    # away (deleted) unless it answered false.
+    def self.deleting(win)
+      before = (win.instance_variable_get(:@helper).text rescue nil)
+      r = yield
+      deleted(win, before) unless r == false
+      r
+    end
+
+    # Says the character a deletion took from a field whose text was before, or that something was deleted where the
+    # field keeps no helper to tell; nothing when its text did not shrink.
+    def self.deleted(win, before)
+      PokeAccess::Keys.typing!
+      after = (win.instance_variable_get(:@helper).text rescue nil)
+      known = !(before.nil? || after.nil?)
+      c = known ? removed_char(before, after) : nil
+      PokeAccess.speak(deleted_text(c), true) unless known && c.nil?
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -57,17 +108,23 @@ module PokeAccess
   end
 end
 
-# Echo each inserted character (insert is inherited by the keyboard window).
-PokeAccess::Hooks.after_hook("Window_TextEntry", :insert) do |_w, _r, args|
-  PokeAccess::Keys.typing!
-  c = args[0].to_s
-  PokeAccess.speak(c == " " ? PokeAccess::I18n.t(:key_space) : c, true) unless c.empty?
+# The free-text field's starting text (pbFreeText(msgwindow, currenttext, ...)), as the field opens. The password flag
+# is its one true or false argument: third in the stock order, last in Rejuvenation's (after maxlength and width).
+PokeAccess::Hooks.wrap_kernel("pbFreeText", "free_text_current", :before) do |args, _r|
+  PokeAccess::TextEntry.free_text_opened(args[1], args[2..-1].find { |a| a == true || a == false })
 end
 
-# Announce deletions.
-PokeAccess::Hooks.after_hook("Window_TextEntry", :delete) do |_w, _r, _a|
+# Echo each inserted character (insert is inherited by the keyboard window); one a full field turned away (false)
+# is not said.
+PokeAccess::Hooks.after_hook("Window_TextEntry", :insert) do |_w, r, args|
   PokeAccess::Keys.typing!
-  PokeAccess.speak(PokeAccess::I18n.t(:te_deleted), true)
+  c = args[0].to_s
+  PokeAccess.speak(PokeAccess::TextEntry.char_text(c), true) unless c.empty? || r == false
+end
+
+# Announce deletions with the character deleted (TextEntry.deleting).
+PokeAccess::Hooks.around_hook("Window_TextEntry", :delete) do |w, nxt, _a|
+  PokeAccess::TextEntry.deleting(w) { PokeAccess::Hooks.guarded(:delete) { nxt.call } }
 end
 
 # Suppresses mod commands while a text field updates (the keyboard subclass overrides update without super). A
@@ -89,19 +146,24 @@ module PokeAccess
     MODE_KEYS = { 3 => [:nm_upper, :nm_lower, :nm_symbols],
                   4 => [:nm_upper, :nm_lower, :nm_accents, :nm_symbols] }
 
-    # Speaks the focused character or control on a cursor or mode change, and echoes an insert or delete, then any
-    # cursor move it caused (onto OK when the name is full); a tab changed under the cursor is named first.
+    # Speaks the focused character or control on a cursor or mode change, and echoes an insert or delete (the
+    # character deleted), then any cursor move it caused (onto OK when the name is full); a tab changed under the
+    # cursor is named first.
     def self.poll(scene)
       mode = PokeAccess.ivar_i(scene, :@mode)
       pos = PokeAccess.ivar(scene, :@cursorpos)
-      txt = (scene.instance_variable_get(:@helper).text rescue "")
+      txt = (scene.instance_variable_get(:@helper).text rescue "").to_s
       len = txt.scan(/./m).length
       lastlen = scene.instance_variable_get(:@access_len)
       lastpos = scene.instance_variable_get(:@access_pos)
       lastmode = scene.instance_variable_get(:@access_mode)
+      lasttext = scene.instance_variable_get(:@access_text)
       if !lastlen.nil? && len != lastlen
-        c = txt.scan(/./m)[-1].to_s
-        say = (len > lastlen) ? (c == " " ? PokeAccess::I18n.t(:key_space) : c) : PokeAccess::I18n.t(:te_deleted)
+        say = if len > lastlen
+                PokeAccess::TextEntry.char_text(txt.scan(/./m)[-1].to_s)
+              else
+                PokeAccess::TextEntry.deleted_text(PokeAccess::TextEntry.removed_char(lasttext, txt))
+              end
         PokeAccess.speak(say, true)
         tab = (lastmode.nil? || mode == lastmode) ? nil : mode_key(scene, mode)
         if tab && !pos.nil?
@@ -117,7 +179,9 @@ module PokeAccess
       scene.instance_variable_set(:@access_pos, pos)
       scene.instance_variable_set(:@access_mode, mode)
       scene.instance_variable_set(:@access_len, len)
-    rescue StandardError
+      scene.instance_variable_set(:@access_text, txt)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -129,7 +193,8 @@ module PokeAccess
       parts.push(PokeAccess::Party.gender_glyph(pokemon).to_s) if subject.to_i == 2
       parts.push(PokeAccess::I18n.t(:nm_current, :t => initial.to_s)) unless initial.to_s.strip.empty?
       parts.reject { |p| p.strip.empty? }.join(" ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

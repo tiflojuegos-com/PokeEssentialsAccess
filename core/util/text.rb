@@ -11,5 +11,11 @@ module PokeAccess
       types = [t1, t2].reject { |t| t.nil? || t.to_s.empty? }
       types.uniq.join("/")
     end
+
+    # text with its first letter up and the rest down, as Ruby's own capitalize: nine games replace
+    # String#capitalize with one that leaves the rest as it is and fails on an empty string.
+    def self.capitalized(text)
+      text.to_s.downcase.sub(/\A./mu) { |c| c.upcase }
+    end
   end
 end

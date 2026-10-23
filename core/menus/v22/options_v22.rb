@@ -27,7 +27,8 @@ module PokeAccess
         return params[cur].to_s
       end
       cur.to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -40,7 +41,8 @@ module PokeAccess
       return nil if name.empty?
       v = value_text(win, i, opts[i])
       v ? "#{PokeAccess.clean(name)}: #{PokeAccess.clean(v.to_s)}" : PokeAccess.clean(name)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -53,7 +55,8 @@ module PokeAccess
       return unless PokeAccess::Cursor.changed?(win, :opt_val, key)
       t = line(win)
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

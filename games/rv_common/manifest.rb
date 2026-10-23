@@ -18,5 +18,8 @@
     region_map_rv
     move_tutor_rv
     passwords_rv
+    passability_rv
+    conveyors_rv
+    field_moves_rv
   ]
 }

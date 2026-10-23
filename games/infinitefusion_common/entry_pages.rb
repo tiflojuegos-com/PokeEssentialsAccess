@@ -10,7 +10,8 @@ module PokeAccess
       pages = [] unless PokeAccess::Verbosity.keep?(:positions, :medium)
       line = PokeAccess.sentences(texts.dup.concat(pages))
       PokeAccess.speak(line, true) unless line.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -29,7 +30,8 @@ module PokeAccess
       end
       line = PokeAccess.sentences(parts.compact)
       PokeAccess.speak(line, true) unless line.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

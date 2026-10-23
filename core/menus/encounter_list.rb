@@ -46,16 +46,17 @@ module PokeAccess
       "#{name} #{PokeAccess::I18n.t(status)}"
     end
 
-    # The type header and up to MAX species at the Pokedex reading's level: states from medium, the count from full
-    # (and always for an empty type). Pure (no engine calls).
-    # param whole true for the info key, which says all of it at any level
+    # The type header and its species at the Pokedex reading's level, up to MAX when spoken: states from medium, the
+    # count from full (and always for an empty type). Pure (no engine calls).
+    # param whole true for the info key, which says all of it, every species, at any level
     def self.summary(type_name, entries, whole = false)
       return nil if entries.nil?
       counted = whole || entries.empty? || PokeAccess::Verbosity.keep?(:dex_entry, :full)
       head = counted ? PokeAccess::I18n.t(:enc_type, :type => type_name, :n => entries.length) : type_name.to_s
       return head if entries.empty?
-      shown = entries[0, MAX].map { |nm, st| phrase(nm, st, whole) }
-      more = entries.length > MAX ? ", " + PokeAccess::I18n.t(:enc_more, :n => entries.length - MAX) : ""
+      cap = whole ? entries.length : MAX
+      shown = entries[0, cap].map { |nm, st| phrase(nm, st, whole) }
+      more = entries.length > cap ? ", " + PokeAccess::I18n.t(:enc_more, :n => entries.length - cap) : ""
       "#{head}: #{shown.join(', ')}#{more}"
     end
   end

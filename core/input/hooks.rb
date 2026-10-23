@@ -9,6 +9,40 @@ module PokeAccess
     @reg_seq = 0
     @active = []
     @suppressed = []
+    @bound = []
+
+    # Runs install, which puts a wrapper over owner's meth, and keeps it to run again (given true) should the game's
+    # scripts replace that wrapper: an F12 reset evaluates them anew (see rebind).
+    def self.keep_bound(owner, meth, &install)
+      install.call(false)
+      @bound.push([owner, meth, owner.instance_method(meth), install])
+    end
+
+    # Puts back each wrapper the game's scripts replaced since it was installed, the game's new method becoming the
+    # one it calls; a wrapper still in place is left alone. Answers how many it put back.
+    def self.rebind
+      @bound.inject(0) do |n, row|
+        now = (row[0].instance_method(row[1]) rescue nil)
+        next n if now.nil? || now == row[2]
+        begin
+          row[3].call(true)
+          row[2] = row[0].instance_method(row[1])
+          n + 1
+        rescue StandardError => e
+          PokeAccess.write_marker("rebind #{row[0]}##{row[1]}: #{e.message}\n")
+          n
+        end
+      end
+    end
+
+    # After the game's scripts ran again (an F12 reset): puts back the wrappers they replaced and drops the caches
+    # kept for the game that was. Answers how many wrappers it put back.
+    def self.after_reset
+      n = rebind
+      (PokeAccess::Caches.reset_all rescue nil)
+      PokeAccess.write_marker("game reset: #{n} wrappers put back\n")
+      n
+    end
 
     # Reentrancy guard: true inside a guarded original (an after_hook's) for a hooked call with a different name,
     # whose hooks are then skipped so they cannot consume the outer's dedup; the same name passes (super).
@@ -52,9 +86,8 @@ module PokeAccess
     # normal, from all of them a bug in the mod.
     def self.unbound; @unbound; end
 
-    # Registers a hook on every spelling a class takes across games (the block binds one name and answers whether
-    # it took); returns the names that bound and records the group in unbound when none did. A spelling whose class
-    # is a subclass or superclass of one already bound is skipped, so an alias subclass does not speak twice.
+    # Registers a hook on every spelling a class takes across games (the block binds one and answers whether it took),
+    # skipping a sub- or superclass of one already bound; returns the names bound and records an empty group as unbound.
     # param label how to name the group in the report, defaulting to the first spelling
     def self.variants(names, meth, label = nil)
       bound_classes = []
@@ -84,53 +117,82 @@ module PokeAccess
       order.map { |i| names[i] }
     end
 
-    # Registers a middleware around an instance method, chained with any already on it; yields (instance, call_next,
-    # args). The original's alias is named per class, so hooking a parent and then its overriding child keeps both.
-    # Answers whether it registered (false for an absent class or method).
+    # Chains a middleware around an instance method, yielding (instance, call_next, args), and answers whether it
+    # registered. The alias is named per class, so wrapping a parent and then its overriding child keeps both.
     # param opts :optional when the method is legitimately absent in some games (kept out of @missing)
     def self.wrap(cname, meth, opts = {}, &mw)
       k = PokeAccess.const_at(cname)
       return false if k.nil?
-      was_private = k.private_method_defined?(meth)
-      unless k.method_defined?(meth) || was_private
+      unless k.method_defined?(meth) || k.private_method_defined?(meth)
         return false if opts[:optional]
         @missing << "#{cname}##{meth}" unless @missing.include?("#{cname}##{meth}")
         return false
       end
       key = "#{cname}##{meth}"
-      fresh = !@chains.has_key?(key)
+      fresh = !@chains.key?(key)
       (@chains[key] ||= []).push(mw)
       return true unless fresh
       orig = "#{meth}__pa_orig_#{cname.gsub(/[^a-zA-Z0-9]/, '_')}".to_sym
-      own = (k.instance_methods(false) + k.private_instance_methods(false)).map { |m| m.to_sym }
-      k.send(:alias_method, orig, meth) unless own.include?(orig)
+      kept = (k.instance_methods(false) + k.private_instance_methods(false)).map { |m| m.to_sym }.include?(orig)
       chains = @chains
-      k.send(:define_method, meth) do |*args, &blk|
-        PokeAccess::Hooks.note_screen(cname)
-        if PokeAccess::Hooks.nested_other?(meth)
-          PokeAccess::Hooks.note_suppressed(key)
-          return send(orig, *args, &blk)
+      keep_bound(k, meth) do |again|
+        was_private = k.private_method_defined?(meth)
+        keep_original(k, meth, orig) if again || !kept
+        k.send(:define_method, meth) do |*args, &blk|
+          PokeAccess::Hooks.note_screen(cname)
+          if PokeAccess::Hooks.nested_other?(meth)
+            PokeAccess::Hooks.note_suppressed(key)
+            return send(orig, *args, &blk)
+          end
+          call = lambda { send(orig, *args, &blk) }
+          chains[key].reverse_each do |w|
+            nxt = call
+            call = lambda { w.call(self, nxt, args) }
+          end
+          call.call
         end
-        call = lambda { send(orig, *args, &blk) }
-        chains[key].reverse_each do |w|
-          nxt = call
-          call = lambda { w.call(self, nxt, args) }
-        end
-        call.call
+        pass_keywords(k, meth)
+        k.send(:private, meth) if was_private
       end
-      pass_keywords(k, meth)
-      k.send(:private, meth) if was_private
+      bound = true
       true
     rescue StandardError => e
+      @chains.delete(key) if fresh && !bound
       PokeAccess.write_marker("wrap #{cname}##{meth}: #{e.message}\n")
       false
+    end
+
+    # Keeps owner's meth under ali for the wrapper about to replace it: an alias, or, when a module prepended to owner
+    # overrides meth (Ruby 2+), the method beneath that module, since an alias would copy the module's, whose super
+    # then lands back in the wrapper endlessly (stack level too deep).
+    def self.keep_original(owner, meth, ali)
+      beneath = beneath_prepends(owner, meth)
+      return owner.send(:alias_method, ali, meth) if beneath.nil?
+      raise "#{meth} exists only in a module prepended to #{owner}" if beneath == false
+      owner.send(:define_method, ali, beneath)
+      owner.send(:private, ali) if owner.private_method_defined?(meth)
+    end
+
+    # The method a call to owner's meth reaches past the modules prepended to owner; nil when none overrides it (or
+    # the Ruby has no prepend, or cannot walk past one), false when nothing lies beneath them.
+    def self.beneath_prepends(owner, meth)
+      anc = owner.ancestors
+      at = anc.index(owner)
+      return nil if at.nil? || at == 0
+      um = owner.instance_method(meth)
+      return nil unless (anc.index(um.owner) || at) < at
+      um = um.super_method while um && (anc.index(um.owner) || at) < at
+      um || false
+    rescue NameError
+      nil
     end
 
     # Marks a wrapper whose *args splat stands in for the original's parameters so keyword arguments reach the
     # original as keywords (Ruby 3 would pass them on as one positional Hash). No-op on 1.8.7, which has neither.
     def self.pass_keywords(owner, meth)
       owner.send(:ruby2_keywords, meth) if owner.respond_to?(:ruby2_keywords, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -145,6 +207,7 @@ module PokeAccess
     def self.run_body(key)
       yield
     rescue StandardError => e
+      PokeAccess.swallowed(e)
       log_body_failure(key, e)
     end
 
@@ -212,13 +275,14 @@ module PokeAccess
     # What override() has installed, as "Target.meth (tag)" strings, listed by the diag.
     def self.overrides; @overrides ||= []; end
 
-    # Replaces a mod module's singleton method or a game class's instance method, yielding (receiver, original,
-    # args); calling original wraps instead. Failures re-raise; a second override gets the first as its original.
-    # A name every class answers (:name, :to_s) is a singleton method only when the target defines it itself.
+    # Replaces a mod module's singleton method or a game class's instance method, yielding (receiver, original, args);
+    # failures re-raise. A second override of a singleton gets the first as its original; on an instance method they
+    # chain as in wrap, the first registered outermost. A name every class answers (:name, :to_s) is a singleton only
+    # when the target defines it itself; the label is Module#name (FieldMoves.name takes a move).
     # param opts :tag names the owner in the diag's listing; :optional as in wrap
     def self.override(target, meth, opts = {}, &body)
       mod = target.is_a?(Module) ? target : PokeAccess.const_at(target)
-      label = target.is_a?(Module) ? target.name.to_s : target.to_s
+      label = target.is_a?(Module) ? Module.instance_method(:name).bind(target).call.to_s : target.to_s
       return note_missing_override(label, meth, opts) if mod.nil?
       meta = (class << mod; self; end)
       sing = meta.method_defined?(meth) || meta.private_method_defined?(meth)
@@ -227,7 +291,7 @@ module PokeAccess
       if sing
         override_singleton(mod, meta, meth, label, body)
       elsif inst
-        around_hook(label, meth, opts) { |receiver, nxt, args| body.call(receiver, nxt, args) }
+        return nil unless around_hook(label, meth, opts) { |receiver, nxt, args| body.call(receiver, nxt, args) }
       else
         return note_missing_override(label, meth, opts)
       end
@@ -240,17 +304,19 @@ module PokeAccess
     # failures are logged and re-raised.
     def self.override_singleton(mod, meta, meth, label, body)
       ali = "#{meth}__pa_override_#{overrides.length + 1}".to_sym
-      meta.send(:alias_method, ali, meth)
       key = "override #{label}.#{meth}"
-      meta.send(:define_method, meth) do |*args, &blk|
-        begin
-          body.call(mod, lambda { send(ali, *args, &blk) }, args)
-        rescue StandardError => e
-          PokeAccess::Hooks.log_body_failure(key, e)
-          raise e
+      keep_bound(meta, meth) do |_again|
+        keep_original(meta, meth, ali)
+        meta.send(:define_method, meth) do |*args, &blk|
+          begin
+            body.call(mod, lambda { send(ali, *args, &blk) }, args)
+          rescue StandardError => e
+            PokeAccess::Hooks.log_body_failure(key, e)
+            raise e
+          end
         end
+        pass_keywords(meta, meth)
       end
-      pass_keywords(meta, meth)
     end
 
     # Files an override whose target or method does not exist, unless it was declared :optional.
@@ -329,10 +395,13 @@ module PokeAccess
       ali = "#{name}__pa".to_sym
       add_fn_body(name, timing, body)
       return if Object.private_method_defined?(ali) || Object.method_defined?(ali)
-      Object.send(:alias_method, ali, sym)
-      define_fn_wrapper(Object, sym, ali, "global_#{name}", name)
-      Object.send(:private, ali)
-      Object.send(was_private ? :private : :public, sym)
+      keep_bound(Object, sym) do |_again|
+        hidden = Object.private_method_defined?(sym)
+        keep_original(Object, sym, ali)
+        define_fn_wrapper(Object, sym, ali, "global_#{name}", name)
+        Object.send(:private, ali)
+        Object.send(hidden ? :private : :public, sym)
+      end
     rescue StandardError => e
       PokeAccess.write_marker("#{tag}: #{e.message}\n")
     end
@@ -352,8 +421,10 @@ module PokeAccess
         sc = (class << Kernel; self; end)
         add_fn_body(name, timing, body)
         return if sc.method_defined?(ali) || sc.private_method_defined?(ali)
-        sc.send(:alias_method, ali, sym)
-        define_fn_wrapper(sc, sym, ali, "kernel_#{name}", name)
+        keep_bound(sc, sym) do |_again|
+          keep_original(sc, sym, ali)
+          define_fn_wrapper(sc, sym, ali, "kernel_#{name}", name)
+        end
       else
         wrap_global(name, tag, timing, &body)
       end
@@ -375,8 +446,10 @@ module PokeAccess
       ali = "#{name}__pa".to_sym
       add_fn_body(key, timing, body)
       return if sc.method_defined?(ali) || sc.private_method_defined?(ali)
-      sc.send(:alias_method, ali, sym)
-      define_fn_wrapper(sc, sym, ali, "singleton_#{key}", key)
+      keep_bound(sc, sym) do |_again|
+        keep_original(sc, sym, ali)
+        define_fn_wrapper(sc, sym, ali, "singleton_#{key}", key)
+      end
     rescue StandardError => e
       PokeAccess.write_marker("#{tag}: #{e.message}\n")
     end

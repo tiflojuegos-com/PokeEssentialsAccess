@@ -2,8 +2,9 @@ module PokeAccess
   # The gen-6 Pokedex entry scenes, all graphics: PokemonPokedexScene (info), PokedexFormScene (forms) and
   # PokemonNestMapScene (area). The modern PokemonPokedexInfo_Scene is PokedexInfoV21's (core/battle/v21).
   module DexEntry
-    # A run of question marks for a withheld value ("????.? m", unit and all), said as a word; a lone "?" stays.
-    UNKNOWN_MARKS = /\?[\?.'"]*\?(?:\s*(?:m|kg|lbs\.?))?/
+    # A run of question marks for a withheld value ("????.? m", "???'??\"", unit and all), said as a word; a lone
+    # "?" stays.
+    UNKNOWN_MARKS = /\?[\?.'"]*\?(?:"|\s*(?:m|kg|lbs\.?))?/
 
     # A page's own label for the type icons (Royal's "Tipo"), in the builds' languages: the type names follow it bare.
     TYPE_LABEL = /\A(?:tipos?|types?|typ(?:en)?)\s*:?\z/i
@@ -36,7 +37,8 @@ module PokeAccess
       PokeAccess::Verbosity.info_line(:dex_page, parts)
     end
 
-    # Speaks the info page on each species change, as painted (painted_entry), else composed from the dummy pokemon.
+    # Speaks the info page on each species change, as painted (painted_entry), else composed from the dummy pokemon;
+    # browsing the entries, arriving at it from the list or another page adds its key hint.
     # param pairs the page's capture, taken around pbChangeToDexEntry, or nil
     # param species the species changed to, for pre-v16 copies (Insurgence's) that keep no dummy pokemon
     def self.gen6_info(scene, pairs = nil, species = nil)
@@ -46,8 +48,10 @@ module PokeAccess
       owned = PokeAccess::Util.dex_owned?(sp) ? true : false
       t = painted_entry(PokeAccess::PaintCapture.laid_out(pairs || []), owned, gen6_types(pk, sp, owned))
       t ||= gen6_composed(pk, sp, owned)
+      t = PokeAccess.sentences([t, PokeAccess::I18n.t(:pdx_info_hint)]) if turn_to(:info) && PokeAccess::Verbosity.hints?
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -57,7 +61,8 @@ module PokeAccess
       return [] unless owned
       return PokeAccess::Data.optional(:dex_shown_types, sp) || PokeAccess::Data.species_types(sp) if pk.nil?
       [(pk.type1 rescue nil), (pk.type2 rescue nil)].compact.uniq.map { |t| PokeAccess::Data.type_name(t) }.compact
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -77,28 +82,100 @@ module PokeAccess
       PokeAccess::Verbosity.info_line(:dex_page, parts, ". ")
     end
 
-    # Set while the form chooser runs.
-    def self.choosing_form!(v); @choosing_form = v; end
+    # The marks a form can be named with alone (Unown's "?????" and "!!!!!"), by the key of the mark's name.
+    MARK_FORMS = { "?" => :unown_question, "!" => :unown_exclaim }
 
-    # Speaks the shown form after its species name (painted above the form line); silent while the chooser is up.
-    def self.gen6_form(scene)
-      return if @choosing_form
+    # Runs the entry browser (pbDexEntry) with its pages noting themselves as shown (turn_to); a capture's entry,
+    # whose tabs are blanked, runs outside it.
+    def self.browse
+      was = @browsing
+      @browsing = true
+      @page = nil
+      yield
+    ensure
+      @browsing = was
+    end
+
+    # Notes the entry page now shown while the entries are browsed; true when it is not the one shown before, as on
+    # opening the entry or coming back from another page.
+    def self.turn_to(page)
+      return false unless @browsing
+      was = @page
+      @page = page
+      was != page
+    end
+
+    # True while the form chooser runs.
+    def self.choosing_form?; @choosing_form ? true : false; end
+
+    # A form named with a mark alone, which a screen reader leaves unsaid, as the mark's name; any other name untouched.
+    def self.form_name(name)
+      key = name.to_s.strip =~ /\A([?!])\1*\z/ ? MARK_FORMS[$1] : nil
+      key ? PokeAccess::I18n.t(key) : name
+    end
+
+    # The form page's line: its page's name after the species' (painted above the form line), then the form shown;
+    # the species alone for a gender and form the page does not list, the form alone on a page that keeps no species.
+    def self.form_line(scene)
       g = PokeAccess.ivar(scene, :@gender); f = PokeAccess.ivar(scene, :@form)
       av = (scene.instance_variable_get(:@available) rescue [])
       hit = (av.find { |i| i[1] == g && i[2] == f } rescue nil)
-      return unless hit
       sp = PokeAccess.ivar(scene, :@species)
       nm = (PBSpecies.getName(sp) rescue nil) if sp
-      t = PokeAccess::Util.join_parts([nm, PokeAccess::I18n.t(:dex_form, :form => hit[0])])
+      head = (nm.nil? || nm.to_s.empty?) ? nil : PokeAccess::I18n.t(:pdx_forms, :name => nm)
+      t = PokeAccess::Util.join_parts([head, hit ? PokeAccess::I18n.t(:dex_form, :form => form_name(hit[0])) : nil])
+      t.empty? ? nil : t
+    end
+
+    # Speaks the form page's line and keeps it for the info key; while the chooser is up it only notes the lines drawn.
+    def self.gen6_form(scene)
+      t = form_line(scene)
+      if @choosing_form
+        (@chooser_drawn ||= []).push(t)
+        return
+      end
+      turn_to(:forms)
+      return if t.nil?
+      PokeAccess::Info.set_info(:text, t, t)
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # Speaks the nest page's bottom bar as captured during pbStartScene (deduped rows, else composed from its ivars),
-    # then the places the map lights.
+    # Runs the form chooser with the page reader standing down (chooser_closed after it).
+    def self.choose_form(scene)
+      @choosing_form = true
+      @chooser_drawn = []
+      begin
+        r = yield
+      ensure
+        @choosing_form = false
+      end
+      chooser_closed(scene, (::Input.trigger?(::Input::B) rescue false))
+      r
+    end
+
+    # Once a chooser that redrew the page closes, keeps the page's line for the info key; cancelled with B, which
+    # redraws the form it puts back, says it when the last move drew another.
+    def self.chooser_closed(scene, cancelled)
+      drawn = @chooser_drawn || []
+      @chooser_drawn = nil
+      t = drawn.empty? ? nil : form_line(scene)
+      return if t.nil?
+      PokeAccess::Info.set_info(:text, t, t)
+      PokeAccess.speak(t, true) if cancelled && drawn.length >= 2 && drawn[-2] != t
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # Speaks the nest page under its page's name: its bottom bar as captured during pbStartScene (deduped rows, else
+    # composed from its ivars), then the places the map lights; kept for the info key.
     # param regionmap the region pbStartScene was asked for, -1 or nil for the player's own
-    def self.gen6_area(scene, rows, regionmap = -1)
+    # param species the species shown, whose name heads the page's; nil leaves the page's name out
+    def self.gen6_area(scene, rows, regionmap = -1, species = nil)
+      turn_to(:area)
       t = rows.is_a?(Array) ? rows.uniq.join(", ") : ""
       if t.strip.empty?
         mb = PokeAccess.sprite(scene, "mapbottom")
@@ -107,30 +184,42 @@ module PokeAccess
         det = (mb.instance_variable_get(:@mapdetails) rescue nil)
         t = PokeAccess::Util.join_parts([loc, det])
       end
-      places = nest_places(scene, regionmap)
+      places = nest_places(scene, regionmap, species)
       t = "#{t}. #{PokeAccess::I18n.t(:pdx_places, :list => places.join(', '))}" unless places.empty?
-      PokeAccess.speak_clean(t, true)
-    rescue StandardError
+      nm = species.nil? ? nil : (PBSpecies.getName(species) rescue nil)
+      head = (nm.nil? || nm.to_s.empty?) ? nil : PokeAccess::I18n.t(:pdx_zone, :name => nm)
+      t = PokeAccess.clean(PokeAccess::Util.join_parts([head, t]))
+      PokeAccess::Info.set_info(:text, t, t)
+      PokeAccess.speak(t, true)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # The places the gen-6 nest page lights, from its point sprites (each 2 px up and left of its square), named by
-    # the town map of the region on show: the scene's own copy, else the one an engine's data provider keeps.
-    def self.nest_places(scene, regionmap)
+    # The places the gen-6 nest page lights (lit_squares), named by the town map of the region on show: the scene's
+    # own copy, else the one an engine's data provider keeps.
+    # param species the species shown, for a page whose squares are worked out again from the game's data
+    def self.nest_places(scene, regionmap, species = nil)
+      region = nest_region(regionmap)
+      points = (PokeAccess.ivar(scene, :@mapdata)[region][2] rescue nil) ||
+               PokeAccess::Data.optional(:town_points, region) || []
+      places_at(points, lit_squares(scene, species, region, points))
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      []
+    end
+
+    # The squares the gen-6 nest page lights, from its point sprites (each 2 px up and left of its square); a profile
+    # whose page draws its points off the squares it means overrides it, given the species, region and town points.
+    def self.lit_squares(scene, _species, _region, _points)
       map = PokeAccess.sprite(scene, "map")
       n = PokeAccess.ivar(scene, :@numpoints).to_i
       return [] unless map && n > 0
       w = nest_square(:SQUAREWIDTH)
       h = nest_square(:SQUAREHEIGHT)
-      squares = (0...n).map { |i| PokeAccess.sprite(scene, "point#{i}") }.compact.map do |s|
+      (0...n).map { |i| PokeAccess.sprite(scene, "point#{i}") }.compact.map do |s|
         [(s.x + 2 - map.x) / w, (s.y + 2 - map.y) / h]
       end
-      region = nest_region(regionmap)
-      points = (PokeAccess.ivar(scene, :@mapdata)[region][2] rescue nil) ||
-               PokeAccess::Data.optional(:town_points, region) || []
-      places_at(points, squares)
-    rescue StandardError
-      []
     end
 
     # A town map square's size in pixels: the region map scene's constant, else the 16 the pre-v16 nest page
@@ -177,21 +266,20 @@ PokeAccess::Hooks.before_hook("PokemonPokedexScene", :pbChangeToDexEntry) { |_s,
 PokeAccess::Hooks.after_hook("PokemonPokedexScene", :pbChangeToDexEntry) do |s, _r, args|
   PokeAccess::DexEntry.gen6_info(s, PokeAccess::PaintCapture.take_pairs(:dex6_info), args[0])
 end
+# The entry browser opened from the list, a loop: around, so the pages' hooks inside it still fire.
+PokeAccess::Hooks.around_hook("PokemonPokedexScene", :pbDexEntry, :optional => true) do |_s, nxt, _a|
+  PokeAccess::DexEntry.browse { nxt.call }
+end
 # The v16-v17 form page; older copies (Insurgence) and reworked ones (Reborn, Uranium) redraw it without pbRefresh.
 PokeAccess::Hooks.after_hook("PokedexFormScene", :pbRefresh, :optional => true) { |s, _r, _a| PokeAccess::DexEntry.gen6_form(s) }
 
 # The form chooser's window is read by the generic hook; the page reader stands down while it is up.
-PokeAccess::Hooks.around_hook("PokedexFormScene", :pbChooseForm, :optional => true) do |_s, nxt, _a|
-  PokeAccess::DexEntry.choosing_form!(true)
-  begin
-    nxt.call
-  ensure
-    PokeAccess::DexEntry.choosing_form!(false)
-  end
+PokeAccess::Hooks.around_hook("PokedexFormScene", :pbChooseForm, :optional => true) do |s, nxt, _a|
+  PokeAccess::DexEntry.choose_form(s) { nxt.call }
 end
 PokeAccess::Hooks.before_hook("PokemonNestMapScene", :pbStartScene) do |_s, _a|
   PokeAccess::PaintCapture.arm(:nest_area)
 end
 PokeAccess::Hooks.after_hook("PokemonNestMapScene", :pbStartScene) do |s, _r, args|
-  PokeAccess::DexEntry.gen6_area(s, PokeAccess::PaintCapture.take(:nest_area), args[1])
+  PokeAccess::DexEntry.gen6_area(s, PokeAccess::PaintCapture.take(:nest_area), args[1], args[0])
 end

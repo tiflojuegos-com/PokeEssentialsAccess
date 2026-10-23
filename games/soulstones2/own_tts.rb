@@ -14,7 +14,8 @@ module PokeAccess
       return unless on?
       PokeAccess.write_marker("soulstones2: TTS_ENABLED del juego esta activo; dos voces a la vez\n")
       PokeAccess.speak(PokeAccess::I18n.t(:ss2_two_voices), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -23,5 +24,5 @@ module PokeAccess
   end
 end
 
-# On the first map change, not after Scene_Map#main, which returns only when the player leaves the map.
-PokeAccess::Events.on(:map_changed) { PokeAccess::SS2OwnTTS.warn_once }
+# After the first map's name, not after Scene_Map#main, which returns only when the player leaves the map.
+PokeAccess::Events.on(:map_named) { PokeAccess::SS2OwnTTS.warn_once }

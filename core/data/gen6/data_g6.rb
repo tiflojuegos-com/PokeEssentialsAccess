@@ -28,6 +28,16 @@ module PokeAccess
        (pbGetMessage(MessageTypes::Entries, id) rescue nil)]
     end
 
+    # A Pokemon's form name as the gen-6 Pokedex gives it: its MultipleForms getFormName (a regional form), else its
+    # entry in the species' FormNames list, which can name the first form too; nil for a form with no name.
+    def self.form_name(pk)
+      own = (MultipleForms.call("getFormName", pk) rescue nil) if defined?(MultipleForms)
+      return own.to_s unless own.to_s.strip.empty?
+      return nil unless defined?(MessageTypes::FormNames)
+      name = pbGetMessage(MessageTypes::FormNames, pk.species).to_s.split(",")[pk.form.to_i].to_s.strip
+      name.empty? ? nil : name
+    end
+
     # The spoken type names of a pokemon, from its gen-6 numeric type1/type2.
     def self.pokemon_types(pk)
       [PBTypes.getName(pk.type1), (pk.type2 != pk.type1 ? PBTypes.getName(pk.type2) : nil)].compact

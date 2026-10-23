@@ -22,6 +22,8 @@
   # A method probe: the stock card is the same class, and only this one has a back.
   :hgss_trainer_card => "PokemonTrainerCard_Scene#pbDrawTrainerCardBack",
   :summary_habilidades => "PokemonSummaryScene#Habilidades",
+  # A method probe: the six-page summary extends the stock gen-6 scene, and only it draws a sixth page.
+  :summary_six_pages => "PokemonSummaryScene#drawPageSix",
   :book_scene        => "BookScene",
   :bag_search_entry  => "WindowTextEntryKeyboardPerKey",
   # A method probe on an engine class: the fork adds favourite? to the bag every game has.
@@ -31,6 +33,7 @@
   :better_region_map => "BetterRegionMap",
   :dp_pausemenu      => "DP_PauseMenu",
   :voltseon_pausemenu => "VoltseonsPauseMenu",
+  :modular_pokemon_selection => "ModularSelection_Scene",
   :simple_encounter_list => "EncounterListUI",
   :magic_gachapon    => "GachaScene",
   :slide_banners     => "Scene_Map#addSprite",
@@ -46,6 +49,7 @@
   :tip_cards         => "TipCard_Scene",
   :bag_screen_party  => "PokemonBagPartyPanel",
   :item_find         => "PokemonItemFind_Scene",
+  :hm_catalogue      => "HM_Catalogue",
   :advanced_items    => "SelectMoveMenu_Scene",
   :misc_scripts_anil => "StarterMenu_Scene",
   :encounter_list_ui => "EncounterList_Scene",
@@ -82,6 +86,10 @@
   :ekans_snake       => "Ekans_Interface_Main",
   :bw_key_items      => "GetKeyItemScene",
   :luka_title        => "GenOneStyle",
+  # Luka's Elite Battle System as Uranium and Sevii ship it: its choice boxes, and a method probe on the engine's
+  # scene, to which the system adds its ability strip.
+  :ebs_ui            => "NewChoiceSel",
+  :ebs_scene         => "PokeBattle_Scene#showAbilityMessage",
   :modular_title     => "ModularTitleScreen",
   :zud_raid_database => "RaidDataScene",
   :starter_selection => "PokemonStarterSelection",
@@ -103,5 +111,39 @@
   # A method probe: Relict ships the older 1.1.1, edited (its own visibility rule, an "itemGive" marker), which lacks
   # this method and whose markers mean something else.
   :event_indicators  => "EventIndicator#can_vertical_move?",
-  :fl_roulette       => "RouletteScene"
+  :fl_roulette       => "RouletteScene",
+  # A method probe: the watch addon defines it on the Pokegear scene; Anil and Royal ship the addon without
+  # registering the plugin, which leaves it undefined there until they do.
+  :fl_pokegear_watch => "PokemonPokegear_Scene#initialize_watch",
+  # A method probe: Uranium keeps an empty PokemonFamily so old saves load; only the plugin draws the page.
+  :fl_family_tree    => "PokemonSummary_Scene#drawPageFamily",
+  :fl_wall_clock     => "WallClockScene",
+  :easy_unown_text   => "UnownMessage",
+  # A method probe: Royal's edited grid menu is a Menu2 too, without the cursor redraw both clean menus have.
+  :menu2_pausemenu   => "Menu2#redrawSelector",
+  :menu_panels       => "MenuPanel1",
+  # Awakening ships this menu as its carriage and replaces its pbStartScene with the fly map, so the list never shows.
+  :teleport_menu     => "Teleport_Scene",
+  :bloc_unown        => "BlocUnownScene",
+  # Royal ships only TDW's patch for this plugin, inside a PluginManager.installed? check it never passes.
+  :berry_pots        => "ItemBerryPots_Scene",
+  :fl_diploma        => "DiplomaScene",
+  # A method probe: Sevii's older script has a DayCareChecker class with no Scene, which a class probe would match.
+  :fl_daycare_checker => "DayCareChecker::Scene#assign_pokemon_text",
+  :fl_character_selection => "CharacterSelection",
+  :fl_character_selection_v1 => "CharacterSelectionScene",
+  :fl_type_quiz      => "TypeQuiz",
+  # The script's own module, which Royal ships (its copy lost the Bridge module; the API is the same).
+  :fl_tilt_labyrinth => "TiltLabyrinth",
+  :fl_ball_catch     => "BallCatch",
+  :fl_tetra          => "PokeTetra",
+  # A method probe: other games define an unrelated TrainerCard; only this script's card has a front and a back.
+  :bes_trainer_card  => "TrainerCard#dorso1",
+  :character_profiles => "CharacterPageDisplayScene",
+  :alt_mystery_gift  => "MysteryGiftScene",
+  # A method probe, the waiting line the reader dedups: Sevii's v16 script and Anil's edited copy both have it.
+  :cable_club        => "CableClub_Scene#pbDisplayDots",
+  # Top-level function probes: the two scripts bring no class of their own.
+  :bes_blackjack     => "Object#pbBlackJack",
+  :bes_piano         => "Object#pbPiano"
 }

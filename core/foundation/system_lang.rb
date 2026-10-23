@@ -31,7 +31,8 @@ module PokeAccess
     def self.from_runtime
       return nil unless defined?(::System) && ::System.respond_to?(:user_language)
       parse(::System.user_language)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -40,14 +41,16 @@ module PokeAccess
       return nil unless fn
       id = fn.call.to_i
       id > 0 ? LANGIDS[id & 0x3ff] : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
     def self.from_env
       v = ENV["LC_ALL"] || ENV["LC_MESSAGES"] || ENV["LANG"] || ENV["LANGUAGE"]
       v ? parse(v) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

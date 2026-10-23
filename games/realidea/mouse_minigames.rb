@@ -54,7 +54,8 @@ module PokeAccess
           PokeAccess.speak(PokeAccess::I18n.t(hit ? :rmg_ck_hit : :rmg_ck_miss, :v => v, :n => v + d, :tot => 9), true)
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -104,7 +105,8 @@ module PokeAccess
         PokeAccess.speak(PokeAccess::I18n.t(:rmg_ttt_enemy_move, :row => played[0], :col => played[1]), false) if played
       end
       scene.instance_variable_set(:@cerrar, 1) if Input.trigger?(Input::B)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -138,7 +140,8 @@ module PokeAccess
       if PokeAccess::Cursor.changed?(scene, :mm_sel, sel) && MM_ROWS[sel]
         PokeAccess.speak(PokeAccess::I18n.t(MM_ROWS[sel]), true)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -194,7 +197,8 @@ module PokeAccess
           PokeAccess.speak(PokeAccess::I18n.t(:rmg_mg_score, :pts => tot, :left => cnt), false)
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -210,17 +214,21 @@ module PokeAccess
       PL_BAGS.keys.map { |k| [sprites[k], k] }.select { |sp, _k| sp }.sort_by { |sp, _k| sp.x }
     end
 
+    # Names the pearl to find, then the bags' layout, queued; the opening round's pearl interrupts, a later one waits
+    # for the verdict of the round before it.
     def self.pl_target(scene)
       sk = scene.instance_variable_get(:@saquito).to_s
       pair = PL_BAGS.values.find { |resp, _key| resp == sk }
       color = pair ? PokeAccess::I18n.t(pair[1]) : sk
-      PokeAccess.speak(PokeAccess::I18n.t(:rmg_pl_target, :color => color), true)
+      opening = scene.instance_variable_get(:@victorias).to_i + scene.instance_variable_get(:@derrotas).to_i == 0
+      PokeAccess.speak(PokeAccess::I18n.t(:rmg_pl_target, :color => color), opening)
       order = pl_sorted(scene)
       if order.length == 3
         names = order.map { |_sp, k| PokeAccess::I18n.t(PL_BAGS[k][1]) }
         PokeAccess.speak(PokeAccess::I18n.t(:rmg_pl_layout, :l => names[0], :c => names[1], :r => names[2]), false)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -235,11 +243,28 @@ module PokeAccess
       a, b = b, a if a > b
       PokeAccess.speak(PokeAccess::I18n.t(:rmg_pl_swap, :a => PokeAccess::I18n.t(PL_POS[a]),
                                           :b => PokeAccess::I18n.t(PL_POS[b])), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # Shell game by keyboard: LEFT/RIGHT walk the three bags by position, C opens the focused bag.
+    # Says the verdict of the bag the player opened, once the game has counted it and before the round it starts next:
+    # hit or miss, the wins and the rounds played of five.
+    def self.pl_verdict(scene)
+      before_v = scene.instance_variable_get(:@access_pl_wins_before)
+      return if before_v.nil?
+      scene.instance_variable_set(:@access_pl_wins_before, nil)
+      v = scene.instance_variable_get(:@victorias).to_i
+      d = scene.instance_variable_get(:@derrotas).to_i
+      key = v > before_v ? :rmg_ck_hit : :rmg_ck_miss
+      PokeAccess.speak(PokeAccess::I18n.t(key, :v => v, :n => v + d, :tot => 5), true)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # Shell game by keyboard: LEFT/RIGHT walk the three bags by position, C opens the focused bag; its verdict comes
+    # before the next round, or on return after the fifth, which starts none.
     def self.pl_input(scene)
       scene.instance_variable_get(:@sprites)["bocadillo"].visible = true
       scene.instance_variable_get(:@sprites)["bolabocadillo"].visible = true
@@ -259,16 +284,14 @@ module PokeAccess
         order = pl_sorted(scene)
         pick = order[idx]
         if pick
-          before_v = scene.instance_variable_get(:@victorias).to_i
+          scene.instance_variable_set(:@access_pl_wins_before, scene.instance_variable_get(:@victorias).to_i)
           scene.instance_variable_set(:@respuesta, PL_BAGS[pick[1]][0])
           scene.send(:abrirsaquito)
-          v = scene.instance_variable_get(:@victorias).to_i
-          d = scene.instance_variable_get(:@derrotas).to_i
-          hit = v > before_v
-          PokeAccess.speak(PokeAccess::I18n.t(hit ? :rmg_ck_hit : :rmg_ck_miss, :v => v, :n => v + d, :tot => 5), true)
+          pl_verdict(scene)
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -336,7 +359,8 @@ module PokeAccess
         p2 = scene.instance_variable_get(:@puntuacion2).to_i
         PokeAccess.speak(PokeAccess::I18n.t(:rmg_un_totals, :right => p1, :left => p2), true)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -351,6 +375,7 @@ PokeAccess::Game.define("realidea") do
   end
   around("Perlita", :input) { |s, _nxt, _a| PokeAccess::ReaMouse.pl_input(s) }
   after("Perlita", :escogersaquito) { |s, _r, _a| PokeAccess::ReaMouse.pl_target(s) }
+  before("Perlita", :cerrarsaquitos) { |s, _a| PokeAccess::ReaMouse.pl_verdict(s) }
   around("Perlita", :moversaquitos) do |s, nxt, _a|
     before = {}
     PokeAccess::ReaMouse.pl_sorted(s).each { |sp, k| before[k] = sp.x }

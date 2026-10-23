@@ -18,9 +18,12 @@
     pause_overlay
     gacha
     bag_qty
-    quiet_search
+    passability
     spin_stop
     slides
+    field_moves
+    levers
+    party
   ],
   :plugins => %w[easy_questing gender_selection text_log book_scene hatcher simple_encounter_list luka_title marin_side_stairs spin_tiles hall_of_fame_bw_gen6 quest_marker fancy_badges]
 }

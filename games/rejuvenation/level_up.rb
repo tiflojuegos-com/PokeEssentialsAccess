@@ -18,7 +18,8 @@ module PokeAccess
                                       :v => now[i].to_i))
       end
       parts.empty? ? nil : parts.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

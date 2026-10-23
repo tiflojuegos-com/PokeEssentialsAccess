@@ -30,6 +30,13 @@ module PokeAccess
       [d.name, (d.category rescue nil), (d.pokedex_entry rescue nil)]
     end
 
+    # A Pokemon's form name as GameData gives it: its species form's form_name, which can name the first form too; nil
+    # for a form with no name.
+    def self.form_name(pk)
+      name = pk.species_data.form_name.to_s.strip
+      name.empty? ? nil : name
+    end
+
     # The spoken type names of a pokemon, from its modern symbol types.
     def self.pokemon_types(pk)
       (pk.types rescue []).map { |s| (GameData::Type.get(s).name rescue nil) }.compact

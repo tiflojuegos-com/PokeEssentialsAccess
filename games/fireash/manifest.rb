@@ -8,6 +8,7 @@
     fishing_speed
     summary_ivs
     passability
+    field_moves
   ],
   :plugins => %w[dynamax multi_save_v19 zud_raid_database]
 }

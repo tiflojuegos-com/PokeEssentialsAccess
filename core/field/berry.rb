@@ -8,14 +8,21 @@ module PokeAccess
 
     # The suffix appended to a berry plant's name (", stage, berry, moisture"), or "" when unplanted or unreadable.
     def self.state_suffix(ev)
-      stage, item, moist, newmech = read((ev.variable rescue nil))
-      return "" if stage.nil? || stage <= 0
+      parts = state_parts((ev.variable rescue nil))
+      parts.empty? ? "" : ", " + parts.join(", ")
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      ""
+    end
+
+    # A plant's state as spoken parts (stage, berry, moisture), from either storage shape; empty when unplanted.
+    def self.state_parts(d)
+      stage, item, moist, newmech = read(d)
+      return [] if stage.nil? || stage <= 0
       parts = [PokeAccess::I18n.t(STAGE[stage > 5 ? 5 : stage] || :berry_planted)]
       bn = berry_name(item); parts.push(bn) if bn
       parts.push(PokeAccess::I18n.t(MOIST[moist])) if newmech && moist && MOIST[moist]
-      ", " + parts.join(", ")
-    rescue StandardError
-      ""
+      parts
     end
 
     # Normalizes the two storage shapes to [stage, berry_id, moisture_stage, new_mechanics?]; nil stage
@@ -33,7 +40,8 @@ module PokeAccess
       else
         [nil, nil, nil, false]
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       [nil, nil, nil, false]
     end
 
@@ -42,7 +50,8 @@ module PokeAccess
       return nil if item.nil? || item == 0
       n = PokeAccess::Data.item_name(item)
       (n && !n.to_s.empty?) ? n : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

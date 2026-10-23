@@ -1,15 +1,17 @@
 module PokeAccess
   # What touching a map event does to the player: the page's command list walked as the interpreter would, one facing
-  # at a time, without running it. A condition live state cannot answer stops the walk as unknown.
+  # at a time, without running it. A condition live state cannot answer stops the walk as unknown. Live state is read
+  # through World::Flags, so a facet built from a walk goes when what it read changes.
   module EventPages
     # What a walk found. move: net [dx, dy] from Set Move Route; path: [dx, dy, facing] after each step; transfer:
     # [map, x, y] of a transfer that runs (x, y nil when a script names only the map); bridge: the height a ramp
     # sets (:toggle for a switch-back ramp); jump: a move was a jump; talks: it spoke or fought; changes: it set
     # something that stays (a switch, a variable, an item); waits: it waited for the move to end; unknown: the walk
     # stopped at something it could not answer; maybe_transfer: a transfer lies past that point; battle: it started
-    # one; through: a step was taken with Through on; held: it went that way only because a direction key is held.
+    # one; through: a step was taken with Through on; held: it went that way only because a direction key is held, as
+    # a script condition asks; pressed: a button branch it took asks for that key held down (Insurgence's stairs).
     Outcome = Struct.new(:move, :path, :transfer, :bridge, :jump, :talks, :changes, :waits, :unknown, :maybe_transfer,
-                         :battle, :through, :held)
+                         :battle, :through, :held, :pressed)
 
     DIAGONAL = { 5 => [-1, 1], 6 => [1, 1], 7 => [-1, -1], 8 => [1, -1] }
     TURN_RIGHT = { 2 => 4, 4 => 8, 6 => 2, 8 => 6 }
@@ -57,7 +59,8 @@ module PokeAccess
       list = PokeAccess.ivar(ev, :@list)
       return nil unless list.is_a?(Array)
       walk(list, d, ev, at, act)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -79,14 +82,16 @@ module PokeAccess
 
     # Walks the command list of event ev for facing d as the interpreter would run it.
     def self.walk(list, d, ev, at = nil, act = false)
-      o = Outcome.new(nil, [], nil, nil, false, false, false, false, false, false, false, false, false)
+      o = Outcome.new(nil, [], nil, nil, false, false, false, false, false, false, false, false, false, false)
       st = { :x => 0, :y => 0, :face => d, :fix => false, :moved => false, :steps => 0, :at => at,
-             :act => act, :vars => {}, :chosen => {}, :through => false, :held => false }
+             :act => act, :vars => {}, :chosen => {}, :through => false, :held => false, :pressed => false }
       run(list, o, st, ev, 0)
       o.move = [st[:x], st[:y]] unless st[:x] == 0 && st[:y] == 0
       o.held = st[:held]
+      o.pressed = st[:pressed]
       o
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -167,9 +172,11 @@ module PokeAccess
       nil
     end
 
-    # The command list of common event id, or nil.
+    # The command list of common event id, or nil: from the common events an engine's data provider keeps
+    # (Data.optional(:common_events)), else $data_common_events.
     def self.common_list(id)
-      l = ($data_common_events[id.to_i].list rescue nil)
+      table = PokeAccess::Data.optional(:common_events) || $data_common_events
+      l = (table[id.to_i].list rescue nil)
       l.is_a?(Array) ? l : nil
     end
 
@@ -220,10 +227,11 @@ module PokeAccess
     def self.transfer_dest(pars)
       return [pars[1], pars[2].to_i, pars[3].to_i] if pars[0].to_i == 0 && pars[1]
       return nil unless pars[0].to_i == 1
-      v = $game_variables
-      m = v[pars[1]].to_i
-      m > 0 ? [m, v[pars[2]].to_i, v[pars[3]].to_i] : nil
-    rescue StandardError
+      f = PokeAccess::World::Flags
+      m = f.variable(pars[1]).to_i
+      m > 0 ? [m, f.variable(pars[2]).to_i, f.variable(pars[3]).to_i] : nil
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -232,17 +240,26 @@ module PokeAccess
     def self.condition(pars, st, ev)
       face = st[:face]
       case pars[0]
-      when 0 then (($game_switches[pars[1]] ? true : false) == (pars[2].to_i == 0))
+      when 0 then (PokeAccess::World::Flags.switch(pars[1]) == (pars[2].to_i == 0))
       when 1 then variable_condition(pars, st[:vars])
       when 2
         key = [($game_map.map_id rescue 0), (ev.id rescue 0), pars[1].to_s]
-        (($game_self_switches[key] ? true : false) == (pars[2].to_i == 0))
+        (PokeAccess::World::Flags.self_switch(key) == (pars[2].to_i == 0))
       when 6 then character_facing(pars, face, ev)
-      when 11 then pars[1] == face
+      when 11 then button_condition(pars[1], st)
       when 12 then script_condition(pars[1].to_s, st, ev)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
+    end
+
+    # A button branch: true for the button the walk faces, the key the player arrives holding; taken, it marks the walk
+    # as needing that key held down (pressed).
+    def self.button_condition(button, st)
+      held = button == st[:face]
+      st[:pressed] = true if held
+      held
     end
 
     # A script condition, answered by ScriptCondition; one that holds on a held direction key marks the walk as held.
@@ -268,7 +285,7 @@ module PokeAccess
 
     # A game variable as the walk sees it: an answer given during the walk, else the live value.
     def self.variable(id, vars)
-      (vars && vars.key?(id)) ? vars[id] : $game_variables[id]
+      (vars && vars.key?(id)) ? vars[id] : PokeAccess::World::Flags.variable(id)
     end
 
     # Variable comparison: pars[2] says whether pars[3] is a constant (0) or another variable.
@@ -290,8 +307,8 @@ module PokeAccess
     def self.character_facing(pars, face, ev)
       who = pars[1].to_i
       dir = if who == -1 then face
-            elsif who == 0 then (ev.direction rescue nil)
-            else ($game_map.events[who].direction rescue nil)
+            elsif who == 0 then PokeAccess::World::Flags.direction((ev.id rescue 0), ev)
+            else PokeAccess::World::Flags.direction(who)
             end
       dir.nil? ? nil : dir == pars[2]
     end
@@ -341,7 +358,8 @@ module PokeAccess
         end
       end
       true
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -377,8 +395,8 @@ module PokeAccess
       # [pattern, value reader]; a reader gets the match and the walk's context (EventPages.context): :face, :act,
       # :vars, :pos (the player's [x, y], nil when the start is not given) and :self (the event's [x, y]).
       ATOMS = [
-        [/\A\$PokemonGlobal\.(bicycle|surfing|diving)\b/, lambda { |m, _c| ($PokemonGlobal.send(m[1]) ? true : false) }],
-        [/\A\$game_switches\[\s*(\d+)\s*\]/, lambda { |m, _c| ($game_switches[m[1].to_i] ? true : false) }],
+        [/\A\$PokemonGlobal\.(bicycle|surfing|diving)\b/, lambda { |m, _c| PokeAccess::World::Flags.vehicle(m[1].to_sym) }],
+        [/\A\$game_switches\[\s*(\d+)\s*\]/, lambda { |m, _c| PokeAccess::World::Flags.switch(m[1].to_i) }],
         [/\A\$game_variables\[\s*(\d+)\s*\]/, lambda { |m, c| EventPages.variable(m[1].to_i, c[:vars]) }],
         [/\ApbGet\(\s*(\d+)\s*\)/, lambda { |m, c| EventPages.variable(m[1].to_i, c[:vars]) }],
         [/\A\$PokemonBag\.pbQuantity\(\s*(?:PBItems::|:)(\w+)\s*\)/, lambda { |m, _c| ScriptCondition.quantity(m[1]) }],
@@ -389,7 +407,7 @@ module PokeAccess
         [/\A\$game_player\.moving\?/, lambda { |_m, _c| false }],
         [/\A\$game_player\.(x|y)\b/, lambda { |m, c| c[:pos] ? c[:pos][m[1] == "x" ? 0 : 1] : :unknown }],
         [/\Aget_character\(\s*(-1|0)\s*\)\.(x|y)\b/, lambda { |m, c| ScriptCondition.character_at(m[1], m[2], c) }],
-        [/\A\$PokemonGlobal\.visitedMaps\[\s*(\d+)\s*\]/, lambda { |m, _c| ($PokemonGlobal.visitedMaps[m[1].to_i] ? true : false) }],
+        [/\A\$PokemonGlobal\.visitedMaps\[\s*(\d+)\s*\]/, lambda { |m, _c| PokeAccess::World::Flags.visited(m[1].to_i) }],
         [/\A\$game_map\.map_id\b/, lambda { |_m, _c| $game_map.map_id }],
         [/\A(?:true|false|nil)\b/, lambda { |m, _c| { "true" => true, "false" => false }[m[0]] }],
         [/\A-?\d+/, lambda { |m, _c| m[0].to_i }]
@@ -424,7 +442,8 @@ module PokeAccess
         v = either
         return nil if v == :bad || v == :unknown || @at != @toks.length
         v ? true : false
-      rescue StandardError
+      rescue StandardError => e
+        PokeAccess.swallowed(e)
         nil
       end
 
@@ -447,7 +466,9 @@ module PokeAccess
             s = s[(close + 1)..-1]
             next
           end
-          atom = (@extra || []).find { |re, _r| s =~ re } || ATOMS.find { |re, _r| s =~ re }
+          atom = (@extra || []).find { |re, _r| s =~ re }
+          PokeAccess::World::Flags.volatile! if atom
+          atom ||= ATOMS.find { |re, _r| s =~ re }
           if atom
             m = s.match(atom[0])
             out.push([:val, atom[1].call(m, ctx)])
@@ -567,7 +588,7 @@ module PokeAccess
 
       # How many of an item the bag holds, or :unknown when no bag answers.
       def self.quantity(sym)
-        n = PokeAccess::Engine.bag_quantity(sym.to_sym)
+        n = PokeAccess::World::Flags.bag(sym.to_sym)
         n.nil? ? :unknown : n
       end
 

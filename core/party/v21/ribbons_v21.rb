@@ -9,7 +9,8 @@ module PokeAccess
       return nil unless filter.is_a?(Array)
       size = (PokeAccess.const_at("MementoSprite::PAGE_SIZE") || 0).to_i
       filter[(args[2].to_i * size) + args[1].to_i]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

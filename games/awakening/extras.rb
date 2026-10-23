@@ -19,7 +19,8 @@ module PokeAccess
           stat_row(scene, stat, cur)
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -29,7 +30,7 @@ module PokeAccess
       ivs = PokeAccess.ivar(scene, :@ivs)
       iv = (ivs.is_a?(Array) ? ivs[stat] : nil)
       vars = { :name => stat_label(stat), :value => stat_value(scene, stat), :ev => cur[stat].to_i }
-      row = iv ? PokeAccess::I18n.t(:awk_ev_row, vars.merge(:iv => iv.to_i)) : PokeAccess::I18n.t(:awk_ev_row_noiv, vars)
+      row = iv ? PokeAccess::I18n.t(:awk_ev_row, vars.merge!(:iv => iv.to_i)) : PokeAccess::I18n.t(:awk_ev_row_noiv, vars)
       parts = [row]
       tint = nature_tint(scene, stat)
       parts.push(PokeAccess::I18n.t(tint)) if tint

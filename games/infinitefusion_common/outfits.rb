@@ -28,7 +28,8 @@ module PokeAccess
       shown = PokeAccess.clean((name.nil? || name.to_s.empty?) ? id.to_s : name.to_s)
       version = (kind == :hair && data && id.to_s =~ HAIR_VERSION) ? $1 : nil
       version ? "#{shown}, #{PokeAccess::I18n.t(:if_hair_version, :n => version)}" : shown
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -90,7 +91,8 @@ module PokeAccess
         said.push(PokeAccess::I18n.t(:if_hair_version, :n => $1))
       end
       PokeAccess.speak(said.uniq.join(", "), true) unless said.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

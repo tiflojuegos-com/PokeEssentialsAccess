@@ -14,7 +14,8 @@ module PokeAccess
       scene.instance_variable_set(:@pa_plate_round, round)
       return unless PokeAccess::Verbosity.hints?
       PokeAccess.speak(PokeAccess::I18n.t(:rel_plates_hint, :key => PokeAccess::KeyHints.key(:z, "D")), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

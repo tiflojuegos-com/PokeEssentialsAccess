@@ -10,14 +10,16 @@ module PokeAccess
       return nil unless mod.const_defined?(seg)
       mod.const_get(seg)
     end
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     nil
   end
 
   # An instance variable (e.g. :@index) of any object, nil when unset; fallback only when the read raises.
   def self.ivar(obj, sym, fallback = nil)
     obj.instance_variable_get(sym)
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     fallback
   end
 
@@ -25,7 +27,8 @@ module PokeAccess
   def self.ivar_i(obj, sym, fallback = 0)
     v = ivar(obj, sym)
     v.nil? ? fallback : v.to_i
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     fallback
   end
 
@@ -38,7 +41,8 @@ module PokeAccess
       return v unless v.nil?
     end
     nil
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     nil
   end
 
@@ -46,7 +50,8 @@ module PokeAccess
   def self.sprite(scene, key)
     h = ivar(scene, :@sprites)
     h.is_a?(Hash) ? h[key] : nil
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     nil
   end
 
@@ -55,14 +60,16 @@ module PokeAccess
   def self.dedicate(win)
     win.instance_variable_set(:@access_dedicated, true) if win
     win
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     win
   end
 
   # True when a dedicated reader has claimed this window (see dedicate).
   def self.dedicated?(win)
     win ? (win.instance_variable_get(:@access_dedicated) ? true : false) : false
-  rescue StandardError
+  rescue StandardError => e
+    PokeAccess.swallowed(e)
     false
   end
 end

@@ -1,8 +1,7 @@
 module PokeAccess
-  # Enhanced Pokemon UI (Modular UI Scenes plugin), where its settings turn each on: the IV ratings (the six stars by
-  # colour and size in style 0, the letters F D C B A S in style 1) on the summary's stats page and in the PC panel,
-  # the shiny leaves or crown on the summary and in the PC panel, and the happiness meter on the summary's first
-  # page, plus the legacy menu.
+  # Enhanced Pokemon UI (Modular UI Scenes plugin), each part where its settings turn it on: the IV ratings (stars in
+  # style 0, letters F to S in style 1) and the shiny leaves or crown on the summary and in the PC panel, the happiness
+  # meter on the summary's first page, and the legacy menu.
   module EnhancedPokemonUI
     GRADES = %w[F D C B A S]
     STARS = [:mui_iv_star_0, :mui_iv_star_1, :mui_iv_star_2, :mui_iv_star_3, :mui_iv_star_4, :mui_iv_star_5]
@@ -10,7 +9,8 @@ module PokeAccess
     # A setting of the plugin, false where the game's Settings leave it out.
     def self.setting(name)
       ::Settings.const_defined?(name) ? ::Settings.const_get(name) : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -37,7 +37,8 @@ module PokeAccess
       end
       return nil if rows.empty?
       PokeAccess::I18n.t(stars ? :mui_iv_stars : :mui_iv_ratings, :list => rows.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -77,7 +78,8 @@ module PokeAccess
       n = pk.happiness.to_i
       return PokeAccess::I18n.t(:mui_happiness_value, :n => n, :max => max_happiness) if happiness_figures?
       PokeAccess::I18n.t(:mui_happiness, :n => [((n * 100) / 255.0).round, 100].min)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -125,4 +127,4 @@ PokeAccess::Hooks.around_hook("PokemonSummary_Scene", :pbLegacyMenu, :optional =
     PokeAccess::EnhancedPokemonUI.legacy_close
   end
 end
-PokeAccess::Keys.on_frame { PokeAccess::EnhancedPokemonUI.legacy_poll }
+PokeAccess::Frame.each_pulse { PokeAccess::EnhancedPokemonUI.legacy_poll }

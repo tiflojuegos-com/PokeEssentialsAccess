@@ -19,7 +19,8 @@ module PokeAccess
     # The rating a press earns, as the picture resultado shows for the frame it lands on.
     def self.pesca_rating(scene)
       PokeAccess.speak(PokeAccess::I18n.t(RATINGS[PokeAccess.ivar_i(scene, :@frame)] || :rea_pesca_bad), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -29,7 +30,7 @@ module PokeAccess
       f = PokeAccess.ivar(scene, :@frame)
       if !f.nil? && PokeAccess.ivar(scene, :@pa_frame) != f
         scene.instance_variable_set(:@pa_frame, f)
-        PokeAccess::Spatial.gauge(1.0 - ((f.to_i - PERFECT_FRAME).abs / 6.0))
+        PokeAccess::Sound.gauge(1.0 - ((f.to_i - PERFECT_FRAME).abs / 6.0))
       end
       hp = PokeAccess.ivar(scene, :@protahp)
       ehp = PokeAccess.ivar(scene, :@enemhp)
@@ -37,26 +38,29 @@ module PokeAccess
       return if hp.nil? || PokeAccess.ivar(scene, :@pa_hp) == sig
       scene.instance_variable_set(:@pa_hp, sig)
       PokeAccess.speak(PokeAccess::I18n.t(:rea_hp, :hp => hp.to_i, :ehp => ehp.to_i), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # Speaks the focused reply, and the hearts left on each side whenever one is lost; the dedup key holds @turno,
-    # as the two lists can match in cursor and length.
+    # Speaks the focused reply, and the hearts left on each side whenever one is lost, the reply queued behind them;
+    # the dedup key holds @turno, as the two lists can match in cursor and length.
     def self.mankey(scene)
       lives = PokeAccess.ivar(scene, :@vidasprota)
       elives = PokeAccess.ivar(scene, :@vidasenemigo)
-      if !lives.nil? && PokeAccess.ivar(scene, :@pa_lives) != [lives, elives]
+      hearts = !lives.nil? && PokeAccess.ivar(scene, :@pa_lives) != [lives, elives]
+      if hearts
         scene.instance_variable_set(:@pa_lives, [lives, elives])
         PokeAccess.speak(PokeAccess::I18n.t(:rea_hearts, :n => lives.to_i, :e => elives.to_i), false)
       end
       idx = PokeAccess.ivar(scene, :@seleccion)
       list = mankey_list(scene)
       return unless idx.is_a?(Integer) && list.is_a?(Array) && idx >= 0 && idx < list.length
-      PokeAccess::Cursor.announce(scene, :rea_mankey, [idx, list.length, PokeAccess.ivar(scene, :@turno)], true) do
+      PokeAccess::Cursor.announce(scene, :rea_mankey, [idx, list.length, PokeAccess.ivar(scene, :@turno)], !hearts) do
         PokeAccess::Verbosity.list_entry(PokeAccess.clean(list[idx].to_s), idx + 1, list.length)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -65,7 +69,8 @@ module PokeAccess
       src = (PokeAccess.ivar(scene, :@turno) == 1) ? ($Trainer.contestaciones rescue nil) :
                                                      ($Trainer.insultos rescue nil)
       src.is_a?(Array) ? src : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

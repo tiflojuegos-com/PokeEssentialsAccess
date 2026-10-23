@@ -37,7 +37,8 @@ module PokeAccess
       @last = word.to_s
       PokeAccess.speak_clean(@last, true)
       panel(menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -71,7 +72,8 @@ module PokeAccess
       return unless @open > 0
       PokeAccess::Info.set_info(:trainer, nil)
       PokeAccess.speak_clean(@last, true) if @last
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

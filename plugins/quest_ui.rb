@@ -15,7 +15,8 @@ module PokeAccess
       parts.push([PokeAccess::I18n.t(:quest_story), :medium]) if (q.story rescue false)
       parts.push([PokeAccess::I18n.t(:quest_new), :medium]) if new_badge?(q)
       PokeAccess::Verbosity.info_line(:quest, parts)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -38,7 +39,8 @@ module PokeAccess
         parts.push(t) unless t.empty? || t == "nil"
       end
       PokeAccess.speak(parts.join(". "), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -111,7 +113,8 @@ module PokeAccess
       return if label.empty?
       heading = Array(pairs).map { |r| PokeAccess.clean(r[0].to_s) }.find { |t| t.include?(label) }
       PokeAccess.speak(heading || label, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -156,4 +159,4 @@ PokeAccess::Hooks.around_hook("QuestList_Scene", :pbQuest, :optional => true) do
   end
 end
 
-PokeAccess::Verbosity.define_reading(:quest, :vb_quest, :vbh_quest)
+PokeAccess::Verbosity.define_reading(:quest, :vb_quest, :vbh_quest, :game)

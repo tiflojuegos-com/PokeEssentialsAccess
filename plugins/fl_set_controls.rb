@@ -9,12 +9,20 @@ module PokeAccess
       controls = PokeAccess.ivar(win, :@controls) || []
       if i < controls.length
         c = controls[i]
-        return PokeAccess::I18n.t(:chr_value, :name => c.controlAction.to_s, :value => c.keyName.to_s)
+        return PokeAccess::I18n.t(:chr_value, :name => c.controlAction.to_s, :value => key_words(c.keyName.to_s))
       end
       caption = (i == controls.length) ? "Default" : "Exit"
       (_INTL(caption) rescue caption).to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
+    end
+
+    # A key's name as painted, a name of signs alone said sign by sign (";:" as both) by the remap's names, which a
+    # screen reader would otherwise drop; a name with a letter or digit stays as painted.
+    def self.key_words(name)
+      return name if name =~ /[A-Za-z0-9]/ || name.strip.empty?
+      name.unpack("U*").map { |c| PokeAccess::ConfigMenu.char_name(c) || [c].pack("U") }.join(", ")
     end
 
     # The scene's text box as a watcher pair: its line, keyed on itself, so each change is said once and blanks stay
@@ -23,6 +31,14 @@ module PokeAccess
       box = PokeAccess.sprite(scene, "textbox")
       t = box ? PokeAccess.clean((box.text rescue "").to_s) : ""
       [t, t]
+    end
+
+    # The text box's reader (SceneWatcher.reader), kept so a confirmation's return can make it forget its line.
+    def self.box_reader=(reader); @box_reader = reader; end
+
+    # Forgets the text box's line, so the next poll says it even unchanged.
+    def self.forget_box
+      PokeAccess::Cursor.reset(@box_reader, :fl_set_controls) if @box_reader
     end
 
     # The rows' key codes, in order.
@@ -45,7 +61,8 @@ module PokeAccess
       emptied(win, before).each { |j| parts.push(row(win, j)) }
       t = PokeAccess.sentences(parts)
       PokeAccess.speak(t, true, :menu) unless t.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -56,7 +73,8 @@ module PokeAccess
       now = PokeAccess.ivar(win, :@controls)
       return if before.nil? || now.nil? || now.equal?(before)
       PokeAccess.speak(PokeAccess::I18n.t(:rmp_all_reset), true, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -81,6 +99,13 @@ end
 
 # The text box, polled each frame of pbMain rather than hooked on the message window class it is built from: the key
 # prompt is written right before the game blocks waiting for the key, whose loop still runs the frame pollers.
-PokeAccess::SceneWatcher.reader("PokemonControlsScene", :pbMain, :fl_set_controls, :optional => true) do |s|
-  PokeAccess::FlSetControls.box_line(s)
+PokeAccess::FlSetControls.box_reader =
+  PokeAccess::SceneWatcher.reader("PokemonControlsScene", :pbMain, :fl_set_controls, :optional => true) do |s|
+    PokeAccess::FlSetControls.box_line(s)
+  end
+
+# Yes to "Save changes?" with a key missing empties the box and writes "Fill all fields!" again within one frame, which
+# the poll never sees: the line is forgotten as the confirmation returns, so the second refusal is said too.
+PokeAccess::Hooks.wrap_kernel("pbConfirmMessage", "plugin_fl_set_controls_confirm", :after) do |_args, _r|
+  PokeAccess::FlSetControls.forget_box
 end

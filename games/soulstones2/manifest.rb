@@ -5,7 +5,9 @@
   :modules => %w[enhanced_ui box_picker renamed_screens tutor_net own_tts type_chart raid_cheer raid_den notices
                  quests boss_shields battle_selectors battle_belt
                  summary_ivs egg_groups encounter_cursor intro_gender bag_sort raid_adventure styled_box
-                 hall_of_fame chapters showcase battle_marks],
+                 hall_of_fame chapters showcase battle_marks
+                 passability
+  ],
   :plugins => %w[
     voltseon_pausemenu
     item_crafting

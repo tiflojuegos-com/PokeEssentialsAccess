@@ -15,7 +15,8 @@ module PokeAccess
         row = PICTURES.assoc(name.to_s)
         PokeAccess.speak(PokeAccess::I18n.t(row[1]), false) if row
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

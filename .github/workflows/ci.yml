@@ -24,12 +24,12 @@ jobs:
       - name: syntax
         run: |
           for f in $(find core games plugins loader test -name '*.rb'); do ruby -c "$f" >/dev/null || exit 1; done
-      # The marker grep fails a run that skipped the static checks (a filtered invocation).
+      # The marker grep fails a filtered run, which skips tests.
       - name: tests
         run: |
           set -o pipefail
           ruby test/run_all.rb 2>&1 | tee /tmp/suite.log
-          grep -q "=== static checks ===" /tmp/suite.log || { echo "::error::static checks did not run (filtered invocation?)"; exit 1; }
+          grep -q "the whole suite:" /tmp/suite.log || { echo "::error::the run was filtered: not every test ran"; exit 1; }
       # Every games/*/manifest.rb on disk loaded in isolation; the count run must equal the count found.
       - name: profiles
         run: |

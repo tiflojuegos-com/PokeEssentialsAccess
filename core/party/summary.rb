@@ -8,7 +8,8 @@ module PokeAccess
     def self.egg?(pk)
       return false unless pk
       (pk.egg? rescue (pk.isEgg? rescue false)) ? true : false
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -22,7 +23,8 @@ module PokeAccess
       t = PokeAccess::PaintCapture.text(rows)
       t = PokeAccess::I18n.t(:sm_egg) if t.to_s.strip.empty?
       speak_page(scene, pk, :egg, t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -61,11 +63,12 @@ module PokeAccess
                 rows.select { |r| (r[3] - label[3]).abs <= 8 && r[2] > label[2] }
               else
                 half = (Graphics.width rescue 512) / 2
-                rows.select { |r| r[2] > half }.sort_by { |r| r[3] }.first(1)
+                rows.select { |r| r[2] > half }.sort_by { |r| r[3] }[0, 1]
               end
       v = cands.map { |r| PokeAccess.clean(r[0]) }.find { |t| t =~ DEX_VALUE }
       v ? PokeAccess::DexEntry.unknown_marks(v) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -125,7 +128,8 @@ module PokeAccess
       return PokeAccess.speak(PokeAccess::I18n.t(:sm_exit), true) if idx == 4
       nm = move_slot_name(pk, idx)
       PokeAccess.speak(PokeAccess::I18n.t(:sm_position, :n => idx + 1) + (nm ? ", " + nm : ""), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -211,7 +215,8 @@ module PokeAccess
         return
       end
       @ribbon_back = true if carrying && (Input.trigger?(Input::B) rescue false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -262,7 +267,8 @@ module PokeAccess
       marks = PokeAccess::Marking.shown(pk)
       parts.push(PokeAccess::I18n.t(:mk_list, :list => marks.join(", "))) unless marks.empty?
       parts.join(", ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       ""
     end
 
@@ -285,9 +291,11 @@ module PokeAccess
       (pk.pokerusStage rescue 0).to_i == 2
     end
 
-    # Page one's trainer lines: original trainer, padded ID, experience and what the next level needs. "On loan"
-    # and question marks with no trainer; no experience for a Shadow Pokemon (the caller adds heart_of).
-    def self.trainer_facts(pk)
+    # Page one's trainer lines: original trainer, with the sex the page tints the name with, ID, experience and
+    # what the next level needs. "On loan" and question marks with no trainer; no experience for a Shadow Pokemon
+    # (the caller adds heart_of).
+    # param painted_id the ID the page painted, or nil to pad the Pokemon's own
+    def self.trainer_facts(pk, painted_id = nil)
       out = []
       ot = (pk.owner.name rescue nil) || PokeAccess.attr_of(pk, :ot)
       id = (pk.owner.public_id rescue nil) || PokeAccess.attr_of(pk, :publicID)
@@ -295,8 +303,10 @@ module PokeAccess
         out.push(PokeAccess::I18n.t(:sum_ot, :name => PokeAccess::I18n.t(:sum_loaned)))
         out.push(PokeAccess::I18n.t(:sum_id, :id => PokeAccess::DexEntry.unknown_marks("?????")))
       else
-        out.push(PokeAccess::I18n.t(:sum_ot, :name => ot))
-        out.push(PokeAccess::I18n.t(:sum_id, :id => sprintf("%05d", id.to_i))) if id
+        sex = ot_sex(pk)
+        out.push(PokeAccess::I18n.t(:sum_ot, :name => sex ? "#{ot}, #{sex}" : ot))
+        id = painted_id || (id ? sprintf("%05d", id.to_i) : nil)
+        out.push(PokeAccess::I18n.t(:sum_id, :id => id)) if id
       end
       return out if shadow?(pk)
       exp = (pk.exp rescue nil)
@@ -304,8 +314,39 @@ module PokeAccess
       left = exp_to_next(pk)
       out.push(PokeAccess::I18n.t(:sum_exp_next, :n => left)) if left
       out
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
+    end
+
+    # The original trainer's sex by the owner's gender (v19+) or gen-6's otgender, as page one tints the name: blue
+    # for a boy, red for a girl; the grey of any other is no sex.
+    OT_SEXES = { 0 => :chr_male, 1 => :chr_female }
+
+    # The word for the sex page one tints the original trainer's name with, or nil: none for the grey, nor on a page
+    # that paints every name in one colour, whose profile overrides this.
+    def self.ot_sex(pk)
+      sex = (pk.owner.gender rescue nil)
+      sex = PokeAccess.attr_of(pk, :otgender) if sex.nil?
+      key = OT_SEXES[sex]
+      key ? PokeAccess::I18n.t(key) : nil
+    end
+
+    # A value page one paints as a trainer ID: five digits.
+    ID_VALUE = /\A\d{5}\z/
+
+    # The trainer ID page one paints, or nil: the five digits right of the ID label on its row, which a page may write
+    # other than the Pokemon's own.
+    # param pairs page one's capture, as take_pairs gives it (text, source, x, y)
+    def self.painted_trainer_id(pairs)
+      rows = (pairs || []).select { |r| r[2].is_a?(Numeric) && r[3].is_a?(Numeric) }
+      label = rows.find { |r| PokeAccess.clean(r[0]) =~ /\bID\b/i }
+      return nil unless label
+      cands = rows.select { |r| (r[3] - label[3]).abs <= 8 && r[2] > label[2] }
+      cands.map { |r| PokeAccess.clean(r[0]) }.find { |t| t =~ ID_VALUE }
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
     end
 
     # Whether a Pokemon is a Shadow Pokemon, under either era's question.
@@ -331,20 +372,20 @@ module PokeAccess
       PokeAccess::I18n.t(:sum_item, :i => (name.nil? || name.to_s.empty?) ? PokeAccess::I18n.t(:sum_none) : name)
     end
 
-    # The experience the next level still needs, asked of the growth rate each era keeps (GameData's own
-    # object, gen-6's PBExperience table, or an engine's data provider where it has neither), or nil when it cannot
-    # be asked. GameData's gives nil at the top level; the gen-6 page asks its table for the next level, which the
-    # table holds at the top one (MAXLEVEL, raised by level caps), so there it paints what is left to the top, 0.
+    # The experience the next level still needs, from the era's growth rate (GameData's, gen-6's PBExperience or an
+    # engine's data provider), or nil when it cannot be asked. At the top level GameData's gives nil; gen-6's table
+    # holds the top level's value (MAXLEVEL, raised by level caps) for the next, so that page paints 0.
     def self.exp_to_next(pk)
       lvl = pk.level.to_i
       if pk.respond_to?(:growth_rate)
-        max = (GameData::GrowthRate.max_level rescue (Settings::MAXIMUM_LEVEL rescue 100)).to_i
+        max = (GameData::GrowthRate.max_level rescue (::Settings::MAXIMUM_LEVEL rescue 100)).to_i
         return nil if lvl >= max
         return pk.growth_rate.minimum_exp_for_level(lvl + 1) - pk.exp.to_i
       end
       return PokeAccess::Data.optional(:exp_left, pk) unless defined?(PBExperience)
       PBExperience.pbGetStartExperience(lvl + 1, pk.growthrate) - pk.exp.to_i
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -387,13 +428,13 @@ module PokeAccess
       end
       return nil unless up && down
       PokeAccess::I18n.t(:sm_nature_effect, :up => PokeAccess::Data.stat_name(up), :down => PokeAccess::Data.stat_name(down))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # The ability the stats page names, with its description only when the page painted it (the full one, or the
-    # short one an engine's data provider gives); nil with no ability. A bare id (a number, or a symbol, which answers
-    # name on Ruby 3 with the id itself) is named through the data.
+    # The ability the stats page names, with its description only when the page painted it (full, or the provider's
+    # short one); nil with no ability. An Integer or Symbol id is named by the data (Ruby 3's Symbol#name is the id).
     # param painted the strings the page painted; nil or empty when the page was not captured, which keeps it
     def self.ability_line(pk, painted = nil)
       ab = (pk.ability rescue nil)
@@ -410,7 +451,8 @@ module PokeAccess
         desc = shown.find { |d| !d.empty? && rows.include?(d) } || ""
       end
       desc.empty? ? PokeAccess::I18n.t(:sum_ability, :a => name) : PokeAccess::I18n.t(:sum_ability_desc, :a => name, :d => desc)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -425,7 +467,8 @@ module PokeAccess
         out.push(PokeAccess::Verbosity.line(:summary_move, parts, ". "))
       end
       out.empty? ? PokeAccess::I18n.t(:sm_no_moves) : PokeAccess::I18n.t(:sm_moves, :list => out.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

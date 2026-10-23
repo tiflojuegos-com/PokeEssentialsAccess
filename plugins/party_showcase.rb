@@ -16,7 +16,8 @@ module PokeAccess
       return if t.to_s.strip.empty?
       return unless PokeAccess::Cursor.changed?(scene, :showcase, t.to_s)
       PokeAccess.speak_clean(t, false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -58,7 +59,8 @@ module PokeAccess
       t = PokeAccess::I18n.t(:sm_nature_effect, :up => PokeAccess::Data.stat_name(up[0]),
                              :down => PokeAccess::Data.stat_name(down[0]))
       t.sub(/\.\s*\z/, "")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -74,7 +76,7 @@ PokeAccess::Hooks.around_hook("PokemonPartyShowcase_Scene", :initialize, :option
   end
 end
 
-PokeAccess::Keys.on_frame { PokeAccess::PartyShowcase.poll }
+PokeAccess::Frame.each_pulse { PokeAccess::PartyShowcase.poll }
 
 PokeAccess::Hooks.around_hook("PokemonPartyShowcase_Scene", :updateShowcaseInfo, :optional => true) do |scene, nxt, _a|
   PokeAccess::PaintCapture.arm(:showcase)

@@ -1,8 +1,7 @@
 module PokeAccess
-  # Rejuvenation's region map (Rejuv/RegionMap.rb reworks PokemonRegionMapScene): the cursor is @selection over the
-  # squares of $cache.town_map, whose [x, y] keys hold each place, its point of interest and its fly spot, and every
-  # move rewrites the bottom bar; there is no pbGetMapLocation. Mode 1 is the fly map and mode 2, with a species, the
-  # Pokedex nest page: its bar names the nest, its red squares are the nests and its cursor waits for C.
+  # Rejuvenation's region map (Rejuv/RegionMap.rb reworks PokemonRegionMapScene, with no pbGetMapLocation): the cursor
+  # is @selection over $cache.town_map's [x, y] squares (place, point of interest, fly spot); mode 1 is the fly map and
+  # mode 2, with a species, the Pokedex nest page, whose red squares are the nests.
   module RejuvMap
     # Whether the scene is this rework: a @selection cursor over the town map in $cache.
     def self.handles?(s)
@@ -27,7 +26,8 @@ module PokeAccess
       regions = Array(PokeAccess.ivar(s, :@region))
       rows = PokeAccess.ivar(s, :@mapdata).select { |k, v| k.is_a?(Array) && regions.include?((v.region rescue nil)) }
       rows.map { |k, _v| [k[0], k[1]] }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -48,7 +48,8 @@ module PokeAccess
       (0...PokeAccess.ivar(s, :@numpoints).to_i).map { |i| PokeAccess.sprite(s, "point#{i}") }.compact.map do |sp|
         [(sp.x - 8) / k::SQUAREWIDTH, (sp.y - 8) / k::SQUAREHEIGHT]
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 

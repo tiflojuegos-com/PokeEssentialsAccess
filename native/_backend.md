@@ -1,7 +1,7 @@
 # PA3D native audio backend (Steam Audio)
 
-PA3D is the small DLL behind `core/audio/audio3d.rb` (the binaural soundscape). It exposes a
-tiny integer/string ABI so the Ruby side never changes:
+PA3D is the small DLL behind `core/sound/` (the binaural soundscape; `Sound::Native` binds it). It exposes
+a tiny integer/string ABI so the Ruby side never changes:
 
 ```
 int  PA3D_Init(void)
@@ -9,17 +9,19 @@ int  PA3D_Channel(const char* wavPath, int loop)   // -> channel id, or -1
 void PA3D_Listener(int x100, int y100)
 void PA3D_Set(int ch, int x100, int y100, int vol100, int play)
 void PA3D_Master(int vol100)
-void PA3D_Occl(int ch, int occ100)                 // 0 clear .. 100 fully muffled behind a wall
+void PA3D_Occl(int ch, int occ100)                 // 0 clear .. 100 fully muffled behind a wall, clamped
 void PA3D_Air(int on)                              // distant sources lose treble
 void PA3D_Pitch(int ch, int pitch100)              // playback rate percent, 100 = as recorded, 25..400
+void PA3D_Range(int tiles)                         // the distance a source falls silent at, 2 at least
 int  PA3D_Rate(void)                               // the device's native sample rate, 0 if down
 int  PA3D_Latency(void)                            // output buffer latency in ms, 0 if down
 void PA3D_Shutdown(void)
 ```
 
 Coordinates are tile units times 100. The listener faces north (`-z`); map `x -> x`,
-map `y -> z`. Distance attenuation is linear, clamped between 1 and 14 tiles. The Ruby side treats
-everything after `PA3D_Master` as optional: an older dll simply lacks the feature.
+map `y -> z`. Distance attenuation is linear, clamped between 1 tile and the `PA3D_Range` distance (14 until
+set; the mod sends the sonar's range plus 2). It holds 32 channels. The Ruby side treats everything after
+`PA3D_Master` as optional: an older dll simply lacks the feature.
 
 ## Implementation
 
@@ -27,7 +29,11 @@ everything after `PA3D_Master` as optional: an older dll simply lacks the featur
 **miniaudio** for the output device and mixing: each active channel is rendered with
 `iplBinauralEffectApply` and the results are summed in a single playback callback (frame size
 256, device native rate). Each channel is resampled to the device rate with linear interpolation,
-and the per-channel pitch is one more factor on that same step (the tone menu). Each DLL depends on
+and the per-channel pitch is one more factor on that same step (the tone menu). A muffled channel
+(`PA3D_Occl`) goes through Steam Audio's direct effect: its occlusion factor is the share left clear,
+`1 - occ100/100`, and the rest passes a wall's frequency-dependent transmission (lows 0.6, mids 0.2,
+highs 0.05), so behind a wall a source loses some level and most of its treble but stays audible
+(the mod sends 80: about -4 dB on a 300 Hz tone and -12.5 dB on a 12 kHz one). Each DLL depends on
 `phonon.dll` of the matching architecture (~46 MB x86 / ~53 MB x64) sitting beside it in the install's
 `accessibility/lib/` folder; `SetDllDirectory` (set in `speech.rb`) puts that folder on the DLL search
 path so it resolves.
@@ -58,4 +64,6 @@ creates a context, HRTF and binaural effect, renders a 440 Hz tone toward severa
 asserts the output is non-silent and properly panned (left direction => more energy in the left ear).
 `test_pitch.c` checks the resampler's pitch: it includes `pa3d_steam.c` whole, pulls a ramp through
 `pull_samples` at several rates and asserts the read head and the interpolated samples, then the
-export's clamping. Both run with the x64 `phonon.dll` beside them.
+exports' clamping and the range; last it renders a low and a high tone through `process_block` from
+behind a wall at 80 and 100 and asserts the highs lose far more than the lows. Both run with the x64
+`phonon.dll` beside them.

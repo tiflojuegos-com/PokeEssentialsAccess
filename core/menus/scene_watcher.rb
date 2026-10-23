@@ -2,8 +2,8 @@ module PokeAccess
   # For screens that run their own blocking input loop: holds the scene for the loop method's duration (an around
   # hook) and polls the reader each frame.
   module SceneWatcher
-    # Wires a scene's blocking-loop method to a reader answering watch(scene), unwatch and poll; binds nothing where
-    # the class is absent.
+    # Wires a scene's blocking-loop method to a reader answering watch(scene), unwatch and poll: an around hook (none
+    # where the class or method is absent) holds the scene while the method runs, and every frame polls the reader.
     # param opts passed to the hook (a plugin reader passes :optional => true)
     def self.wire(cls, meth, reader, opts = {})
       PokeAccess::Game.define do

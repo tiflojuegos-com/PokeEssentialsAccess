@@ -8,7 +8,8 @@ module PokeAccess
       t = PokeAccess.clean((PokeAccess.sprite(scene, "messageWindow").text rescue nil).to_s)
       t = PokeAccess.clean(PokeAccess.ivar(scene, :@message).to_s) if t.empty?
       PokeAccess.speak(t, false) unless t.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -23,7 +24,8 @@ module PokeAccess
       line = PokeAccess::Verbosity.list_entry(nm, idx + 1, cache.length)
       cat = category(scene, cache[idx])
       cat ? "#{line}. #{cat}" : line
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -33,7 +35,8 @@ module PokeAccess
       return nil if shown
       c = (species.category rescue nil)
       (c.nil? || c.to_s.empty?) ? nil : PokeAccess::I18n.t(:rse_category, :cat => c)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -42,7 +45,8 @@ module PokeAccess
     def self.read(scene)
       key = [PokeAccess.ivar(scene, :@index), (PokeAccess.sprite(scene, "pokemon").visible rescue nil)]
       PokeAccess::Cursor.announce(scene, :rse_starter, key, true, false) { text(scene) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

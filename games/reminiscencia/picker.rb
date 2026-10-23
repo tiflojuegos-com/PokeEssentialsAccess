@@ -36,7 +36,8 @@ module PokeAccess
       return unless @active && rows.is_a?(Array)
       return if @panel && !@panel.any? { |b| b.equal?(bitmap) }
       rows.each { |r| @rows.push([bitmap, r[0].to_s, r[1].to_i, r[2].to_i]) if r.is_a?(Array) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -44,7 +45,8 @@ module PokeAccess
     def self.note_icons(rows)
       return unless @active && rows.is_a?(Array)
       rows.each { |r| @icons.push([r[0].to_s, r[2].to_i, r[4].to_i]) if r.is_a?(Array) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -68,7 +70,7 @@ module PokeAccess
     end
 
     # Once per frame: yields the info key to the game's T (not while its bag is open) and says the panel's burst,
-    # kept for the info key, at the choose-a-Pokemon reading's full level.
+    # kept for the info key, at the choose-a-Pokemon reading's full level; at medium, only the species' types.
     def self.flush
       return unless @active
       PokeAccess::Keys.yield_key!(:info) if info_on_game_t? && !(PokeAccess::ReminBag.watching? rescue false)
@@ -80,11 +82,17 @@ module PokeAccess
       @icons = []
       first = @panel.nil?
       @panel ||= rows.map { |b, _t, _x, _y| b }.uniq
-      t = text(rows, icons, types)
+      names = types
+      t = text(rows, icons, names)
       PokeAccess::Info.set_info(:text, PokeAccess.clean(t))
-      PokeAccess.speak_clean(t, false) if PokeAccess::Verbosity.keep?(:pokemon_choice, :full)
+      if PokeAccess::Verbosity.keep?(:pokemon_choice, :full)
+        PokeAccess.speak_clean(t, false)
+      elsif !names.empty? && PokeAccess::Verbosity.keep?(:pokemon_choice, :medium)
+        PokeAccess.speak(PokeAccess::I18n.t(:bt_type, :t => names.join(" ")), false)
+      end
       PokeAccess.speak(keys_line, false) if first && PokeAccess::Verbosity.hints?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -141,6 +149,6 @@ PokeAccess::Hooks.before_hook("PokemonSprite", :setSpeciesBitmap, :optional => t
   PokeAccess::ReminPicker.note_species(args) if PokeAccess::ReminPicker.active?
 end
 
-PokeAccess::Keys.on_frame { PokeAccess::ReminPicker.flush }
+PokeAccess::Frame.each_pulse { PokeAccess::ReminPicker.flush }
 
-PokeAccess::Verbosity.define_reading(:pokemon_choice, :vb_pokemon_choice, :vbh_pokemon_choice)
+PokeAccess::Verbosity.define_reading(:pokemon_choice, :vb_pokemon_choice, :vbh_pokemon_choice, :pokemon)

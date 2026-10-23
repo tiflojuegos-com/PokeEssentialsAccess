@@ -23,7 +23,8 @@ module PokeAccess
         v.to_i >= CONDITION_MAX ? "#{word} #{PokeAccess::I18n.t(:cnd_max)}" : word
       end
       PokeAccess::I18n.t(:pbk_conditions, :list => rows.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -79,7 +80,8 @@ module PokeAccess
         out.push(PokeAccess::Verbosity.line(:summary_move, parts, ". "))
       end
       out.empty? ? PokeAccess::I18n.t(:sm_no_moves) : PokeAccess::I18n.t(:sm_moves, :list => out.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -96,7 +98,8 @@ module PokeAccess
       desc = description_part(data)
       parts.push(desc) if desc
       PokeAccess::Verbosity.info_line(:summary_move, parts, ". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -129,7 +132,8 @@ module PokeAccess
       return unless pk && data && idx.is_a?(Integer)
       count = (pk.numMoves rescue nil) || (pk.moves.compact.length rescue 1)
       PokeAccess::Cursor.announce(scene, :if2_ct_move, idx, true, false) { choice_line(pk, data, idx, count) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -139,7 +143,8 @@ module PokeAccess
       return if now.nil? || now == before
       PokeAccess.speak(PokeAccess::I18n.t(:if2_ct_hearts, :name => PokeAccess.clean(pkmn.name.to_s), :n => now.to_i),
                        false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -162,7 +167,8 @@ module PokeAccess
     def self.order(scene)
       names = roster(scene).map { |p| PokeAccess.clean(p.name.to_s) }
       PokeAccess.speak(PokeAccess::I18n.t(:if2_ct_order, :list => names.join(", ")), false) unless names.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -170,7 +176,8 @@ module PokeAccess
     def self.totals(scene)
       list = roster(scene).map { |p| "#{PokeAccess.clean(p.name.to_s)} #{(p.c_total_hearts rescue 0).to_i}" }
       PokeAccess.speak(PokeAccess::I18n.t(:if2_ct_totals, :list => list.join(", ")), false) unless list.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -182,7 +189,8 @@ module PokeAccess
       hearts = [hearts, crowd.length].min if crowd.is_a?(Array)
       PokeAccess.speak(PokeAccess::I18n.t(:if2_ct_crowd, :name => PokeAccess.clean(pokemon.name.to_s), :n => hearts),
                        false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -190,7 +198,8 @@ module PokeAccess
     def self.entrants(scene)
       c = PokeAccess.ivar(scene, :@contest)
       [c.pokemonOne, c.pokemonTwo, c.pokemonThree, c.playerPokemon].compact
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
@@ -201,7 +210,8 @@ module PokeAccess
         PokeAccess::I18n.t(:if2_ct_score, :name => PokeAccess.clean(p.name.to_s), :n => n)
       end
       PokeAccess.speak(list.join(", "), false) unless list.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -217,7 +227,8 @@ module PokeAccess
                                      :n => r[2]))
       end
       PokeAccess.speak(list.join(". "), false) unless list.empty?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

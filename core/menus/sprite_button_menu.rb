@@ -15,7 +15,8 @@ module PokeAccess
       return if label.nil? || label.to_s.empty?
       @last = PokeAccess::Menus.button_label(label)
       PokeAccess.speak_clean(@last, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -34,7 +35,8 @@ module PokeAccess
       return unless @depth > 0
       PokeAccess::Info.set_info(:trainer, nil)
       PokeAccess.speak_clean(@last, true) if @last
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -59,7 +61,7 @@ module PokeAccess
         before("PokemonMenu_Scene", :pbEndScene, :optional => true) { |_s, _a| PokeAccess::SpriteButtonMenu.gone! }
       end
       bare.each do |cname, meth, extra|
-        PokeAccess::MenuReturn.bare(cname, meth.to_sym, { :optional => true }.merge(extra || {}))
+        PokeAccess::MenuReturn.bare(cname, meth.to_sym, { :optional => true }.merge!(extra || {}))
       end
     end
   end

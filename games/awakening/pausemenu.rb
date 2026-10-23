@@ -13,7 +13,8 @@ module PokeAccess
       return unless hl == 37
       say_panel(panel)
       PokeAccess::PausePanel.say(bar_lines(@menu)) if @menu
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -25,7 +26,8 @@ module PokeAccess
       @last = nm.to_s
       @last = "#{@last}, #{PokeAccess::I18n.t(:opt_unavailable)}" if PokeAccess.ivar(panel, :@index) == SAVE && $Fates_save == false
       PokeAccess.speak_clean(@last, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -77,11 +79,12 @@ module PokeAccess
       @menu = nil
     end
 
-    # Repeats the focused panel on returning from a submenu (cambio does not fire again); three submenus are
-    # called without pbFadeOutIn, so they are declared to MenuReturn by name below.
+    # Repeats the focused panel on returning from a submenu (cambio does not fire again); two submenus are called
+    # without pbFadeOutIn, so they are declared to MenuReturn by name below (the quest log is, by its plugin reader).
     def self.returned
       PokeAccess.speak_clean(@last, true) if @depth > 0 && @last
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -105,7 +108,7 @@ PokeAccess::Game.define("awakening") do
     PokeAccess::MenuReturn.reset_nesting
     begin; nxt.call; ensure; PokeAccess::AwakeningPause.close!; end
   end
-  ["pbQuestlog", "pbEquipScreen", "openGacha"].each { |fn| PokeAccess::MenuReturn.bare_fn(fn) }
+  ["pbEquipScreen", "openGacha"].each { |fn| PokeAccess::MenuReturn.bare_fn(fn) }
   before("JessFatesMenu", :dispose, :optional => true) { |_m, _a| PokeAccess::AwakeningPause.gone! }
 end
 

@@ -154,15 +154,27 @@ PokeAccess::Hooks.before_hook(PokeAccess::BattleG6::SCENE, :pbHPChanged) do |_s,
   PokeAccess::Battle.hp_changed(args[0], args[1])
 end
 
-# Holds the in-battle flag for the whole of pbBattleAnimation (gen 6 never sets $game_temp.in_battle) and suspends
-# Audio3D, whose tick gets no frame while a wild battle runs inside Game_Player#update.
+# Raises the in-battle flag as pbBattleAnimation starts, which only some gen-6 games mark with $game_temp.in_battle,
+# and makes sure it is down when it returns; tells the control check at once, since no map frame runs while a wild
+# battle runs inside Game_Player#update.
 PokeAccess::Hooks.wrap_kernel("pbBattleAnimation", "hook_battle_sonar", :around) do |args, call_next|
   PokeAccess::Battle.battle_started
-  (PokeAccess::Audio3D.suspend rescue nil)
+  PokeAccess::Control.changed!
   begin
     call_next.call
   ensure
     PokeAccess::Battle.battle_ended
+    PokeAccess::Control.changed!
+  end
+end
+
+# The fight is over as the battle's pbStartBattle returns, still inside pbBattleAnimation's block, which then runs the
+# end-of-battle events (an evolution, a black out) out of battle; each era's battle and Safari Zone classes, none a
+# subclass of another. hook_container: the battle drives every battle reader.
+["PokeBattle_Battle", "PokeBattle_SafariZone", "Battle", "SafariBattle"].each do |cn|
+  PokeAccess::Hooks.after_hook(cn, :pbStartBattle, :optional => true, :hook_container => true) do |_b, _r, _a|
+    PokeAccess::Battle.battle_ended
+    PokeAccess::Control.changed!
   end
 end
 

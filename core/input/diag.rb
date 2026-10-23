@@ -4,13 +4,13 @@ module PokeAccess
   module Keys
     # Writes a diagnostic snapshot with Ctrl+Alt+F9, so the real in-game values can be inspected.
     def self.diag_poll
-      diag_dump if hotkey?(:diag_dump, PokeAccess::Keyboard::VK_F9)
+      diag_dump if hotkey?(PokeAccess::Keyboard::VK_F9)
     end
 
     # Speaks a short status with Ctrl+Alt+F10: the scene, the map and position on the field, the last line spoken
     # and how many hooks never bound.
     def self.spoken_diag_poll
-      PokeAccess.speak(spoken_diag, true) if hotkey?(:spoken_diag, PokeAccess::Keyboard::VK_F10)
+      PokeAccess.speak(spoken_diag, true) if hotkey?(PokeAccess::Keyboard::VK_F10)
     end
 
     # The spoken diagnostic line (see spoken_diag_poll).
@@ -87,7 +87,8 @@ module PokeAccess
       o.join("\n")
     end
 
-    # Dumps the full snapshot to accessibility/data/diag.txt (Ctrl+Alt+F9 and the debug menu's "complete" item).
+    # Appends the full snapshot to diag.txt in the data folder (Paths::DATA) and says whether it was saved; run by
+    # Ctrl+Alt+F9 and the debug menu's full-diagnostics item.
     def self.diag_dump
       text = diag_build(DIAG_ALL)
       saved = ((File.open("#{PokeAccess::Paths::DATA}/diag.txt", "a") { |f| f.write(text + "\n\n") }; true) rescue false)
@@ -153,8 +154,9 @@ module PokeAccess
       @diag_fc = fc if fc.is_a?(Numeric)
     end
 
-    # The engine line, focus, scene state, hook health, plugins and config. fn_absent lists functions no wrapper
-    # found (cross-game variance, or a typo); sin_declarar, plugins the game has with no declared reader.
+    # The engine line, focus, scene state, hook health, failures logged and swallowed, plugins and config. fn_absent
+    # lists functions no wrapper found (cross-game variance, or a typo); sin_declarar, plugins the game has with no
+    # declared reader.
     def self.diag_focus(o)
       diag_engine(o)
       o.push("enabled=#{@enabled} focused?=#{dv { focused? }} game_hwnd=#{PokeAccess::Focus.hwnd.inspect} typing_ttl=#{@typing_ttl}")
@@ -165,6 +167,8 @@ module PokeAccess
       o.push("info_windows: declaradas=#{dv { PokeAccess::InfoWindow.watches.length }} sin_ventana=#{cut(dv { PokeAccess::InfoWindow.silent.inspect }, 200)} sin_entrada=#{cut(dv { PokeAccess::InfoWindow.unentered.inspect }, 200)}")
       o.push("dialogue: defines=#{dv { dialogue_forms.inspect }} wrapped=#{dv { PokeAccess.dialogue_wraps.inspect }} seen=#{dv { PokeAccess.dialogue_seen }} last=#{cut(dv { PokeAccess.last_dialogue.inspect }, 90)}")
       o.push("caches=#{cut(dv { PokeAccess::Caches.names.inspect }, 200)} data_err=#{cut(dv { PokeAccess::Data.errors.inspect }, 200)}")
+      o.push("logged=#{cut(dv { PokeAccess.logged.map { |k, v| "#{k}: #{v}" }.inspect }, 1500)}")
+      o.push("swallowed=#{cut(dv { PokeAccess.swallowed_sites.map { |site, n, first| "#{site} x#{n}: #{first}" }.inspect }, 2000)}")
       o.push("plugins: cargados=#{cut(dv { PokeAccess::Plugins.loaded.inspect }, 200)} sin_declarar=#{cut(dv { PokeAccess::Plugins.undeclared.inspect }, 200)}")
       gp = dv { PokeAccess::Plugins.game_plugins }
       o.push("plugins_juego: #{gp.is_a?(Array) ? (gp.empty? ? 'ninguno registrado' : cut(gp.join(', '), 400)) : 'sin PluginManager'}")
@@ -208,53 +212,54 @@ module PokeAccess
     def self.diag_locator(o)
       l = PokeAccess::Locator
       cats = dv { PokeAccess::Config.categories }
-      ci = dv { l.instance_variable_get(:@cat) }
       o.push("categories(#{dv { cats.size }})=#{cats.inspect}")
-      o.push("locator: cat=#{ci} (#{dv { cats[ci] }}) ti=#{dv { l.instance_variable_get(:@ti) }} targets=#{dv { l.instance_variable_get(:@targets).size }} target=#{dv { (t = l.instance_variable_get(:@target)) ? t.name : 'none' }} marks_here=#{dv { $game_map ? PokeAccess::Marks.on_map($game_map.map_id).size : 0 }}")
-      o.push("guides: cane=#{dv { l.instance_variable_get(:@guide) }} steps=#{dv { l.instance_variable_get(:@steps) }} leg=#{dv { l.instance_variable_get(:@steps_leg).inspect }} auto_cane=#{dv { PokeAccess::Config.auto_guide }} auto_steps=#{dv { PokeAccess::Config.auto_steps }}")
+      o.push("locator: cat=#{dv { l.category }} chosen=#{dv { l.instance_variable_get(:@cat_id) }} ti=#{dv { l.instance_variable_get(:@ti) }} targets=#{dv { l.instance_variable_get(:@targets).size }} target=#{dv { (t = l.instance_variable_get(:@target)) ? t.name : 'none' }} marks_here=#{dv { $game_map ? PokeAccess::Marks.on_map($game_map.map_id).size : 0 }}")
+      g = PokeAccess::Guide
+      o.push("guides: cane=#{dv { g.on?(:cane) }} steps=#{dv { g.on?(:steps) }} at=#{dv { g.instance_variable_get(:@at) }} left=#{dv { (g.remaining || []).length }} leg=#{dv { g.instance_variable_get(:@leg).to_a[0, 2].inspect }} auto_cane=#{dv { PokeAccess::Config.auto_guide }} auto_steps=#{dv { PokeAccess::Config.auto_steps }}")
       o.push("targetlist=#{cut(dv { l.instance_variable_get(:@targets)[0, 10].map { |t| "#{t.name rescue '?'}@#{t.x},#{t.y}" } }.inspect, 300)} stale=#{dv { l.instance_variable_get(:@targets_stale) ? true : false }}")
     end
 
-    # The reachable-tiles flood bounds and the route to the selected target.
+    # The bounds of the tiles the player can get to and the route to the selected target.
     def self.diag_pathfinder(o)
       return unless $game_map && $game_player
       c = PokeAccess::Config
       l = PokeAccess::Locator
       pf = PokeAccess::Pathfinder
-      o.push("pathfinder: reach=#{dv { c.route_reach }} astar=#{dv { c.astar_max }} algo=#{dv { pf.path_algorithm }} cache=#{dv { c.route_cache }} edge_relax=#{dv { c.edge_relax }}")
-      rs = dv { pf.reachable_set }
-      if rs.is_a?(Hash) && !rs.empty?
-        st = PokeAccess::Pathfinder::PKEY_STRIDE
-        xs = rs.keys.map { |k| k / st }; ys = rs.keys.map { |k| k % st }
-        o.push("reachable: #{rs.size} tiles, x #{xs.min}..#{xs.max}, y #{ys.min}..#{ys.max}")
+      fx = PokeAccess::Routes::Effects
+      o.push("pathfinder: reach=#{dv { c.route_reach }} limit=#{dv { c.route_limit }} astar=#{dv { c.astar_max }} budget=#{dv { c.route_budget_ms }} algo=#{dv { pf.path_algorithm }} edge_relax=#{dv { c.edge_relax }}")
+      reg = PokeAccess::Routes::Regions.foot
+      rs = dv { reg.tiles }
+      if rs.is_a?(Array) && !rs.empty?
+        xs = rs.map { |x, _y| x }; ys = rs.map { |_x, y| y }
+        o.push("reachable: #{rs.size} tiles, x #{xs.min}..#{xs.max}, y #{ys.min}..#{ys.max} complete=#{dv { reg.done? }}")
       else
         o.push("reachable: #{dv { rs.class }} (empty)")
       end
-      tc = dv { pf.touch_census }
-      o.push("touch_events: #{tc.is_a?(Hash) ? tc.sort_by { |k, _v| k.to_s }.map { |k, v| "#{k}=#{v}" }.join(' ') : tc} bridge=#{dv { pf.bridge_level }} stair=#{dv { pf.on_stair? }} gates=#{dv { pf.gate_index.size }} acts=#{dv { pf.act_index.size }} pushes=#{dv { pf.boulder_index.size }}")
+      tc = dv { fx.touch_census }
+      o.push("touch_events: #{tc.is_a?(Hash) ? tc.sort_by { |k, _v| k.to_s }.map { |k, v| "#{k}=#{v}" }.join(' ') : tc} bridge=#{dv { pf.bridge_level }} stair=#{dv { !PokeAccess::World::Probe.stable? }} gates=#{dv { fx.gate_index.size }} acts=#{dv { fx.act_index.size }} pushes=#{dv { fx.boulder_index.size }}")
       tg = dv { l.instance_variable_get(:@target) }
       if tg.respond_to?(:x)
         md = (tg.x - $game_player.x).abs + (tg.y - $game_player.y).abs
-        o.push("target_route: to #{tg.x},#{tg.y} manhattan=#{md} over_reach=#{md > (c.route_reach rescue 0)} find_path=#{dv { p = pf.find_path(tg.x, tg.y); p.nil? ? 'NIL' : p.length.to_s + 'steps' }} surf_launch=#{dv { pf.surf_launch(tg.x, tg.y) ? 'shore' : 'nil' }}")
-        o.push("  walk_only=#{dv { pf.find_path_to(tg.x, tg.y, false).nil? ? 'NIL(ruta usa ledges/parcial)' : 'ok' }} target_reachable=#{dv { s = pf.reachable_set; [[0, 0], [1, 0], [-1, 0], [0, 1], [0, -1]].any? { |dx, dy| s[pf.pkey(tg.x + dx, tg.y + dy)] } }}")
-        o.push("  route=#{cut(dv { pf.path_to_text(pf.find_path(tg.x, tg.y)) }.to_s, 220)}")
-        o.push("  gated=#{dv { g = pf.gated_path(tg.x, tg.y); g ? "#{g[1][:kind]}:#{g[1][:label] || g[1][:face]} at #{g[1][:x]},#{g[1][:y]} after #{g[0].length}" : 'nil' }} surf_plan=#{dv { pf.surf_plan(tg.x, tg.y).inspect }} door_sides=#{dv { pf.door_facings(tg.x, tg.y).inspect }}")
+        plan = l.route_plan(tg)
+        o.push("target_route: to #{tg.x},#{tg.y} manhattan=#{md} over_reach=#{md > (c.route_reach rescue 0)} plan=#{plan.kind} steps=#{plan.route ? plan.route.length : '-'} stats=#{plan.stats.inspect}")
+        o.push("  target_reachable=#{dv { l.reach_status(tg).inspect }}")
+        o.push("  route=#{cut(dv { PokeAccess::Routes::Text.line(plan) }.to_s, 220)}")
+        o.push("  gate=#{dv { g = plan.gate; g ? "#{g[:kind]}:#{g[:label] || g[:face]} at #{g[:x]},#{g[:y]}" : 'nil' }} surf_plan=#{dv { pf.surf_plan(tg.x, tg.y).inspect }} door_sides=#{dv { fx.door_facings(tg.x, tg.y).inspect }}")
       end
     end
 
-    # The puzzle declared for this map, if any: the flags it watches and the controls and obstacles it found.
+    # The puzzle declared for this map, if any: its kind, the flags it watches and the pieces it found.
     def self.diag_puzzle(o)
       pz = PokeAccess::Puzzles
-      d = dv { pz.current }
-      return o.push("puzzle: none for this map") unless d.is_a?(Hash)
-      o.push("puzzle: kind=#{dv { pz.kind(d) }} active=#{dv { pz.active? }} owns_info=#{dv { PokeAccess::Keys.puzzle_owns_info? }} locator_targets=#{dv { pz.has_locator_targets? }}")
-      w = (d[:watch] || [])
-      flags = dv { w.map { |e| (e[:switch] ? "sw" + e[:switch].to_s : "var" + e[:var].to_s) + "=" + pz.flag_value(e).to_s } }
-      ctrls = dv { pz.controls.map { |c| "ev" + c[0].id.to_s + "@" + c[0].x.to_s + "," + c[0].y.to_s + ":" + pz.label_of(c[1][:label]) } }
-      obs = dv { pz.obstacle_events.map { |ev| ev.character_name.to_s + "@" + ev.x.to_s + "," + ev.y.to_s } }
+      mech = PokeAccess::World::Mechanics
+      inst = dv { mech.instance }
+      return o.push("puzzle: none for this map") unless inst.is_a?(mech::Instance)
+      o.push("puzzle: kind=#{inst.kind} active=#{dv { pz.active? }} owns_info=#{dv { !pz.info_line.to_s.empty? }} locator_targets=#{dv { pz.has_locator_targets? }}")
+      w = (inst.spec[:watch] || [])
+      flags = dv { w.map { |e| (e[:switch] ? "sw" + e[:switch].to_s : "var" + e[:var].to_s) + "=" + mech::State.flag(e).to_s } }
+      pieces = dv { mech.pieces.map { |p| "#{p.role}:ev#{p.ev.id}@#{p.ev.x},#{p.ev.y}#{p.label ? ':' + pz.label_of(p.label) : ''}#{p.moving ? ':moving' : ''}" } }
       o.push("  watch(#{w.size})=#{cut(flags.inspect, 250)}")
-      o.push("  controls=#{cut(ctrls.inspect, 250)}")
-      o.push("  obstacles=#{cut(obs.inspect, 250)}")
+      o.push("  pieces=#{cut(pieces.inspect, 400)}")
     end
 
     # The surface-cue label map and its targets.
@@ -263,10 +268,10 @@ module PokeAccess
       o.push("surface_label_map=#{dv { l.surface_label_map.size }}: #{cut(dv { l.surface_label_map.inspect }, 250)}")
       o.push("surface_targets=#{dv { l.surface_targets.size }}: #{cut(dv { l.surface_targets.map { |t| "#{t.name}@#{t.x},#{t.y}" } }.inspect, 250)}")
       if $game_map && $game_player
-        here = dv { PokeAccess::Terrain.kind($game_player.x, $game_player.y, true) }
-        label = dv { PokeAccess::Terrain.label($game_player.x, $game_player.y) }
-        front = dv { f = PokeAccess::Spatial.front_tile; PokeAccess::Terrain.kind(f[0], f[1], true) }
-        surfable = dv { f = PokeAccess::Spatial.front_tile; PokeAccess::Terrain.surfable_at?(f[0], f[1]) }
+        here = dv { PokeAccess::World::Terrain.kind($game_player.x, $game_player.y, true) }
+        label = dv { PokeAccess::World::Terrain.label($game_player.x, $game_player.y) }
+        front = dv { f = PokeAccess::Control.front_tile; PokeAccess::World::Terrain.kind(f[0], f[1], true) }
+        surfable = dv { f = PokeAccess::Control.front_tile; PokeAccess::World::Terrain.surfable?(f[0], f[1]) }
         o.push("surf_cue: cues=#{dv { PokeAccess::Config.surface_cues }} here=#{here} label=#{label} front=#{front} surfable_front=#{surfable} surfing=#{dv { $PokemonGlobal.surfing }}")
       end
     end
@@ -274,18 +279,21 @@ module PokeAccess
     # The positional-audio state and the nearby events with their classification/line-of-sight.
     def self.diag_audio3d(o)
       c = PokeAccess::Config
-      a3 = PokeAccess::Audio3D
-      o.push("audio3d: engine=Steam Audio (phonon+miniaudio) available=#{dv { a3.available? }} sound_nav=#{dv { c.sound_nav }} ready=#{dv { a3.instance_variable_get(:@ready) }} boot_tried=#{dv { a3.instance_variable_get(:@boot_tried) }} active=#{dv { a3.instance_variable_get(:@active) }} pitch_export=#{dv { a3::PITCH ? 'yes' : 'no' }}")
-      o.push("audio3d device: rate=#{dv { a3.device_rate }}Hz latency=#{dv { a3.device_latency }}ms asset_set=#{dv { a3.device_rate == 48000 ? '48000' : '44100' }}")
-      o.push("audio3d cfg: master=#{dv { c.audio3d_volume }} occlusion=#{dv { c.audio3d_occlusion }} air=#{dv { c.audio3d_air }} range=#{dv { a3.range }} wall_range=#{dv { a3.wall_range }} alt_dist=#{dv { a3.alt_dist }} wind=#{dv { c.audio3d_wind }} falloff=#{dv { c.audio3d_wall_falloff }}")
+      snd = PokeAccess::Sound
+      pa = snd::Pa3d
+      sch = snd::Scheduler
+      sc = snd::Scene
+      o.push("audio3d: engine=Steam Audio (phonon+miniaudio) available=#{dv { snd::Native.available? }} sound_nav=#{dv { c.sound_nav }} ready=#{dv { pa.ready? }} boot_tried=#{dv { pa.boot_tried? }} active=#{dv { sch.active? }} pitch_export=#{dv { snd::Native.has?(:pitch) ? 'yes' : 'no' }}")
+      o.push("audio3d device: rate=#{dv { pa.device_rate }}Hz latency=#{dv { pa.device_latency }}ms asset_set=#{dv { pa.device_rate == 48000 ? '48000' : '44100' }}")
+      o.push("audio3d cfg: master=#{dv { c.audio3d_volume }} occlusion=#{dv { c.audio3d_occlusion }} air=#{dv { c.audio3d_air }} range=#{dv { sc.range }} wall_range=#{dv { sc.wall_range }} alt_dist=#{dv { sch.alt_dist }} wind=#{dv { c.audio3d_wind }} falloff=#{dv { c.audio3d_wall_falloff }}")
       o.push("audio3d vols: npc=#{dv { c.audio3d_npc }} object=#{dv { c.audio3d_object }} door=#{dv { c.audio3d_door }} water=#{dv { c.audio3d_water }}")
-      o.push("audio3d tones: npc=#{dv { c.audio3d_tone_npc }} object=#{dv { c.audio3d_tone_object }} door=#{dv { c.audio3d_tone_door }} teleporter=#{dv { c.audio3d_tone_teleporter }} water=#{dv { c.audio3d_tone_water }} wind=#{dv { c.audio3d_tone_wind }} step=#{dv { c.footstep_tone }} wall=#{dv { c.wall_tone }} guide=#{dv { c.guide_tone }} sent=#{dv { a3.instance_variable_get(:@tone_sent).inspect }}")
-      o.push("audio3d chans=#{dv { a3.instance_variable_get(:@ch).inspect }}")
-      o.push("audio3d state: scan_pos=#{dv { a3.instance_variable_get(:@scan_pos).inspect }} walls=#{dv { a3.instance_variable_get(:@wall).inspect }} near=#{dv { a3.instance_variable_get(:@near).inspect }}")
-      o.push("audio3d gate: now=#{dv { PokeAccess::Spatial.busy_reason.inspect }} #{dv { a3.gate_report }}")
-      o.push("sonar reach: #{dv { PokeAccess::Audio3D.reach_census }}")
-      o.push("audio3d emitters=#{cut(dv { a3.instance_variable_get(:@emitters).inspect }, 300)}")
-      o.push("audio3d movers: has=#{dv { PokeAccess::Puzzles.has_movers? }} cached=#{dv { (a3.instance_variable_get(:@emitters)[:trap]).inspect }} last_scan=#{dv { a3.instance_variable_get(:@mover_time) }} now=#{dv { PokeAccess.clock }}")
+      o.push("audio3d tones: npc=#{dv { c.audio3d_tone_npc }} object=#{dv { c.audio3d_tone_object }} door=#{dv { c.audio3d_tone_door }} teleporter=#{dv { c.audio3d_tone_teleporter }} water=#{dv { c.audio3d_tone_water }} wind=#{dv { c.audio3d_tone_wind }} step=#{dv { c.footstep_tone }} wall=#{dv { c.wall_tone }} guide=#{dv { c.guide_tone }} sent=#{dv { pa.pitches.inspect }}")
+      o.push("audio3d chans=#{dv { pa.channels.inspect }}")
+      o.push("audio3d state: scan_pos=#{dv { sch.instance_variable_get(:@scan_pos).inspect }} walls=#{dv { sc.walls.inspect }} water=#{dv { sc.water.inspect }}")
+      o.push("audio3d gate: now=#{dv { PokeAccess::Control.reason.inspect }} #{dv { sch.gate_report }}")
+      o.push("sonar reach: #{dv { sc.census }}")
+      o.push("audio3d emitters=#{cut(dv { sc.emitters.inspect }, 300)}")
+      o.push("audio3d walkers: #{cut(dv { sc.watched.map { |ev, x, y| "ev#{ev.id}@#{x},#{y}" }.join(' ') }, 200)} last_read=#{dv { sch.instance_variable_get(:@mover_time) }} now=#{dv { PokeAccess.clock }}")
       o.push("paths: data=#{dv { PokeAccess::Paths::DATA }} cwd=#{dv { Dir.pwd }} lib=#{dv { PokeAccess::Paths::LIB }}")
       return unless $game_map && $game_player
       o.push("nearby_events=" + cut(dv {
@@ -293,8 +301,8 @@ module PokeAccess
         near = $game_map.events.values.select { |e| ((e.x - px).abs + (e.y - py).abs) <= 12 }
         near = near.sort_by { |e| (e.x - px).abs + (e.y - py).abs }[0, 12]
         near.map do |e|
-          t = (a3.type_of(e) rescue '?'); g = (PokeAccess::Locator.has_graphic?(e) rescue nil)
-          int = (PokeAccess::Locator.interactable?(e) rescue nil); los = (a3.line_clear?(px, py, e.x, e.y) rescue nil)
+          t = (sc.family_of(e) rescue '?'); g = (PokeAccess::Locator.has_graphic?(e) rescue nil)
+          int = (PokeAccess::Locator.interactable?(e) rescue nil); los = (sc.line_clear?(px, py, e.x, e.y) rescue nil)
           rch = (PokeAccess::Locator.reachable?(e) rescue nil)
           "#{(e.name rescue '?')}@#{e.x},#{e.y}:#{t.inspect}/g#{g ? 1 : 0}/i#{int ? 1 : 0}/los#{los ? 1 : 0}/R#{rch ? 1 : 0}"
         end.join(" | ")
@@ -302,7 +310,7 @@ module PokeAccess
     end
 
     # Battle/trainer state, player-sprite selection (character_ID, else the gen-6 playerID), on-screen pictures,
-    # choices and live command windows.
+    # choices, live command windows with their first rows, and the strings painted lately.
     def self.diag_scene(o)
       o.push("battle_ref=#{dv { PokeAccess::Battle.instance_variable_get(:@battle_ref) ? 'present' : 'nil' }} trainer=#{dv { p = PokeAccess::Engine.player; p ? p.name : 'nil' }}")
       o.push("player_sel: playerID=#{dv { pl_attr(:character_ID) || ($PokemonGlobal.playerID rescue nil) }} charset='#{dv { $game_player.character_name }}' tt=#{dv { pl_attr(:trainertype) || pl_attr(:trainer_type) }} outfit=#{dv { pl_attr(:outfit) }} gender=#{dv { pl_attr(:gender) }}")
@@ -317,11 +325,13 @@ module PokeAccess
             cmds = PokeAccess.ivar(w, :@commands)
             n = cmds.is_a?(Array) ? cmds.length : "-"
             s0 = (cmds.is_a?(Array) && cmds[0]) ? cmds[0].class.to_s : "-"
-            out.push("#{w.class} act=#{w.active rescue '?'} vis=#{w.visible rescue '?'} idx=#{w.index rescue '?'} n=#{n} c0=#{s0}")
+            rows = cmds.is_a?(Array) ? cmds[0, 8].map { |c| cut(c.is_a?(Array) ? c.compact.join(" ") : c, 30) } : []
+            out.push("#{w.class} act=#{w.active rescue '?'} vis=#{w.visible rescue '?'} idx=#{w.index rescue '?'} n=#{n} c0=#{s0} rows=#{rows.join(' / ')}")
           end
         end
         out
-      }.inspect, 600))
+      }.inspect, 1200))
+      o.push("painted=" + cut(dv { PokeAccess::PaintCapture.recent.join(" | ") }.to_s, 1500))
     end
 
     # Names of the instance methods a class defines itself (not inherited), sorted: the candidate hook points.
@@ -388,7 +398,7 @@ module PokeAccess
     # The per-frame input layers: the Input.update aliases and how many frame pollers are registered.
     def self.diag_polls(o)
       aliases = ((class << Input; self; end).instance_methods(false).select { |m| m.to_s =~ /update__access/ } rescue [])
-      o.push("input_update_layers: #{aliases.inspect} frame_pollers=#{(@frame_pollers || []).length}")
+      o.push("input_update_layers: #{aliases.inspect} frame_pollers=#{(PokeAccess::Frame.instance_variable_get(:@pollers) || []).length}")
     rescue Exception => e
       o.push("diag_polls: ERR #{e.class}: #{e.message}")
     end

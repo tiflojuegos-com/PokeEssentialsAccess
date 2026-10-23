@@ -4,7 +4,8 @@
 module PokeAccess
   module DexSearch
     # The older search screen (pbRefreshDexSearch(params)): its "searchlist" window, claimed from the generic reader,
-    # read off its cursor; the message box's help line follows while descriptions are said, and fills the info key.
+    # read off its cursor (in_context); the message box's help line follows while descriptions are said, and fills
+    # the info key.
     def self.list(scene)
       win = PokeAccess.dedicate(PokeAccess.sprite(scene, "searchlist"))
       return unless win
@@ -13,17 +14,31 @@ module PokeAccess
       help = help_text(scene)
       PokeAccess::Info.set_info(:text, help) unless help.empty?
       PokeAccess::Cursor.announce(scene, :dex_search, [(win.index rescue nil), txt], true) do
-        help.empty? || !PokeAccess::Verbosity.descriptions? ? txt : "#{txt}. #{help}"
+        row = in_context(scene, win, txt)
+        help.empty? || !PokeAccess::Verbosity.descriptions? ? row : "#{row}. #{help}"
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
+    end
+
+    # A row after its group's heading ("Sort, Order: ...") when the cursor enters that group, and after the screen's
+    # title too on the search's first read.
+    def self.in_context(scene, win, txt)
+      first = PokeAccess::Cursor.pending?(scene, :dex_search_group)
+      g = (win.indexToCommand(win.index)[0] rescue nil)
+      head = (g && PokeAccess::Cursor.changed?(scene, :dex_search_group, g)) ? PokeAccess.clean((win.commands[g * 2] rescue "").to_s) : ""
+      row = head.empty? ? txt : "#{head}, #{txt}"
+      title = first ? PokeAccess.clean((PokeAccess.sprite(scene, "searchtitle").text rescue "").to_s) : ""
+      PokeAccess::Util.join_parts([title, row])
     end
 
     # The older screen's help line, as its message box holds it now, or "".
     def self.help_text(scene)
       box = PokeAccess.sprite(scene, "messagebox")
       box ? PokeAccess.clean((box.text rescue "").to_s) : ""
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       ""
     end
 
@@ -48,7 +63,8 @@ module PokeAccess
       return unless PokeAccess::Cursor.changed?(@aux, :dex_search_help, t)
       PokeAccess::Info.set_info(:text, t)
       PokeAccess.speak(t, false) if PokeAccess::Verbosity.descriptions?
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -63,4 +79,4 @@ PokeAccess::Hooks.around_hook("PokemonPokedexScene", :pbDexSearchCommands, :opti
     PokeAccess::DexSearch.aux_close
   end
 end
-PokeAccess::Keys.on_frame { PokeAccess::DexSearch.aux_poll }
+PokeAccess::Frame.each_pulse { PokeAccess::DexSearch.aux_poll }

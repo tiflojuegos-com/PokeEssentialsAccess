@@ -27,7 +27,8 @@ module PokeAccess
       PokeAccess::Info.set_info(:text, whole, whole)
       return whole if PokeAccess::Verbosity.keep?(:incubator, :full)
       PokeAccess::I18n.t(:hatch_slot_egg, :n => n, :state => left)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

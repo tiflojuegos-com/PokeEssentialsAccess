@@ -41,12 +41,26 @@ end
 # The party screen's help line ("Move to where?"): said on change, queued, after the setter runs, since a screen
 # hiding the line moves its window away there.
 module PokeAccess
-  # Says a party screen's help line when it changed, unless its help window is hidden or moved off screen.
+  # Says a party screen's help line when it changed, unless its help window is hidden; a line moved off screen is
+  # kept for the destination mode it may name (say_mode_help).
   def self.say_party_help(scene, text)
     win = PokeAccess.sprite(scene, "helpwindow")
-    return if win && (!(win.visible rescue true) || (win.y rescue 0).to_i >= Graphics.height)
+    return if win && !(win.visible rescue true)
     t = PokeAccess.clean(text.to_s)
-    PokeAccess.speak(t, false) if !t.empty? && PokeAccess::Cursor.changed?(scene, :party_help, t)
+    return if t.empty? || !PokeAccess::Cursor.changed?(scene, :party_help, t)
+    if win && (win.y rescue 0).to_i >= Graphics.height
+      scene.instance_variable_set(:@access_party_help, t)
+    else
+      PokeAccess.speak(t, false)
+    end
+  end
+
+  # As a choice opens: a destination mode (Switch, Softboiled, an item's Move) says the help line its screen moved
+  # off screen, queued, since only the panels' tint shows the mode; a plain choice drops that line unsaid.
+  def self.say_mode_help(scene, switching)
+    t = PokeAccess.ivar(scene, :@access_party_help)
+    scene.instance_variable_set(:@access_party_help, nil)
+    PokeAccess.speak(t, false) if switching && t
   end
 end
 

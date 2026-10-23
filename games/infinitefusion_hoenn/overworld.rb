@@ -17,7 +17,8 @@ module PokeAccess
       name = species_name(m[3])
       w = PokeAccess::I18n.t(m[1] ? :if2_ow_fusion : :loc_wild, :name => name)
       m[2] ? "#{w}, #{PokeAccess::I18n.t(:pk_shiny)}" : w
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -40,7 +41,5 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("infinitefusion_hoenn") do
-  override("PokeAccess::Locator", :wild_pokemon_name) do |_mod, original, args|
-    original.call || PokeAccess::IF2Overworld.wild_name(args[0])
-  end
+  event_name { |ev| PokeAccess::IF2Overworld.wild_name(ev) }
 end

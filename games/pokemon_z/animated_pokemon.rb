@@ -29,7 +29,8 @@ module PokeAccess
       return nil if name.nil? || name.to_s.strip.empty?
       type = type_of(shown, key)
       type ? "#{name}, #{PokeAccess::I18n.t(:bt_type, :t => type)}" : name.to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

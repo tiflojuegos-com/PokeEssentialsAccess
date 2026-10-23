@@ -17,6 +17,10 @@ end
 
 PokeAccess::Game.define("soulstones1") do
   PokeAccess::Soulstones1FieldMoves::APPS.each { |move, app| field_move_item(move, app) }
+
+  # Its Kernel.pbSurf refuses while anyone walks along as a dependent event, the following Pokemon let past by its
+  # switch only with IUSEFOLLOWINGPOKEMON on (off as it ships).
+  surf_company(:dependents) { IUSEFOLLOWINGPOKEMON && $game_switches[Following_Activated_Switch] }
   override("PokeAccess::FieldMoves", :item_ready?) do |_mod, original, args|
     PokeAccess::Soulstones1FieldMoves.item_ready?(args[0], original.call)
   end

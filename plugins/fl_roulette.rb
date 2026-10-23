@@ -1,8 +1,7 @@
 module PokeAccess
-  # FL's Roulette mini-game (RouletteScene, the Game Corner roulette of Ruby, Sapphire and Emerald): a table of COLUMNS
-  # by ROWS cells beside the wheel, all pictures. The cursor bets on one cell, a whole column (from the header row) or a
-  # whole row (from the header column); the bet's payout multiplier is painted in its box, and nothing is painted once
-  # every cell of the bet has come up. The coins are painted in their box, and a spin ends with the ball on its cell.
+  # FL's Roulette mini-game (RouletteScene): a table of pictures whose cursor bets on a cell, a whole column (from the
+  # header row) or a whole row (from the header column), said with its painted multiplier or that all of it has come
+  # up; the coins and where each spin's ball falls are said too.
   module FLRoulette
     # The bet under the cursor: one cell, or a whole row or column.
     def self.bet(cursor)
@@ -21,7 +20,8 @@ module PokeAccess
       mult = painted.map { |r| PokeAccess.clean(r[0]) }.find { |t| t =~ /\A\d+\z/ }
       pay = mult ? PokeAccess::I18n.t(:flr_multiplier, :n => mult) : PokeAccess::I18n.t(:flr_played)
       PokeAccess.sentences([bet(cursor), pay])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -34,7 +34,8 @@ module PokeAccess
         cells.push(PokeAccess::I18n.t(:mg_rowcol, :row => i / cols + 1, :col => i % cols + 1)) if hit
       end
       cells.empty? ? nil : PokeAccess::I18n.t(:flr_hits, :list => cells.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -44,7 +45,8 @@ module PokeAccess
       cols = scene.class::COLUMNS
       cell = PokeAccess::I18n.t(:mg_rowcol, :row => r / cols + 1, :col => r % cols + 1)
       PokeAccess::I18n.t(:flr_landed, :cell => cell)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

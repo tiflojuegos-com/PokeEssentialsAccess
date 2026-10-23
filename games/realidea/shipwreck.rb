@@ -18,7 +18,8 @@ module PokeAccess
       fish_poll
       return unless @active
       @kind == :morse ? morse(@active) : timon(@active)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -30,18 +31,20 @@ module PokeAccess
     # Symbols per painted row; V jumps to the next one.
     MORSE_ROW = 4
 
-    # Telegraph: the painted keys as it opens, each symbol entered with the row and place it is painted in (@numero,
-    # which V moves on a row), the symbols cleared, and the guide's alphabet while M shows it.
+    # Telegraph: its keys as it opens, each symbol entered with the row and place it is painted in (@numero, which V
+    # moves on a row), the symbols cleared, and the guide's alphabet while M shows it.
     def self.morse(scene)
       morse_symbols(scene)
       morse_keys(scene)
       morse_guide(scene)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # Once, queued: the keys the panel paints (and M for the guide once it is owned); with the puzzle assist, how
-    # many symbols the answer has.
+    # Once, queued: the keys the panel paints (and M for the guide once it is owned), then the ones it does not, which
+    # enter a dot or a dash on the press, unheld (inputtecla: Left or numpad plus, Right or numpad minus); with the
+    # puzzle assist, how many symbols the answer has.
     def self.morse_keys(scene)
       return unless PokeAccess::Cursor.changed?(scene, :rea_morse_keys, true)
       parts = []
@@ -49,6 +52,7 @@ module PokeAccess
         parts.push(PokeAccess::KeyHints.localize(PokeAccess::I18n.t(:rea_morse_keys)))
         guide = PokeAccess.sprite(scene, "help1")
         parts.push(PokeAccess::I18n.t(:rea_morse_guide_key)) if guide && (guide.visible rescue false)
+        parts.push(PokeAccess::I18n.t(:rea_morse_arrows))
       end
       target = PokeAccess.ivar(scene, :@secuenciacorrecta)
       if PokeAccess::Puzzles.assist? && target.is_a?(Array)
@@ -102,9 +106,10 @@ module PokeAccess
 
     # The chart's red line from Esoteria to Kanto, as the compass points the wheel names.
     ROUTE = %w[O NO NE E S E]
-    # The wheel's compass points, the game's own abbreviations, and the direction each stands for.
+    # The wheel's compass points, the game's own abbreviations (English.dat's NW, W and SW with the game in English),
+    # and the direction each stands for.
     POINTS = { "N" => :dir_n, "NE" => :dir_ne, "E" => :dir_e, "SE" => :dir_se, "S" => :dir_s, "SO" => :dir_so,
-               "O" => :dir_o, "NO" => :dir_no }
+               "O" => :dir_o, "NO" => :dir_no, "SW" => :dir_so, "W" => :dir_o, "NW" => :dir_no }
 
     # A compass point of the wheel ("NO", or "[NO]" as an entry) as its direction word.
     def self.point_word(abbr)
@@ -125,7 +130,8 @@ module PokeAccess
       timon_entries(scene)
       timon_keys(scene)
       timon_chart(scene)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -186,7 +192,8 @@ module PokeAccess
     def self.examined(item)
       id = PokeAccess.const_at("PBItems::MAPAMAR")
       PokeAccess.speak(route_text, true) if id && item == id
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -195,6 +202,9 @@ module PokeAccess
     FISH_MAP = 278
     FISH_SWITCH = 366
     FISH = [3, 4, 5]
+    # The switches the game turns on as it settles the puzzle, lost (359), won (360) or left with X (365): their
+    # pages say its messages and put the fish back with 366 still on.
+    FISH_SETTLING = [359, 360, 365]
     # The top-left tile of the grid the puzzle's picture (Flechasminijuego) paints; rows and columns count from 1.
     GRID_ORIGIN = [13, 6]
     # The green circle the Chinchou has to reach.
@@ -204,9 +214,10 @@ module PokeAccess
     # Frames the fish must stand still, currents done, before their places are said.
     FISH_SETTLE = 6
 
-    # True while the puzzle runs.
+    # True while the puzzle runs and the game is not settling it.
     def self.fish_active?
-      (($game_map.map_id rescue 0) == FISH_MAP && ($game_switches[FISH_SWITCH] rescue false)) ? true : false
+      return false unless ($game_map.map_id rescue 0) == FISH_MAP && ($game_switches[FISH_SWITCH] rescue false)
+      FISH_SETTLING.none? { |s| ($game_switches[s] rescue false) }
     end
 
     # The three fish events (nil for one the map lacks).
@@ -234,14 +245,6 @@ module PokeAccess
       exit_key = PokeAccess::KeyHints.localize(PokeAccess::I18n.t(:rea_fish_exit))
       intro = PokeAccess::Verbosity.with_hint(PokeAccess::I18n.t(:rea_fish_intro), exit_key)
       PokeAccess.sentences([intro, PokeAccess::I18n.t(:rea_fish_board), fish_status])
-    end
-
-    # The puzzle as the locator and the info key know it: one stage, live while switch 366 runs it, whose green
-    # circle the locator lists only then.
-    def self.fish_puzzle
-      { :kind => :stages,
-        :stages => [{ :when => lambda { fish_active? }, :title => lambda { fish_title },
-                      :spots => [{ :at => GOAL, :label => :rea_fish_circle }] }] }
     end
 
     # An arrow the puzzle took (gambaizda, gambadcha, gambabajo or gambarriba): the fish are awaited afresh.
@@ -316,5 +319,11 @@ PokeAccess::Game.define("realidea") do
   %w[gambaizda gambadcha gambabajo gambarriba].each do |f|
     kernel(f, :before) { |_a, _r| PokeAccess::RealideaShipwreck.fish_push }
   end
-  puzzle(PokeAccess::RealideaShipwreck::FISH_MAP, PokeAccess::RealideaShipwreck.fish_puzzle)
+  # The puzzle as the locator and the info key know it: one phase, opened (and said) as switch 366 runs it, whose
+  # green circle the locator lists only then.
+  mechanic(:state, PokeAccess::RealideaShipwreck::FISH_MAP) do
+    phase lambda { PokeAccess::RealideaShipwreck.fish_active? },
+          :title => lambda { PokeAccess::RealideaShipwreck.fish_title },
+          :spots => [{ :at => PokeAccess::RealideaShipwreck::GOAL, :label => :rea_fish_circle }]
+  end
 end

@@ -6,7 +6,8 @@ module PokeAccess
       t = (pk.hptype rescue nil)
       name = t ? (GameData::Type.get(t).name rescue nil) : nil
       name ? PokeAccess::I18n.t(:sm_hidden_power, :t => name) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

@@ -51,7 +51,7 @@ module PokeAccess
     end
 
     def self.has_entry?(store, mid)
-      store.has_key?(mid)
+      store.key?(mid)
     end
 
     def self.put_entry(store, mid, name)

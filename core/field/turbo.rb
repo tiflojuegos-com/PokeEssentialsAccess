@@ -33,7 +33,8 @@ module PokeAccess
         @fast = fast?(rate)
         say_rate(@fast) if @fast != was
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -93,4 +94,4 @@ module PokeAccess
   end
 end
 
-PokeAccess::Keys.on_frame { PokeAccess::Turbo.tick }
+PokeAccess::Frame.each_pulse { PokeAccess::Turbo.tick }

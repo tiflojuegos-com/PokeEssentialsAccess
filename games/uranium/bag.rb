@@ -9,9 +9,10 @@ module PokeAccess
       PokeAccess.dedicate(win)
       return unless win.active
       idx = win.index
-      entry = ((PokeAccess.ivar(win, :@bag).pockets[win.pocket] || [])[idx] rescue nil)
+      rows = ((PokeAccess.ivar(win, :@bag).pockets[win.pocket] || []) rescue [])
+      entry = rows[idx]
       PokeAccess::Cursor.announce(win, :ura_bag_list, [win.pocket, idx, witness(win, entry, idx)], true, false) do
-        text = entry ? row(win, entry, idx) : empty_text
+        text = entry ? row(win, entry, idx, rows.length) : empty_text
         prefix = PokeAccess::Menus.bag_prefix(win)
         PokeAccess::Menus.mark_bag_pocket(win)
         "#{prefix}#{text}"
@@ -25,8 +26,9 @@ module PokeAccess
     end
 
     # A pocket row at the bag reading's level: the name as the panel paints it (a machine with its move), the count
-    # where the panel shows one, the key-item icon's mark and the moving mark while sorting.
-    def self.row(win, entry, idx)
+    # where the panel shows one, the key-item icon's mark, the moving mark while sorting, then its place among the
+    # pocket's count items while positions are said (the list has no close row).
+    def self.row(win, entry, idx, count)
       item = entry[0]
       ad = PokeAccess.ivar(win, :@adapter)
       name = (ad.getDisplayName(item) rescue nil) || PokeAccess::Data.item_name(item) || item.to_s
@@ -35,8 +37,8 @@ module PokeAccess
       m = mark(win, item)
       parts.push([PokeAccess::I18n.t(m), :medium]) if m
       parts.push([PokeAccess::I18n.t(:bag_moving), :brief]) if win.sortIndex == idx
-      PokeAccess::Info.set_info(:item, item, PokeAccess::Verbosity.full_line(parts))
-      PokeAccess::Verbosity.line(:bag_item, parts)
+      PokeAccess::Info.set_info(:item, item, PokeAccess::Verbosity.whole { PokeAccess::Menus.bag_line(parts, idx, count) })
+      PokeAccess::Menus.bag_line(parts, idx, count)
     end
 
     # The key-item icon a row shows: registered when in the bag's keyItemsSelected, registrable for another key
@@ -56,13 +58,12 @@ end
 
 PokeAccess::Game.define("uranium") do
   after("Window_DrawableCommandBag", :update) { |win, _r, _a| PokeAccess::UraniumBag.update(win) }
+
+  # The BW bag script defines its own UIHelper inside PokemonBag_Scene, and the bag's messages, questions and quantity
+  # prompts go through that copy instead of the one core wraps.
+  PokeAccess::UIHelperWrap.wrap(%w[pbDisplay pbDisplayStatic pbConfirm pbShowCommands pbChooseNumber],
+                                "PokemonBag_Scene::UIHelper")
   before("PokemonBag_Scene", :pbChooseItem) do |scene, _a|
     PokeAccess::Cursor.reset(PokeAccess.sprite(scene, "itemwindow"), :ura_bag_list)
   end
-end
-
-# The registered key items list keeps item ids and paints their names; the core's command-window hook reads it.
-PokeAccess::Menus.def_extractor("Window_CommandKeyItems") do |win, i|
-  id = (PokeAccess.ivar(win, :@commands) || [])[i]
-  id ? (PBItems.getName(id) rescue nil) : nil
 end

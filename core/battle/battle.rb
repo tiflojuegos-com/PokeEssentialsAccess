@@ -11,16 +11,18 @@ module PokeAccess
     # battle_started and battle_ended.
     def self.clear_battle; @battle_ref = nil; end
 
-    # True while a battle runs, per the pbBattleAnimation hook (gen 6 never sets $game_temp.in_battle).
+    # True while a battle runs: from pbBattleAnimation's start until the battle's pbStartBattle returns, per the
+    # hooks, as not every gen-6 game sets $game_temp.in_battle and none clears it before what follows the fight.
     def self.in_battle?; @in_battle ? true : false; end
 
-    # Marks battle as started (the whole fight is wrapped by pbBattleAnimation); the sonar goes quiet.
+    # Marks battle as started (pbBattleAnimation began); the sonar goes quiet.
     def self.battle_started; @in_battle = true; end
 
-    # Marks battle as ended (pbBattleAnimation's block returned): the sonar resumes and the info key lets go of the
-    # battle's move and foes, also where Game_Temp#in_battle is never set.
+    # Marks battle as ended (its pbStartBattle returned, or pbBattleAnimation did): forgets it, the sonar resumes and
+    # the info key lets go of the battle's move and foes, so an evolution after the fight reads as out of battle.
     def self.battle_ended
       @in_battle = false
+      @battle_ref = nil
       @field_announced_for = nil
       PokeAccess::Info.clear_combat
     end
@@ -52,15 +54,21 @@ module PokeAccess
         end
       end
       parts.empty? ? "" : PokeAccess::I18n.t(:bt_changes, :list => parts.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       ""
     end
 
     # An hp phrase: a percentage (for a foe or a hide-exact-hp bar) when as_percent, else exact "hp/total".
     def self.hp_phrase(hp, tot, as_percent)
-      h = hp.to_i; t = tot.to_i
-      return PokeAccess::I18n.t(:bt_hp_pct, :n => (t > 0 ? h * 100 / t : 0)) if as_percent
-      PokeAccess::I18n.t(:bt_hp_exact, :hp => h, :tot => t)
+      return PokeAccess::I18n.t(:bt_hp_pct, :n => percent_of(hp, tot)) if as_percent
+      PokeAccess::I18n.t(:bt_hp_exact, :hp => hp.to_i, :tot => tot.to_i)
+    end
+
+    # Hit points as the floored percentage of the total that hp_phrase says, 0 with no total.
+    def self.percent_of(hp, tot)
+      t = tot.to_i
+      t > 0 ? hp.to_i * 100 / t : 0
     end
 
     # The sex sign the databox draws beside a battler's name, as a " sign" suffix, or ""; displayGender, so Illusion
@@ -89,7 +97,8 @@ module PokeAccess
       list = (b.pbTypes(true) rescue nil) || [(b.type1 rescue nil), (b.type2 rescue nil)].compact
       list = list.uniq.compact
       list.empty? ? types_of((b.pokemon rescue nil)) : list.map { |t| PokeAccess::Data.type_name(t) }.compact
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       types_of((b.pokemon rescue nil))
     end
 
@@ -152,7 +161,8 @@ module PokeAccess
       return unless entering && !marks.empty? && (b.index.to_i.odd? rescue false)
       return unless PokeAccess::Verbosity.keep?(:battle_marks, :medium)
       PokeAccess.speak(PokeAccess::I18n.t(:bt_marks_entry, :name => b.name, :marks => marks.join(", ")), false)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -188,10 +198,13 @@ module PokeAccess
     end
 
     # Speaks the state of every active battler on a side: even indices are the player's, odd the foes'; foe true
-    # reads the foes, hp as a percentage.
+    # reads the foes, hp as a percentage. In the Safari Zone the player's side is the Safari Balls its box counts. Out
+    # of battle it speaks the party's HP (Party.team_hp_line).
     def self.announce_hp(foe)
+      return PokeAccess.speak(PokeAccess::Party.team_hp_line, true) unless @battle_ref || in_battle?
       return unless @battle_ref
-      bs = PokeAccess.expect!("battle.battlers", (@battle_ref.battlers rescue nil))
+      return PokeAccess.speak(safari_balls(@battle_ref), true) if !foe && safari?(@battle_ref)
+      bs = PokeAccess.expect!("battle.battlers", battlers_of(@battle_ref))
       return unless bs.respond_to?(:each_with_index)
       parts = []
       bs.each_with_index do |b, i|
@@ -202,21 +215,49 @@ module PokeAccess
         parts.push(s) if s
       end
       PokeAccess.speak(parts.empty? ? PokeAccess::I18n.t(:bt_no_pokemon) : parts.join(". "), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
+    end
+
+    # A battle's battlers as its readers go through them, or nil; in the Safari Zone, whose fake battlers all stand
+    # for its one wild Pokemon, only the foe's first.
+    def self.battlers_of(battle)
+      bs = (battle.battlers rescue nil)
+      return bs unless bs.respond_to?(:[]) && safari?(battle)
+      [nil, bs[1]]
+    end
+
+    # The Safari Zone's battle classes: PokeBattle_SafariZone up to v19, SafariBattle from v20 on.
+    SAFARI_BATTLES = ["PokeBattle_SafariZone", "SafariBattle"]
+
+    # True for a Safari Zone battle, where the player sends out no Pokemon: its fake battlers are the wild one.
+    def self.safari?(battle)
+      SAFARI_BATTLES.any? do |name|
+        k = PokeAccess.const_at(name)
+        k.is_a?(Class) && battle.is_a?(k)
+      end
+    end
+
+    # The Safari Balls left as the player's box in a Safari Zone battle counts them (the battle's ballcount in the
+    # v16-v17 scripts, ballCount in later ones).
+    def self.safari_balls(battle)
+      n = battle.respond_to?(:ballCount) ? battle.ballCount : (battle.ballcount rescue 0)
+      PokeAccess::I18n.t(:safari_balls, :n => n.to_i)
     end
 
     # Spoken type names of a pokemon, via the engine's data provider.
     def self.types_of(pk)
       return [] unless pk
       (PokeAccess::Data.pokemon_types(pk) || []).uniq
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 
     # Describes every opponent for the command menu and the info key: name, level, types and the marks its box draws.
     def self.foe_info
-      bs = @battle_ref && @battle_ref.battlers
+      bs = @battle_ref && battlers_of(@battle_ref)
       return nil unless bs.respond_to?(:each_with_index)
       parts = []
       bs.each_with_index do |b, i|
@@ -232,7 +273,8 @@ module PokeAccess
         parts.push(line)
       end
       parts.empty? ? nil : parts.join(". ")
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -246,7 +288,8 @@ module PokeAccess
       cw = PokeAccess.sprite(scene, "fightwindow") || PokeAccess.sprite(scene, "fightWindow")
       b = (cw.battler rescue nil)
       (b.index rescue nil)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -266,7 +309,8 @@ module PokeAccess
     def self.stash_command_texts(disp, value)
       return unless value.is_a?(Array)
       disp.instance_variable_set(:@access_cmd_texts, value[1, 4])
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -298,7 +342,8 @@ module PokeAccess
         PokeAccess.speak_clean(PokeAccess::Verbosity.line(:battle_move, parts, ". "), interrupt, :menu)
         PokeAccess::Info.set_info(:move, m)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -314,7 +359,8 @@ module PokeAccess
       d = (battle.doublebattle rescue nil)
       return (d ? true : false) unless d.nil?
       (battle.pbSideSize(0) rescue 1).to_i > 1
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       false
     end
 
@@ -334,7 +380,8 @@ module PokeAccess
         "#{nm}, #{PokeAccess::I18n.t(target_side_key(i, chooser))}"
       end
       PokeAccess.speak(names.join(". "), true, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -354,7 +401,8 @@ module PokeAccess
       side = PokeAccess::I18n.t(target_side_key(index, target_chooser_index(scene)))
       name = (b && (b.pokemon rescue nil)) ? b.name : PokeAccess::I18n.t(:bt_empty_slot)
       PokeAccess.speak("#{name}, #{side}", true, :menu)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -367,6 +415,8 @@ module PokeAccess
                      :STRONGWINDS => :w_strong_winds, :SHADOWSKY => :w_shadow_sky }
     TERRAIN_SYMS = { :Electric => :bt_electric, :Grassy => :bt_grassy, :Misty => :bt_misty,
                      :Psychic => :bt_psychic }
+    # Modern overworld weathers with no battle weather of their own => i18n key.
+    FIELD_WEATHER_SYMS = { :Fog => :w_fog }
     # Gen-6 overworld weather (PBFieldWeather) => i18n key; its layout differs from the battle weather's.
     FIELD_WEATHER = { 1 => :w_rain, 2 => :w_storm, 3 => :w_snow, 4 => :w_blizzard,
                       5 => :w_sandstorm, 6 => :w_heavy_rain, 7 => :w_sun }
@@ -379,12 +429,13 @@ module PokeAccess
       key ? PokeAccess::I18n.t(key) : nil
     end
 
-    # The localized overworld weather name for a symbol (modern) or a PBFieldWeather integer (gen 6); nil for none.
-    # The game's own name is the last resort, and only when it differs from the id (vanilla's name is the id).
+    # The localized overworld weather name for a symbol (modern) or a PBFieldWeather integer (gen 6); nil for none,
+    # which a game may also call :Clear. The game's own name is the last resort, and only when it differs from the id
+    # (vanilla's name is the id).
     def self.overworld_weather_name(wid)
-      return nil if wid.nil? || wid == 0 || wid == :None
+      return nil if wid.nil? || wid == 0 || wid == :None || wid == :Clear
       if wid.is_a?(Symbol)
-        key = (PokeAccess::Config.field_weather_names[wid] rescue nil) || WEATHER_SYMS[wid]
+        key = (PokeAccess::Config.field_weather_names[wid] rescue nil) || WEATHER_SYMS[wid] || FIELD_WEATHER_SYMS[wid]
         return PokeAccess::I18n.t(key) if key
         w = (GameData::Weather.get(wid) rescue nil)
         n = (w.name rescue nil)
@@ -415,8 +466,8 @@ module PokeAccess
       format("%d:%02d", s / 60, s % 60)
     end
 
-    # The seconds left in a Bug Contest: a System.uptime start against TIME_ALLOWED (modern, scaled, as some mkxp-z
-    # count uptime in microseconds) or a frame_count start against TimerSeconds (gen 6); nil without a limit.
+    # The seconds left in a Bug Contest, nil without a limit: TIME_ALLOWED against a System.uptime start (v21, scaled,
+    # as some mkxp-z count uptime in microseconds) or against a frame_count one (v20; TimerSeconds before it).
     def self.contest_time_left(s)
       if defined?(System) && System.respond_to?(:uptime) && s.respond_to?(:timer_start)
         total = (BugContestState::TIME_ALLOWED rescue 0)
@@ -426,11 +477,12 @@ module PokeAccess
       end
       tmr = (s.timer rescue nil)
       return nil if tmr.nil?
-      total = (BugContestState::TimerSeconds rescue 0)
+      total = (BugContestState::TimerSeconds rescue nil) || (BugContestState::TIME_ALLOWED rescue 0)
       return nil if total <= 0
       fr = (Graphics.frame_rate rescue PokeAccess::FPS.to_i)
       [total - (Graphics.frame_count - tmr) / fr, 0].max.to_i
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -454,21 +506,30 @@ module PokeAccess
       rd = ($game_temp.poke_radar_data rescue nil) || ($PokemonTemp.pokeradar rescue nil)
       return PokeAccess::I18n.t(:radar_chain, :n => rd[2].to_i) if rd.is_a?(Array) && rd[2] && rd[2].to_i > 0
       nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
-    # Speaks the overworld weather (clear when none), the time of day and field_event_text.
+    # The game's own clock for the field key, or nil: none in core, where the game's time is the computer's. A profile
+    # whose game keeps a clock of its own overrides it.
+    def self.clock_text; nil; end
+
+    # Speaks the overworld weather (clear when none), the game's clock if it keeps one, the time of day and
+    # field_event_text.
     def self.announce_overworld
       parts = []
       wn = overworld_weather_name(($game_screen.weather_type rescue nil))
       parts.push(wn ? PokeAccess::I18n.t(:bt_weather, :w => wn) : PokeAccess::I18n.t(:ow_clear))
+      clock = clock_text
+      parts.push(clock) if clock
       tod = time_of_day
       parts.push(PokeAccess::I18n.t(tod)) if tod
       fe = field_event_text
       parts.push(fe) if fe
       PokeAccess.speak(parts.join(", "), true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -495,7 +556,8 @@ module PokeAccess
       n = (fe.nil? || fe == :None) ? nil : (GameData::BattleFieldEffect.try_get(fe).name rescue nil)
       n = cache_field_name(battle) if n.nil? || n.to_s.empty?
       (n.nil? || n.to_s.empty?) ? nil : n.to_s
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -520,7 +582,8 @@ module PokeAccess
       wid = (@battle_ref.pbWeather rescue (@battle_ref.weather rescue 0))
       wn = weather_name(wid)
       out.push(PokeAccess::I18n.t(:bt_weather, :w => wn)) if wn
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -548,7 +611,8 @@ module PokeAccess
           out.push(PokeAccess::I18n.t(key)) if c && c > 0
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -558,7 +622,8 @@ module PokeAccess
       out.push(PokeAccess::I18n.t(:bt_trickroom)) if (@battle_ref.trickroom rescue 0).to_i > 0
       out.push(PokeAccess::I18n.t(:bt_gravity)) if effects[:Gravity].to_i != 0
       RV_TERRAINS.each { |k, key| out.push(PokeAccess::I18n.t(key)) if effects[k].to_i > 0 }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -587,7 +652,8 @@ module PokeAccess
           out.push(PokeAccess::I18n.t(:bt_side_effect, :effect => PokeAccess::I18n.t(key), :side => side_names[si]))
         end
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -598,15 +664,31 @@ module PokeAccess
       first.each { |pair| announce_hp_change(pair[0], pair[1]) if pair.is_a?(Array) }
     end
 
-    # Speaks the hp delta of a battler when it changes (damage or healing).
+    # Speaks the hp delta of a battler when it changes (damage or healing): in hit points on the player's side, and on
+    # a foe's, whose box paints only its bar, as the change of the percentage left unless the game paints the figures.
     def self.announce_hp_change(pkmn, oldhp)
       return unless pkmn && oldhp
       diff = (pkmn.hp - oldhp rescue 0)
       return if diff == 0
       foe = (pkmn.index.odd? rescue false)
-      verb = PokeAccess::I18n.t(diff < 0 ? :bt_lose : :bt_gain)
-      rest = shown_hp(pkmn, foe)
-      PokeAccess.speak(PokeAccess::I18n.t(:bt_hp_change, :name => pkmn.name, :verb => verb, :n => diff.abs, :rest => rest), false)
+      vars = { :name => pkmn.name, :verb => PokeAccess::I18n.t(diff < 0 ? :bt_lose : :bt_gain),
+               :rest => shown_hp(pkmn, foe), :n => diff.abs }
+      return PokeAccess.speak(PokeAccess::I18n.t(:bt_hp_change, vars), false) unless foe && !foe_change_painted?(pkmn)
+      PokeAccess.speak(percent_change_text(oldhp, pkmn.hp, pkmn.totalhp, vars), false)
+    end
+
+    # A foe's hp change from oldhp to hp as the change of its bar's floored percentage, or as less than 1 percent
+    # where the hit points moved and that percentage did not.
+    # param vars bt_hp_change's variables (name, verb, rest); its :n is set here
+    def self.percent_change_text(oldhp, hp, tot, vars)
+      vars[:n] = (percent_of(oldhp, tot) - percent_of(hp, tot)).abs
+      PokeAccess::I18n.t(vars[:n] == 0 ? :bt_hp_change_under_pct : :bt_hp_change_pct, vars)
+    end
+
+    # Whether the screen paints the hit points the given foe loses or gains: not in core, where a foe's box draws only
+    # its bar. A profile whose game paints them (damage numbers over the battler) overrides this.
+    def self.foe_change_painted?(_foe)
+      false
     end
 
     # The announce key for a Mega button toggle between available (1) and registered (2), or nil; 0 is hidden, and
@@ -650,7 +732,8 @@ module PokeAccess
       k = disp.class
       ZUD_BUTTONS.each { |const, mech| return mech if k.const_defined?(const) && k.const_get(const) == c }
       nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

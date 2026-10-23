@@ -1,0 +1,89 @@
+# The screens tools/silent_screens.rb lists that were checked by hand and need no reader of their own, each as
+# name | the games it was checked in | why. A game or a name not here shows in the report as still to check.
+pbTriadList | africanvs anil armonia awakening emerald fireash gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea relict reminiscencia royal sevii soulstones1 soulstones2 uranium z218 | Triple Triad's card list: a command window, read by the command reader
+pbButtonInputProcessing | africanvs armonia awakening desolation insurgence opalo realidea reborn rejuvenation reminiscencia sevii soulstones1 uranium z218 | the event command that waits for a key: no screen
+PokeBattle_DebugScene | africanvs armonia awakening insurgence opalo realidea reminiscencia sevii soulstones1 uranium z218 | debug battle scene
+PokemonPokedexMenu_Scene | anil awakening emerald fireash gruelinggold infinitefusion infinitefusion_hoenn relict royal soulstones1 soulstones2 | the regional Pokedex menu: Window_DexesList, read by core's extractor
+Scene_PokedexMenu | africanvs armonia desolation insurgence opalo realidea reborn reminiscencia sevii z218 | the regional Pokedex menu: Window_DexesList, read by core's extractor
+PokemonLoad | armonia desolation opalo reborn rejuvenation uranium z218 | the load screen's controller: core reads PokemonLoadScene and its panels
+Scene_Intro | anil emerald gruelinggold royal uranium | the title screen: core's title reader, or the profile's (Uranium's GenCustomStyle)
+pbMessageWaitForInput | anil emerald relict royal | waits for a key after a message the dialogue reader says
+BattleCreationHelperMethods | anil emerald relict royal | battle setup helpers: no screen
+pbListScreen | armonia emerald relict royal | debug list screen
+pbListScreenBlock | armonia emerald relict royal | debug list screen
+Scene_FieldNotes_Info | desolation reborn rejuvenation | read by games/rv_common/field_notes_rv.rb (Window_FieldEffectNotes)
+Scene_ItemTracker | desolation reborn rejuvenation | unreachable: its Pokegear entry is commented out (Rejuvenation does not load it)
+Scene_ItemTracker_Info | desolation reborn rejuvenation | unreachable: its Pokegear entry is commented out (Rejuvenation does not load it)
+CableClubScreen | anil sevii | the Cable Club's controller: its scene is read by plugins/cable_club.rb
+ClothesShopView | infinitefusion infinitefusion_hoenn | a PokemonMart_Scene: core's mart extractor and games/infinitefusion_common/outfits.rb
+Connect | insurgence reborn | online play (Insurgence's and Reborn's servers): left out
+HabitatDetailScene | desolation rejuvenation | unreachable: nothing calls pbHabitatDetail (Rejuvenation does not load Habitats.rb)
+PokemonFusionScene | infinitefusion infinitefusion_hoenn | the fusion cutscene: its lines and choices are messages, read
+PokemonHabitatList_Scene | desolation rejuvenation | unreachable: nothing calls pbLoadHabitatList (Rejuvenation does not load Habitats.rb)
+QuestScene | awakening rejuvenation | unreachable: pbViewQuests is redefined (Rejuvenation) or never called (Awakening)
+Scene_FieldNotes | desolation reborn | a command window, read; Rejuvenation's sort keys relayed (games/rejuvenation/own_voice.rb)
+Scene_PulseDex | desolation reborn | Reborn: a command window, read, its info page relayed; Desolation's Pokegear has no entry
+Scene_Trade | desolation insurgence | online trade (Insurgence's server); Desolation's copy is never opened
+TilesetEditor | awakening sevii | map editor
+UI::BaseVisuals | anil royal | the v21/v22 base class: its screens are read by core's v21 and v22 readers
+pbChooseNumberCentered | desolation reborn | a number window, read
+pbDebugMenu | awakening sevii | debug menu
+pbShowCommandsBlack | royal | Royal's reskin of the message choices: the stock windows, read
+pbShowCommandsBorde | royal | Royal's reskin of the message choices: the stock windows, read
+AdvancedPokedexScene | rejuvenation | Rejuvenation's Advanced Dex: its own voice, relayed
+Battle::AI_CableClub | anil | online battle (Cable Club)
+Battle_CableClub | anil | online battle (Cable Club)
+BerryBlender_Scene | infinitefusion_hoenn | unreachable: SIMPLIFIED_BERRY_BLENDING runs the simple blender, read
+ChooseBerryMultiple_Scene | royal | read through its window, Window_ChooseBerryMultiple (games/royal/curry_select.rb)
+DependentEvents | armonia insurgence opalo sevii | the following events' manager: moves events on the map, no screen
+GTSSearchMethod | insurgence | the online GTS: unreachable, its own online menu comments it out and no script or event opens it (the Egg Generator is read)
+Gachabueno | realidea | unreachable: nothing creates it (the gacha read is LootBox, games/realidea/gacha.rb)
+HM7::Tilemap | insurgence | Mode 7 tilemap: no screen
+InterpreterFieldMixin | realidea | event interpreter: no screen
+ItemInfog_Scene | z218 | unreachable in 2.18: nothing calls pbItemInfog
+LairMapScene | fireash | unreachable in Fire Ash: no event starts a Dynamax Adventure
+MaxLairEventScene | fireash | unreachable in Fire Ash: no event starts a Dynamax Adventure
+MaxRaidScene | fireash | unreachable in Fire Ash: no event starts a Max Raid
+PokeBattle_CableClub | sevii | online battle (Cable Club)
+PokeBattle_CableClub_AI | sevii | online battle (Cable Club)
+PokeBattle_OnlineBattle | insurgence | online battle
+PokemonHatchingScene | insurgence | a dead copy: the hatch scene is PokemonEggHatchScene
+PokemonMenu | realidea | the pause menu's controller: games/realidea reads PokemonMenu_Scene
+Scene_Notebook | insurgence | unreachable: its pause menu entry is commented out
+Scene_Pokegear2 | sevii | unreachable: its Pokegear entry is commented out
+Scene_PulseDex_Info | desolation | unreachable: Desolation's Pokegear has no PulseDex entry
+Scene_RiftDex | rejuvenation | a command window, read; its info page relayed
+Scene_SampleTween | relict | sample code
+Scene_Thing | insurgence | a command row and messages, read
+SelectPsyduck | awakening | command windows and messages, read; the hunt by games/awakening/psyduck_hunt.rb
+TEXTOLOCA | realidea | unreachable: nothing calls it
+TituloNuevo | reminiscencia | unused title screen
+TypeMatch_Scene | soulstones2 | unreachable: the Pokegear opens SpeciesTypeMatch_Scene (games/soulstones2/type_chart.rb)
+clefairy_minigame | infinitefusion_hoenn | its sequence and results are messages, read
+customTrainerBattle | reminiscencia | a battle starter whose loop is the rematch yes/no, read
+pbAnimList | soulstones2 | animation editor
+pbBossFight | reminiscencia | a battle starter whose loop is the rematch yes/no, read
+pbChooseNumberBlack | royal | Royal's reskin of the number window: the stock window, read
+pbCommandsNoConfirm | reminiscencia | unreachable: its one call is commented out
+pbDemoShadowParticles | royal | demo code
+pbDisplayMessageWithMultipleWindows | rejuvenation | read through its caller, pbUsedItemsDisplay (games/rejuvenation/used_items.rb)
+pbFreeTextBlack | royal | unreachable: pbMessageFreeTextBlack has no caller
+pbInfoBox | rejuvenation | a list window of notes (pbListWindow), read row by row
+pbSearchListGTS | insurgence | the online GTS: unreachable, its own online menu comments it out and no script or event opens it (the Egg Generator is read)
+pbSelector | soulstones2 | the box picker's loop: games/soulstones2/box_picker.rb reads it
+pbSetRestrictions | insurgence | the online GTS: unreachable, its own online menu comments it out and no script or event opens it (the Egg Generator is read)
+pbShowStatSelectionCommands | fireash | a command window with the marks in its rows, read
+pbStartGTS | insurgence | the online GTS: unreachable, its own online menu comments it out and no script or event opens it (the Egg Generator is read)
+pbStartupAwards | uranium | command windows and messages, read
+pbTweening | soulstones2 | animation editor
+pbVictoryRoadPuzzle | reborn | a list window of the crystals' clues, read row by row
+pbWildBattle | reminiscencia | a battle starter whose loop is the rematch yes/no, read
+pbWildBattleDungeon | reminiscencia | a battle starter whose loop is the rematch yes/no, read
+selectAutosave | awakening | a command window and messages, read
+showSearchWindow | armonia | debug list search
+PokeBattle_Battler | awakening fireash | a battler, not a screen: its lines go through the battle's pbDisplay, read by core
+Randomizer | gruelinggold soulstones2 | the randomizer's options: a command window of [X] rows, read by the command reader
+CinematicScene | africanvs | map pictures animated under the event's narration, which the dialogue reader says
+PokemonBag_Scene::ItemStorageScene | uranium | nested in PokemonBag_Scene by the script's unclosed class, so dead: pbPCItemStorage builds the stock scene, read by core
+Textos_Jess | awakening | the message formatter (the \js[name] box): its lines and speakers go through the dialogue reader
+VN_Scene | reminiscencia | a cutscene of Kernel.pbMessage lines over a picture, read by the dialogue reader

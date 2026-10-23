@@ -91,7 +91,7 @@ module PokeAccess
     # Whether an import must leave a scheme out: one of that name is there already, or the name is a built-in
     # scheme's, which the menu would not have let the player give.
     def self.has_entry?(store, name)
-      store.has_key?(name) || reserved_name?(name)
+      store.key?(name) || reserved_name?(name)
     end
 
     def self.put_entry(store, name, levels)

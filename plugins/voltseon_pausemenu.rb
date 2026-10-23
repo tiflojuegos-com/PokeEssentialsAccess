@@ -1,16 +1,18 @@
 module PokeAccess
-  # Voltseon's Pause Menu, a carousel of icons replacing the field menu: the focused entry of @entries is named on
-  # refreshMenu, where the plugin settles on a selection, plus the panels painted around it.
+  # Voltseon's Pause Menu, a carousel of icons replacing the field menu: the focused entry is named, with the panels
+  # painted around it, where the plugin settles on a selection; 1.x (Essentials 20) refreshes in refreshMenu with
+  # @currentSelection and entry objects, 2.x (Essentials 21) in refresh_menu with @current_selection and hashes.
   module VoltseonMenu
     # The name of the focused entry, or nil when the menu has nothing usable.
     def self.focused_name(menu)
       entries = PokeAccess.ivar(menu, :@entries)
-      idx = PokeAccess.ivar(menu, :@currentSelection)
+      idx = PokeAccess.ivar(menu, :@currentSelection) || PokeAccess.ivar(menu, :@current_selection)
       return nil unless entries.is_a?(Array) && idx.is_a?(Integer)
       e = entries[idx]
-      nm = (e.name rescue nil)
+      nm = e.is_a?(Hash) ? e[:name] : (e.name rescue nil)
       (nm.nil? || nm.to_s.empty?) ? nil : nm.to_s
-    rescue StandardError
+    rescue StandardError => err
+      PokeAccess.swallowed(err)
       nil
     end
 
@@ -19,7 +21,8 @@ module PokeAccess
       nm = focused_name(menu)
       return if nm.nil?
       PokeAccess::Cursor.announce(menu, :voltseon_entry, nm, true, false) { PokeAccess::Menus.button_label(nm) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -46,16 +49,19 @@ module PokeAccess
 
     # On MenuReturn's signal while the menu's loop is held, clears the entry dedup so the next refresh says it again.
     def self.returned
-      menu = PokeAccess.ivar(@scene, :@pauseMenu) if @scene
+      menu = (PokeAccess.ivar(@scene, :@pauseMenu) || PokeAccess.ivar(@scene, :@pause_menu)) if @scene
       PokeAccess::Cursor.reset(menu, :voltseon_entry) if menu
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
 end
 
-PokeAccess::Hooks.after_hook("VoltseonsPauseMenu", :refreshMenu, :optional => true) do |menu, _r, _a|
-  PokeAccess::VoltseonMenu.read(menu)
+[:refreshMenu, :refresh_menu].each do |meth|
+  PokeAccess::Hooks.after_hook("VoltseonsPauseMenu", meth, :optional => true) do |menu, _r, _a|
+    PokeAccess::VoltseonMenu.read(menu)
+  end
 end
 
 # Around: the panels are painted inside, and the capture has to bracket exactly that paint.

@@ -21,7 +21,8 @@ module PokeAccess
         state = PokeAccess::I18n.t(earned ? :pach_earned : :pach_unearned)
         "#{head}, #{state}"
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -31,7 +32,8 @@ module PokeAccess
       return unless PokeAccess.ivar(scene, :@page).to_i == 1
       sel = PokeAccess.ivar(scene, :@select)
       PokeAccess::Cursor.announce(scene, :pach_detail, sel, true) { PokeAccess::PaintCapture.text(rows) }
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

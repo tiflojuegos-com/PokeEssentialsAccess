@@ -10,6 +10,8 @@
     tower
     load
     search
+    passability
+    field_moves
   ],
   :plugins => %w[advanced_pokedex bag_screen_party encounter_list_ui enhanced_pokemon_ui tip_cards dbk_battle dbk_enhanced_ui slide_banners]
 }

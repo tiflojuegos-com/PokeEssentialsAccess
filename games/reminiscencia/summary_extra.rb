@@ -23,7 +23,8 @@ module PokeAccess
       return focused_move(pk, cm) if info_move
       return ability_text(pk) if info_hab
       estado(scene, pk)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -35,7 +36,8 @@ module PokeAccess
     def self.hidden_power(pk)
       hp = pbHiddenPower(pk.iv)
       [PBTypes.getName(hp[0]), hp[1]]
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -67,7 +69,8 @@ module PokeAccess
         out.push(t)
       end
       out.empty? ? PokeAccess::I18n.t(:sm_no_moves) : PokeAccess::I18n.t(:sm_moves, :list => out.join(", "))
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       PokeAccess::Summary.moves_text(pk)
     end
 
@@ -147,7 +150,8 @@ module PokeAccess
         h[stat] = (scene.instance_variable_get(ivar) rescue nil).to_i
       end
       h.values.any? { |v| v != 0 } ? h : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -158,7 +162,8 @@ module PokeAccess
       return nil if st.nil? || st == 0
       sn = (PokeAccess::Config.status_names[st] rescue nil)
       sn ? PokeAccess::I18n.t(sn) : nil
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

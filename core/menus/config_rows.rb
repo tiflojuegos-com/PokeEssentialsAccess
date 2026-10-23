@@ -1,44 +1,25 @@
 module PokeAccess
-  # Config menu, the settings screens: the top list, each schema group and its submenus, the sound glossary, debug,
-  # how a setting row reads and changes, and the reset of every setting.
+  # Config menu, the settings screens: the top list, each group with the settings it shows now and the groups that
+  # hang from it, the sound glossary, debug, how a setting row reads and changes, and the reset of every setting.
   module ConfigMenu
-    # Setting => the glossary sound a volume or tone row plays as its value moves.
-    PREVIEWS = {
-      :audio3d_volume => :npc, :audio3d_npc => :npc, :audio3d_object => :object, :audio3d_door => :door,
-      :audio3d_teleporter => :teleporter, :audio3d_mark => :mark, :audio3d_water => :water, :audio3d_wind => :wind_n,
-      :footstep_volume => :step, :wall_volume => :wall, :event_volume => :guide,
-      :audio3d_tone_npc => :npc, :audio3d_tone_object => :object, :audio3d_tone_door => :door,
-      :audio3d_tone_teleporter => :teleporter, :audio3d_tone_mark => :mark, :audio3d_tone_water => :water, :audio3d_tone_wind => :wind_n,
-      :footstep_tone => :step, :wall_tone => :wall, :guide_tone => :guide
-    }
-
-    # Glossary sound => the volume setting its family plays at in the field (used by tone and master auditions).
-    FAMILY_VOLUME = {
-      :npc => :audio3d_npc, :object => :audio3d_object, :door => :audio3d_door, :teleporter => :audio3d_teleporter,
-      :mark => :audio3d_mark,
-      :water => :audio3d_water, :wind_n => :audio3d_wind, :step => :footstep_volume, :wall => :wall_volume,
-      :guide => :event_volume
-    }
-
     # How long a looping sample (water, wind) auditions before the menu stops it.
     PREVIEW_LOOP_SECONDS = 2.0
 
-    # The submenus that hang off the audio screen, as [group, label] pairs in menu order.
-    AUDIO_SUBMENUS = [[:audio3d_vol, :cat_pos_vol], [:audio3d_freq, :cat_pos_freq], [:audio3d_tone, :cat_pos_tone],
-                      [:audio3d_walls, :cat_pos_walls], [:audio3d_adv, :cat_positional_adv]]
-
-    # Auditions a volume or tone row, positionally if the engine is up, else as the flat glossary sample: a family's
-    # volume row at the value just set, a tone or master row at the family's own volume.
+    # Auditions a volume or tone row (Sound::Glossary.preview_of), positionally if the engine is up, else as the flat
+    # glossary sample: a family's volume row at the value just set, a tone or master row at the family's own volume,
+    # its sound switched on or not; the master row's flat sample scaled by the master just set, silent at 0.
     def self.preview(key, kind, v)
-      entry = PokeAccess::SoundGlossary.entry(PREVIEWS[key])
+      gl = PokeAccess::Sound::Glossary
+      entry = gl.entry(gl.preview_of(key))
       return unless entry
-      own = kind == :vol && key != :audio3d_volume
-      vol = own ? v : (PokeAccess::Config.send(FAMILY_VOLUME[entry[0]]) rescue 100).to_i
+      master = key == :audio3d_volume
+      own = kind == :vol && !master
+      vol = own ? v : (PokeAccess::Sound::Mixer.level(entry.id) || 100)
       stop_preview
-      pitch = PokeAccess::SoundGlossary.engine_pitch(entry)
-      played = (PokeAccess::Audio3D.preview(entry[0], vol, pitch) rescue false)
-      return PokeAccess::SoundGlossary.play(entry, vol) unless played
-      @preview = [entry[0], PokeAccess.clock + PREVIEW_LOOP_SECONDS] if PokeAccess::Audio3D.loop?(entry[0])
+      return if vol <= 0 || (master && v <= 0)
+      played = (PokeAccess::Sound.preview(entry.id, vol, gl.engine_pitch(entry)) rescue false)
+      return gl.play(entry, master ? vol * v / 100 : vol) unless played
+      @preview = [entry.id, PokeAccess.clock + PREVIEW_LOOP_SECONDS] if PokeAccess::Sound.loop?(entry.id)
     end
 
     # Ends a looping audition whose time is up (called every modal frame).
@@ -49,24 +30,39 @@ module PokeAccess
     # Stops the looping audition, if one plays (the menu is closing or its time is up).
     def self.stop_preview
       return unless @preview
-      (PokeAccess::Audio3D.preview_stop(@preview[0]) rescue nil)
+      (PokeAccess::Sound.preview_stop(@preview[0]) rescue nil)
       @preview = nil
     end
 
-    # The top level: the schema categories, then the menu's own screens and the reset.
+    # What each screen the top list or a group opens holds, by its mode, as the info key says it over the row that
+    # opens it.
+    SCREEN_HELP = {
+      :general => :cat_general_help, :pathfinder => :cat_pathfinder_help, :pathfinder_adv => :cat_nav_adv_help,
+      :audio => :cat_audio_help, :audio3d_on => :cat_sounds_on_help, :audio3d_vol => :cat_pos_vol_help,
+      :audio3d_freq => :cat_pos_freq_help, :audio3d_tone => :cat_pos_tone_help, :audio3d_walls => :cat_pos_walls_help,
+      :audio3d_adv => :cat_positional_adv_help, :debug => :cat_debug_help, :sounds => :cat_sounds_help,
+      :personal => :cat_personal_help, :remap => :cat_remap_help
+    }
+
+    # The row that opens a screen: its mode, its label and what it holds.
+    def self.screen_row(mode, label)
+      { :kind => :enter, :group => mode, :label => label, :help => SCREEN_HELP[mode] }
+    end
+
+    # The top level: the setting groups that have something to show, then the menu's own screens and the reset.
     def self.top_rows
-      rows = PokeAccess::Config::CATEGORIES.map { |g, label| { :kind => :enter, :group => g, :label => label } }
-      rows.push({ :kind => :enter, :group => :sounds, :label => :cat_sounds })
-      rows.push({ :kind => :enter, :group => :personal, :label => :cat_personal })
-      rows.push({ :kind => :remap, :label => :cat_remap })
-      rows.push({ :kind => :enter, :group => :debug, :label => :cat_debug })
+      rows = shown_groups(:top).map { |g| screen_row(g.id, g.label) }
+      rows.push(screen_row(:sounds, :cat_sounds))
+      rows.push(screen_row(:personal, :cat_personal))
+      rows.push({ :kind => :remap, :label => :cat_remap, :help => SCREEN_HELP[:remap] })
+      rows.push(screen_row(:debug, :cat_debug))
       rows.push({ :kind => :action, :action => :reset, :label => :cat_reset })
       rows
     end
 
     # The sound glossary: one audition row per entry.
     def self.sounds_rows
-      rows = PokeAccess::SoundGlossary.entries.map { |e| { :kind => :sound, :entry => e, :label => e[2] } }
+      rows = PokeAccess::Sound::Glossary.entries.map { |e| { :kind => :sound, :entry => e, :label => e.glossary[0] } }
       rows.push({ :kind => :back, :label => :back })
       rows
     end
@@ -82,99 +78,69 @@ module PokeAccess
               { :kind => :action, :action => :rec_toggle,
                 :label => (PokeAccess::Recorder.recording? ? :dbg_rec_stop : :dbg_rec_start) },
               { :kind => :action, :action => :selfcheck, :label => :dbg_selfcheck }]
-      PokeAccess::Config.schema_group(:debug).each { |r| rows.push({ :kind => :setting, :row => r }) }
+      rows.concat(setting_rows(:debug))
       rows.push({ :kind => :back, :label => :back })
       rows
     end
 
-    # A schema group's settings, the submenus that hang off it ([group, label] pairs), then back.
-    def self.group_rows(group, submenus = [])
-      rows = PokeAccess::Config.schema_group(group).map { |r| { :kind => :setting, :row => r } }
-      submenus.each { |g, label| rows.push({ :kind => :enter, :group => g, :label => label }) }
-      rows.push({ :kind => :back, :label => :back })
-      rows
-    end
+    # The cane guide's row among the sound switches: whether Shift+I has the cane on, switched as the key switches it
+    # (a live state, never saved).
+    GUIDE_ROW = { :kind => :guide, :label => :lbl_on_guide, :help => :help_on_guide }
 
-    # A numeric setting's value with the unit its kind names, in the form that goes with the number.
-    def self.with_unit(kind, v)
-      b = PokeAccess::Config::KIND_BOUNDS[kind]
-      (b && b[3]) ? "#{v} #{t(b[3], :n => v)}" : v.to_s
-    end
-
-    def self.value_text(row)
-      v = PokeAccess::Config.send(row[0])
-      return with_unit(row[2], v) if PokeAccess::Config::KIND_BOUNDS[row[2]]
-      case row[2]
-      when :flag  then v ? t(:val_on) : t(:val_off)
-      when :lang  then PokeAccess::I18n.language_name(v)
-      when :algo  then t("algo_#{v}".to_sym)
-      when :occ   then t("occ_#{v}".to_sym)
-      when :navmode then t("nav_#{v}".to_sym)
-      when :verbosity then PokeAccess::Verbosity.name_of(v)
-      else v.to_s
+    # A group's screen: the settings it shows now (the sound switches with the guide's row where its family stands,
+    # before the jumps'), the groups that hang from it with something to show, then back.
+    def self.group_rows(group)
+      rows = setting_rows(group)
+      if group == :audio3d_on
+        i = rows.index { |r| r[:row].key == :sound_jumps }
+        rows.insert(i || rows.length, GUIDE_ROW)
       end
+      shown_groups(group).each { |g| rows.push(screen_row(g.id, g.label)) }
+      rows.push({ :kind => :back, :label => :back })
+      rows
+    end
+
+    # The rows of a group's settings the menu shows now.
+    def self.setting_rows(group)
+      PokeAccess::Config.settings_in(group).select { |s| PokeAccess::Config.visible?(s) }.map { |s| { :kind => :setting, :row => s } }
+    end
+
+    # The groups hanging from a parent that have a setting to show, themselves or further down.
+    def self.shown_groups(parent)
+      PokeAccess::Config.groups_in(parent).select { |g| group_shown?(g.id) }
+    end
+
+    # Whether a group has a setting the menu shows now, in it or in a group under it.
+    def self.group_shown?(id)
+      PokeAccess::Config.settings_in(id).any? { |s| PokeAccess::Config.visible?(s) } ||
+        PokeAccess::Config.groups_in(id).any? { |g| group_shown?(g.id) }
+    end
+
+    # A setting's value in words.
+    def self.value_text(row)
+      PokeAccess::Config.value_name(row, PokeAccess::Config.send(row.key))
     end
 
     # A setting's help, as the info key reads it: the chosen search algorithm's own for the algorithm row, else
     # the row's help with the mod's keys named as the player has them, or the row itself when it has none.
     def self.setting_help(row)
-      return t("help_algo_#{PokeAccess::Config.send(row[0])}".to_sym) if row[2] == :algo
-      row[5] ? t(row[5], key_vars) : describe
+      return t("help_algo_#{PokeAccess::Config.send(row.key)}".to_sym) if row.kind == :algo
+      row.help ? t(row.help, key_vars) : describe
     end
 
-    # The menu's only way to write a setting: assigns it and drops the locator's verdicts, which may depend on one.
-    def self.set_config(key, v)
-      PokeAccess::Config.send("#{key}=", v)
-      (PokeAccess::Locator.clear_verdicts rescue nil)
-    end
-
+    # Moves a setting one step (dir -1 or 1), auditions a volume or tone, says the setting and keeps the focus on it
+    # while other rows appear or go.
     def self.adjust_setting(row, dir)
-      key = row[0]
-      b = PokeAccess::Config::KIND_BOUNDS[row[2]]
-      if b
-        v = PokeAccess::Config.send(key).to_i + dir * b[2]
-        v = b[0] if v < b[0]
-        v = b[1] if v > b[1]
-        set_config(key, v)
-        preview(key, row[2], v)
-        return say("#{t(row[4])}, #{with_unit(row[2], v)}")
-      end
-      case row[2]
-      when :flag
-        v = !PokeAccess::Config.send(key)
-        set_config(key, v)
-        say("#{t(row[4])}, #{v ? t(:val_on) : t(:val_off)}")
-      when :lang
-        v = PokeAccess::I18n.next_language(PokeAccess::Config.language)
-        set_config(:language, v)
-        say("#{t(row[4])}, #{PokeAccess::I18n.language_name(v)}")
-      when :algo
-        cycle(row, key, dir, PokeAccess::Pathfinder::ALGORITHMS, "algo_")
-      when :occ
-        cycle(row, key, dir, [:hear, :occlude, :hide], "occ_")
-      when :navmode
-        cycle(row, key, dir, [:off, :basic, :full], "nav_")
-      when :verbosity
-        v = PokeAccess::Verbosity.next_scheme(dir)
-        set_config(key, v)
-        say("#{t(row[4])}, #{PokeAccess::Verbosity.name_of(v)}")
-      end
-    end
-
-    # Steps a setting through an ordered list of symbols (wrapping), announcing the new value via its
-    # i18n prefix (e.g. "occ_" + :hide -> :occ_hide).
-    def self.cycle(row, key, dir, list, prefix)
-      cur = PokeAccess::Config.send(key)
-      v = list[((list.index(cur) || 0) + dir) % list.length]
-      set_config(key, v)
-      say("#{t(row[4])}, #{t("#{prefix}#{v}".to_sym)}")
+      v = PokeAccess::Config.set(row.key, PokeAccess::Config.next_value(row, dir))
+      preview(row.key, row.kind, v) if PokeAccess::Sound::Glossary.preview_of(row.key)
+      refocus([:setting, row.key])
+      say("#{t(row.label)}, #{PokeAccess::Config.value_name(row, v)}")
     end
 
     def self.run_action(a)
       return run_transfer(a[0], a[1]) if a.is_a?(Array)
       case a
-      when :reset
-        reset_defaults
+      when :reset then reset_defaults
       when :diag_audio  then PokeAccess::Keys.diag_section_to_clip(:audio)
       when :diag_events then PokeAccess::Keys.diag_section_to_clip(:events)
       when :diag_perf   then PokeAccess::Keys.diag_section_to_clip(:perf)
@@ -197,12 +163,18 @@ module PokeAccess
       end
     end
 
-    # Restores every setting to its default, clears the key rebinds, saves, and returns to the top screen.
+    # Restores every setting to its default on a second press of its row (the first asks), saves and keeps the focus
+    # on its row while the top screen's groups appear or go. The language and the keys stay as they are: the keys
+    # have their own reset.
     def self.reset_defaults
-      PokeAccess::Config::SCHEMA.each { |row| set_config(row[0], row[1]) }
-      (PokeAccess::Config.rebinds.clear rescue (PokeAccess::Config.rebinds = {}))
+      unless @armed == :reset
+        @armed = :reset
+        return say(t(:cfg_reset_confirm))
+      end
+      @armed = nil
+      PokeAccess::Config.restore_defaults
       (PokeAccess::Settings.write rescue nil)
-      @mode = :top; @index = 0; @stack = []
+      refocus([:action, :reset])
       say(t(:cfg_reset_done))
     end
   end

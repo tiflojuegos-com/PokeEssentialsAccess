@@ -56,7 +56,8 @@ module PokeAccess
       idx = page_range(scene)
       return nil if idx.nil? || idx.empty?
       PokeAccess::Util.join_parts(idx.map { |i| entry_text(i) })
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -67,7 +68,8 @@ module PokeAccess
       entry = log[i]
       raw = entry.is_a?(Array) ? entry.join(" ") : entry.to_s
       PokeAccess.clean(raw)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end

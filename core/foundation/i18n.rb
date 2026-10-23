@@ -126,12 +126,10 @@ module PokeAccess
       table(code)["__language__"] || code.to_s
     end
 
-    # The next entry of the language cycle (for the toggle): automatic first, then every file in lang/.
-    def self.next_language(code)
-      cycle = [AUTO].concat(available_languages)
-      cur = code.to_s.empty? ? AUTO : code.to_s.to_sym
-      i = (cycle.index(cur) || 0)
-      cycle[(i + 1) % cycle.length]
+    # The values the language setting takes, in the order the menu steps through them: automatic first, then every
+    # file in lang/.
+    def self.language_choices
+      [AUTO].concat(available_languages)
     end
 
     # Language consistency issues as "code:key: reason" strings, [] when in sync: a key missing from a language,
@@ -144,7 +142,8 @@ module PokeAccess
       out = parity_of(tables)
       langs.each { |c| duplicate_keys(c).each { |k| out.push("#{c}:#{k}: duplicated") } }
       out
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       []
     end
 

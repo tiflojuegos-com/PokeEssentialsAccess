@@ -3,14 +3,16 @@ module PokeAccess
   # screen redraws its name.
   module TownMapV22
     # The focused location's name as the screen's refresh_map_name resolves it (get_point_data, the region-location
-    # messages, \PN as the player's name); nil on a blank point.
+    # messages, \PN as the player's name, \v[n] as game variable n's value); nil on a blank point.
     def self.name_at(vis)
       pd = (vis.send(:get_point_data) rescue nil)
       return nil unless pd && pd[:real_name]
       name = (pbGetMessageFromHash(MessageTypes::REGION_LOCATION_NAMES, pd[:real_name]) rescue pd[:real_name].to_s)
       name = (name.gsub(/\\PN/, (PokeAccess::Engine.player.name rescue "")) rescue name)
+      name = (name.gsub(/\\v\[(\d+)\]/) { $game_variables[$1.to_i].to_s } rescue name)
       name.to_s.empty? ? nil : name
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 

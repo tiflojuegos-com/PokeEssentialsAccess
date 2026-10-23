@@ -19,7 +19,8 @@ adds sound navigation and pathfinding. It does not modify the game's scripts and
 - **Navegación sonora**: sonar 3D binaural que sitúa a tu alrededor personas, objetos, puertas,
   teletransportes, agua y paredes.
 - **Búsqueda de rutas**: eliges un objetivo y el mod calcula la ruta y te guía con un sonido.
-- **Verbosidad** en tres niveles e **historial de mensajes**.
+- **Verbosidad** en tres niveles, con esquemas propios, e **historial de mensajes**.
+- **Etiquetas y marcadores** para nombrar objetivos y volver a cualquier casilla.
 - **Remapeo de teclas**, glosario de sonidos y grabador de sesiones.
 
 **Instalar:** descarga `pokeessentialsaccess-launcher.exe` de la
@@ -27,8 +28,8 @@ adds sound navigation and pathfinding. It does not modify the game's scripts and
 ventana de controles nativos de Windows, manejable con lector de pantalla.
 
 - Todos los detalles: **[README.es.md](README.es.md)**
-- Documentación técnica: **[docs/es/](docs/es/)** · empieza por
-  [visión general](docs/es/01-vision-general.md) o el [FAQ](docs/es/09-faq.md)
+- Documentación técnica, en inglés: **[docs/](docs/README.md)** · empieza por la
+  [visión general](docs/architecture/overview.md)
 
 </details>
 
@@ -40,7 +41,8 @@ ventana de controles nativos de Windows, manejable con lector de pantalla.
 - **Sound navigation**: a binaural 3D sonar placing people, objects, doors, warps, water and walls around
   you.
 - **Pathfinding**: pick a target and the mod works out the route and guides you there with a sound.
-- **Verbosity** in three levels and a **message history**.
+- **Verbosity** in three levels, with your own schemes, and a **message history**.
+- **Labels and markers** to name targets and get back to any tile.
 - **Key remapping**, a sound glossary and a session recorder.
 
 **Install:** download `pokeessentialsaccess-launcher.exe` from the
@@ -48,8 +50,8 @@ ventana de controles nativos de Windows, manejable con lector de pantalla.
 of native Windows controls, usable with a screen reader.
 
 - Full details: **[README.en.md](README.en.md)**
-- Technical documentation: **[docs/en/](docs/en/)** · start with
-  [the overview](docs/en/01-overview.md) or the [FAQ](docs/en/09-faq.md)
+- Technical documentation: **[docs/](docs/README.md)** · start with
+  [the overview](docs/architecture/overview.md)
 
 </details>
 

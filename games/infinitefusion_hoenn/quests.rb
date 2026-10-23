@@ -55,7 +55,8 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :if2_qcat, idx, true, false) do
         PokeAccess::Verbosity.list_entry(label, idx + 1, modes.length)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -83,7 +84,8 @@ module PokeAccess
       PokeAccess::Cursor.announce(scene, :if2_quest, [cat, idx], true) do
         PokeAccess::Verbosity.list_entry(PokeAccess::Verbosity.info_line(:quest, parts), idx + 1, list.length)
       end
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
 
@@ -102,7 +104,8 @@ module PokeAccess
       end
       t = PokeAccess::Util.join_parts(parts)
       PokeAccess.speak(t, true)
-    rescue StandardError
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
       nil
     end
   end
@@ -156,4 +159,4 @@ PokeAccess::SceneWatcher.reader("QuestMapPopup", :run, :qmp_row) do |s|
   end
 end
 
-PokeAccess::Verbosity.define_reading(:quest, :vb_quest, :vbh_quest)
+PokeAccess::Verbosity.define_reading(:quest, :vb_quest, :vbh_quest, :game)
