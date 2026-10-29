@@ -51,6 +51,11 @@ class LevelupStatOrderTest < PokeAccessTest
     with_scene { |scene| assert_equal :leveled, scene.pbLevelUp(*call_args(100, 100, 100, 100, 100, 100)) }
   end
 
+  test "the scene holds the game's class name only while the hooks bind, not while a test runs" do
+    held = with_scene { |_scene| Object.const_defined?(:PokeBattle_Scene) ? Object.const_get(:PokeBattle_Scene) : nil }
+    refute_same Scene, held
+  end
+
   private
 
   # pbLevelUp's arguments for a Pokemon whose six stats are now 100, with the six old values in the call's order.
@@ -64,23 +69,19 @@ class LevelupStatOrderTest < PokeAccessTest
     pairs.map { |key, n| T.t(:lvl_stat, :stat => T.t(key), :n => n) }.join(", ")
   end
 
-  # Yields a new scene with the gen-6 battle hooks bound to it attached, the class set as PokeBattle_Scene meanwhile.
+  # Yields a new scene with the gen-6 battle hooks bound to it attached.
   def with_scene
-    attached({ :PokeBattle_Scene => Scene }, BOUND) { yield Scene.new }
+    attached(BOUND) { yield Scene.new }
   end
 
-  # Runs the block with the stand-ins under their game names (top-level name => class) and the hook chains bound to
-  # them at load attached, then takes both away, putting back whatever held those names and chains before.
-  def attached(stand_ins, bound)
+  # Runs the block with the hook chains bound to the stand-ins at load attached, then takes them away, putting back
+  # whatever chains held those keys before. The stand-ins hold the game's names only while bind evaluates the hooks.
+  def attached(bound)
     chains = PokeAccess::Hooks.instance_variable_get(:@chains)
     held = bound.keys.select { |k| chains.key?(k) }.map { |k| [k, chains[k]] }
     chains.update(bound)
-    priors = stand_ins.keys.map { |n| [n, Object.const_defined?(n) ? Object.send(:remove_const, n) : nil] }
-    stand_ins.each { |n, k| Object.const_set(n, k) }
     yield
   ensure
-    stand_ins.each_key { |n| Object.send(:remove_const, n) if Object.const_defined?(n) }
-    (priors || []).each { |n, k| Object.const_set(n, k) if k }
     bound.each_key { |k| chains.delete(k) }
     (held || []).each { |k, v| chains[k] = v }
   end

@@ -76,6 +76,14 @@ class FightCursorForkTest < PokeAccessTest
     assert_equal [[T.t(:bt_mega_on), true]], SpeakCapture.log
   end
 
+  test "the displays hold the game's class name only while the hooks bind, not while a test runs" do
+    held = [[Stock, STOCK_BOUND], [Fork, FORK_BOUND]].map do |klass, bound|
+      with_display(klass, bound) { |_menu| Object.const_defined?(:FightMenuDisplay) ? Object.const_get(:FightMenuDisplay) : nil }
+    end
+    refute_includes held, Stock
+    refute_includes held, Fork
+  end
+
   private
 
   # A battler with Ember (move 1, 15 of 15 pp) and Growl (move 2, 30 of 40 pp).
@@ -94,23 +102,19 @@ class FightCursorForkTest < PokeAccessTest
     ["Growl", T.t(:cat_status), T.t(:mv_pp, :pp => 30, :tot => 40)].join(". ")
   end
 
-  # Yields a new display of klass with the gen-6 battle hooks bound to it attached, set as FightMenuDisplay meanwhile.
+  # Yields a new display of klass with the gen-6 battle hooks bound to it attached.
   def with_display(klass, bound)
-    attached({ :FightMenuDisplay => klass }, bound) { yield klass.new }
+    attached(bound) { yield klass.new }
   end
 
-  # Runs the block with the stand-ins under their game names (top-level name => class) and the hook chains bound to
-  # them at load attached, then takes both away, putting back whatever held those names and chains before.
-  def attached(stand_ins, bound)
+  # Runs the block with the hook chains bound to the stand-ins at load attached, then takes them away, putting back
+  # whatever chains held those keys before. The stand-ins hold the game's names only while bind evaluates the hooks.
+  def attached(bound)
     chains = PokeAccess::Hooks.instance_variable_get(:@chains)
     held = bound.keys.select { |k| chains.key?(k) }.map { |k| [k, chains[k]] }
     chains.update(bound)
-    priors = stand_ins.keys.map { |n| [n, Object.const_defined?(n) ? Object.send(:remove_const, n) : nil] }
-    stand_ins.each { |n, k| Object.const_set(n, k) }
     yield
   ensure
-    stand_ins.each_key { |n| Object.send(:remove_const, n) if Object.const_defined?(n) }
-    (priors || []).each { |n, k| Object.const_set(n, k) if k }
     bound.each_key { |k| chains.delete(k) }
     (held || []).each { |k, v| chains[k] = v }
   end

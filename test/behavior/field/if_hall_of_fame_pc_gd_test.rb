@@ -19,10 +19,20 @@ class IfHallOfFamePcGdTest < PokeAccessTest
   ENTRY = "Entered the Hall of Fame!, 2026-10-29, Classic mode (Normal)"
   Member = Struct.new(:name, :level, :species)
 
+  # The member panel's hook chain, which core bound on the engine stub every Hall of Fame test shares.
+  PANEL = "HallOfFame_Scene#writePokemonData"
+
+  class << self
+    # The profile's hooks on the member panel, kept out of that shared chain but while this file's tests run.
+    attr_reader :panel_hooks
+  end
+
   # Evaluates the profile file once, as boot does, its hooks bound to the scene above, lent HallOfFame_Scene's name
-  # while they bind.
+  # while they bind; the hooks it adds to the shared panel chain are taken back out and kept aside.
   def self.load_profile
     profiles = PokeAccess::Game.profiles.dup
+    chains = PokeAccess::Hooks.instance_variable_get(:@chains)
+    shared = (chains[PANEL] || []).dup
     stub = Object.send(:remove_const, :HallOfFame_Scene)
     Object.const_set(:HallOfFame_Scene, IfHofPcScene)
     eval(Harness.source(PATH), TOPLEVEL_BINDING, PATH)
@@ -31,9 +41,34 @@ class IfHallOfFamePcGdTest < PokeAccessTest
       Object.send(:remove_const, :HallOfFame_Scene)
       Object.const_set(:HallOfFame_Scene, stub)
     end
+    after = chains[PANEL] || []
+    @panel_hooks = after.reject { |w| shared.any? { |s| s.equal?(w) } }
+    after.replace(shared)
     PokeAccess::Game.profiles.replace(profiles)
   end
   load_profile
+
+  # Puts the profile's panel hooks back in the shared chain for this test alone.
+  def setup
+    super
+    chain = (PokeAccess::Hooks.instance_variable_get(:@chains)[PANEL] ||= [])
+    self.class.panel_hooks.each { |w| chain.push(w) unless chain.any? { |c| c.equal?(w) } }
+  end
+
+  # Takes the profile's panel hooks out of the shared chain again.
+  def teardown
+    detach_panel_hooks
+    super
+  end
+
+  test "the profile's panel hook joins the shared Hall of Fame chain only while this file's tests run" do
+    chain = PokeAccess::Hooks.instance_variable_get(:@chains)[PANEL]
+    hooks = self.class.panel_hooks
+    refute_empty hooks
+    assert hooks.all? { |w| chain.any? { |c| c.equal?(w) } }, "in the chain during the test"
+    detach_panel_hooks
+    refute hooks.any? { |w| chain.any? { |c| c.equal?(w) } }, "out of it once the test is over"
+  end
 
   test "the entry page past the last member is said as painted, cutting in, and keeps the game's result" do
     assert_equal :entry, IfHofPcScene.new.writeWelcomePC
@@ -71,6 +106,12 @@ class IfHallOfFamePcGdTest < PokeAccessTest
   end
 
   private
+
+  # Takes the profile's panel hooks out of the shared chain.
+  def detach_panel_hooks
+    chain = PokeAccess::Hooks.instance_variable_get(:@chains)[PANEL]
+    chain.delete_if { |c| self.class.panel_hooks.any? { |w| w.equal?(c) } } if chain
+  end
 
   # A member panel as the stub paints it in the PC viewer: the dex number, then the member's name and level.
   def panel(member)

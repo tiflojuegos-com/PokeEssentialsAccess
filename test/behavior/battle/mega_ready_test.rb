@@ -70,25 +70,26 @@ class MegaReadyTest < PokeAccessTest
     assert_equal [T.t(:bt_mega_ready), T.t(:bt_ultra_ready), T.t(:bt_mega_on), T.t(:bt_ultra_on)], SpeakCapture.lines
   end
 
-  private
-
-  # Yields a new display with the gen-6 battle hooks bound to it attached, the class set as FightMenuDisplay meanwhile.
-  def with_fight_menu
-    attached({ :FightMenuDisplay => Display }, BOUND) { yield Display.new }
+  test "the display holds the game's class name only while the hooks bind, not while a test runs" do
+    held = with_fight_menu { |_menu| Object.const_defined?(:FightMenuDisplay) ? Object.const_get(:FightMenuDisplay) : nil }
+    refute_same Display, held
   end
 
-  # Runs the block with the stand-ins under their game names (top-level name => class) and the hook chains bound to
-  # them at load attached, then takes both away, putting back whatever held those names and chains before.
-  def attached(stand_ins, bound)
+  private
+
+  # Yields a new display with the gen-6 battle hooks bound to it attached.
+  def with_fight_menu
+    attached(BOUND) { yield Display.new }
+  end
+
+  # Runs the block with the hook chains bound to the stand-ins at load attached, then takes them away, putting back
+  # whatever chains held those keys before. The stand-ins hold the game's names only while bind evaluates the hooks.
+  def attached(bound)
     chains = PokeAccess::Hooks.instance_variable_get(:@chains)
     held = bound.keys.select { |k| chains.key?(k) }.map { |k| [k, chains[k]] }
     chains.update(bound)
-    priors = stand_ins.keys.map { |n| [n, Object.const_defined?(n) ? Object.send(:remove_const, n) : nil] }
-    stand_ins.each { |n, k| Object.const_set(n, k) }
     yield
   ensure
-    stand_ins.each_key { |n| Object.send(:remove_const, n) if Object.const_defined?(n) }
-    (priors || []).each { |n, k| Object.const_set(n, k) if k }
     bound.each_key { |k| chains.delete(k) }
     (held || []).each { |k, v| chains[k] = v }
   end

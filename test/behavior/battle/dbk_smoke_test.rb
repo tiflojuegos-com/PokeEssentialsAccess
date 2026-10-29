@@ -501,12 +501,16 @@ class DbkSmokeTest < PokeAccessTest
     assert_equal [[line.join(", "), false]], SpeakCapture.log
   end
 
+  test "the kit holds the game's class name only while the hooks bind, not while a test runs" do
+    held = with_kit { |_battle, _scene| Object.const_defined?(:Battle) ? Object.const_get(:Battle) : nil }
+    refute_same Kit, held
+  end
+
   private
 
-  # Yields a new Battle and Battle::Scene with the kit's readers bound to them attached, the classes set under those
-  # names meanwhile.
+  # Yields a new Battle and Battle::Scene with the kit's readers bound to them attached.
   def with_kit
-    attached({ :Battle => Kit }, BOUND) { yield Kit.new, Kit::Scene.new }
+    attached(BOUND) { yield Kit.new, Kit::Scene.new }
   end
 
   # The ball selector's entries: [ball, count], and the Back entry with no ball.
@@ -652,18 +656,14 @@ class DbkSmokeTest < PokeAccessTest
     saved.each { |v, value| bs.instance_variable_set(v, value) }
   end
 
-  # Runs the block with the stand-ins under their game names (top-level name => class) and the hook chains bound to
-  # them at load attached, then takes both away, putting back whatever held those names and chains before.
-  def attached(stand_ins, bound)
+  # Runs the block with the hook chains bound to the stand-ins at load attached, then takes them away, putting back
+  # whatever chains held those keys before. The stand-ins hold the game's names only while bind evaluates the hooks.
+  def attached(bound)
     chains = PokeAccess::Hooks.instance_variable_get(:@chains)
     held = bound.keys.select { |k| chains.key?(k) }.map { |k| [k, chains[k]] }
     chains.update(bound)
-    priors = stand_ins.keys.map { |n| [n, Object.const_defined?(n) ? Object.send(:remove_const, n) : nil] }
-    stand_ins.each { |n, k| Object.const_set(n, k) }
     yield
   ensure
-    stand_ins.each_key { |n| Object.send(:remove_const, n) if Object.const_defined?(n) }
-    (priors || []).each { |n, k| Object.const_set(n, k) if k }
     bound.each_key { |k| chains.delete(k) }
     (held || []).each { |k, v| chains[k] = v }
   end
