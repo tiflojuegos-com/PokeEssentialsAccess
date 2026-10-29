@@ -285,7 +285,7 @@ module PokeAccess
       sc = snd::Scene
       o.push("audio3d: engine=Steam Audio (phonon+miniaudio) available=#{dv { snd::Native.available? }} sound_nav=#{dv { c.sound_nav }} ready=#{dv { pa.ready? }} boot_tried=#{dv { pa.boot_tried? }} active=#{dv { sch.active? }} pitch_export=#{dv { snd::Native.has?(:pitch) ? 'yes' : 'no' }}")
       o.push("audio3d device: rate=#{dv { pa.device_rate }}Hz latency=#{dv { pa.device_latency }}ms asset_set=#{dv { pa.device_rate == 48000 ? '48000' : '44100' }}")
-      o.push("audio3d cfg: master=#{dv { c.audio3d_volume }} occlusion=#{dv { c.audio3d_occlusion }} air=#{dv { c.audio3d_air }} range=#{dv { sc.range }} wall_range=#{dv { sc.wall_range }} alt_dist=#{dv { sch.alt_dist }} wind=#{dv { c.audio3d_wind }} falloff=#{dv { c.audio3d_wall_falloff }}")
+      o.push("audio3d cfg: master=#{dv { c.audio3d_volume }} occlusion=#{dv { c.audio3d_occlusion }} air=#{dv { c.audio3d_air }} hrtf=#{dv { c.audio3d_hrtf }} range=#{dv { sc.range }} wall_range=#{dv { sc.wall_range }} alt_dist=#{dv { sch.alt_dist }} wind=#{dv { c.audio3d_wind }} falloff=#{dv { c.audio3d_wall_falloff }}")
       o.push("audio3d vols: npc=#{dv { c.audio3d_npc }} object=#{dv { c.audio3d_object }} door=#{dv { c.audio3d_door }} water=#{dv { c.audio3d_water }}")
       o.push("audio3d tones: npc=#{dv { c.audio3d_tone_npc }} object=#{dv { c.audio3d_tone_object }} door=#{dv { c.audio3d_tone_door }} teleporter=#{dv { c.audio3d_tone_teleporter }} water=#{dv { c.audio3d_tone_water }} wind=#{dv { c.audio3d_tone_wind }} step=#{dv { c.footstep_tone }} wall=#{dv { c.wall_tone }} guide=#{dv { c.guide_tone }} sent=#{dv { pa.pitches.inspect }}")
       o.push("audio3d chans=#{dv { pa.channels.inspect }}")

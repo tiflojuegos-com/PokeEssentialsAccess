@@ -252,6 +252,7 @@ module PokeAccess
     define(:sound_nav,            :full,  :navmode,   :audio,          :lbl_sound_nav,        :help_sound_nav)
     define(:sonar_only_locatable, false,  :flag,      :audio,          :lbl_sonar_locatable,  :help_sonar_locatable, SONAR)
     define(:game_bump,            false,  :flag,      :audio,          :lbl_game_bump,        :help_game_bump, NAV_ON)
+    define(:audio3d_hrtf,         true,   :flag,      :audio,          :lbl_pos_hrtf,         :help_pos_hrtf, NAV_ENGINE)
     define(:audio3d_volume,       80,     :vol,       :audio,          :lbl_pos_master,       :help_pos_master, NAV_ENGINE)
     [:on, :vol, :freq, :tone].each do |kind|
       Sound::Catalog.rows(kind).each do |key, default, k, group, label, help, shown|

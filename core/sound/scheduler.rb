@@ -73,6 +73,7 @@ module PokeAccess
         Pa3d.reach(reach)
         tones
         Pa3d.air((PokeAccess::Config.audio3d_air rescue false) ? true : false)
+        Pa3d.hrtf((PokeAccess::Config.audio3d_hrtf rescue true) ? true : false)
         unless nav_full?
           unless @basic_silenced
             silence_emitters

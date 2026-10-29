@@ -50,8 +50,8 @@ class ConfigMenuTest < PokeAccessTest
   test "lists the audio settings and every sound screen with the positional engine up" do
     on_screen(:audio) do
       Reset.with_capability(:positional, true) do
-        assert_equal [:sound_nav, :sonar_only_locatable, :game_bump, :audio3d_volume, [:enter, :audio3d_on],
-                      [:enter, :audio3d_vol], [:enter, :audio3d_freq], [:enter, :audio3d_tone],
+        assert_equal [:sound_nav, :sonar_only_locatable, :game_bump, :audio3d_hrtf, :audio3d_volume,
+                      [:enter, :audio3d_on], [:enter, :audio3d_vol], [:enter, :audio3d_freq], [:enter, :audio3d_tone],
                       [:enter, :audio3d_walls], [:enter, :audio3d_adv], :back], rows(:audio)
       end
     end
@@ -62,6 +62,17 @@ class ConfigMenuTest < PokeAccessTest
       Reset.with_capability(:positional, false) do
         assert_equal [:sound_nav, :game_bump, [:enter, :audio3d_on], [:enter, :audio3d_vol], [:enter, :audio3d_freq],
                       [:enter, :audio3d_tone], :back], rows(:audio)
+      end
+    end
+  end
+
+  test "shows the HRTF switch while the engine plays, with sound navigation basic or full" do
+    { :off => false, :basic => true, :full => true }.each do |nav, shown|
+      Reset.with_capability(:positional, true) do
+        on_screen(:audio) do
+          Cfg.sound_nav = nav
+          assert_equal shown, rows(:audio).include?(:audio3d_hrtf), nav.to_s
+        end
       end
     end
   end

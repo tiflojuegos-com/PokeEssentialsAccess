@@ -1,12 +1,14 @@
 /*
   PA3D (Steam Audio / phonon build) - positional audio backend for the PokeAccess mod.
   Tiny integer/string ABI so the Ruby side stays unchanged. HRTF spatialization is done per
-  source with Steam Audio's binaural effect; device output and mixing use miniaudio.
+  source with Steam Audio's binaural effect; device output and mixing use miniaudio. With PA3D_Hrtf off, a
+  source pans between left and right instead, and its pitch tells ahead from behind.
   Coordinates are tile units times 100; the listener faces north (-z), map x->x, map y->z.
   Distance attenuation is linear, clamped between the reference distance (1 tile) and the distance at which a
   source falls silent (PA3D_Range, 14 tiles until set).
   Each channel has a playback rate in percent (PA3D_Pitch): the mixer already resamples to the device
-  rate with linear interpolation, so a tone is one more factor on that step and costs nothing extra.
+  rate with linear interpolation, so a tone, like the stereo tilt, is one more factor on that step and costs
+  nothing extra.
 */
 #include <windows.h>
 #include <stdio.h>
@@ -26,6 +28,7 @@
 #define FRAME 256
 #define RATE  44100
 #define REF_DIST 1.0f
+#define STEREO_TILT 0.2f  /* in plain stereo, how much faster a source straight ahead plays, and slower one behind */
 #define EXPORT __declspec(dllexport)
 
 typedef struct {
@@ -43,6 +46,8 @@ typedef struct {
     volatile int   occ100;
     IPLBinauralEffect effect;
     IPLDirectEffect   direct;
+    float  pan_l;      /* plain-stereo weights of the last block, where the next block's ramp starts */
+    float  pan_r;
 } Channel;
 
 static int g_ready = 0;
@@ -60,6 +65,7 @@ static volatile int g_lx100 = 0;
 static volatile int g_ly100 = 0;
 static volatile int g_master100 = 100;
 static volatile int g_air = 0;       /* global air-absorption toggle (distant sources lose treble) */
+static volatile int g_use_hrtf = 1;  /* 1 spatializes through the HRTF, 0 in plain stereo (PA3D_Hrtf) */
 static volatile float g_max_dist = 14.0f;  /* tiles at which a source falls silent (PA3D_Range) */
 /* what a wall lets through of a fully occluded source, by band (low, mid, high): the lows pass and the highs are cut,
    so a source behind a wall sounds muffled but stays audible. PA3D_Occl's amount blends from clear toward these. */
@@ -111,10 +117,10 @@ static float dist_gain(float dist) {
 /* pulls up to FRAME mono samples from a channel into dst, zero-padding the tail; handles loop/stop.
    uses linear interpolation between source samples so playing at a sample rate other than the wav's
    (e.g. a 44100 wav on a 48000 device) stays clean -- nearest-neighbour here aliased badly ("old
-   telephone" sound). */
-static void pull_samples(Channel* c, float* dst) {
+   telephone" sound). tilt is one more factor on the playback rate. */
+static void pull_samples(Channel* c, float* dst, double tilt) {
     int k; double h = c->head; int playing = c->playing;
-    double step = c->step * (c->pitch100 / 100.0);
+    double step = c->step * (c->pitch100 / 100.0) * tilt;
     for (k = 0; k < FRAME; k++) {
         int idx; double frac; float a, b;
         if (!playing || c->count <= 0) { dst[k] = 0.0f; continue; }
@@ -132,15 +138,35 @@ static void pull_samples(Channel* c, float* dst) {
     if (!playing) c->playing = 0;
 }
 
+/* constant-power stereo panning by the source's left-right component, Steam Audio's stereo formula, ramped across
+   the block from the last block's weights so a moving source does not click. */
+static void pan_channel(Channel* c, float x, float gain) {
+    float q = (x + 1.0f) * 0.78539816f;
+    float l = (float)cos((double)q), r = (float)sin((double)q);
+    int k;
+    for (k = 0; k < FRAME; k++) {
+        float t = (float)k / FRAME;
+        float s = g_in.data[0][k] * gain;
+        g_mixL[k] += s * (c->pan_l + (l - c->pan_l) * t);
+        g_mixR[k] += s * (c->pan_r + (r - c->pan_r) * t);
+    }
+    c->pan_l = l;
+    c->pan_r = r;
+}
+
+/* renders one channel's block into the mix: through the HRTF, or in plain stereo panned by the left-right component
+   of its direction and pitched by the ahead-behind one; a source on the listener keeps its pitch. */
 static void mix_channel(Channel* c) {
     IPLBinauralEffectParams params;
     IPLVector3 dir;
     float gx, gz, dist, gain;
-    int k;
-    pull_samples(c, g_in.data[0]);
+    int k, stereo = !g_use_hrtf;
     gx = (c->x100 - g_lx100) / 100.0f;
     gz = (c->y100 - g_ly100) / 100.0f;
     dist = (float)sqrt((double)(gx * gx + gz * gz));
+    if (dist < 1e-4f) { dir.x = 0.0f; dir.y = 0.0f; dir.z = -1.0f; }
+    else { dir.x = gx / dist; dir.y = 0.0f; dir.z = gz / dist; }
+    pull_samples(c, g_in.data[0], (stereo && dist >= 1e-4f) ? 1.0 - STEREO_TILT * dir.z : 1.0);
     gain = (c->vol100 / 100.0f) * (g_master100 / 100.0f) * dist_gain(dist);
     if (gain <= 1e-4f) return;
     if (c->direct && (c->occ100 > 0 || g_air)) {
@@ -161,8 +187,10 @@ static void mix_channel(Channel* c) {
         }
         if (dp.flags) iplDirectEffectApply(c->direct, &dp, &g_in, &g_in);
     }
-    if (dist < 1e-4f) { dir.x = 0.0f; dir.y = 0.0f; dir.z = -1.0f; }
-    else { dir.x = gx / dist; dir.y = 0.0f; dir.z = gz / dist; }
+    if (stereo) {
+        pan_channel(c, dir.x, gain);
+        return;
+    }
     params.direction = dir;
     params.interpolation = IPL_HRTFINTERPOLATION_BILINEAR;
     params.spatialBlend = 1.0f;
@@ -175,8 +203,8 @@ static void mix_channel(Channel* c) {
     }
 }
 
-/* renders exactly one FRAME-sample block: zeroes the mix and sums every audible channel through
-   the HRTF. each block is processed once, no matter how the device chunks its reads. */
+/* renders exactly one FRAME-sample block: zeroes the mix and sums every audible channel into it.
+   each block is processed once, no matter how the device chunks its reads. */
 static void process_block(void) {
     int i;
     memset(g_mixL, 0, sizeof(g_mixL));
@@ -336,6 +364,12 @@ EXPORT void PA3D_Occl(int ch, int occ100) {
 /* global air-absorption toggle: 1 makes distant sources lose treble, 0 off. */
 EXPORT void PA3D_Air(int on) {
     g_air = on ? 1 : 0;
+}
+
+/* global spatialization switch: 1 renders every channel through the HRTF (the default), 0 in plain stereo, panned
+   between left and right and pitched up ahead and down behind. */
+EXPORT void PA3D_Hrtf(int on) {
+    g_use_hrtf = on ? 1 : 0;
 }
 
 /* the distance in tiles at which a source falls silent, 2 at least (the caller's sonar range plus a margin). */

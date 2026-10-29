@@ -11,6 +11,7 @@ void PA3D_Set(int ch, int x100, int y100, int vol100, int play)
 void PA3D_Master(int vol100)
 void PA3D_Occl(int ch, int occ100)                 // 0 clear .. 100 fully muffled behind a wall, clamped
 void PA3D_Air(int on)                              // distant sources lose treble
+void PA3D_Hrtf(int on)                             // 1 HRTF (the default), 0 plain stereo
 void PA3D_Pitch(int ch, int pitch100)              // playback rate percent, 100 = as recorded, 25..400
 void PA3D_Range(int tiles)                         // the distance a source falls silent at, 2 at least
 int  PA3D_Rate(void)                               // the device's native sample rate, 0 if down
@@ -37,6 +38,14 @@ highs 0.05), so behind a wall a source loses some level and most of its treble b
 `phonon.dll` of the matching architecture (~46 MB x86 / ~53 MB x64) sitting beside it in the install's
 `accessibility/lib/` folder; `SetDllDirectory` (set in `speech.rb`) puts that folder on the DLL search
 path so it resolves.
+
+With `PA3D_Hrtf` off a channel skips the binaural effect. It pans between left and right with constant
+power, left `cos((x + 1) * pi/4)` and right `sin((x + 1) * pi/4)` for `x` the left-right part of its
+direction, ramped across the block from the last block's weights. Its step takes one more factor,
+`1 - STEREO_TILT * z`, with `z` -1 straight ahead and 1 straight behind and `STEREO_TILT` 0.2, so ahead
+plays higher and behind lower; a source on the listener keeps its pitch. The panning is Steam Audio's
+stereo formula, computed in place: its `iplPanningEffect` in 4.8.1 crossfades by the channel index
+instead of the sample, so each block would play at the previous block's direction.
 
 miniaudio is compiled into the DLL (header-only). Z/Ópalo are x86; Reminiscencia/Añil are x64.
 

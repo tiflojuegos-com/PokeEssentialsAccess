@@ -10,7 +10,8 @@ module PokeAccess
         :listener => ["PA3D_Listener", ["i", "i"], "v"], :set => ["PA3D_Set", ["i", "i", "i", "i", "i"], "v"],
         :master => ["PA3D_Master", ["i"], "v"], :rate => ["PA3D_Rate", [], "i"], :latency => ["PA3D_Latency", [], "i"],
         :occl => ["PA3D_Occl", ["i", "i"], "v"], :air => ["PA3D_Air", ["i"], "v"],
-        :pitch => ["PA3D_Pitch", ["i", "i"], "v"], :range => ["PA3D_Range", ["i"], "v"]
+        :pitch => ["PA3D_Pitch", ["i", "i"], "v"], :range => ["PA3D_Range", ["i"], "v"],
+        :hrtf => ["PA3D_Hrtf", ["i"], "v"]
       }
       # The entry points the engine cannot run without.
       NEEDED = [:init, :channel, :listener, :set, :master]

@@ -1,8 +1,9 @@
 /*
-  Standalone check of the per-channel pitch, of the range and of the occlusion. Includes pa3d_steam.c whole so the
-  static pull_samples, dist_gain and process_block are reachable, feeds it a ramp and asserts the read head advances
-  pitch percent as fast, then exercises the exports' clamping and where a source falls silent, then renders a low and a
-  high tone from behind a wall. No audio device is opened. Links phonon like the dll does (the included file
+  Standalone check of the per-channel pitch, of the range, of the occlusion and of the plain stereo. Includes
+  pa3d_steam.c whole so the static pull_samples, dist_gain and process_block are reachable, feeds it a ramp and asserts
+  the read head advances pitch percent as fast, then exercises the exports' clamping and where a source falls silent,
+  then renders a low and a high tone from behind a wall, then a tone in plain stereo from around the listener for its
+  panning and its pitch. No audio device is opened. Links phonon like the dll does (the included file
   references it), so phonon.dll of the matching architecture must sit beside the executable to start.
 */
 #include "pa3d_steam.c"
@@ -87,6 +88,23 @@ static void drop_channel(void) {
     memset(g_ch, 0, sizeof(g_ch));
 }
 
+/* Plays channel 0 at (x100, y100) for eight blocks: the left channel's level over the right's in dB once the pan's
+   ramp settled, the energy of both channels in total and the playback rate the read head ran at in rate. */
+static double stereo_db(int x100, int y100, double* total, double* rate) {
+    Channel* c = &g_ch[0];
+    double el = 0.0, er = 0.0;
+    int b, k;
+    c->x100 = x100; c->y100 = y100; c->head = 0.0;
+    for (b = 0; b < 8; b++) {
+        process_block();
+        if (b < 2) continue;
+        for (k = 0; k < FRAME; k++) { el += (double)g_mixL[k] * g_mixL[k]; er += (double)g_mixR[k] * g_mixR[k]; }
+    }
+    *total = el + er;
+    *rate = c->head / (8.0 * FRAME);
+    return 10.0 * log10(el / er);
+}
+
 int main(void) {
     static float ramp[FRAME * 8];
     static float out[FRAME];
@@ -97,22 +115,26 @@ int main(void) {
     c.used = 1; c.pcm = ramp; c.count = FRAME * 8; c.step = 1.0; c.playing = 1;
 
     c.pitch100 = 100; c.head = 0.0;
-    pull_samples(&c, out);
+    pull_samples(&c, out, 1.0);
     expect("at 100 the recording plays as it is", out[FRAME - 1], (double)(FRAME - 1));
     expect("and the head advanced one frame", c.head, (double)FRAME);
 
+    c.head = 0.0;
+    pull_samples(&c, out, 1.2);
+    expect("a tilt is one more factor on the rate", c.head, FRAME * 1.2);
+
     c.pitch100 = 200; c.head = 0.0;
-    pull_samples(&c, out);
+    pull_samples(&c, out, 1.0);
     expect("at 200 every output sample skips one source sample", out[10], 20.0);
     expect("so the head runs twice as far", c.head, (double)(2 * FRAME));
 
     c.pitch100 = 50; c.head = 0.0;
-    pull_samples(&c, out);
+    pull_samples(&c, out, 1.0);
     expect("at 50 the odd samples are interpolated halfway", out[1], 0.5);
     expect("and the head covers half a frame", c.head, (double)FRAME / 2.0);
 
     c.step = 44100.0 / 48000.0; c.pitch100 = 200; c.head = 0.0;
-    pull_samples(&c, out);
+    pull_samples(&c, out, 1.0);
     expect("the pitch multiplies the device-rate step instead of replacing it", c.head, FRAME * 2.0 * 44100.0 / 48000.0);
 
     memset(g_ch, 0, sizeof(g_ch));
@@ -161,6 +183,31 @@ int main(void) {
                 expect_within("at 100 the low tone is muffled further (dB)", low100, -8.0, low80 - 0.3);
                 expect_within("and the high one too, still audible (dB)", high100, -40.0, high80 - 3.0);
             }
+        }
+        if (!tone_channel(pcm, 440.0)) { printf("FAIL stereo tone channel\n"); failures++; }
+        else {
+            double total, rate, ahead, left;
+            g_use_hrtf = 0;
+            expect_within("in stereo a source 45 degrees left ahead is louder on the left (dB)",
+                          stereo_db(-300, -300, &left, &rate), 12.3, 12.9);
+            expect("and plays faster by the tilt's share ahead", rate, 1.0 + STEREO_TILT * 0.70710678);
+            expect_within("one 45 degrees right ahead is louder on the right (dB)", stereo_db(300, -300, &total, &rate),
+                          -12.9, -12.3);
+            expect_within("one straight ahead is centred (dB)", stereo_db(0, -300, &ahead, &rate), -0.01, 0.01);
+            expect("and plays faster by the whole tilt", rate, 1.0 + STEREO_TILT);
+            expect_within("one straight behind is centred too (dB)", stereo_db(0, 300, &total, &rate), -0.01, 0.01);
+            expect("and plays slower by the whole tilt", rate, 1.0 - STEREO_TILT);
+            stereo_db(-300, 0, &total, &rate);
+            expect("one to the side keeps its pitch", rate, 1.0);
+            expect_within("one on the listener is centred (dB)", stereo_db(0, 0, &total, &rate), -0.01, 0.01);
+            expect("and keeps its pitch", rate, 1.0);
+            g_use_hrtf = 1;
+            stereo_db(0, -300, &total, &rate);
+            expect("through the HRTF one ahead keeps its pitch", rate, 1.0);
+            printf("info HRTF over stereo, ahead: %.2f dB\n", 10.0 * log10(total / ahead));
+            stereo_db(-300, -300, &total, &rate);
+            printf("info HRTF over stereo, 45 degrees left: %.2f dB\n", 10.0 * log10(total / left));
+            drop_channel();
         }
     }
 

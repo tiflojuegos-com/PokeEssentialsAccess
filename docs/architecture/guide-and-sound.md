@@ -137,7 +137,7 @@ frame is kept.
 ## Positional audio
 
 The positional engine is `PA3D_steam.dll`, built from `native/pa3d_steam.c`. It places each source with Steam Audio's
-HRTF and mixes and plays the sources through miniaudio. The repository carries one build per architecture in
+HRTF, or in plain stereo with `audio3d_hrtf` off, and mixes and plays the sources through miniaudio. The repository carries one build per architecture in
 `assets/x86/` and `assets/x64/`, each with Steam Audio's `phonon.dll` beside it. The launcher installs the one that
 matches the game into `Paths::LIB` ([Installed layout](loading.md#installed-layout)), which `core/speech/backend.rb`
 adds to the DLL search path.
@@ -166,6 +166,9 @@ high ahead and low behind (`Catalog::GUIDE_FLAT`).
   The sounds placed to the side or by heading set theirs as they play.
 - `PA3D_Occl` muffles a channel: the lows pass and the highs are cut, so a source behind a wall stays audible.
 - `PA3D_Air` takes treble off distant sources while `audio3d_air` is on.
+- `PA3D_Hrtf` puts the engine in plain stereo while `audio3d_hrtf` is off. A channel pans between the left and the
+  right by the left-right part of its direction, and plays up to 20 % higher straight ahead and as much lower
+  straight behind, the pitches of the flat wall cue (`Catalog::WALL_FLAT`). A sound on the player keeps its pitch.
 - `Pa3d` sends an order only when it changes what the engine holds.
 
 ## The flat channel

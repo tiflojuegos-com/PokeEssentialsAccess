@@ -242,8 +242,8 @@ class SchedulerTest < PokeAccessTest
     end
   end
 
-  test "never asks an older dll without the range or the air entry point for it" do
-    [:range, :air].each do |entry|
+  test "never asks an older dll without the range, the air or the HRTF entry point for it" do
+    [:range, :air, :hrtf].each do |entry|
       with_trainer do
         with_sound_engine(true, 44100, [entry]) do |dll|
           asked = asked_of(dll)
@@ -261,6 +261,26 @@ class SchedulerTest < PokeAccessTest
         sch.tick
         assert_equal want, dll.args(:air), "with the air's absorption #{on ? 'on' : 'off'}"
       end
+    end
+  end
+
+  test "tells the engine whether to spatialize through the HRTF, as set" do
+    { true => [[1]], false => [[0]] }.each do |on, want|
+      with_frame do |dll, sch|
+        Config.audio3d_hrtf = on
+        sch.tick
+        assert_equal want, dll.args(:hrtf), "with the HRTF #{on ? 'on' : 'off'}"
+      end
+    end
+  end
+
+  test "sends the HRTF switch again only when it changes" do
+    with_frame do |dll, sch|
+      sch.tick
+      sch.tick
+      Config.audio3d_hrtf = false
+      sch.tick
+      assert_equal [[1], [0]], dll.args(:hrtf)
     end
   end
 

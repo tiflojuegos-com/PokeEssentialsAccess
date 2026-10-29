@@ -23,6 +23,7 @@ module PokeAccess
         @listener = nil
         @master = nil
         @air = nil
+        @hrtf = nil
         @reach = nil
       end
       forget
@@ -200,6 +201,17 @@ module PokeAccess
         a = on ? 1 : 0
         Native.call(:air, a) unless a == @air
         @air = a
+      rescue StandardError => e
+        PokeAccess.swallowed(e)
+        nil
+      end
+
+      # Spatializes through the HRTF, or in plain stereo with the pitch telling ahead from behind.
+      def self.hrtf(on)
+        return unless @ready && Native.has?(:hrtf)
+        h = on ? 1 : 0
+        Native.call(:hrtf, h) unless h == @hrtf
+        @hrtf = h
       rescue StandardError => e
         PokeAccess.swallowed(e)
         nil
