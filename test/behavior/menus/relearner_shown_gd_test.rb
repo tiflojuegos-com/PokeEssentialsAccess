@@ -1,14 +1,6 @@
 # The modern relearner's rows (UIV21.move_from_entry) as the screen paints them: the row's label, said from medium, and
-# the move's figures as they are for the Pokemon it is for; in Royal (games/royal/relearner_labels.rb) a machine row's
-# tag as its translated symbol.
+# the move's figures as they are for the Pokemon it is for.
 class RelearnerShownGdTest < PokeAccessTest
-  ROYAL_LABELS = File.join(Harness::ROOT, "games", "royal", "relearner_labels.rb")
-  # Royal's labels are evaluated once; their override stands in for the core's only inside a test.
-  CORE_LABEL = PokeAccess::UIV21.method(:entry_label)
-  eval(Harness.source(ROYAL_LABELS), TOPLEVEL_BINDING, ROYAL_LABELS)
-  ROYAL_LABEL = PokeAccess::UIV21.method(:entry_label)
-  PokeAccess::UIV21.define_singleton_method(:entry_label, CORE_LABEL)
-
   test "a row says its label, then the move's name, type, category, power, accuracy and description" do
     t = PokeAccess::I18n
     assert_equal ["Nv. 12", "MoveRETURN", t.t(:mv_type, :t => "TypeTYPE1"), t.t(:cat_physical), t.t(:mv_power, :p => 40),
@@ -59,31 +51,6 @@ class RelearnerShownGdTest < PokeAccessTest
     with_unknown_move(:GHOSTMOVE) { assert_nil row([:GHOSTMOVE, "Nv. 3"]), "an unknown move" }
   end
 
-  test "royal says a machine row with the symbol it paints for the tag" do
-    bare = row([:TACKLE, ""])
-    with_royal_labels do
-      assert_equal "MT. #{bare}", row([:TACKLE, :TM]), "a TM row"
-      assert_equal "MO. #{bare}", row([:TACKLE, :HM]), "an HM row"
-    end
-  end
-
-  test "royal leaves a level row's label as it is" do
-    bare = row([:TACKLE, ""])
-    with_royal_labels do
-      assert_equal "Nv. 5. #{bare}", row([:TACKLE, "Nv. 5"])
-    end
-  end
-
-  test "royal's English build says the machine symbols its translation gives" do
-    bare = row([:TACKLE, ""])
-    with_royal_labels do
-      with_intl("MT" => "TM", "MO" => "HM") do
-        assert_equal "TM. #{bare}", row([:TACKLE, :TM]), "a TM row"
-        assert_equal "HM. #{bare}", row([:TACKLE, :HM]), "an HM row"
-      end
-    end
-  end
-
   private
 
   # The relearner's spoken row for a [move, label] entry, for pk or for the move's plain data.
@@ -106,13 +73,5 @@ class RelearnerShownGdTest < PokeAccessTest
     yield
   ensure
     GameData::Move.define_singleton_method(:get, real)
-  end
-
-  # Runs the block with Royal's row labels in place of the core's, which are put back after.
-  def with_royal_labels
-    PokeAccess::UIV21.define_singleton_method(:entry_label, ROYAL_LABEL)
-    yield
-  ensure
-    PokeAccess::UIV21.define_singleton_method(:entry_label, CORE_LABEL)
   end
 end

@@ -1,6 +1,7 @@
 # The field-move rules profiles override FieldMoves.can? with, read off each game's scripts: Realidea's switch and
-# badge count, the rv engine's story switches, Uranium's power cell for L and the HM Catalogue's pages, and the rule on
-# surfing with company their Surf follows. Each file is loaded for its test alone, and what it overrode is put back.
+# badge count, Revival's three ways to surf, the rv engine's story switches, Uranium's power cell for L and the HM
+# Catalogue's pages, and the rule on surfing with company their Surf follows. Each file is loaded for its test alone,
+# and what it overrode is put back.
 class FieldMoveProfilesTest < PokeAccessTest
   test "realidea cuts by switch 142 and breaks rocks by two badges, with no Pokemon" do
     with_file("games", "realidea", "field_moves.rb") do
@@ -43,6 +44,24 @@ class FieldMoveProfilesTest < PokeAccessTest
   ensure
     class << tr; remove_method :outfit; end
     Object.send(:remove_const, :BADGEFORSTRENGTH) if made
+  end
+
+  test "revival surfs with any one of the Surf badge, a Pokemon that knows Surf and the Lapras whistle" do
+    items = Hash[fm.instance_variable_get(:@items).map { |k, v| [k, v.dup] }]
+    badge = fm.method(:badge_ok?)
+    cases = [[false, false, [], false], [true, false, [], true], [false, true, [], true],
+             [false, false, [:SILBATOLAPRAS], true]]
+    with_file("games", "revival", "field_moves.rb") do
+      cases.each do |won, knows, bag, want|
+        fm.define_singleton_method(:badge_ok?) { |_m| won }
+        with_party(knows, 0) do
+          with_bag(bag) { assert_equal want, fm.can?(:SURF), "badge #{won}, knows #{knows}, bag #{bag.inspect}" }
+        end
+      end
+    end
+  ensure
+    fm.define_singleton_method(:badge_ok?, badge) if badge
+    fm.instance_variable_set(:@items, items) if items
   end
 
   test "reminiscencia refuses to surf with a dependent event along, as its Kernel.pbSurf does" do

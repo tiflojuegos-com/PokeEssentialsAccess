@@ -98,7 +98,8 @@ module PokeAccess
     end
 
     # The move panel as phrases: name, type and category from the move, the power, accuracy and effect chance as
-    # painted (the batch's last three rows), the flag icons, the effectiveness strip and the description.
+    # painted (the batch's last three rows), the flag icons from the battle moves' medium level as the plugin's panel
+    # says them, the effectiveness strip and, where descriptions are said, the description.
     def self.move_parts(scene, battler, index)
       painted = PokeAccess::PaintCapture.take_by_source(:ss2_moveinfo)
       rows = painted[:positions] || []
@@ -118,11 +119,11 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(:mv_power, :p => power_word(figures[0]))) unless cat == STATUS_CAT
       parts.push(PokeAccess::I18n.t(:mv_acc, :a => acc_word(figures[1])))
       parts.push(PokeAccess::I18n.t(:mv_effect, :n => figures[2])) unless figures[2].to_s == "---"
-      flags = flags_text
+      flags = PokeAccess::Verbosity.keep?(:battle_move, :medium) ? flags_text : nil
       parts.push(flags) if flags
       eff = effect_text(scene)
       parts.push(eff) if eff
-      d = PokeAccess::PaintCapture.text(desc)
+      d = PokeAccess::Verbosity.descriptions? ? PokeAccess::PaintCapture.text(desc) : nil
       parts.push(d) unless d.to_s.strip.empty?
       parts.empty? ? nil : parts
     rescue StandardError => e

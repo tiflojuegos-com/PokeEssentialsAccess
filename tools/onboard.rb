@@ -42,7 +42,8 @@ def engine_facts(game)
   facts << "mkxp.json: present (mkxp-z)" if File.file?(File.join(game, "mkxp.json"))
   ini = File.join(game, "Game.ini")
   if File.file?(ini)
-    text = File.read(ini, :encoding => "BINARY")
+    text = File.read(ini, :encoding => "BINARY").force_encoding("UTF-8")
+    text = text.force_encoding("Windows-1252").encode("UTF-8") unless text.valid_encoding?
     facts << "Game.ini library: #{text[/^Library=(.*)$/, 1].to_s.strip}" if text =~ /^Library=/
     facts << "Game.ini title: #{text[/^Title=(.*)$/, 1].to_s.strip}" if text =~ /^Title=/
   end
@@ -127,7 +128,19 @@ def hooked_classes(profile, readers)
       dirs.any? { |d| path.start_with?("games/#{d}/") }
   end
   named = sources.values.map { |body| body.scan(NAMED_READERS).flatten }.flatten
-  (ReaderSites.hooked_pairs(sources).keys.map { |k| k.split("#").first } + named).map { |c| c.split("::").last }.uniq
+  (ReaderSites.hooked_pairs(sources).keys.map { |k| k.split("#").first } + named + variant_lists(sources))
+    .map { |c| c.split("::").last }.uniq
+end
+
+# The class names hooked through Hooks.variants over a constant (Hooks.variants(PokeAccess::HallOfFame::FAMILY, ...)),
+# read from where that constant lists them; literal lists are already in hooked_pairs.
+def variant_lists(sources)
+  consts = {}
+  sources.each_value do |body|
+    body.scan(/^\s*([A-Z][A-Z0-9_]+)\s*=\s*\[([^\]]*)\]/) { |name, list| consts[name] = list.scan(/"([A-Z]\w*)"/).flatten }
+  end
+  used = sources.values.map { |body| body.scan(/Hooks\.variants\(\s*(?:\w+::)*([A-Z][A-Z0-9_]+)\s*,/).flatten }.flatten
+  used.map { |name| consts[name] || [] }.flatten
 end
 
 # The definitions of the passability methods, each with the state it reads beyond the map.
@@ -171,7 +184,8 @@ Dir.mktmpdir("pa-onboard") do |tmp|
     ScriptDumper.dump(game, dump)
   end
   all_src = Dir.glob(File.join(dump, "**", "*.rb")).map { |f| File.binread(f) }.join("\n")
-  version = all_src[/ESSENTIALS_?VERSION\s*=\s*"([^"]+)"/, 1]
+  version = all_src[/ESSENTIALS_?VERSION\s*=\s*["']([^"']+)["']/, 1] ||
+            all_src[/^module Essentials\s+VERSION\s*=\s*["']([^"']+)["']/, 1]
   era = all_src =~ /^\s*module\s+GameData\b/ ? "gamedata" : "gen6"
   title = engine_facts(game).map { |l| l[/\AGame\.ini title: (.*)/, 1] }.compact.first
   if File.file?(File.join(game, "mkxp.json"))
@@ -239,10 +253,12 @@ Dir.mktmpdir("pa-onboard") do |tmp|
   end
 end
 
+# The lines joined as bytes: names read from a game's scripts can come in binary next to the report's UTF-8.
+text = report.map { |line| line.to_s.b }.join("\n") + "\n"
 out = option("--out")
 if out
-  File.binwrite(out, report.join("\n") + "\n")
+  File.binwrite(out, text)
   puts "wrote #{out}"
 else
-  puts report
+  puts text.force_encoding("UTF-8")
 end

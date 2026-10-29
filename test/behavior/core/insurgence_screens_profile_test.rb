@@ -214,14 +214,9 @@ class InsurgenceScreensProfileTest < PokeAccessTest
       def openSplash(_scene, _args); :splash; end
     end
 
-    class Window_UnformattedTextPokemon
-      attr_reader :text
-      def initialize(text = ""); @text = text; resizeToFit(text); end
-      def text=(v); @text = v; end
-      def resizeToFit(_text, _maxwidth = -1); nil; end
-    end
-    # The upgrade shop as the game builds it: the money, its one text window, sized as it is made and repainted by a
-    # purchase (the new sum set twice); $ins_meanwhile, when set, opens whatever else comes up while the shop runs.
+    # The upgrade shop as the game builds it: the money in its one text window (the engine stubs'), sized as it is
+    # made and repainted by a purchase (the new sum set twice); $ins_meanwhile, when set, opens whatever else comes up
+    # while the shop runs.
     def buySecretBaseUpgrades(_sort)
       gold = Window_UnformattedTextPokemon.new("Money:\n$3000")
       gold.resizeToFit(gold.text, 512)

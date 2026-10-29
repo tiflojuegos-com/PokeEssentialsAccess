@@ -139,7 +139,8 @@ module PokeAccess
     #builders
 
     # Describes a move: type, category, power, accuracy, pp and description, each field from the move object or
-    # else PokeAccess::Data; the wording is MoveInfo.leveled's.
+    # else PokeAccess::Data; the wording is MoveInfo.leveled's. A move with no pp count (a total of 0, as a Z-move's)
+    # has its pp left out, as fight menus paint none for it.
     # param reading the verbosity reading a screen says it as; nil (the info key) for the whole line
     def self.move_info(m, reading = nil)
       return nil unless m
@@ -149,6 +150,7 @@ module PokeAccess
       name = (m.name rescue nil); name = (PokeAccess::Data.move_name(mid) || PokeAccess::I18n.t(:info_move)) if name.nil? || name.to_s.empty?
       pp   = (m.pp rescue nil)
       tot  = PokeAccess.attr_of(m, :totalpp, :total_pp)
+      tot  = nil unless tot.to_i > 0
       desc = PokeAccess::Data.move_description(mid)
       ty   = (m.type rescue nil)
       tipo = ty ? (PokeAccess::Data.type_name(ty) rescue nil) : nil

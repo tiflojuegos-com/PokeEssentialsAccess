@@ -5,7 +5,8 @@
 # can be installed in a gen-6 fangame.
 MODERN =["games/anil/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
           "games/infinitefusion_hoenn/", "games/infinitefusion/", "games/infinitefusion_common/",
-          "games/emerald/", "games/skyflyer_common/", "games/gruelinggold/"]
+          "games/emerald/", "games/skyflyer_common/", "games/gruelinggold/", "games/goldencrown/",
+          "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/"]
 
 root = (ARGV[0] || File.expand_path(File.join(File.dirname(__FILE__), ".."))).gsub("\\", "/")
 files = Dir[File.join(root, "core", "**", "*.rb")] +

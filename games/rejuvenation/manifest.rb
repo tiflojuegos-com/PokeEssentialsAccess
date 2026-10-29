@@ -15,6 +15,7 @@
     region_map
     text_entry
     inspect
+    fight_menu
     encounters
     passwords
     move_tutor
@@ -22,6 +23,10 @@
     trainer_card_gbc
     bag_favourites
     voltorb_flip
+    ability_box
+    battle_boxes
+    quick_summary
+    hall_of_fame
   ],
   :plugins => %w[quest_ui fl_roulette]
 }

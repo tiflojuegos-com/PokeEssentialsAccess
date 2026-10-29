@@ -94,8 +94,9 @@ class ResultadosCurryPuntos_Scene
   def pbStartScene; :rank; end
 end
 
-%w[currydex curry_select creador tarjetas_liga curry_result].each do |name|
-  path = File.join(Harness::ROOT, "games", "royal", "#{name}.rb")
+[%w[royal currydex], %w[royal curry_select], %w[royal_common creador], %w[royal tarjetas_liga],
+ %w[royal curry_result]].each do |dir, name|
+  path = File.join(Harness::ROOT, "games", dir, "#{name}.rb")
   eval(Harness.source(path), TOPLEVEL_BINDING, path)
 end
 

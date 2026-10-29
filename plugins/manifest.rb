@@ -39,9 +39,11 @@
   :slide_banners     => "Scene_Map#addSprite",
   # The DBK readers probe a method the kit adds to a vanilla battle class, which alone would match every game.
   :dbk_battle        => "Battle#pbToggleSpecialActions",
-  # Probed by pbGetFinalModifiers, not pbUpdateBattlerInfo: the older 1.1.2 (Soulstones 2) has the same method
-  # names with other arities, which this reader, written for the current release, must not bind to.
-  :dbk_enhanced_ui   => "Battle::Scene#pbGetFinalModifiers",
+  # Probed by pbGetDisplayEffects, not pbUpdateBattlerInfo: the older 1.1.2 (Soulstones 2) has the same method
+  # names with other arities, which this reader must not bind to; every later copy, 2.0.3 included, defines it.
+  :dbk_enhanced_ui   => "Battle::Scene#pbGetDisplayEffects",
+  # A method probe: Essentials Deluxe adds its midbattle name window to the vanilla battle scene.
+  :essentials_deluxe => "Battle::Scene#pbUpdateNameWindow",
   :quest_ui          => "Window_Quest",
   :logros            => "Logros_Scene",
   # A method probe: another game defines an unrelated Questlog class; the method the reader hooks tells them apart.
@@ -85,11 +87,18 @@
   :video_poker       => "VideoPoker::Window_Combination",
   :ekans_snake       => "Ekans_Interface_Main",
   :bw_key_items      => "GetKeyItemScene",
+  # A method probe: the summary's IV grade method is Enhanced Pokemon UI's too, its EV bar method only this plugin's
+  # (and the Mixed EV System's copy of it).
+  :bw_summary        => "PokemonSummary_Scene#pbDisplayEVRating",
   :luka_title        => "GenOneStyle",
   # Luka's Elite Battle System as Uranium and Sevii ship it: its choice boxes, and a method probe on the engine's
   # scene, to which the system adds its ability strip.
   :ebs_ui            => "NewChoiceSel",
   :ebs_scene         => "PokeBattle_Scene#showAbilityMessage",
+  # Elite Battle: DX, v19.1 and the v21 port alike, by its target window: ZUD's compatibility patch, which Fire Ash
+  # ships without EBDX, reopens the fight, command and databox windows inside a check that never passes there.
+  :ebdx              => "TargetWindowEBDX",
+  :rotation_battle   => "Battle::Scene#pbCheckRotationInput",
   :modular_title     => "ModularTitleScreen",
   :zud_raid_database => "RaidDataScene",
   :starter_selection => "PokemonStarterSelection",
@@ -145,5 +154,13 @@
   :cable_club        => "CableClub_Scene#pbDisplayDots",
   # Top-level function probes: the two scripts bring no class of their own.
   :bes_blackjack     => "Object#pbBlackJack",
-  :bes_piano         => "Object#pbPiano"
+  :bes_piano         => "Object#pbPiano",
+  # ZUD's raid dens and Max Lair, beside its database: Fire Ash ships both unreached, Golden Crown reaches them.
+  :zud_raid_dens     => "MaxRaidScene",
+  :zud_max_lair      => "LairMapScene",
+  # The script's module: its ContestHall::Show would count under the last segment, which another game's class shares.
+  :contest_hall      => "ContestHall",
+  :pokesearch        => "PokeSearch_Scene",
+  :modular_menu      => "ModularMenu",
+  :boons_phenomena   => "Phenomenon"
 }

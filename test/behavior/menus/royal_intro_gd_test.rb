@@ -38,9 +38,9 @@ end
 # The selectors bind on the stand-ins above. Of the controls screen only the module is evaluated: Anil's hook on the
 # same ButtonEventScene#set_up_screen runs in this pass, and a second binding there would speak in its tests too.
 begin
-  path = File.join(Harness::ROOT, "games", "royal", "selectors.rb")
+  path = File.join(Harness::ROOT, "games", "royal_common", "selectors.rb")
   eval(Harness.source(path), TOPLEVEL_BINDING, path)
-  path = File.join(Harness::ROOT, "games", "royal", "controles.rb")
+  path = File.join(Harness::ROOT, "games", "royal_common", "controles.rb")
   src = Harness.source(path)
   part = src[/^module PokeAccess\r?\n.*?^end\r?\n/m]
   eval(part, TOPLEVEL_BINDING, path, src[0, src.index(part)].count("\n") + 1)
@@ -51,6 +51,24 @@ class RoyalIntroGdTest < PokeAccessTest
   # Each difficulty's select method and the words its picture shows: [the mode, the sentence under it].
   DIFFICULTIES = { :selectOpc1 => [:rsel_normal, :rsel_normal_desc],
                    :selectOpc2 => [:rsel_challenge, :rsel_challenge_desc] }
+
+  # Royal's profile names its controls picture's transcription; the key before the test is put back after.
+  def setup
+    super
+    @controls_key = PokeAccess::RoyalControls.key
+    PokeAccess::RoyalControls.key = :royal_controls
+  end
+
+  def teardown
+    PokeAccess::RoyalControls.key = @controls_key
+    super
+  end
+
+  test "says nothing for the controls picture where no profile named its transcription" do
+    PokeAccess::RoyalControls.key = nil
+    PokeAccess::RoyalControls.say(controls_scene(nil))
+    assert_nothing_spoken
+  end
 
   test "says the transcribed controls picture, interrupting, on a screen that registered no paragraph" do
     [nil, {}].each do |labels|

@@ -1,5 +1,7 @@
-# Soulstones 2's edited DBK Raid Battles, read from its profile: in battle the cheer menu and the boss's barrier, on
-# the overworld the den's entry screen and its rewards page.
+# Soulstones 2's edited DBK Raid Battles, read from its profile: in battle the cheer menu, the boss's barrier and the
+# turn and knock out counters its box paints (also on the boss's HP key line, never on the battle info panel's, which
+# paints none), on the overworld the den's entry screen and its rewards page. The profile's HP line is kept aside and
+# put in only for the tests that read it, so the other tests keep core's.
 module GameData
   class Cheer
     attr_reader :id, :command_index
@@ -175,10 +177,41 @@ class RaidScene
   end
 end
 
-eval(Harness.source(File.join(Harness::ROOT, "games/soulstones2/raid_cheer.rb")), TOPLEVEL_BINDING,
-     File.join(Harness::ROOT, "games/soulstones2/raid_cheer.rb"))
+# The raid boss's databox down to its counters: the kit paints them in draw_plugin_elements, which each refresh of the
+# box runs (pbRefreshOne, when a counter changes). It holds the kit's class name only while raid_cheer.rb binds, so no
+# other test sees it.
+class SS2RaidCounterBox
+  def initialize(battler = nil); @battler = battler; end
+  def draw_plugin_elements; :painted; end
+end
+
+raid_box_made = !Battle::Scene.const_defined?(:RaidPokemonDataBox, false)
+Battle::Scene.const_set(:RaidPokemonDataBox, SS2RaidCounterBox) if raid_box_made
+raid_meta = PokeAccess::Battle.singleton_class
+raid_core_state = raid_meta.instance_method(:battler_state)
+raid_overrides = PokeAccess::Hooks.overrides.length
+raid_bound = PokeAccess::Hooks.instance_variable_get(:@bound).length
+begin
+  eval(Harness.source(File.join(Harness::ROOT, "games/soulstones2/raid_cheer.rb")), TOPLEVEL_BINDING,
+       File.join(Harness::ROOT, "games/soulstones2/raid_cheer.rb"))
+  SS2_RAID_HP_LINE = raid_meta.instance_method(:battler_state)
+ensure
+  raid_meta.send(:define_method, :battler_state, raid_core_state)
+  PokeAccess::Hooks.overrides.slice!(raid_overrides..-1)
+  PokeAccess::Hooks.instance_variable_get(:@bound).slice!(raid_bound..-1)
+  Battle::Scene.send(:remove_const, :RaidPokemonDataBox) if raid_box_made
+end
 eval(Harness.source(File.join(Harness::ROOT, "games/soulstones2/raid_den.rb")), TOPLEVEL_BINDING,
      File.join(Harness::ROOT, "games/soulstones2/raid_den.rb"))
+
+# The battle info panel's line (enhanced_ui.rb's module), which ss2_enhanced_ui_gd_test.rb evaluates whole with its
+# hooks; loaded once and without them when that test is not in the run.
+unless defined?(PokeAccess::SS2EnhancedUI)
+  enhanced_ui = File.join(Harness::ROOT, "games", "soulstones2", "enhanced_ui.rb")
+  src = Harness.source(enhanced_ui)
+  part = src[/^module PokeAccess\r?\n.*?^end\r?\n/m]
+  eval(part, TOPLEVEL_BINDING, enhanced_ui, src[0, src.index(part)].count("\n") + 1)
+end
 
 class Ss2RaidGdTest < PokeAccessTest
   I18n = PokeAccess::I18n
@@ -192,6 +225,19 @@ class Ss2RaidGdTest < PokeAccessTest
   # A battler with a barrier of shieldHP bars, standing on the foe's side or not.
   ShieldedBattler = Struct.new(:shieldHP, :foe) do
     def opposes?; foe; end
+  end
+  # A raid battle as its boss's box, the battle info panel and the HP key read it: the raid's rules, the turn and the
+  # battlers.
+  CounterBattle = Struct.new(:raidRules, :turnCount, :battlers)
+  # A foe as the counters read it, the raid boss or not, with its name for the battle info panel.
+  CounterFoe = Struct.new(:name, :boss, :battle) do
+    def isRaidBoss?; boss; end
+    def opposes?; true; end
+    def pbOwnedByPlayer?; false; end
+  end
+  # A foe as the HP key reads it, the raid boss or not.
+  HpFoe = Struct.new(:index, :name, :level, :hp, :totalhp, :status, :pokemon, :boss, :battle) do
+    def isRaidBoss?; boss; end
   end
 
   test "says the cheer level as the menu opens, then each button the cursor lands on, the first queued" do
@@ -265,6 +311,90 @@ class Ss2RaidGdTest < PokeAccessTest
 
   test "gives no barrier count for a battler that does not say its side" do
     assert_nil PokeAccess::SS2Cheer.shield_text(cheer_scene(0, []), Struct.new(:shieldHP).new(3))
+  end
+
+  test "says the turn and knock out counters as the raid boss's box is first painted, queued" do
+    counter_box(:turn_count => 10, :ko_count => 4).draw_plugin_elements
+    assert_equal [[counters_line(10, 4), false]], SpeakCapture.log
+  end
+
+  test "says only the counter a repaint changed, and nothing for a repaint that changed none" do
+    rules = { :turn_count => 10, :ko_count => 4 }
+    box = counter_box(rules)
+    box.draw_plugin_elements
+    SpeakCapture.clear
+    box.draw_plugin_elements
+    rules[:turn_count] = 9
+    box.draw_plugin_elements
+    rules[:ko_count] = 3
+    box.draw_plugin_elements
+    assert_equal [[turns_line(9), false], [kos_line(3), false]], SpeakCapture.log
+  end
+
+  test "says a counter that ran out as zero" do
+    rules = { :turn_count => 1, :ko_count => 4 }
+    box = counter_box(rules)
+    box.draw_plugin_elements
+    SpeakCapture.clear
+    rules[:turn_count] = 0
+    box.draw_plugin_elements
+    assert_equal [[turns_line(0), false]], SpeakCapture.log
+  end
+
+  test "leaves out a counter the raid does not keep, which the box does not paint" do
+    {
+      "no turn limit" => [{ :turn_count => -1, :ko_count => 4 }, [[kos_line(4), false]]],
+      "no knock out limit" => [{ :turn_count => 10, :ko_count => -1 }, [[turns_line(10), false]]],
+      "no raid rules" => [{}, []]
+    }.each do |label, (rules, log)|
+      SpeakCapture.clear
+      counter_box(rules).draw_plugin_elements
+      assert_equal log, SpeakCapture.log, label
+    end
+  end
+
+  test "says no counters on the box of a battler that is not the raid boss, only on the boss's" do
+    [false, true].each { |boss| counter_box({ :turn_count => 10, :ko_count => 4 }, boss).draw_plugin_elements }
+    assert_equal [[counters_line(10, 4), false]], SpeakCapture.log
+  end
+
+  test "says the counters again for a new battle, not for a box made again in the same one" do
+    rules = { :turn_count => 10, :ko_count => 4 }
+    battle = CounterBattle.new(rules, 0)
+    2.times { SS2RaidCounterBox.new(CounterFoe.new("Jefe", true, battle)).draw_plugin_elements }
+    SS2RaidCounterBox.new(CounterFoe.new("Jefe", true, CounterBattle.new(rules, 0))).draw_plugin_elements
+    assert_equal [[counters_line(10, 4), false]] * 2, SpeakCapture.log
+  end
+
+  test "keeps the box's own result" do
+    assert_equal :painted, counter_box(:turn_count => 10, :ko_count => 4).draw_plugin_elements
+  end
+
+  test "the battle info panel's line says no counters for the raid boss, as the panel paints none" do
+    battle = CounterBattle.new({ :turn_count => 7, :ko_count => 3 }, 3)
+    line = ["Jefe", I18n.t(:dbk_turn, :n => 4)].join(", ")
+    [true, false].each do |boss|
+      assert_equal line, PokeAccess::SS2EnhancedUI.battler_text(CounterFoe.new("Jefe", boss, battle)), "boss: #{boss}"
+    end
+  end
+
+  test "the HP key says the raid boss's counters after its state at every level, and no other foe's" do
+    { true => "#{foe_state}, #{counters_line(7, 3)}", false => foe_state }.each do |boss, line|
+      PokeAccess::Battle.set_battle(hp_foe(boss, :turn_count => 7, :ko_count => 3).battle)
+      heard = vb_levels do
+        SpeakCapture.clear
+        with_raid_hp_line { PokeAccess::Battle.announce_hp(true) }
+        SpeakCapture.log.dup
+      end
+      assert_equal [[[line, true]]] * 3, heard, "boss: #{boss}"
+    end
+  end
+
+  test "the HP key puts the raid boss's counters before the stat changes that close its line" do
+    boss = hp_foe(true, :turn_count => 7, :ko_count => -1)
+    boss.instance_variable_set(:@stages, { :ATTACK => 1 })
+    line = with_raid_hp_line { PokeAccess::Battle.battler_state(boss, true) }
+    assert_equal "#{foe_state}, #{turns_line(7)}#{I18n.t(:bt_changes, :list => 'StatATTACK +1')}", line
   end
 
   test "says the entry screen as painted with the boss inside, then the option under the cursor as it moves" do
@@ -445,6 +575,48 @@ class Ss2RaidGdTest < PokeAccessTest
   # The bars left on the barrier, as its animation says them.
   def bars_line(left, max)
     I18n.t(:ss2_raid_shield, :n => left, :max => max)
+  end
+
+  # The box of a foe in a raid under these rules, the raid boss unless boss is false.
+  def counter_box(rules, boss = true)
+    SS2RaidCounterBox.new(CounterFoe.new("Jefe", boss, CounterBattle.new(rules, 0)))
+  end
+
+  def turns_line(n)
+    I18n.t(:ss2_raid_turns, :n => n)
+  end
+
+  def kos_line(n)
+    I18n.t(:ss2_raid_kos, :n => n)
+  end
+
+  # Both counters as the box's first paint says them.
+  def counters_line(turns, kos)
+    [turns_line(turns), kos_line(kos)].join(", ")
+  end
+
+  # Jefe, alone on the foe's side of a raid under these rules, at level 70 with half its HP; the raid boss unless boss
+  # is false.
+  def hp_foe(boss, rules)
+    battle = CounterBattle.new(rules, 0)
+    foe = HpFoe.new(1, "Jefe", 70, 100, 200, :NONE, Object.new, boss, battle)
+    battle.battlers = [nil, foe]
+    foe
+  end
+
+  # hp_foe's state as core's HP key says it.
+  def foe_state
+    I18n.t(:bt_state, :name => "Jefe", :level => 70, :hp => I18n.t(:bt_hp_pct, :n => 50))
+  end
+
+  # The block's value with the profile's HP line in core's place, core's put back after.
+  def with_raid_hp_line
+    meta = PokeAccess::Battle.singleton_class
+    core = meta.instance_method(:battler_state)
+    meta.send(:define_method, :battler_state, SS2_RAID_HP_LINE)
+    yield
+  ensure
+    meta.send(:define_method, :battler_state, core)
   end
 
   # The boss as the entry screen shows it without type icons: a silhouette and its rank.

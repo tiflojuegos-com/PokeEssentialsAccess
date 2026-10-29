@@ -214,7 +214,7 @@ shape, and the same parts go whole to the info key:
 
 ```ruby
 # core/menus/menus.rb
-parts = [[ad.getDisplayName(stock[i]).to_s, :brief], [price, :brief]]
+parts = [[PokeAccess::Menus.mart_name(ad, stock[i]), :brief], [price, :brief]]
 parts.push([PokeAccess::I18n.t(:shop_worn), :brief]) if PokeAccess::Menus.mart_worn?(ad, stock[i])
 PokeAccess::Menus.mart_marks(ad, stock[i]).each { |k| parts.push([PokeAccess::I18n.t(k), :medium]) }
 PokeAccess::Info.set_info(:item, stock[i], PokeAccess::Verbosity.full_line(parts))

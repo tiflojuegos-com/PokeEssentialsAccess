@@ -39,11 +39,26 @@ profile shortcuts in the [profile DSL](profile-dsl.md). Every module is under `P
 - `PokeAccess.say_screen_message(args)`: `say_dialogue` of `args[0]` when it is a non-empty String.
 - `PokeAccess.before_next_line(text)`: a head said once before the next dialogue line, as `head: line`; nil drops a
   pending one.
+- `PokeAccess.lead_with_name_window(win)`: heads the next dialogue line with the speaker's name that a window over the
+  message shows; drops a pending head when that window is hidden or empty.
 - `PokeAccess.after_next_line(text)`: a line said once after the next dialogue line.
 - `PokeAccess.note_dialogue(text)`: remembers a non-blank line for Shift with the info key.
 - `PokeAccess.last_dialogue`: the remembered dialogue line, or nil.
 - `PokeAccess.message_depth`: how many messages `pbMessageDisplay` shows now, one inside another.
 - `PokeAccess.dialogue_category`: `:battle` during a fight, else `:dialogue`.
+
+### Money windows
+
+`core/menus/money_window.rb`.
+
+- `PokeAccess.money_window_text(win)`: the cleaned text of a money, coins or points window, or nil.
+- `PokeAccess.say_money_window(win)`: speaks that text, queued after the message line. The stock builders a message
+  opens (`\g`, `\cn`, `\pt` and those games add) go through it.
+- `PokeAccess::MoneyWindow.watch { ... }`: runs the block with its hand-built money window watched and returns the
+  block's value. The first `Window_UnformattedTextPokemon` sized while the block runs is taken for that window. Its
+  text is said, queued, when the window is made, and again each time it changes. Core watches the Triple Triad card
+  shop; Insurgence's profile and `games/royal_common/`, for Royal and World Frontier, watch the functions of theirs
+  that build one.
 
 ### Speech categories and observers
 

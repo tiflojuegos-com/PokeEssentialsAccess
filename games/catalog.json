@@ -53,6 +53,17 @@
       "engine": "gen6"
     },
     {
+      "key": "darkhorizon",
+      "display": "Pokémon Dark Horizon",
+      "titles": [
+        "pokemon dark horizon",
+        "pokémon dark horizon"
+      ],
+      "detect": "dark ?horizon",
+      "exes": [],
+      "engine": "gamedata"
+    },
+    {
       "key": "desolation",
       "display": "Pokémon Desolation",
       "titles": [
@@ -94,6 +105,18 @@
       "detect": null,
       "exes": [],
       "engine": "any"
+    },
+    {
+      "key": "goldencrown",
+      "display": "Pokemon Golden Crown",
+      "titles": [
+        "golden crown",
+        "pokemon golden crown",
+        "pokémon golden crown"
+      ],
+      "detect": "golden ?crown",
+      "exes": [],
+      "engine": "gamedata"
     },
     {
       "key": "gruelinggold",
@@ -227,6 +250,17 @@
       "engine": "gen6"
     },
     {
+      "key": "revival",
+      "display": "Pokemon Revival",
+      "titles": [
+        "pokemon revival",
+        "pokémon revival"
+      ],
+      "detect": "revival",
+      "exes": [],
+      "engine": "gamedata"
+    },
+    {
       "key": "royal",
       "display": "Pokemon Royal",
       "titles": [
@@ -290,6 +324,17 @@
         "KleinBitmap.dll"
       ],
       "compat": "compat.rb"
+    },
+    {
+      "key": "worldfrontier",
+      "display": "Pokemon World Frontier",
+      "titles": [
+        "pokemon world frontier",
+        "pokémon world frontier"
+      ],
+      "detect": "world[ _-]?frontier",
+      "exes": [],
+      "engine": "gamedata"
     }
   ]
 }

@@ -1,20 +1,24 @@
-# Drimer's Trainer Sensor as Skyflyer's games (Anil and Royal) edits it: two dark bars slide in while a trainer not yet beaten is in range and out
-# when none is, with no text; their coming in is said, their leaving is silent.
+# Drimer's Trainer Sensor as Sky's base ships it ("Barras entrenadores": Anil, Royal, Revival), and as World Frontier
+# edits it, its bars fading in by closeness: two dark bars come in while a trainer not yet beaten is in range and go out
+# when none is, with no text. Their coming in is said once, as soon as they can be seen; their leaving is silent.
 module PokeAccess
   module SkyTrainerBars
-    @shown = false
+    @said = false
 
-    # Whether the bars can be seen: Pokemon Z fills them clear when its switch 411 was on as they were first made.
+    # Whether the bars can be seen: their top row holds some colour (World Frontier's fade in starts clear).
     def self.opaque?(sensor)
       top = PokeAccess.ivar(sensor, :@top)
       (top.bitmap.get_pixel(0, 0).alpha > 0 rescue true)
     end
 
-    # One frame of the bars: says their coming in, once, while they can be seen.
+    # One frame of the bars: says their coming in once while they are in, the first frame they can be seen.
     def self.tick(sensor)
       on = (sensor.triggered? rescue false) ? true : false
-      PokeAccess.speak(PokeAccess::I18n.t(:trainer_near), false) if on && !@shown && opaque?(sensor)
-      @shown = on
+      if on && !@said && opaque?(sensor)
+        PokeAccess.speak(PokeAccess::I18n.t(:trainer_near), false)
+        @said = true
+      end
+      @said = false unless on
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil

@@ -1,8 +1,18 @@
-# Two of Realidea's own scenes: the refutation screen the move CHIGAUYO opens in battle (Danganronpa), said as it
-# waits for a key and as the argument breaks; and the ending's credits (Credit#textofade1, and textofade before
-# them), each block said once as it is painted, though Credit repaints one of them every frame.
+# Realidea's own scenes: the refutation screen the move CHIGAUYO opens in battle (Danganronpa), said as it waits for
+# a key and as the argument breaks; the ending's credits (Credit#textofade1, and textofade before them), each block
+# said once as it is painted, though Credit repaints one of them every frame; and the ghosts' cries that events paint
+# (jajajafantasma, nomerecer), each said once on its first paint, though the game paints it ten times.
 module PokeAccess
   module RealideaScenes
+    GHOST_TAG = :rea_ghost
+
+    # A ghost's cry as painted ("¡Ja, ja, ja!", "NO LO MERECEN."), said once, queued, as dialogue, on the pulse after
+    # its first paint.
+    def self.ghost_cry
+      return unless PokeAccess::PaintCapture.pending?(GHOST_TAG)
+      PokeAccess.speak(PokeAccess::PaintCapture.text(PokeAccess::PaintCapture.take(GHOST_TAG)), false, :dialogue)
+    end
+
     # The DANGER banner the screen waits under, with the key that breaks it.
     def self.danger
       parts = [PokeAccess::I18n.t(:rea_dg_danger)]
@@ -33,4 +43,15 @@ PokeAccess::Game.define("realidea") do
   before("Danganronpa", :rompido, :optional => true) { |_s, _a| PokeAccess.speak(PokeAccess::I18n.t(:rea_dg_break), true) }
   before("Credit", :textofade1, :optional => true) { |s, a| PokeAccess::RealideaScenes.credits(a[0], s) }
   kernel("textofade", :before) { |a, _r| PokeAccess::RealideaScenes.credits(a[0]) }
+  %w[jajajafantasma nomerecer].each do |fn|
+    kernel(fn, :around) do |_args, nxt|
+      PokeAccess::PaintCapture.arm(PokeAccess::RealideaScenes::GHOST_TAG)
+      begin
+        nxt.call
+      ensure
+        PokeAccess::PaintCapture.take(PokeAccess::RealideaScenes::GHOST_TAG)
+      end
+    end
+  end
+  poll_each_frame { PokeAccess::RealideaScenes.ghost_cry }
 end

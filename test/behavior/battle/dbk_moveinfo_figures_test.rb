@@ -58,6 +58,17 @@ class DbkMoveinfoFiguresTest < PokeAccessTest
     end
   end
 
+  test "reads an older copy's panel, which centres its power and accuracy labels and paints no priority" do
+    with_capture do
+      MoveInfo.capture_on
+      MoveInfo.note_draw([["Lanzallamas", 10, 8, :left], ["Pow:", 416, 10, :center], ["Acc:", 416, 40, :center],
+                          ["Effct:", 282, 40, :left], ["135", 468, 10, :center], ["100", 468, 40, :center],
+                          ["10%", 356, 40, :center], ["Z-Power: 175", 10, 128, :left]])
+      assert_equal [power("135"), acc("100"), T.t(:mv_effect, :n => "10%")], MoveInfo.figures(lanzallamas)
+      assert_equal "Z-Power: 175", MoveInfo.bonus
+    end
+  end
+
   test "keeps the last reading through a draw without exactly four centred values" do
     with_capture do
       MoveInfo.capture_on

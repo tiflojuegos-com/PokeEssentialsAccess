@@ -1,5 +1,6 @@
 # [DBK] Enhanced Battle UI, bundled by La Base de Sky (anil, emerald, relict, royal): the move-info window, the
-# battler-info panel and the ball and battler selectors; the Deluxe Battle Kit's mechanic toggles are dbk_battle.
+# battler-info panel, the ball and battler selectors and the keys that open them; the Deluxe Battle Kit's mechanic
+# toggles are dbk_battle.
 
 module PokeAccess
   # The Move Info panel (Battle::Scene#pbUpdateMoveInfoWindow), toggled over the fight menu: the focused move's type,
@@ -87,8 +88,8 @@ module PokeAccess
       nil
     end
 
-    # The panel's four figures (power, accuracy, priority, effect chance) as spoken lines, from what it painted (its
-    # damage runs through pbGetFinalModifiers), else the move data with no effect chance. "---" is no power, no miss,
+    # The panel's four figures (power, accuracy, priority, effect chance) as spoken lines, from what it painted (the
+    # final ones, modifiers applied), else the move data with no effect chance. "---" is no power, no miss,
     # no priority or no chance by column, "???" a variable power.
     def self.figures(move)
       p = @painted
@@ -118,8 +119,8 @@ module PokeAccess
       s.to_s == "---" ? PokeAccess::I18n.t(:mv_acc_perfect) : s.to_s
     end
 
-    # The panel's figures and bonus line, caught from its own draw call: the only four centred rows, in every copy,
-    # and the left-aligned row after them when pbGetFinalModifiers gives one, its final stop dropped.
+    # The panel's figures and bonus line, caught from its own draw call: its four centred values (older copies centre
+    # the power and accuracy labels too and paint no priority), and the left-aligned row after them, its stop dropped.
     @painted = nil
     @bonus = nil
     @armed = false
@@ -129,7 +130,9 @@ module PokeAccess
 
     def self.note_draw(rows)
       return unless @armed && rows.is_a?(Array)
-      vals = rows.select { |r| r.is_a?(Array) && r[3] == :center }.map { |r| r[0].to_s.strip }
+      centred = rows.select { |r| r.is_a?(Array) && r[3] == :center }.map { |r| r[0].to_s.strip }
+      labels, vals = centred.partition { |v| v =~ /:\z/ }
+      vals = [vals[0], vals[1], "---", vals[2]] if labels.length == 2 && vals.length == 3
       return unless vals.length == 4
       @painted = vals
       last = rows.rindex { |r| r.is_a?(Array) && r[3] == :center }
@@ -486,3 +489,106 @@ PokeAccess::Hooks.before_hook("Battle::Scene", :pbUpdateBattlerSelection, :optio
     PokeAccess::DBKSelectors.battler_text(scene, args[0], args[1])
   end
 end
+
+module PokeAccess
+  # The key prompt beside the command and fight menus (Battle::Scene::EnhancedUIPrompt): the keys it paints after the
+  # images of the panels they open (": A", ": S"), said as a key hint once per battle and menu, once that menu shows.
+  # A copy that draws its keys into the picture (Anil, Revival, Royal, Grueling Gold) paints none, and its picture's
+  # rows are said instead; Royal shows the fight menu's second key on a button of its own.
+  module DBKPrompt
+    # The panel each row opens, by menu: the battler info, then the ball selector or the move info.
+    PANELS = { :command => [:dbk_prompt_info, :dbk_prompt_ball], :fight => [:dbk_prompt_info, :dbk_prompt_move] }
+
+    # The buttons of those rows (JUMPUP, JUMPDOWN), whose key a remap may have moved.
+    BUTTONS = [:x, :y]
+
+    # The keys a picture draws on those rows: RPG Maker XP's defaults for the two buttons.
+    DRAWN_KEYS = ["A", "S"]
+
+    @pending = nil
+
+    # Holds the hint a prompt has just painted, or else drawn, while key hints are said and unless it gave that menu's
+    # already.
+    def self.painted(prompt, rows)
+      return unless PokeAccess::Verbosity.hints?
+      menu = menu_of(prompt)
+      return if heard(prompt).include?(menu)
+      line = hint(menu, rows) || hint(menu, drawn_rows(prompt))
+      @pending = [prompt, menu, line] if line
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # The rows of a picture with its keys drawn in, as painted ones would read: both, or the first alone while the
+    # background is cut to it (the command box with no ball to throw); none before the prompt has a battler.
+    def self.drawn_rows(prompt)
+      bg = PokeAccess.ivar(prompt, :@bgSprite)
+      pic = PokeAccess.ivar(prompt, :@bgBitmap)
+      return [] if bg.nil? || pic.nil? || PokeAccess.ivar(prompt, :@battler).nil?
+      keys = bg.src_rect.height < pic.height / 2 ? DRAWN_KEYS[0, 1] : DRAWN_KEYS
+      keys.map { |k| [k] }
+    end
+
+    # The menu a prompt stands beside: :fight for the fight box, else :command.
+    def self.menu_of(prompt)
+      fight = PokeAccess.const_at("Battle::Scene::FIGHT_BOX")
+      (!fight.nil? && PokeAccess.ivar(prompt, :@window) == fight) ? :fight : :command
+    end
+
+    # The menus whose hint a prompt has given; a battle builds a prompt of its own.
+    def self.heard(prompt)
+      PokeAccess.ivar(prompt, :@access_prompt_heard) || []
+    end
+
+    # "Panel: key" for each row, the key as painted after its colon unless a remap moved its button; nil when no row
+    # has a key.
+    def self.hint(menu, rows)
+      parts = []
+      (rows || []).each_with_index do |r, i|
+        key = PokeAccess.clean(r[0].to_s).sub(/\A:\s*/, "")
+        label = PANELS[menu][i]
+        next if key.empty? || label.nil?
+        parts.push(PokeAccess::I18n.t(:hint_label_key, :label => PokeAccess::I18n.t(label),
+                                                       :key => PokeAccess::KeyHints.key(BUTTONS[i], key)))
+      end
+      parts.empty? ? nil : PokeAccess.sentences(parts)
+    end
+
+    # From the frame poller: says the held hint, queued, once its menu shows (after that menu's first line), and
+    # marks it given; a prompt disposed with its battle drops it.
+    def self.release
+      held = @pending
+      return unless held
+      prompt, menu, line = held
+      if (prompt.disposed? rescue true)
+        @pending = nil
+        return
+      end
+      return unless menu_up?(prompt, menu)
+      @pending = nil
+      prompt.instance_variable_set(:@access_prompt_heard, heard(prompt) + [menu])
+      PokeAccess.speak(line, false)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # Whether the menu's window shows, in the scene of the prompt's battle.
+    def self.menu_up?(prompt, menu)
+      scene = (PokeAccess.ivar(prompt, :@battle).scene rescue nil)
+      win = PokeAccess.sprite(scene, menu == :fight ? "fightWindow" : "commandWindow")
+      win ? ((win.visible rescue false) ? true : false) : false
+    end
+  end
+end
+
+# The prompt's keys as its refresh paints or draws them, on each window= and battler= (the menu it stands beside, its
+# battler).
+PokeAccess::Hooks.around_hook("Battle::Scene::EnhancedUIPrompt", :refresh, :optional => true) do |prompt, nxt, _a|
+  ret = nil
+  rows = PokeAccess::PaintCapture.sample { ret = nxt.call }
+  PokeAccess::DBKPrompt.painted(prompt, rows)
+  ret
+end
+PokeAccess::Frame.each_pulse { PokeAccess::DBKPrompt.release }

@@ -16,7 +16,7 @@ class PokedexInfoPaintedGdTest < PokeAccessTest
     meta = PokeAccess::PokedexInfoV21.singleton_class
     core = meta.instance_method(:shown_types)
     profiles = PokeAccess::Game.profiles.dup
-    path = File.join(Harness::ROOT, "games", "royal", "dex_types.rb")
+    path = File.join(Harness::ROOT, "games", "royal_common", "dex_types.rb")
     eval(Harness.source(path), TOPLEVEL_BINDING, path)
     @royal_types = meta.instance_method(:shown_types)
   ensure

@@ -1,5 +1,6 @@
 # Realidea's mouse-only minigames played by keyboard (games/realidea/mouse_minigames.rb): the arrows move the mod's
-# cursor, the accept key makes the game's calls a click made, and every move, pick and result is said.
+# cursor, the accept key makes the game's calls a click made, and every move, pick and result is said, as is the goal
+# a Minior round paints as it starts.
 
 # A sprite as these minigames place them: a position, a bitmap set by path, shown or hidden, and disposed of.
 class ReaMinigameSprite
@@ -104,10 +105,12 @@ end
 # Miniorgame: the 10x9 board of miniors, row 0 at the top, built from rows of colour letters (COLORS). contar_vecinos
 # sizes the group of one colour a cell belongs to, buscarvecinos marks it, and deleteselected, which the game's loop
 # runs right after input, takes the marked ones away, scoring them 400, 800, 1600... and counting the ones left. Its
-# input answers clicks, back (close) and A (start again).
+# input answers clicks, back (close) and A (start again). diff starts a round of a difficulty (0 to 2) through
+# repetir, the game's loop, here two of its frames: the round's goal and both counters painted, then input.
 class Miniorgame
   COLORS = { "r" => "miniorrojo", "a" => "minioramarillo", "v" => "miniorverde", "z" => "miniorazul",
              "l" => "miniorlila", "n" => "miniornegro", "g" => "miniorgris" }
+  GOALS = ["¡Puedes dejarte hasta 5 Minior!", "¡Puedes dejarte hasta 15 Minior!", "¡Puedes dejarte hasta 10 Minior!"]
 
   attr_reader :miniorsmatrix, :total, :count, :cerrar, :reset
 
@@ -117,6 +120,23 @@ class Miniorgame
     @count = 90
     @cerrar = 0
     @reset = 0
+  end
+
+  def diff(dificultad)
+    @dificultad = dificultad
+    repetir
+  end
+
+  def repetir
+    2.times do
+      Graphics.update
+      Input.update
+      drawTextEx(nil, 365, 20, 150, 2, GOALS[@dificultad])
+      drawTextEx(nil, 365, 95, 100, 2, "Pts: #{@total}")
+      drawTextEx(nil, 365, 125, 120, 1, "Restantes: #{@count}")
+      input
+      deleteselected
+    end
   end
 
   def input
@@ -548,6 +568,24 @@ class RealideaMouseMinigamesTest < PokeAccessTest
       frame(board, key)
       assert_equal flags, [board.cerrar, board.reset], "for key #{key}"
     end
+  end
+
+  test "a round says its goal and both counters as the game paints them when it starts, queued, and once" do
+    Miniorgame.new(BOARD).diff(0)
+    assert_equal [["¡Puedes dejarte hasta 5 Minior! Pts: 0. Restantes: 90", false]], SpeakCapture.log
+  end
+
+  test "each difficulty's round says the goal the game paints for it" do
+    { 1 => 15, 2 => 10 }.each do |level, most|
+      SpeakCapture.clear
+      Miniorgame.new(BOARD).diff(level)
+      assert_equal ["¡Puedes dejarte hasta #{most} Minior! Pts: 0. Restantes: 90"], SpeakCapture.lines, "level #{level}"
+    end
+  end
+
+  test "the round the game starts anew after A or a game over says its goal again" do
+    2.times { Miniorgame.new(BOARD).diff(1) }
+    assert_equal ["¡Puedes dejarte hasta 15 Minior! Pts: 0. Restantes: 90"] * 2, SpeakCapture.lines
   end
 
   test "the focused difficulty is said on the opening frame and not again while it stands" do

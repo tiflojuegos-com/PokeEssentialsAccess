@@ -1,41 +1,36 @@
 # Reborn's fight menu: the move line says the type the move will really have (Reborn's pbType), a second type the field
-# adds and whether the field boosts or weakens it, as pbFieldNotesBattle works it out; with the Z-Move button (zButton)
-# on, the Z-move takes the move's place.
+# adds and whether the field boosts or weakens it, as pbFieldNotesBattle works it out; with the Z-Move button on
+# (rv_common's FightRV), the Z-move takes the move's place.
 module PokeAccess
   module RebornFight
-    # Whether the Z-Move button is on and the focused move has a Z-move to become.
-    def self.z_on?(disp, b, idx)
-      (disp.zButton rescue 0) == 2 && (b.pbCompatibleZMoveFromMove?(idx, true) rescue false) ? true : false
-    end
-
-    # The move line for the focused slot, said when the slot or the Z-Move switch changes.
+    # The move line for the focused slot, said when the slot or the Z-Move switch changes; the info key keeps the move,
+    # Ctrl+T the line whole.
     def self.read(disp, interrupt = true)
       b = PokeAccess.ivar(disp, :@battler)
       idx = PokeAccess.ivar(disp, :@index)
       base = (b.moves[idx] rescue nil)
       return unless base && PokeAccess::MoveInfo.real_id?(PokeAccess::MoveInfo.id_of(base))
-      z = z_on?(disp, b, idx)
-      m = z ? b.zmoves[idx] : base
+      zm = PokeAccess::FightRV.z_move(disp, b, idx)
+      z = !zm.nil?
+      m = zm || base
       PokeAccess::Cursor.on_change(disp, :fight_move, [idx, z]) do
-        PokeAccess.speak_clean(PokeAccess::Verbosity.line(:battle_move, parts(b, m, base, z), ". "), interrupt, :menu)
-        PokeAccess::Info.set_info(:move, m)
+        said = parts(b, m, base, z)
+        PokeAccess.speak_clean(PokeAccess::Verbosity.line(:battle_move, said, ". "), interrupt, :menu)
+        PokeAccess::Info.set_info(:move, m, PokeAccess::Verbosity.full_line(said, ". "))
       end
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
     end
 
-    # The line's parts at their verbosity levels; a Z-move has no PP of its own.
+    # The line's parts at their verbosity levels: core's fight line, with the type the field adds after the move's own
+    # and the field's boost last, both from medium; a Z-move has no PP of its own.
     def self.parts(b, m, base, z)
       id = PokeAccess::MoveInfo.id_of(m)
-      ty = PokeAccess::Data.type_name((m.pbType(b) rescue nil) || m.type)
-      pp = z ? nil : PokeAccess::I18n.t(:mv_pp, :pp => m.pp, :tot => PokeAccess.attr_of(m, :totalpp, :total_pp))
-      [[(PokeAccess::Data.move_name(id) || m.name).to_s, :brief],
-       [ty ? PokeAccess::I18n.t(:mv_type, :t => ty) : nil, :medium],
-       [second_type(b, m), :medium],
-       [PokeAccess::MoveInfo.category_word(PokeAccess::MoveInfo.category_of(m)), :full],
-       [pp, :brief],
-       [field_word(base), :medium]]
+      ty = PokeAccess::Data.type_name(PokeAccess::FightRV.painted_type(m, b))
+      pp = z ? nil : PokeAccess::Battle.fight_pp(m)
+      line = PokeAccess::Battle.fight_parts(m, PokeAccess::Data.move_name(id) || m.name, ty, pp)
+      line.insert(2, [second_type(b, m), :medium]).push([field_word(base), :medium])
     end
 
     # The type the field adds to the move, as Reborn's own reader words it: a random one on Rainbow, a crystal one on
@@ -61,23 +56,6 @@ module PokeAccess
       when 2 then PokeAccess::I18n.t(:reb_move_weakened)
       end
     end
-
-    # The Z-Move button: available when it comes up, on and off as it toggles, and the move re-read as it changes.
-    def self.z_button(disp, v)
-      last = disp.instance_variable_get(:@access_z)
-      disp.instance_variable_set(:@access_z, v) if v.is_a?(Integer)
-      if PokeAccess::Battle.mega_reveal?(last, v)
-        PokeAccess.speak(PokeAccess::Battle.ready_text(:zmove), false)
-        return
-      end
-      k = PokeAccess::Battle.zud_key(:zmove, last, v)
-      return unless k.is_a?(Array)
-      PokeAccess.speak(PokeAccess::I18n.t(k[0], :name => PokeAccess::I18n.t(k[1])), true)
-      read(disp, false)
-    rescue StandardError => e
-      PokeAccess.swallowed(e)
-      nil
-    end
   end
 end
 
@@ -85,5 +63,4 @@ PokeAccess::Game.define("reborn") do
   override("PokeAccess::Battle", :read_fight_move) do |_mod, _original, args|
     PokeAccess::RebornFight.read(args[0], args.length > 1 ? args[1] : true)
   end
-  after("FightMenuDisplay", :zButton=, :optional => true) { |disp, _r, args| PokeAccess::RebornFight.z_button(disp, args[0]) }
 end

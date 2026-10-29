@@ -1,7 +1,7 @@
 module PokeAccess
-  # v22 options screen (UI::OptionsVisualsList, vanilla v22, whose entries are option hashes): the focused option's
-  # name and value on navigation and on left/right, deduped on [index, value], the value by option[:type] as
-  # draw_option_values paints it.
+  # v22 options screen (UI::OptionsVisualsList, v22's and Sky's backport, whose entries are option hashes): the
+  # focused option's name and value on navigation and on left/right, deduped on [index, value], the value by
+  # option[:type] as draw_option_values paints it.
   module OptionsV22
     # The spoken value of the focused option, by type, or nil when there is none to read.
     def self.value_text(win, i, o)
@@ -13,6 +13,7 @@ module PokeAccess
         return nil unless v.is_a?(Array)
         return v.map { |k| k ? (Input.input_name(k) rescue k.to_s) : "---" }.join(", ")
       end
+      return multiselect_text(win, i, params) if type == :multiselect
       if type == :number_type
         painted = (PokeAccess.ivar(win, :@access_painted) || {})[i]
         return painted if painted
@@ -30,6 +31,19 @@ module PokeAccess
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
+    end
+
+    # Sky's multiselect option (a row of items, each ticked or not, browsed with left and right): the item under its
+    # cursor and whether it is ticked, from the list's own value ({:cursor, :selections}), or nil.
+    # param params the option's items, or a Hash holding them under :items
+    def self.multiselect_text(win, i, params)
+      v = (PokeAccess.ivar(win, :@values) || [])[i]
+      return nil unless v.is_a?(Hash)
+      items = params.is_a?(Hash) ? params[:items] : params
+      item = items.is_a?(Array) ? items[v[:cursor].to_i] : nil
+      return nil unless item.is_a?(String)
+      ticked = (v[:selections] || []).include?(v[:cursor])
+      "#{item}, #{PokeAccess::I18n.t(ticked ? :mk_on : :mk_off)}"
     end
 
     # "name: value" for the focused option, or just the name when there is no simple value.

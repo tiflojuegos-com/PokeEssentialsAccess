@@ -151,7 +151,7 @@ module PokeAccess
       speak_changed(:party, party_member(pk, ann), panel.object_id, party_interrupt?)
     end
 
-    # The move reminder's opening read: its first move, dedup cleared; a screen replacing main calls it itself.
+    # The move reminder's opening read: its first move, dedup cleared.
     def self.reminder_opening(screen)
       UIV21.reset(:reminder)
       moves = PokeAccess.ivar(screen, :@moves)
@@ -222,14 +222,10 @@ PokeAccess::Hooks.around_hook("PokemonParty_Scene", :pbStartScene) do |scene, nx
   r
 end
 
-# Move reminder (UI::MoveReminderVisuals): the focused move on each index change; the first is read on open (below).
+# Move reminder (UI::MoveReminderVisuals): the focused move on each index change; the first is read on open
+# (menus/v21/move_reminder_open_v21).
 PokeAccess::Hooks.after_hook("UI::MoveReminderVisuals", :refresh_on_index_changed) do |vis, _r, _a|
   PokeAccess::UIV21.speak_changed(:reminder, PokeAccess::UIV21.reminder_move(vis))
-end
-
-# Read the first move on open (the visuals and move list already exist when main is entered).
-PokeAccess::Hooks.before_hook("UI::MoveReminder", :main) do |screen, _a|
-  PokeAccess::UIV21.reminder_opening(screen)
 end
 
 # Region map: the bottom bar's location text changes as the cursor moves over the map (deduped).

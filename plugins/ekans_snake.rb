@@ -1,7 +1,7 @@
 module PokeAccess
   # The Ekans snake minigame's setup menu (@index over @options, each Symbol named through Ekans_Game.option_name and
-  # .rhs_text), its record table, its score during the game, and its pause and game-over panels; where the snake and
-  # the berries are is not read.
+  # .rhs_text), its record table, its score and Sitrus Berry during the game, and its pause and game-over panels;
+  # where the snake and the berries are is not read.
   module EkansSnake
     def self.row(scene)
       opts = PokeAccess.ivar(scene, :@options)
@@ -33,6 +33,18 @@ module PokeAccess
       end
       return nil if order.empty?
       order.map { |y| rows[y].join(", ") }.join(". ")
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # The Sitrus Berry's countdown, repainted each second with a sound tick: said once as the berry appears, queued
+    # behind the score, with the seconds first painted. A spoken count each second would bury the score lines.
+    def self.sitrus(scene, secs)
+      n = secs.to_i
+      return unless PokeAccess::Cursor.changed?(scene, :ekans_sitrus, n > 0) && n > 0
+      time = "#{n} #{PokeAccess::I18n.t(:secs, :n => n)}"
+      PokeAccess.speak(PokeAccess::I18n.t(:ekans_sitrus, :time => time), false)
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
@@ -69,4 +81,9 @@ end
 # The score line (update_score_display) as painted, captured on each berry that changes it and as the game starts.
 PokeAccess::Hooks.around_hook("Ekans_Interface_Game", :update_score_display, :optional => true) do |_s, nxt, _a|
   PokeAccess::PaintCapture.speak_around(:ekans_score, true) { nxt.call }
+end
+
+# The Sitrus Berry's countdown (set_sitrus_timer): painted as the berry appears and each second after, cleared at 0.
+PokeAccess::Hooks.after_hook("Ekans_Interface_Game", :set_sitrus_timer, :optional => true) do |scene, _r, args|
+  PokeAccess::EkansSnake.sitrus(scene, args[0])
 end

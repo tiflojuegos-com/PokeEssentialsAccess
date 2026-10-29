@@ -66,11 +66,14 @@ module PokeAccess
       "#{$2}, #{PokeAccess::I18n.t($1.empty? ? :val_off : :val_on)}"
     end
 
-    # A shop row that is an action (a Symbol, as Infinite Fusion's "Remove hat"), by its painted caption; else nil.
+    # A shop row that is an action (a Symbol, as Infinite Fusion's "Remove hat"), by its painted caption, which it
+    # publishes to the info key; else nil.
     def self.mart_special(ad, item)
       return nil unless item.is_a?(Symbol)
       cap = (ad.getSpecialItemCaption(item) rescue nil)
-      (cap && !cap.to_s.empty?) ? cap.to_s : nil
+      return nil if cap.nil? || cap.to_s.empty?
+      PokeAccess::Info.set_info(:text, cap.to_s)
+      cap.to_s
     end
 
     # Stores the shop adapter's description for the info key as the shop shows it, its "???" said as unknown.
@@ -93,6 +96,17 @@ module PokeAccess
       v = (ad.isWornItem?(item) rescue nil)
       v = (ad.getAdapter.isWornItem?(item) rescue nil) if v.nil?
       v ? true : false
+    end
+
+    # The name a shop row paints; a shop that marks a row's state with a sign before the name overrides it to leave
+    # the sign out, the row saying that state in words.
+    def self.mart_name(ad, item)
+      ad.getDisplayName(item).to_s
+    end
+
+    # The price a shop row paints; a shop that paints a sign in place of a price overrides it with the sign's word.
+    def self.mart_price(ad, item)
+      ad.getDisplayPrice(item) rescue nil
     end
 
     # A Pokedex list row: number and name, plus caught or seen from the Pokedex reading's medium level; an unseen
@@ -411,11 +425,10 @@ module PokeAccess
       next PokeAccess::Menus.close_row(:pc_cancel) if i >= stock.length
       ad = win.instance_variable_get(:@adapter)
       special = PokeAccess::Menus.mart_special(ad, stock[i])
-      PokeAccess::Info.set_info(:text, special) if special
       next special if special
       PokeAccess::Menus.mart_note_desc(ad, stock[i])
-      price = (ad.getDisplayPrice(stock[i]) rescue nil)
-      parts = [[ad.getDisplayName(stock[i]).to_s, :brief], [price, :brief]]
+      price = PokeAccess::Menus.mart_price(ad, stock[i])
+      parts = [[PokeAccess::Menus.mart_name(ad, stock[i]), :brief], [price, :brief]]
       parts.push([PokeAccess::I18n.t(:shop_worn), :brief]) if PokeAccess::Menus.mart_worn?(ad, stock[i])
       PokeAccess::Menus.mart_marks(ad, stock[i]).each { |k| parts.push([PokeAccess::I18n.t(k), :medium]) }
       PokeAccess::Info.set_info(:item, stock[i], PokeAccess::Verbosity.full_line(parts))

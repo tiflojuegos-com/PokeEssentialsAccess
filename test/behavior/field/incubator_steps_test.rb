@@ -5,7 +5,7 @@ class IncubatorStepsTest < PokeAccessTest
   # The core's header and Royal's override of it: the profile file is evaluated once, here, and the core's header put
   # straight back, since the override would reach every other test of this engine; Royal's tests put it in for a block.
   CORE_HEADER = PokeAccess::Incubator.method(:header)
-  path = File.join(Harness::ROOT, "games", "royal", "incubator_level.rb")
+  path = File.join(Harness::ROOT, "games", "royal_common", "incubator_level.rb")
   eval(Harness.source(path), TOPLEVEL_BINDING, path)
   ROYAL_HEADER = PokeAccess::Incubator.method(:header)
   PokeAccess::Incubator.define_singleton_method(:header, CORE_HEADER)

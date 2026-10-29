@@ -60,7 +60,7 @@ credit = lambda do |key, n, open, names, g|
   row[:max] = n if n > row[:max]
   row[:open] = true if open
   row[:games].push(g) unless row[:games].include?(g)
-  row[:sigs].push(names) unless row[:sigs].include?(names) || row[:sigs].length >= 4
+  row[:sigs].push(names) unless row[:sigs].include?(names)
 end
 
 # Every dump folder plus the stock Essentials tree, which the other censuses count too. Each class is keyed by its
@@ -145,7 +145,7 @@ File.open(OUT, "wb") do |f|
   f.write("# How many arguments each hooked method really takes in the games that define it, so a reader\n")
   f.write("# that indexes args[N] can be checked against what any game passes. See the builder's header.\n")
   f.write("# format: <Class#method> = <min>,<max>,<open ? 1 : 0>,<how many games define it>;<signature>|<signature>...\n")
-  f.write("# a signature is the parameter names of one game's def, defaults dropped (at most four distinct ones)\n")
+  f.write("# a signature is the parameter names of one game's def, defaults dropped; every distinct one is kept\n")
   f.write("# surveyed games (#{games.length}): #{games.join(', ')}\n")
   f.write("# hooked pairs: #{wanted.length} / found in some game: #{seen.length}\n")
   seen.keys.sort.each do |k|

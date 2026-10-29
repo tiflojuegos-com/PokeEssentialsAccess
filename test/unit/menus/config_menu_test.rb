@@ -433,6 +433,18 @@ class ConfigMenuTest < PokeAccessTest
     end
   end
 
+  test "the info key pressed while another program is in front says nothing, though Windows reports it" do
+    on_screen(:pathfinder) do
+      point_at { |row| row[:row] && row[:row].key == :hide_unreachable }
+      replacing(PokeAccess::Keyboard, :pressed?, lambda { |code| code == Cfg.keys[:info] }) do
+        replacing(PokeAccess::Focus, :focused?, lambda { false }) { Menu.step }
+        assert_nothing_spoken
+        replacing(PokeAccess::Focus, :focused?, lambda { true }) { Menu.step }
+      end
+      assert_equal [T.t(:help_hide_unreachable)], SpeakCapture.lines
+    end
+  end
+
   test "says the focused row whole with ctrl and the info key: its name and value, then its help, or the row alone" do
     said = [[:pathfinder, :hide_unreachable], [:pathfinder, :back]].map do |mode, id|
       on_screen(mode) do

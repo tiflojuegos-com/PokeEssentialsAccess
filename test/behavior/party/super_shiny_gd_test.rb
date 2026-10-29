@@ -1,7 +1,8 @@
-# Skyflyer's games (anil, royal) paint a super shiny with its own purple star: the lists say it (skyflyer_common), and
-# so does Royal's copy of the DBK battler panel, its profile file loaded for each test and taken back after.
+# Skyflyer's games (anil, royal, worldfrontier) paint a super shiny with its own purple star: the lists say it
+# (skyflyer_common), and so does the copy of the DBK battler panel Royal's code edits (royal_common), its file loaded
+# for each test and taken back after.
 class SuperShinyGdTest < PokeAccessTest
-  ROYAL = File.join(Harness::ROOT, "games", "royal", "super_shiny.rb")
+  ROYAL = File.join(Harness::ROOT, "games", "royal_common", "super_shiny.rb")
 
   test "Royal's battler panel names a super shiny by its purple star" do
     with_royal_panel do

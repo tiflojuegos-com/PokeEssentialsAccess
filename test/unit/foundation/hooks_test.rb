@@ -265,6 +265,13 @@ class HooksTest < PokeAccessTest
     assert_equal ["kaboom", [:ran]], [error.message, ensured]
   end
 
+  test "passes an error of the original on through an around-hook, without logging it as the hook's" do
+    Hooks.around_hook("HooksTest::AroundEnsure", :boom) { |_i, nxt, _a| nxt.call }
+    error = assert_raises(RuntimeError) { AroundEnsure.new.boom }
+    assert_equal "kaboom", error.message
+    assert_equal [], marker_lines(/hook body HooksTest::AroundEnsure#boom@\d+: RuntimeError: kaboom/)
+  end
+
   test "writes an around-hook's own failure to the marker and raises it on to the caller" do
     Hooks.around_hook("HooksTest::AroundFails", :run) { |_i, _nxt, _a| raise ArgumentError, "the around body fails" }
     error = assert_raises(ArgumentError) { AroundFails.new.run }

@@ -1,5 +1,6 @@
 # Realidea's own scenes and story minigames through stand-ins of the game's methods: the Porygon-Z beam, the
-# refutation screen, the credits, the fishing, Mankey's duel, the encounter windows and the game's own weathers.
+# refutation screen, the credits, the ghosts' cries, the fishing, Mankey's duel, the encounter windows and the game's
+# own weathers.
 
 # The draws rand makes in the stand-ins of the game's functions, as a test queues them; rand's own once none is left.
 module ReaDraws
@@ -70,6 +71,32 @@ def textofade(_yourtext, _lineas, _wait); end
 class Credit
   def textofade1(_text, _lines, _wait); end
 end
+
+# The ghosts' cries events paint, jajajafantasma's laugh and nomerecer's words: each painted ten times at random, a
+# wait of six frames after each that pumps the input as pbWait does. After each wait the stand-in notes how many lines
+# have been said; broken, it raises before its first paint.
+module ReaGhosts
+  @heard = []
+  @broken = false
+
+  class << self
+    attr_reader :heard
+    attr_accessor :broken
+  end
+
+  def self.cry(text)
+    @heard = []
+    raise "broken" if @broken
+    10.times do
+      drawTextEx(nil, rand(512), rand(384), 280, 10, text)
+      6.times { Graphics.update; Input.update }
+      @heard.push(SpeakCapture.lines.length)
+    end
+  end
+end
+
+def jajajafantasma; ReaGhosts.cry("¡Ja, ja, ja!"); end
+def nomerecer; ReaGhosts.cry("NO LO MERECEN."); end
 
 # The fishing minigame (Faia emblem), down to what input does with the keys on each frame of its loop: back closes it
 # and the accept key runs resultado, which takes HP from each side by the frame the press lands on; at no enemy HP
@@ -290,6 +317,45 @@ class RealideaScenesTest < PokeAccessTest
     scene.textofade1("<ac></ac>", 5, 200)
     scene.textofade1(MAPS, 5, 200)
     assert_equal [MAPS_LINE], SpeakCapture.lines
+  end
+
+  test "a ghost's laugh is said once, queued, as the game paints it, though it paints it ten times" do
+    jajajafantasma
+    assert_equal [["¡Ja, ja, ja!", false]], SpeakCapture.log
+  end
+
+  test "the laugh is said as it is first painted, before the game paints it again" do
+    jajajafantasma
+    assert_equal [1] * 10, ReaGhosts.heard
+  end
+
+  test "the ruins' ghost's words are said once, as the game paints them" do
+    nomerecer
+    assert_equal [["NO LO MERECEN.", false]], SpeakCapture.log
+  end
+
+  test "each cry an event plays is said again" do
+    2.times { jajajafantasma }
+    nomerecer
+    assert_equal ["¡Ja, ja, ja!", "¡Ja, ja, ja!", "NO LO MERECEN."], SpeakCapture.lines
+  end
+
+  test "a ghost's cry is filed in the history as dialogue" do
+    PokeAccess::History.clear
+    nomerecer
+    assert_equal [:dialogue], PokeAccess::History.lines_of(PokeAccess::History::ALL).map { |m| m.category }
+  end
+
+  test "a cry the game breaks off leaves no capture behind: a later paint stays unsaid, the next cry is said" do
+    ReaGhosts.broken = true
+    assert_raises(RuntimeError) { jajajafantasma }
+    ReaGhosts.broken = false
+    drawTextEx(nil, 365, 95, 100, 2, "Pts: 400")
+    Input.update
+    nomerecer
+    assert_equal [["NO LO MERECEN.", false]], SpeakCapture.log
+  ensure
+    ReaGhosts.broken = false
   end
 
   test "the Pokemon on the hook and its level are said as the fishing opens, then the HP, once" do

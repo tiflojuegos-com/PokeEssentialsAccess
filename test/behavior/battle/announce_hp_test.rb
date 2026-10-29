@@ -106,6 +106,13 @@ class AnnounceHpTest < PokeAccessTest
                   [share("Rattata", :bt_gain, 25, t(:bt_hp_pct, :n => 75)), false]], SpeakCapture.log
   end
 
+  test "Rejuvenation's list of battlers beside the list of their old HP says each change in order" do
+    mons = [Battler.new("Bulba", 20, 44, 0), Battler.new("Pidgey", 30, 30, 2), Battler.new("Rattata", 75, 100, 1)]
+    PokeAccess::Battle.hp_changed(mons, [30, 30, 50])
+    assert_equal [[change("Bulba", :bt_lose, 10, t(:bt_hp_exact, :hp => 20, :tot => 44)), false],
+                  [share("Rattata", :bt_gain, 25, t(:bt_hp_pct, :n => 75)), false]], SpeakCapture.log
+  end
+
   test "in the Safari Zone the player's side says the Safari Balls the battle counts, in each era's battle" do
     { :PokeBattle_SafariZone => SafariG6, :SafariBattle => SafariModern }.each do |name, klass|
       SpeakCapture.clear

@@ -5,8 +5,15 @@
 # A name mentioned anywhere counts as read, so a reader bound to a window or a helper keeps its screen off the list;
 # what remains is triaged by hand (what each shows, whether play reaches it), and what needs no reader goes to
 # silent_screens_triaged.txt with the reason.
+# With --painters it lists instead the methods that paint text (PAINTS) in the classes a loaded file names, and the
+# functions, that no loaded hook reaches and whose own name no loaded file mentions: a class read through its other
+# methods leaves these unread (the Battle Arena's judgment, painted by Battle::Scene#updateJudgment). They are named
+# Class#method (Object#name for a function) and triaged in the same file.
 #   ruby tools/silent_screens.rb ["path\to\decompiled Scripts"]    # every dump: the screens still to check, by name
+#   ruby tools/silent_screens.rb --painters ["path\to\dumps"]      # every dump: the painting methods still to check
 #   ruby tools/silent_screens.rb --dump <dump folder> <profile>     # one game, all of them
+# A folder of stock trees (vanilla's tags, each in its own subfolder) can stand in for the dumps: one with no profile
+# of that name is checked against core alone.
 # Each row says how the screen moves (arrows read by the screen itself), what it shows (text it draws or sets, or a
 # command window or message, which the mod reads by itself) and which other scripts call it: none means map events
 # only, or dead code.
@@ -24,6 +31,8 @@ module SilentScreens
   PLUMBING = %w[Interpreter EventScene Scene_Map Scene_Movie Game_Screen].freeze
   # The registrations that name a function by a string: Hooks.wrap_global/wrap_kernel and the profiles' kernel verb.
   FUNCTION_FORMS = /\b(?:wrap_global|wrap_kernel|kernel)\(\s*"(\w+)"/
+  # The calls that paint text on a bitmap or set a window's text.
+  PAINTS = %i[pbDrawTextPositions drawTextEx drawFormattedTextEx pbDrawShadowText pbDrawOutlineText draw_text text=].freeze
 
   # What a method body does: loops (:loop), reads the keys (:input, :arrows when it reads a direction) and pumps
   # the frame (:pump): Graphics.update, or pbWait, which runs it.
@@ -43,9 +52,20 @@ module SilentScreens
     acc
   end
 
-  # Every class body of a dump as { "Path::Name" => { :file, :defs => [features], :src, :names => { method => true } } }
-  # and every top-level function (also those of Kernel and Object) as [name, file, features, source]. A class's defs
-  # take its self. methods and those of its class << self too; :names holds its instance methods, for the probes.
+  # What a method body paints (:paints, a call of PAINTS) and the methods it calls on its own object (:calls).
+  def self.paint_calls(node, acc = { :paints => false, :calls => {} })
+    if node.is_a?(Prism::CallNode)
+      acc[:paints] = true if PAINTS.include?(node.name)
+      acc[:calls][node.name.to_s] = true if node.receiver.nil? || node.receiver.is_a?(Prism::SelfNode)
+    end
+    node.compact_child_nodes.each { |c| paint_calls(c, acc) }
+    acc
+  end
+
+  # Every class body of a dump as { "Path::Name" => { :file, :defs => [features], :src, :names => { method => true },
+  # :paint => [[method, paint_calls, file, source]] } } and every top-level function (also those of Kernel and Object)
+  # as [name, file, features, source, paint_calls]. A class's defs take its self. methods and those of its
+  # class << self too; :names holds its instance methods, for the probes, and :paint their bodies.
   def self.scan(dir)
     classes = {}
     functions = []
@@ -61,14 +81,14 @@ module SilentScreens
     if node.is_a?(Prism::ClassNode) || node.is_a?(Prism::ModuleNode)
       name = node.constant_path.slice.sub(/\A::/, "")
       full = (name.include?("::") ? [name] : path + [name]).join("::")
-      e = (classes[full] ||= { :file => file, :defs => [], :src => "", :names => {} })
+      e = (classes[full] ||= { :file => file, :defs => [], :src => "", :names => {}, :paint => [] })
       body = node.body ? node.body.compact_child_nodes : []
       methods_of(body, full, file, e, functions)
       body.each { |c| walk(c, full.split("::"), file, classes, functions) }
       return
     end
     if node.is_a?(Prism::DefNode) && path.empty?
-      functions << [node.name.to_s, file, features(node), node.slice]
+      functions << [node.name.to_s, file, features(node), node.slice, paint_calls(node)]
       return
     end
     node.compact_child_nodes.each { |c| walk(c, path, file, classes, functions) }
@@ -82,12 +102,14 @@ module SilentScreens
       when Prism::DefNode
         next unless c.receiver.nil? || c.receiver.is_a?(Prism::SelfNode)
         if %w[Kernel Object].include?(full)
-          functions << [c.name.to_s, file, features(c), c.slice]
+          functions << [c.name.to_s, file, features(c), c.slice, paint_calls(c)]
           next
         end
         e[:defs] << features(c)
         e[:src] << c.slice << "\n"
-        e[:names][c.name.to_s] = true unless singleton || c.receiver
+        next if singleton || c.receiver
+        e[:names][c.name.to_s] = true
+        e[:paint] << [c.name.to_s, paint_calls(c), file, c.slice]
       when Prism::SingletonClassNode
         next unless c.expression.is_a?(Prism::SelfNode)
         methods_of(c.body ? c.body.compact_child_nodes : [], full, file, e, functions, true)
@@ -148,8 +170,8 @@ module SilentScreens
     classes, functions = scan(dir)
     text = loaded_sources(profile, classes, functions).values.join("\n")
     wrapped = text.scan(FUNCTION_FORMS).flatten
-    named = lambda { |n| text =~ /(?<!\w)(?<!\w::)#{Regexp.escape(n)}\b/ }
-    scripts = Dir.glob(File.join(dir, "**", "*.rb")).map { |f| [File.basename(f), File.binread(f)] }
+    named = lambda { |n| text =~ /(?<!\w)(?<!\w::)#{Regexp.escape(n)}(?!\w)/ }
+    scripts = scripts(dir)
     rows = []
     classes.each do |full, e|
       last = full.split("::").last
@@ -166,8 +188,71 @@ module SilentScreens
     rows
   end
 
+  # The painting methods no loaded hook reaches and no loaded file names (see the header), as rows like candidates'.
+  def self.painters(dir, profile)
+    classes, functions = scan(dir)
+    loaded = loaded_sources(profile, classes, functions)
+    text = loaded.values.join("\n")
+    named = lambda { |n| text =~ /(?<!\w)(?<!\w::)#{Regexp.escape(n)}(?!\w)/ }
+    hooked = Hash.new { |h, k| h[k] = [] }
+    ReaderSites.hooked_pairs(loaded).each_key do |pair|
+      cls, meth = pair.split("#", 2)
+      hooked[cls] << meth if meth
+    end
+    scripts = scripts(dir)
+    rows = []
+    classes.each do |full, e|
+      last = full.split("::").last
+      next if PLUMBING.include?(last) || !named.call(full.include?("::") ? full : last)
+      reach = reached(hooked[full], e[:paint])
+      e[:paint].each do |name, pc, file, src|
+        next if !pc[:paints] || file =~ TOOLING || reach[name] || named.call(name)
+        rows << row(:painter, "#{full}##{name}", file, false, src, scripts)
+      end
+    end
+    defs = functions.map { |name, file, _f, src, pc| [name, pc, file, src] }
+    reach = reached(text.scan(FUNCTION_FORMS).flatten, defs)
+    defs.each do |name, pc, file, src|
+      next if !pc[:paints] || file =~ TOOLING || reach[name] || named.call(name)
+      rows << row(:painter, "Object##{name}", file, false, src, scripts)
+    end
+    rows.uniq { |r| r[:name] }
+  end
+
+  # The methods a hook reaches among defs ([method, paint_calls, ...]): the hooked ones and, through the calls each
+  # makes on its own object, every one they run.
+  def self.reached(hooked, defs)
+    calls = Hash.new { |h, k| h[k] = {} }
+    defs.each { |name, pc, _file, _src| calls[name].merge!(pc[:calls]) }
+    reach = {}
+    queue = hooked.dup
+    until queue.empty?
+      m = queue.shift
+      next if reach[m]
+      reach[m] = true
+      queue.concat(calls[m].keys)
+    end
+    reach
+  end
+
+  # A name as a call writes it: a setter on a receiver or as a symbol (x.height = 1, send(:height=, 1)), its = with
+  # any spaces before it and not an ==, =~ or =>; any other name with no letter right after it, one ending in ? or !
+  # too.
+  def self.call_re(name)
+    return /[.:]#{Regexp.escape(name.chomp("="))}\s*=(?![=~>])/ if name.end_with?("=")
+    /\b#{Regexp.escape(name)}(?!\w)/
+  end
+
+  # A dump's scripts as [file name, text], their comments (=begin blocks and # lines) left out, so a call in
+  # commented-out code calls nothing.
+  def self.scripts(dir)
+    Dir.glob(File.join(dir, "**", "*.rb")).map do |f|
+      [File.basename(f), File.binread(f).gsub(/^=begin\b.*?^=end\b[^\n]*/m, "").gsub(/^[ \t]*#[^\n]*/, "")]
+    end
+  end
+
   def self.row(kind, name, file, arrows, src, scripts)
-    word = /\b#{Regexp.escape(name.split("::").last)}\b/
+    word = call_re(name.split("#").last.split("::").last)
     callers = scripts.reject { |f, _s| f == file }.select { |_f, s| s =~ word }.map { |f, _s| f }
     shows = [src =~ DRAWS ? :draws : nil, src =~ WIDGETS ? :widgets : nil].compact
     { :kind => kind, :name => name, :file => file, :arrows => arrows ? true : false, :shows => shows,
@@ -209,15 +294,19 @@ if __FILE__ == $0
     SilentScreens.candidates(ARGV[1], ARGV[2]).each { |r| puts "- #{SilentScreens.line(r)}" }
     exit 0
   end
-  dumps = ARGV[0] || File.expand_path("../../decompiled Scripts", SilentScreens::ROOT)
+  painters = ARGV[0] == "--painters"
+  dumps = (painters ? ARGV[1] : ARGV[0]) || File.expand_path("../../decompiled Scripts", SilentScreens::ROOT)
   abort "dumps folder not found: #{dumps}" unless File.directory?(dumps)
   by_name = Hash.new { |h, k| h[k] = [] }
+  scanned = []
   Dir.glob(File.join(dumps, "*")).select { |d| File.directory?(d) }.sort.each do |d|
     game = File.basename(d)
+    scanned << game
     profile = ReaderSites::PROFILE_OF[game] || game
-    SilentScreens.candidates(d, profile).each { |r| by_name[[r[:kind], r[:name]]] << [game, r] }
+    found = painters ? SilentScreens.painters(d, profile) : SilentScreens.candidates(d, profile)
+    found.each { |r| by_name[[r[:kind], r[:name]]] << [game, r] }
   end
-  checked = SilentScreens.triaged
+  checked = SilentScreens.triaged.select { |name, _row| name.include?("#") == painters }
   fresh = []
   by_name.sort_by { |(_k, name), rows| [-rows.length, name] }.each do |(_kind, name), rows|
     games = rows.map { |g, _r| g }.uniq.reject { |g| SilentScreens.checked_why(name, g, checked) }
@@ -227,7 +316,8 @@ if __FILE__ == $0
   puts fresh
   puts "Checked before (tools/silent_screens_triaged.txt): #{by_name.length - fresh.length} of #{by_name.length}"
   listed = by_name.keys.map { |_kind, name| name }
-  stale = checked.keys.reject { |name| listed.include?(name) }.sort
-  puts "Triaged but no longer listed, to drop (a file names them now, or no dump has them): #{stale.length}"
+  stale = checked.select { |name, row| !listed.include?(name) && !(row[0] & scanned).empty? }.keys.sort
+  puts "Triaged but no longer listed in a game checked here, to drop (a file names them now, or the game no longer " \
+       "has them): #{stale.length}"
   stale.each { |name| puts "- #{name}" }
 end

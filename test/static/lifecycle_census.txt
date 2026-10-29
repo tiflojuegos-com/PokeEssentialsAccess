@@ -5,13 +5,13 @@
 # do not meet binds nothing: the screen is never entered and every window on it is dead, with
 # the class present, the windows present and nothing anywhere to show for it.
 # format: Class = declared:a|b ; games:a(n),b(n)   -- an empty games list means no source has it
-# surveyed sources (24): africanvs, anil, armonia, awakening, desolation, emerald, fireash, gruelinggold, infinitefusion, infinitefusion_hoenn, insurgence, opalo, realidea, reborn, rejuvenation, relict, reminiscencia, royal, sevii, soulstones1, soulstones2, uranium, vanilla, z218
-BattlePointShop_Scene = declared:pbStartScene|start ; games:pbEndScene(5),pbStartScene(5)
+# surveyed sources (28): africanvs, anil, armonia, awakening, darkhorizon, desolation, emerald, fireash, goldencrown, gruelinggold, infinitefusion, infinitefusion_hoenn, insurgence, opalo, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, soulstones1, soulstones2, uranium, vanilla, worldfrontier, z218
+BattlePointShop_Scene = declared:pbStartScene|start ; games:pbEndScene(8),pbStartScene(8)
 PokemonMartScene = declared:pbStartBuyScene|pbStartScene|pbStartSellScene|start ; games:pbEndBuyScene(12),pbEndSellScene(12),pbStartBuyOrSellScene(12),pbStartBuyScene(12),pbStartSellScene(12)
-PokemonMart_Scene = declared:pbStartBuyScene|pbStartScene|pbStartSellScene|start ; games:pbEndBuyScene(11),pbEndSellScene(11),pbStartBuyOrSellScene(11),pbStartBuyScene(11),pbStartSellScene(11)
+PokemonMart_Scene = declared:pbStartBuyScene|pbStartScene|pbStartSellScene|start ; games:pbEndBuyScene(15),pbEndSellScene(15),pbStartBuyOrSellScene(15),pbStartBuyScene(15),pbStartSellScene(15)
 PokemonMart_Scene_BattlePoints = declared:pbStartBuyScene|pbStartScene|pbStartSellScene|start ; games:pbEndBuyScene(1),pbEndSellScene(1),pbStartBuyOrSellScene(1),pbStartBuyScene(1),pbStartSellScene(1)
-PokemonOptionPuntos_Scene = declared:pbStartScene|start ; games:pbEndScene(1),pbStartScene(1)
-PokemonPhoneScene = declared:pbStartScene|start ; games:start(16)
-PokemonPhone_Scene = declared:pbStartScene|start ; games:pbEndScene(5),pbStartScene(5)
+PokemonOptionPuntos_Scene = declared:pbStartScene|start ; games:pbEndScene(2),pbStartScene(2)
+PokemonPhoneScene = declared:pbStartScene|start ; games:start(17)
+PokemonPhone_Scene = declared:pbStartScene|start ; games:pbEndScene(8),pbStartScene(8)
 PokemonPokedexScene = declared:pbStartScene|start ; games:pbEndDexEntryScene(1),pbEndPokedexScene(1),pbEndRegionScene(1),pbEndScene(12),pbStartDexEntryScene(12),pbStartPokedexScene(1),pbStartRegionScene(1),pbStartScene(11)
-PokemonPokedex_Scene = declared:pbStartScene|start ; games:pbEndScene(11),pbStartScene(11)
+PokemonPokedex_Scene = declared:pbStartScene|start ; games:pbEndScene(15),pbStartScene(15)

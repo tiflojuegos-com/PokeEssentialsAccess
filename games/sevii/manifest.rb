@@ -10,6 +10,7 @@
     screens
     intro
     field_screens
+    cycling_road
     berry_blender
     pokeblocks
     pictures

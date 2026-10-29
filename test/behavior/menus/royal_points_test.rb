@@ -32,7 +32,7 @@ class Window_PokemonOption_Sky
   def update; :updated; end
 end
 
-path = File.join(Harness::ROOT, "games", "royal", "puntos.rb")
+path = File.join(Harness::ROOT, "games", "royal_common", "puntos.rb")
 eval(Harness.source(path), TOPLEVEL_BINDING, path)
 
 class RoyalPointsTest < PokeAccessTest

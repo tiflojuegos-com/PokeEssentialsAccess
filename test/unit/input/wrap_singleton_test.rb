@@ -12,6 +12,8 @@ module PaSingletonRig
   def self.hidden(x); x; end
   private_class_method :hidden
   def self.calls_hidden(x); hidden(x); end
+  def self.refuses(x); raise ArgumentError, "refused #{x}"; end
+  def self.balks(x); x; end
 end
 
 # A module function a module prepended to its singleton overrides (Module#prepend, Ruby 2+).
@@ -53,6 +55,14 @@ class WrapSingletonTest < PokeAccessTest
     end
     assert_raises(ArgumentError) { PaSingletonRig.crash(1) }
     assert_equal [:leave], trace
+  end
+
+  test "an error of the function passes on through an around body unlogged, while a failing body is logged" do
+    Hooks.wrap_singleton("PaSingletonRig", :refuses, "spec_refuses", :around) { |_args, call_next| call_next.call }
+    Hooks.wrap_singleton("PaSingletonRig", :balks, "spec_balks", :around) { |_args, _n| raise ArgumentError, "body" }
+    assert_raises(ArgumentError) { PaSingletonRig.refuses(1) }
+    assert_raises(ArgumentError) { PaSingletonRig.balks(1) }
+    assert_equal ["balks"], marker_lines(/hook body fn singleton_PaSingletonRig\.(\w+): ArgumentError/)
   end
 
   test "before and after bodies see the arguments, the after body the result too" do
@@ -100,6 +110,11 @@ class WrapSingletonTest < PokeAccessTest
   end
 
   private
+
+  # The functions of PaSingletonRig the marker file names in its lines matching pattern, by its first group.
+  def marker_lines(pattern)
+    (File.readlines(PokeAccess.marker_file) rescue []).map { |l| l[pattern, 1] }.compact
+  end
 
   # The block's value, or :looped when the wrapper calls itself without end.
   def unless_looping

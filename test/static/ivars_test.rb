@@ -11,10 +11,6 @@ class IvarsTest < PokeAccessTest
   # The diagnostic and the recorder read the mod's own modules by ivar, names no game has to carry.
   SELF_INTROSPECTION = ["core/input/diag.rb", "core/util/recorder.rb"]
 
-  # Names of a plugin version no surveyed game ships, checked by hand against the source of a game that does:
-  # Voltseon's Pause Menu 2.2 (Essentials 21.1), as Pokemon Decades ships it.
-  UNSURVEYED = { "plugins/voltseon_pausemenu.rb" => %w[current_selection pause_menu] }
-
   test "the census covers every ivar the mod reads" do
     assert_equal [], real_verdict[:uncensused], "else: ruby test/static/build_census.rb"
   end
@@ -26,12 +22,6 @@ class IvarsTest < PokeAccessTest
       puts "  note: #{verdict[:partial].length} ivar reads are present in some of their target games but not all"
       verdict[:partial].each { |p| puts "    #{p}" }
     end
-  end
-
-  test "each unsurveyed name is still in no surveyed game" do
-    census = parse_census(File.read(CENSUS))
-    still = UNSURVEYED.map { |path, ns| ns.reject { |n| (census[n] || []).empty? }.map { |n| "#{path}: @#{n}" } }
-    assert_equal [], still.flatten, "else it leaves that list"
   end
 
   test "the census gives each name its profiles, not the class list past the bar" do
@@ -69,8 +59,8 @@ class IvarsTest < PokeAccessTest
     assert_equal({ :uncensused => [], :offenders => [], :partial => [] }, got)
   end
 
-  test "the mod's own introspection and the unsurveyed names are not checked" do
-    reads = { "core/input/diag.rb" => ["ghost"], "plugins/voltseon_pausemenu.rb" => ["pause_menu", "ghost"] }
+  test "the mod's own introspection is not checked" do
+    reads = { "core/input/diag.rb" => ["ghost"], "plugins/voltseon_pausemenu.rb" => ["ghost"] }
     got = judge(reads, {}, :all)
     assert_equal ["plugins/voltseon_pausemenu.rb: @ghost"], got[:uncensused]
   end
@@ -114,7 +104,6 @@ class IvarsTest < PokeAccessTest
       aims = targets.respond_to?(:call) ? targets.call(path) : targets
       generic_only = aims == :all && path =~ %r{\Aplugins/[^/]+\.rb\z}
       names.each do |n|
-        next if (UNSURVEYED[path] || []).include?(n)
         have = census[n]
         next if generic_only && (have || []).empty? && reference.call(n)
         if have.nil?

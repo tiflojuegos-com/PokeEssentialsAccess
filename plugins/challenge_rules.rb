@@ -1,6 +1,6 @@
 # Challenge and randomizer rule editors (Challenge Modes, Randomizer EX): each rule with its on/off state, kept in
-# @text_key where the generic reader misses it, the focused rule's description, and the rule summary (display_rules)
-# both plugins show before confirming and from the rule book.
+# @text_key where the generic reader misses it, the focused rule's description, the rule summary (display_rules)
+# both plugins show before confirming and from the rule book, and Level Caps EX's mode chooser.
 module PokeAccess
   module ChallengeRules
     # The focused rule with its on/off state (from a [name, toggle] pair or @text_key), or a plain option (Confirm).
@@ -159,3 +159,18 @@ PokeAccess::Hooks.after_hook("Window_AdvancedTextPokemon", :text=, :optional => 
 end
 
 %w[ChallengeModes RandomizerConfigurator].each { |owner| PokeAccess::ChallengeRules.wire_summary(owner) }
+
+# The level cap's mode chooser (ChallengeModes.select_level_cap_mode) runs as a command list with help: CommandHelp
+# keeps each mode's description on the info key and says it after the mode. Its title, painted before the loop, is
+# said on the loop's first frame, ahead of the first mode.
+PokeAccess::Hooks.wrap_singleton("ChallengeModes", :select_level_cap_mode, "plugin_challenge_cap", :around) do |_a, nxt|
+  PokeAccess::CommandHelp.enter(:withhelp)
+  PokeAccess::PaintCapture.arm(:challenge_cap)
+  begin
+    nxt.call
+  ensure
+    PokeAccess::PaintCapture.take(:challenge_cap)
+    PokeAccess::CommandHelp.leave
+  end
+end
+PokeAccess::Frame.each_pulse { PokeAccess::PaintCapture.flush_pending(:challenge_cap, false) }

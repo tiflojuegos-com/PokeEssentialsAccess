@@ -65,7 +65,8 @@ What some rows do in full:
 - `:hp`: in battle, the player's battlers, or the Safari Balls left in the Safari Zone. Out of battle, the party's HP,
   with or without Shift.
 - `:field`: in battle, the field effect, the weather, the terrain and each side's conditions. Out of battle, the
-  weather, the game's clock and the time of day.
+  weather, the game's clock, the time of day, the balls and steps left in the Safari Zone or the balls and time left in
+  the Bug-Catching Contest, the Poké Radar's chain, and the time an event timer has left.
 - `:coords` with Ctrl: moves `hide_unreachable` to its next value, saves it and says it
   ([Settings](settings.md#navigation-and-pathfinder-options)).
 
@@ -205,8 +206,8 @@ A spoken text that names a mod key carries `%{key_<action>}`, which `ConfigMenu.
 letters a profile declares with `key_hints` ([Key hints](../architecture/readers.md#key-hints)). The key that
 mkxp-z's F1 window gave a button comes from `NativeKeys`, which reads `keybindings.mkxp1` in mkxp-z's data directory,
 in a game whose input mkxp-z answers. A game that reads the keyboard in Ruby defines `Input.getstate`, and F1's
-bindings do not apply to it. Royal's profile takes the letters from the game's own key menu
-(`games/royal/key_hints.rb`).
+bindings do not apply to it. Royal and World Frontier take the letters from the game's own key menu
+(`games/royal_common/key_hints.rb`).
 
 ## Keys a screen takes over
 

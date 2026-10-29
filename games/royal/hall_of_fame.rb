@@ -1,8 +1,6 @@
-# Royal's copy of the "Hall de la Fama BW" viewer draws the species bar as name and type icons with no sex sign, and
-# no sign in its PC viewer either: the shared reader says the types after the species, and never the sex.
+# Royal's ceremony card draws its species bar as the name and type icons: the shared reader says the types after the
+# species (royal_common leaves the sex out).
 PokeAccess::Game.define("royal") do
-  override("PokeAccess::HallOfFameBW", :sex_suffix) { |_mod, _original, _args| "" }
-
   override("PokeAccess::HallOfFameBW", :species_bar) do |_mod, _original, args|
     pk, sp = args
     types = PokeAccess::Data.pokemon_types(pk)

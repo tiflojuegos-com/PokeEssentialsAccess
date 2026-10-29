@@ -11,6 +11,7 @@ module Reset
     (reset_globals rescue nil)
     (PokeAccess::World::Mechanics.instance_variable_set(:@defs, {}) rescue nil)
     (PokeAccess::Puzzles.instance_variable_set(:@track_seq, nil) rescue nil)
+    (PokeAccess::EventTimer.instance_variable_set(:@left, nil) rescue nil)
     (PokeAccess::World::Probe.instance_variable_set(:@loose_pushes, false) rescue nil)
     (PokeAccess::Routes::Pushes.instance_variable_set(:@sliding, false) rescue nil)
     (reset_field_rules rescue nil)

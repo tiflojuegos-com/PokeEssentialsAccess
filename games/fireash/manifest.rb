@@ -10,5 +10,5 @@
     passability
     field_moves
   ],
-  :plugins => %w[dynamax multi_save_v19 zud_raid_database]
+  :plugins => %w[dynamax multi_save_v19 zud_max_lair zud_raid_database zud_raid_dens]
 }

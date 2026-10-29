@@ -49,7 +49,9 @@ with the script that builds it and its sources. Read it when a static check fail
   entry with a [probe](glossary.md). Every plugin a profile declares exists. Some profile declares every plugin file,
   or the file is a reader only the generic profile loads, whose probe no surveyed game ships and a reference copy
   defines. Every hook in `plugins/` is `:optional`, and no two readers claim one `Class#method`. Each profile declares
-  the plugins its game ships (`plugin_census.txt`).
+  the plugins its game ships (`plugin_census.txt`), save one its game ships in an edited copy that the profile reads
+  itself, listed in `OWN_COPIES` (Revival's Modular Menu), which counts as declared. Such a profile does not load the
+  plugin's reader too.
 - `profile_load_test.rb`: every profile, and every shared profile on its own, loads whole as the loader loads it, in a
   Ruby process of its own under each engine's stubs. A misspelt DSL method shows only when its `define` block runs.
 - `profile_names_test.rb`: the first `define` a profile's modules run, through `Game.define` or a core wrapper of it

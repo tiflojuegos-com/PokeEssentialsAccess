@@ -242,11 +242,9 @@ class BootLoaderTest < PokeAccessTest
   private
 
   # Boots a game folder made of files (paths under accessibility/) as the game's preload does, its settings.ini and
-  # the plugin records its own, the mod's language tables already read from the repo (the boot reads them from the
-  # folder it runs in); returns the block's value, or what the evaluated modules recorded.
+  # the plugin records its own; returns the block's value, or what the evaluated modules recorded.
   def boot(files)
     self.class.trace.clear
-    PokeAccess::I18n.available_languages.each { |code| PokeAccess::I18n.table(code) }
     tree = {}
     files.each { |path, body| tree["accessibility/#{path}"] = body }
     in_tree(tree) do |root|

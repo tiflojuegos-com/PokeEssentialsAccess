@@ -25,8 +25,8 @@ class BlockingHooksTest < PokeAccessTest
     # The window's or cursor's own reader: nothing it drives speaks through a hook of its own.
     :window_reader => %w[MiningGameCursor#update NewChoiceSel#update NewCommandWindow#update NewFightWindow#update
                          NextGenCommandWindow#update NextGenFightWindow#update SlotMachineReel#update
-                         SpriteWindow_Selectable#update Window_ControlBinding#update Window_DrawableCommand#update
-                         Window_DrawableCommandBag#update Window_DrawableCommandDex#update
+                         SpriteWindow_Selectable#update Sprite_Timer#update Window_ControlBinding#update
+                         Window_DrawableCommand#update Window_DrawableCommandBag#update Window_DrawableCommandDex#update
                          Window_InputNumberPokemon#update Window_PokemonOption_Sky#update],
     # The hook reads or polls the screen itself; the generic readers of its windows would say it again.
     :screen_reader => %w[DP_PauseMenu#update LuckSwapScene#pbUpdate NewBattleBag#update PickDifficulty#update
@@ -34,7 +34,8 @@ class BlockingHooksTest < PokeAccessTest
                          PokeAccess::SummaryV21::SCENE#pbUpdate PokedexFormScene#pbUpdate
                          PokemonChallenges_Scene#pbUpdate PokemonCharacterGridEntryScene#pbUpdate
                          PokemonEntryScene2#pbUpdate PokemonHatView#update
-                         PokemonMGift_Scene#pbUpdate PokemonMenu_Scene#update PokemonPokegearTheme_Scene#pbUpdate
+                         PokemonMGift_Scene#pbUpdate PokemonMenu_Scene#update PokemonPauseMenu_Scene#update
+                         PokemonPokegearTheme_Scene#pbUpdate
                          PokemonPokegear_Scene#pbUpdate PokemonReadyMenu_Scene#pbUpdate PokemonSummaryScene#pbUpdate
                          PokemonSummary_Scene#pbUpdate Pokemon_Achievements_Scene#update QuestInfo_Scene#pbUpdate
                          RSESTarterChoice#pbUpdate Scene_Leaf#update SecretBaseMart_Scene#update SlotMachineScene#update

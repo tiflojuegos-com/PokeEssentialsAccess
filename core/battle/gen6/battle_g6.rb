@@ -149,7 +149,8 @@ PokeAccess::Hooks.around_hook(PokeAccess::BattleG6::SCENE, :pbLevelUp, :optional
 end
 
 # The hp change, said before the original animates the bar (the caller has already lowered hp and passes the old;
-# the Reborn engine passes a list of such pairs and an animation flag, which hp_changed tells apart).
+# the Reborn engine passes a list of such pairs and an animation flag, Rejuvenation the battlers and their old hp as
+# two lists, which hp_changed tells apart).
 PokeAccess::Hooks.before_hook(PokeAccess::BattleG6::SCENE, :pbHPChanged) do |_s, args|
   PokeAccess::Battle.hp_changed(args[0], args[1])
 end

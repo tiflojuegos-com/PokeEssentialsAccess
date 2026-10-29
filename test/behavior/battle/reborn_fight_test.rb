@@ -1,5 +1,7 @@
 # Reborn's fight menu: the move line with the move's real type, a type the field adds and the field's boost (Reborn's
-# pbFieldNotesBattle); the Z-Move button said as it comes up and toggles, the Z-move then in the move's place.
+# pbFieldNotesBattle); as rv_common's Z-Move button toggles, the Z-move in the move's place, said in Reborn's line.
+Harness.load_common("rv_common")
+
 class RebornFightTest < PokeAccessTest
   # A battle move of Reborn: its symbol in move, its real type from pbType, the types the field adds.
   class Move
@@ -27,10 +29,8 @@ class RebornFightTest < PokeAccessTest
     end
   end
 
-  # Reborn's fight window as far as the reader goes: the battler and cursor it is set up with, and its zButton.
+  # Reborn's fight window as far as the reader goes: the battler and cursor it is set up with.
   class Display
-    attr_reader :zButton
-    def zButton=(v); @zButton = v; end
     def initialize(battler, index)
       @battler = battler; @index = index
     end
@@ -55,22 +55,17 @@ class RebornFightTest < PokeAccessTest
     attr_reader :reader
   end
 
-  # Evaluates the profile file once, as boot does, with Display standing as FightMenuDisplay for its zButton hook. Its
-  # read_fight_move is kept aside and core's put back, so the other tests of the process keep core's;
-  # with_profile_reader puts the profile's in for a test.
+  # Evaluates the profile file once, as boot does. Its read_fight_move is kept aside and core's put back, so the other
+  # tests of the process keep core's; with_profile_reader puts the profile's in for a test.
   def self.load_profile
     meta = PokeAccess::Battle.singleton_class
     core = meta.instance_method(:read_fight_move)
     profiles = PokeAccess::Game.profiles.dup
-    prior = Object.const_defined?(:FightMenuDisplay) ? Object.send(:remove_const, :FightMenuDisplay) : nil
-    Object.const_set(:FightMenuDisplay, Display)
     path = File.join(Harness::ROOT, "games", "reborn", "fight_menu.rb")
     eval(Harness.source(path), TOPLEVEL_BINDING, path)
     @reader = meta.instance_method(:read_fight_move)
   ensure
     meta.send(:define_method, :read_fight_move, core)
-    Object.send(:remove_const, :FightMenuDisplay)
-    Object.const_set(:FightMenuDisplay, prior) if prior
     PokeAccess::Game.profiles.replace(profiles)
   end
   load_profile
@@ -142,18 +137,26 @@ class RebornFightTest < PokeAccessTest
     assert_match(/\ARock Slide\b/, PokeAccess::Info.info_text.to_s)
   end
 
-  test "the Z-Move button coming up is said, queued" do
-    d = Display.new(cave_battler, 0)
-    toggle(d, 0)
-    SpeakCapture.clear
-    toggle(d, 1)
-    assert_equal [[t(:bt_special_ready, :name => t(:bt_m_zmove)), false]], SpeakCapture.log
+  test "brief says the name and PP, medium adds the move's types and the field's mark, full the category" do
+    lines = vb_levels do
+      SpeakCapture.clear
+      read(Display.new(cave_battler, 2))
+      SpeakCapture.last
+    end
+    pp = t(:mv_pp, :pp => 10, :tot => 15)
+    added = t(:reb_move_also_type, :t => "TipoGROUND")
+    medium = ["MovROCKSLIDE", t(:mv_type, :t => "TipoROCK"), added, pp, t(:reb_move_weakened)].join(". ")
+    assert_equal ["MovROCKSLIDE. #{pp}", medium, line("MovROCKSLIDE", "TipoROCK", added, t(:reb_move_weakened))], lines
   end
 
-  test "a button still hidden says nothing" do
-    d = Display.new(cave_battler, 0)
-    toggle(d, 0)
-    assert_equal [], SpeakCapture.log
+  test "at brief, Ctrl+T says the whole line, the added type and the field's mark too, and the info key the move" do
+    PokeAccess::Config.verbosity = :brief
+    read(Display.new(cave_battler, 2))
+    whole = line("MovROCKSLIDE", "TipoROCK", t(:reb_move_also_type, :t => "TipoGROUND"), t(:reb_move_weakened))
+    assert_equal whole, PokeAccess::Info.row_text
+    assert_match(/\ARock Slide\b/, PokeAccess::Info.info_text.to_s)
+  ensure
+    PokeAccess::Config.verbosity = :full
   end
 
   test "turning Z-Move on says so, then the Z-move in the move's place, with no PP of its own" do
@@ -225,9 +228,10 @@ class RebornFightTest < PokeAccessTest
     SpeakCapture.log.dup
   end
 
-  # Sets the display's Z-Move button as Reborn's fight menu does, with the profile's reader in place.
+  # Sets the display's Z-Move button as Reborn's fight menu does, through rv_common's reader of it, with the profile's
+  # reader of the move in place.
   def toggle(display, state)
-    with_profile_reader { display.zButton = state }
+    with_profile_reader { PokeAccess::FightRV.button(display, :@access_z, :zmove, state) }
   end
 
   # A display of battler on slot idx whose move was read and whose Z-Move button came up, the log then cleared.

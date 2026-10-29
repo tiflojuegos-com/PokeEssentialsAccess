@@ -11,6 +11,7 @@
     dex_page
     fusion_marks
     outfits
+    shop_actions
     character_creator
     field_moves
     water_current
@@ -25,5 +26,6 @@
     shuffle_progress
     passability
     intro_movie
+    hall_of_fame_pc
   ]
 }

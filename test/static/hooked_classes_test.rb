@@ -6,7 +6,7 @@ require File.expand_path("reference_names", File.dirname(__FILE__))
 class HookedClassesTest < PokeAccessTest
   ROOT = File.expand_path("../..", File.dirname(__FILE__))
   DIR = File.dirname(__FILE__)
-  SOURCES = 24
+  SOURCES = 28
   CENSUSES = %w[ivar_census.txt fangame_classes.txt plugin_census.txt all_classes.txt loop_census.txt
                 arity_census.txt].freeze
   # The registration shapes that take a class name as a literal string; scene_classes takes several at once.
@@ -53,7 +53,7 @@ class HookedClassesTest < PokeAccessTest
     assert_equal ["PokeAccess::PlantedNoPanel (core/a.rb)"], ghosts(hooked_names(tree), own_modules(tree), {})
   end
 
-  test "every census was built from all twenty-four sources" do
+  test "every census was built from all twenty-eight sources" do
     counts = CENSUSES.map { |f| [f, surveyed(File.read(File.join(DIR, f)))] }
     assert_equal [], counts.reject { |_f, n| n == SOURCES.to_s }.map { |f, n| "#{f}: #{n}" }
   end

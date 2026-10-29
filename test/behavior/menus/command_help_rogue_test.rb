@@ -2,19 +2,8 @@
 # pbShowCommandsRogue): said queued once the menu is up, once per window, only for the variant running with no message
 # above it, and kept for the info key.
 
-# The window pbShowCommandsRogue writes each option's help into, which the engine stubs lack: text= as the game's.
-class Window_UnformattedTextPokemon
-  def initialize(text = ""); self.text = text; end
-  def text=(value); @text = value; end
-end
-
-# The mod registered that window's listener before the stand-in existed, so it bound to nothing: its registration, the
-# last hook of core/menus/command_help.rb, is evaluated again (as the harness serves it) to bind it to the stand-in.
-command_help = File.join(Harness::ROOT, "core", "menus", "command_help.rb")
-source = Harness.source(command_help)
-listener = source.index('PokeAccess::Hooks.after_hook("Window_UnformattedTextPokemon"')
-eval(source[listener..-1], TOPLEVEL_BINDING, command_help, source[0, listener].count("\n") + 1)
-
+# The window pbShowCommandsRogue writes each option's help into is the engine stubs' Window_UnformattedTextPokemon,
+# whose text= listener the mod bound as it loaded.
 class CommandHelpRogueTest < PokeAccessTest
   CH = PokeAccess::CommandHelp
 
@@ -148,6 +137,108 @@ class CommandHelpRogueTest < PokeAccessTest
   test "leaves a message the menu puts up over the message it opened in to the dialogue reader" do
     in_message { menu_up(:withhelp) { in_message { CH.note(Object.new, :withhelp, "Seguro que quieres salir?") } } }
     assert_nothing_spoken
+  end
+
+  test "Ctrl+T says the focused option before its help, and the info key the help alone" do
+    cmds = Window_DrawableCommand.new(["Continuar", "Nueva partida"])
+    menu_up(:withhelp) do
+      cmds.update
+      CH.note(Object.new, :withhelp, "Continua esta partida.")
+      assert_equal "Continuar. Continua esta partida.", PokeAccess::Info.row_text, "Ctrl+T"
+      assert_equal "Continua esta partida.", PokeAccess::Info.info_text, "the info key"
+    end
+  end
+
+  test "Ctrl+T follows the option the cursor moves to" do
+    cmds = Window_DrawableCommand.new(["Continuar", "Nueva partida"])
+    help = Object.new
+    menu_up(:withhelp) do
+      cmds.update
+      CH.note(help, :withhelp, "Continua esta partida.")
+      cmds.index = 1
+      cmds.update
+      CH.note(help, :withhelp, "Empieza una partida nueva.")
+      assert_equal "Nueva partida. Empieza una partida nueva.", PokeAccess::Info.row_text
+    end
+  end
+
+  test "Ctrl+T follows the cursor onto an option that shares the last one's help, said once" do
+    cmds = Window_DrawableCommand.new(["Pocion", "Superpocion"])
+    help = Object.new
+    menu_up(:withhelp) do
+      cmds.update
+      CH.note(help, :withhelp, "Cura a un Pokemon.")
+      cmds.index = 1
+      cmds.update
+      CH.note(help, :withhelp, "Cura a un Pokemon.")
+      assert_equal "Superpocion. Cura a un Pokemon.", PokeAccess::Info.row_text
+    end
+    assert_equal 1, SpeakCapture.log.count { |text, _i| text == "Cura a un Pokemon." }
+  end
+
+  test "an option with no help after one with gives Ctrl+T the option alone and the info key no stale help" do
+    cmds = Window_DrawableCommand.new(["Continuar", "Salir"])
+    help = Object.new
+    menu_up(:withhelp) do
+      cmds.update
+      CH.note(help, :withhelp, "Continua esta partida.")
+      cmds.index = 1
+      cmds.update
+      CH.note(help, :withhelp, "")
+      assert_equal ["Salir", nil], [PokeAccess::Info.row_text, PokeAccess::Info.info_text]
+    end
+  end
+
+  test "Ctrl+T follows the cursor across options with no help in a row, and a help said again after them" do
+    cmds = Window_DrawableCommand.new(["Continuar", "Opciones", "Salir"])
+    help = Object.new
+    rows = []
+    menu_up(:withhelp) do
+      cmds.update
+      CH.note(help, :withhelp, "Continua esta partida.")
+      [1, 2].each do |i|
+        cmds.index = i
+        cmds.update
+        CH.note(help, :withhelp, "")
+        rows.push(PokeAccess::Info.row_text)
+      end
+      cmds.index = 0
+      cmds.update
+      CH.note(help, :withhelp, "Continua esta partida.")
+    end
+    assert_equal ["Opciones", "Salir"], rows
+    assert_equal 2, SpeakCapture.log.count { |text, _i| text == "Continua esta partida." }
+  end
+
+  test "a help written as the menu opens gets its row once the command window first updates" do
+    cmds = Window_DrawableCommand.new(["Continuar"])
+    in_menu(:withhelp) do
+      CH.note(Object.new, :withhelp, "Continua esta partida.")
+      assert_nil PokeAccess::Info.row_text, "before the window updates"
+      cmds.update
+      assert_equal "Continuar. Continua esta partida.", PokeAccess::Info.row_text, "after it"
+    end
+  end
+
+  test "a choice shown in a message from inside the menu does not head its row" do
+    cmds = Window_DrawableCommand.new(["Continuar"])
+    choice = Window_DrawableCommand.new(["Si", "No"])
+    menu_up(:withhelp) do
+      cmds.update
+      in_message { choice.update }
+      CH.note(Object.new, :withhelp, "Continua esta partida.")
+      assert_equal "Continuar. Continua esta partida.", PokeAccess::Info.row_text
+    end
+  end
+
+  test "the row leaves Ctrl+T when the menu closes" do
+    cmds = Window_DrawableCommand.new(["Continuar"])
+    menu_up(:withhelp) do
+      cmds.update
+      CH.note(Object.new, :withhelp, "Continua esta partida.")
+      assert_equal "Continuar. Continua esta partida.", PokeAccess::Info.row_text, "while the menu is open"
+    end
+    assert_nil PokeAccess::Info.row_text, "once it closes"
   end
 
   test "with menu help switched off says nothing, and the info key still answers with the help" do

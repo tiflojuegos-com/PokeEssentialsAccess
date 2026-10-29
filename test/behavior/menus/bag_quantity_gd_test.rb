@@ -20,7 +20,7 @@ class BagQuantityGdTest < PokeAccessTest
       core = menus.method(:bag_registrable?)
       overrides = PokeAccess::Hooks.overrides.length
       profiles = PokeAccess::Game.profiles.dup
-      path = File.join(Harness::ROOT, "games", "royal", "bag_register.rb")
+      path = File.join(Harness::ROOT, "games", "royal_common", "bag_register.rb")
       eval(Harness.source(path), TOPLEVEL_BINDING, path)
       royal = menus.method(:bag_registrable?)
       menus.define_singleton_method(:bag_registrable?, core)

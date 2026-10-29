@@ -1,6 +1,8 @@
 # Boots a test process for one engine (PA_ENGINE: gen6 by default, gamedata): the engine stubs, the shared helpers,
-# minitest and the base test case; then the mod with the engine's harness profile, its speech captured. With
-# PA_COVERAGE set (tools/coverage.rb), the mod's line and branch coverage is written to <PA_COVERAGE>_<engine>.json.
+# minitest and the base test case; then the mod with the engine's harness profile, its language tables read from the
+# repo up front (each is cached from the folder it is first read in, and some tests run from a scratch one) and its
+# speech captured. With PA_COVERAGE set (tools/coverage.rb), the mod's line and branch coverage is written to
+# <PA_COVERAGE>_<engine>.json.
 if ENV["PA_COVERAGE"]
   require "coverage"
   require "json"
@@ -35,5 +37,6 @@ unless load_errors.empty?
   load_errors.first(10).each { |e| puts "  #{e}" }
   exit 1
 end
+PokeAccess::I18n.available_languages.each { |code| PokeAccess::I18n.table(code) }
 SpeakCapture.install
 SpeakCapture.clear_all

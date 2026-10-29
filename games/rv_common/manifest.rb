@@ -6,10 +6,12 @@
     data_rv
     inspect_rv
     battle_marks_rv
+    fight_menu_rv
     randomizer_rv
     storage_rv
     summary_rv
     own_voice_rv
+    online_trade_rv
     field_notes_rv
     time_weather_rv
     dex_forms_rv

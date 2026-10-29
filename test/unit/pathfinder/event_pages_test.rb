@@ -664,7 +664,7 @@ class EventPagesTest < PokeAccessTest
     profiles = game.profiles.dup
     name = game.instance_variable_get(:@profile_name)
     extra = (SC.instance_variable_get(:@extra) || []).dup
-    path = File.join(Harness::ROOT, "games", "royal", "stairs.rb")
+    path = File.join(Harness::ROOT, "games", "royal_common", "stairs.rb")
     eval(Harness.source(path), TOPLEVEL_BINDING, path)
     yield
   ensure

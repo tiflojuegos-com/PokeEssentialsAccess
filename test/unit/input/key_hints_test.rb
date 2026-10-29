@@ -6,7 +6,7 @@ class InputKeyHintsTest < PokeAccessTest
   RGSS = PokeAccess::KeyHints::RGSS_LETTERS
   J = 0x4A
   K = 0x4B
-  ROYAL_KEYS = File.expand_path("../../../games/royal/key_hints.rb", File.dirname(__FILE__))
+  ROYAL_KEYS = File.expand_path("../../../games/royal_common/key_hints.rb", File.dirname(__FILE__))
 
   # The keys Royal's F1 menu gives the standard buttons while the player keeps RPG Maker's.
   ROYAL_DEFAULTS = { :ACTION => "Z", :BACK => "X", :USE => "C", :JUMPUP => "A", :JUMPDOWN => "S", :SPECIAL => "D",

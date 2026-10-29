@@ -17,9 +17,10 @@ Each fangame starts from one Essentials version and keeps its API, so the mod me
 | GameData | v19 to v21.1 | `GameData::*` | `Battle::Scene` |
 | GameData with the v22 interface | v22 | `GameData::*` | `Battle::Scene` |
 
-The Sky fork puts the v22 interface, `UI::BaseScreen` and the `UI::*Visuals` classes, on a v21.1 base. Añil and Royal
-run it: they define `Essentials::VERSION` as `"21.1"` and `UI::BaseScreen` (Añil's `297_UI_base.rb`). Their screens
-take the v22 readers and their battles the v21 one.
+The Sky fork puts the v22 interface, `UI::BaseScreen` and the `UI::*Visuals` classes, on a v21.1 base. Añil, Royal
+and World Frontier run it: they define `Essentials::VERSION` as `"21.1"` and `UI::BaseScreen` (Añil's
+`297_UI_base.rb`). Their screens take the v22 readers and their battles the v21 one. Revival is built on an earlier
+release of the same base, without the v22 interface.
 
 `Engine.kind` tells only two eras apart, `:gen6` and `:gamedata`. Every finer distinction is a capability.
 
@@ -155,7 +156,10 @@ open:
 - Data only some providers give. Core asks `Data.optional(:map_infos)`, `Data.optional(:common_events)` and similar,
   and `DataRV` answers them.
 - Replaced methods. A module of `rv_common` replaces a core method with `Hooks.override`, as
-  `games/rv_common/time_weather_rv.rb` does with `PokeAccess::Battle.clock_text`.
+  `games/rv_common/time_weather_rv.rb` does with `PokeAccess::Battle.clock_text`. Some core methods hold only the
+  stock answer and exist to be replaced: `Battle.fight_type`, `Battle.fight_line` and `Battle.fight_row`, through
+  which `games/rv_common/fight_menu_rv.rb` gives the fight line the type, the added types and the field mark the
+  family's buttons paint, and Ctrl+T that line whole.
 
 Tests load the shared profile with `Harness.load_common("rv_common")` and put a provider in place for one block with
 `Harness.with_provider` ([Tests](../guides/tests.md)).

@@ -209,6 +209,26 @@ class Ss2EnhancedUiGdTest < PokeAccessTest
     end
   end
 
+  test "leaves the flag icons out below the medium level of battle moves, as the plugin's panel does" do
+    flags = I18n.t(:dbk_flags, :list => I18n.t(:dbk_flag_contact))
+    lines = vb_levels do
+      SpeakCapture.clear
+      open_panel(tackler, :flag_frames => [4])
+      SpeakCapture.lines
+    end
+    assert_equal [[panel_line(:description => nil)], [panel_line(:flags => flags, :description => nil)],
+                  [panel_line(:flags => flags)]], lines
+  end
+
+  test "says the description the panel paints only where descriptions are said, in full" do
+    lines = vb_levels do
+      SpeakCapture.clear
+      open_panel(tackler)
+      SpeakCapture.lines
+    end
+    assert_equal [[panel_line(:description => nil)], [panel_line(:description => nil)], [panel_line]], lines
+  end
+
   test "says nothing for the same panel drawn again" do
     user = tackler
     scene = open_panel(user, :effect_frames => [3])

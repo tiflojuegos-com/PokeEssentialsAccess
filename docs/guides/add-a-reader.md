@@ -22,7 +22,11 @@ The example is the reader that says the dish on Royal's curry results, `games/ro
    it lists the classes and functions that loop on the keys and pump `Graphics.update` with no file of the mod naming
    them, less those already checked. A screen checked and found to need no reader goes to
    `tools/silent_screens_triaged.txt` with the games and the reason; an entry the report says is no longer listed
-   (a reader names that screen now) leaves the file.
+   (a reader names that screen now) leaves the file. With `--painters` it lists instead the methods that paint text in
+   a class the mod already names, and the functions that paint text, that no hook reaches: a screen read through its
+   other methods leaves these unread, as `Battle::Scene#updateJudgment` paints the Battle Arena's judgment. They are
+   triaged in the same file as `Class#method`, or `Object#name` for a function. A folder of stock Essentials releases,
+   each extracted into its own subfolder, can stand in for the script dumps.
 5. Read the class before choosing a hook. Note the method that opens the screen, the loop that runs it, the methods
    the cursor goes through and the instance variables that hold what it paints.
 

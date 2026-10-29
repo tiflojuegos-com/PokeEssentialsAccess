@@ -145,7 +145,7 @@ module PokeAccess
       nil
     end
 
-    # ---- Miniorgame board: 10x9 falling grid; a cell speaks its colour and group size. ----
+    # ---- Miniorgame board: 10x9 falling grid; a cell speaks its colour and group size, a round its goal. ----
     MG_COLORS = {
       "miniorrojo" => :rmg_rojo, "minioramarillo" => :rmg_amarillo, "miniorverde" => :rmg_verde,
       "miniorazul" => :rmg_azul, "miniorlila" => :rmg_lila
@@ -160,9 +160,17 @@ module PokeAccess
       PokeAccess::I18n.t(:rmg_mg_cell, :color => cname, :n => n, :row => r + 1, :col => c + 1)
     end
 
+    # The round's goal and counters as repetir paints them on its first frame, said once, queued, as the round starts:
+    # "¡Puedes dejarte hasta 5 Minior! Pts: 0. Restantes: 90".
+    def self.mg_goal
+      return unless PokeAccess::PaintCapture.pending?(:rmg_mg_goal)
+      PokeAccess.speak_clean(PokeAccess.sentences(PokeAccess::PaintCapture.take(:rmg_mg_goal)), false)
+    end
+
     # Minior board by keyboard: B closes and A resets (the game's own keys), arrows move a cell cursor, C bursts
     # the focused group; a cell names its colour and group size, and the score follows a burst.
     def self.mg_input(scene)
+      mg_goal
       scene.instance_variable_set(:@cerrar, 1) if Input.trigger?(Input::B)
       scene.instance_variable_set(:@reset, 1) if Input.trigger?(Input::A)
       r = (scene.instance_variable_get(:@access_mg_r) || 9).to_i
@@ -369,6 +377,7 @@ end
 PokeAccess::Game.define("realidea") do
   around("Cockteles", :input) { |s, _nxt, _a| PokeAccess::ReaMouse.ck_input(s) }
   around("Tresenraya", :input) { |s, _nxt, _a| PokeAccess::ReaMouse.ttt_input(s) }
+  before("Miniorgame", :repetir) { |_s, _a| PokeAccess::PaintCapture.arm(:rmg_mg_goal) }
   around("Miniorgame", :input) { |s, _nxt, _a| PokeAccess::ReaMouse.mg_input(s) }
   around("Unowngame", :input) do |s, _nxt, _a|
     PokeAccess::ReaMouse.un_input(s)

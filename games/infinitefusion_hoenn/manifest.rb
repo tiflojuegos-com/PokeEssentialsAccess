@@ -16,6 +16,8 @@
     contests
     overworld
     secret_base
+    chair_clock
+    cosmetics_money
     region_map
     weather
     title

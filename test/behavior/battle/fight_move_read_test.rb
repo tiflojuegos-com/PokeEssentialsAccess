@@ -74,6 +74,13 @@ class FightMoveReadTest < PokeAccessTest
     assert_equal [[["Ember", T.t(:cat_special)].join(". "), true]], SpeakCapture.log
   end
 
+  test "leaves out the pp of a move whose total is 0, in its line and on the info key, as its button paints none" do
+    Battle.read_fight_move(fight_display([fake_move("Ember", 1, 0, 0)], 0))
+    assert_equal [[["Ember", T.t(:cat_special)].join(". "), true]], SpeakCapture.log
+    assert_match(/\AEmber\. /, PokeAccess::Info.info_text.to_s)
+    refute_match(/PP/, PokeAccess::Info.info_text.to_s)
+  end
+
   test "leaves out a type the game gives no name" do
     unnamed = Object.new
     def unnamed.type_name(_id); ""; end

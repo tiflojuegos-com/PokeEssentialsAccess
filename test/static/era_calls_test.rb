@@ -4,7 +4,7 @@ require "tmpdir"
 
 class EraCallsTest < PokeAccessTest
   CENSUS = File.join(File.dirname(__FILE__), "era_census.txt")
-  SOURCES = 24
+  SOURCES = 28
   KNOWN = {
     # Ladders: the gen-6 spelling is tried and the modern one follows (or the other way round).
     "pbIsImportantItem?" => "gen-6 bag predicate; GameData::Item#is_important? follows (menus.rb bag_hides_qty?)",
@@ -33,6 +33,7 @@ class EraCallsTest < PokeAccessTest
     "pbDisplayHeartScalesWindow" => "money-window variant wrapped where it exists (money_window.rb)",
     "pbDisplayQuestPointsWindow" => "money-window variant wrapped where it exists (money_window.rb)",
     "pbDisplayAchievementPointsWindow" => "money-window variant wrapped where it exists (money_window.rb)",
+    "pbFreeText" => "the message box's text field, wrapped by name (text_entry.rb); Golden Crown dropped it with pbMessageFreeText",
     # In every fangame but not the stock v21.1 tree, which reworked those screens and no surveyed game runs.
     "pbGetHealingSpot" => "all fifteen games; the stock tree dropped the name (town_map.rb healing_spot)",
     "pbGetMapDetails" => "all fifteen games; the stock tree dropped the name (region_map.rb)",

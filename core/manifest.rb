@@ -133,6 +133,8 @@
   battle/battle
   battle/move_info
   battle/scene_reader
+  battle/arena_judgment
+  battle/contest_help
   battle/gen6/battle_g6
   battle/v21/battle_v21
   battle/v22/battle_v22
@@ -146,6 +148,7 @@
   menus/marking
   menus/encounter_list
   menus/v21/ui_v21
+  menus/v21/move_reminder_open_v21
   menus/pokedex_search/base
   menus/pokedex_search/grid
   menus/pokedex_search/list
@@ -207,6 +210,7 @@
   field/phone
   field/itemfinder
   field/pokeradar
+  field/event_timer
   menus/money_window
   menus/uihelper
   util/recorder

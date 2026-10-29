@@ -144,7 +144,7 @@ module PokeAccess
             PokeAccess::Hooks.note_suppressed(key)
             return send(orig, *args, &blk)
           end
-          call = lambda { send(orig, *args, &blk) }
+          call = lambda { PokeAccess::Hooks.original_call { send(orig, *args, &blk) } }
           chains[key].reverse_each do |w|
             nxt = call
             call = lambda { w.call(self, nxt, args) }
@@ -258,15 +258,30 @@ module PokeAccess
       end
     end
 
+    # Runs the game's own method or function, marking an error it raises as the game's, so a hook around it passes
+    # the error on without logging it as its own.
+    def self.original_call
+      yield
+    rescue Exception => e
+      (e.instance_variable_set(:@access_original, true) rescue nil)
+      raise e
+    end
+
+    # Whether an error came out of the game's own code (original_call) rather than a hook body.
+    def self.original_error?(e)
+      (e.instance_variable_defined?(:@access_original) rescue false) ? true : false
+    end
+
     # Wraps a method with full control of the call, yielding (instance, call_next, args); call_next takes no
-    # arguments (mutate args in place to change them). A failing body is logged once and re-raised. opts as in wrap.
+    # arguments (mutate args in place to change them). A failing body is logged once and re-raised; an error of the
+    # original is only passed on. opts as in wrap.
     def self.around_hook(cname, meth, opts = {}, &body)
       key = next_key(cname, meth)
       wrap(cname, meth, opts) do |inst, nxt, args|
         begin
           body.call(inst, nxt, args)
         rescue StandardError => e
-          PokeAccess::Hooks.log_body_failure(key, e)
+          PokeAccess::Hooks.log_body_failure(key, e) unless PokeAccess::Hooks.original_error?(e)
           raise e
         end
       end
@@ -361,14 +376,14 @@ module PokeAccess
           around = PokeAccess::Hooks.fn_bodies["#{name}|around"]
           if around && !around.empty?
             begin
-              call = lambda { send(ali, *args, &blk) }
+              call = lambda { PokeAccess::Hooks.original_call { send(ali, *args, &blk) } }
               around.reverse_each do |w|
                 nxt = call
                 call = lambda { w.call(args, nxt) }
               end
               r = call.call
             rescue StandardError => e
-              PokeAccess::Hooks.log_body_failure("fn #{tag}", e)
+              PokeAccess::Hooks.log_body_failure("fn #{tag}", e) unless PokeAccess::Hooks.original_error?(e)
               raise e
             end
           else

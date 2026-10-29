@@ -1,7 +1,7 @@
 # The plugins/ layer: the manifest table and the files match, every declared plugin exists and is named by some
 # profile (or, shipped by no surveyed game, has a reference copy), every hook in plugins/ is :optional (an expected
 # absence must not fill Hooks.missing, the typo list), no two readers claim one slot, each profile declares what its
-# game ships; and the diagnostic's view of them (Plugins.undeclared, Plugins.game_plugins).
+# game ships or reads it in its own copy; and the diagnostic's view of them (Plugins.undeclared, Plugins.game_plugins).
 require File.expand_path("imports", File.dirname(__FILE__))
 require File.expand_path("reference_names", File.dirname(__FILE__))
 
@@ -12,6 +12,10 @@ class PluginsTest < PokeAccessTest
 
   # A hook registration on a class named in quotes, which a game may lack: its line must carry :optional.
   HOOK_RE = /\b(after_hook|before_hook|around_hook|read_on_open|override|after|before|around)\s*\(\s*"/
+
+  # Plugins a game ships in a copy it edited, read by its own profile instead (the version rule): its :plugins list
+  # leaves them out on purpose, and they count as declared.
+  OWN_COPIES = { "revival" => %w[modular_menu] }
 
   # The shapes a reader claims a slot ("Class#method") with; a file matching none is a failure, not clean. A claim on
   # the mod's own PokeAccess:: methods counts as registering but claims no slot, since those add up or chain.
@@ -154,6 +158,11 @@ class PluginsTest < PokeAccessTest
 
   test "no profile misses a declaration for a plugin its game ships" do
     assert_equal [], declaration_gaps(table, census_profiles, declared_lists)[0]
+  end
+
+  test "a game that reads its own copy of a plugin does not load the plugin's reader too" do
+    loaded = OWN_COPIES.map { |prof, names| (names & (Imports.plugins(prof) || [])).map { |n| "#{prof}: #{n}" } }
+    assert_equal [], loaded.flatten
   end
 
   test "no profile declares a plugin its game does not ship" do
@@ -305,11 +314,12 @@ class PluginsTest < PokeAccessTest
     out
   end
 
-  # { playable profile => the plugins it loads, its commons' joined } for the profiles with an explicit list.
+  # { playable profile => the plugins it loads, its commons' joined, and the ones it reads in its own copy } for the
+  # profiles with an explicit list.
   def declared_lists
     Imports.folders.reject { |f| Imports.common?(f) }.each_with_object({}) do |prof, out|
       list = Imports.plugins(prof)
-      out[prof] = list if list.is_a?(Array)
+      out[prof] = list + (OWN_COPIES[prof] || []) if list.is_a?(Array)
     end
   end
 

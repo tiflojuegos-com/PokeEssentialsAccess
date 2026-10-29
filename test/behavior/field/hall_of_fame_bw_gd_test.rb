@@ -1,6 +1,7 @@
 # The "Hall de la Fama BW" plugin's entry ceremony (plugins/hall_of_fame_bw.rb) over the gamedata stubs: the gen-5
-# member card and finale composed from what their bars paint, the gen-4 text windows read as they are shown, and
-# Royal's copy (games/royal/hall_of_fame.rb), whose species bar shows the types and no sex.
+# member card and finale composed from what their bars paint, the gen-4 text windows read as they are shown, Royal's
+# copy (games/royal_common/hall_of_fame.rb and games/royal/hall_of_fame.rb), whose species bar shows the types and no
+# sex, and World Frontier's (games/worldfrontier/hall_of_fame.rb), whose bars paint the nickname and the types alone.
 class HallOfFameBwGdTest < PokeAccessTest
   Hof = PokeAccess::HallOfFameBW
 
@@ -91,6 +92,19 @@ class HallOfFameBwGdTest < PokeAccessTest
     assert_equal "Chispa, Pikachu, #{level(60)}", with_royal { Hof.card(chispa(1)) }
   end
 
+  test "World Frontier's card says the nickname and the types its bars paint, without species or level" do
+    pk = chispa(1)
+    def pk.types; [:ELECTRIC]; end
+    cards = with_worldfrontier { [Hof.card(pk), Hof.card(chispa(1))] }
+    assert_equal ["Chispa, #{PokeAccess::I18n.t(:mv_type, :t => 'TypeELECTRIC')}", "Chispa"], cards
+  end
+
+  test "World Frontier's finale crowns the Battle Frontier's champion, then the player and the play time" do
+    finale = with_worldfrontier { Hof.finale(HallDeLaFama.new) }
+    played = PokeAccess::I18n.t(:hofbw_finale, :name => "Tester", :time => "3:07")
+    assert_equal "¡Campeón del Frente Batalla Mundial! ¡Felicidades! #{played}", finale
+  end
+
   private
 
   # Chispa, a level 60 Pikachu of the given gender (1 female, 2 genderless), its species named as the plugin names it.
@@ -103,16 +117,32 @@ class HallOfFameBwGdTest < PokeAccessTest
   def level(n); PokeAccess::I18n.t(:hofbw_level, :n => n); end
   def champion(region); PokeAccess::I18n.t(:hofbw_champion, :region => region); end
 
-  # The block's value with Royal's profile file evaluated over the plugin; the plugin's own readers put back after.
+  # The block's value with the common's and Royal's own files evaluated over the plugin; the plugin's own readers put
+  # back after.
   def with_royal
     sex = Hof.method(:sex_suffix)
     bar = Hof.method(:species_bar)
-    path = File.join(Harness::ROOT, "games", "royal", "hall_of_fame.rb")
-    eval(Harness.source(path), TOPLEVEL_BINDING, path)
+    %w[royal_common royal].each do |dir|
+      path = File.join(Harness::ROOT, "games", dir, "hall_of_fame.rb")
+      eval(Harness.source(path), TOPLEVEL_BINDING, path)
+    end
     yield
   ensure
     Hof.define_singleton_method(:sex_suffix, sex)
     Hof.define_singleton_method(:species_bar, bar)
+  end
+
+  # The block's value with the common's and World Frontier's own files evaluated over the plugin; the plugin's own
+  # readers put back after.
+  def with_worldfrontier
+    kept = [:sex_suffix, :card, :finale].map { |m| [m, Hof.method(m)] }
+    %w[royal_common worldfrontier].each do |dir|
+      path = File.join(Harness::ROOT, "games", dir, "hall_of_fame.rb")
+      eval(Harness.source(path), TOPLEVEL_BINDING, path)
+    end
+    yield
+  ensure
+    kept.each { |m, original| Hof.define_singleton_method(m, original) }
   end
 
   # The block's value with the plugin's region constant set to region, or not defined for nil; whatever was there put

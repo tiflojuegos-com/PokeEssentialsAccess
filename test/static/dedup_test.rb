@@ -22,13 +22,17 @@ class DedupTest < PokeAccessTest
     ss2_boxpin su_block arcky_mode arcky_preview ss2_tutor showcase ev_alloc
     book_page hofbw6_slide party_help enc_cursor cc_timer pbk_cond ss2_adv_overlay ss2_adv_hearts ss2_adv_keys
     ss2_adv_floor hof_text ev_value adv_dex bdx_header zud_raid_row gacha_counts rem_limits
-    ura_bag_list ura_dex rj_achievement rj_luckswap rv_tw_frame deso_quest_page ss2_hof_view zball_hint
+    zlair_here zlair_list_open zlair_party zlair_prize zlair_rental_state zlair_row zlair_speed zlair_tutor
+    ura_bag_list ura_dex rj_achievement rj_luckswap rv_tw_frame deso_quest_page ss2_hof_view if_hof_page zball_hint
     if_hat if_hat_pos rem_pokocho ura_bmart_berries ura_ctrl ura_opt_help ura_dex_search
     ura_pod_info move_list_title relearn_pokemon charcreate_name rea_baile_demo rea_baile_turn rea_baile_grade rea_ppt_start
     rea_ppt_timeout rea_morse_keys rea_morse_guide rea_timon_keys rea_timon_chart rea_pesca_foe hofbw6_keys hofbw6_card
     rea_credits hofbw6_record if2_ct_applause sv_ct_applause sv_ct_order if2_quiz_streak if2_nav_zone if2_qm_popup if2_radar_weather
+    chall_applause chall_order
     sb_mart_desc fl_roulette_coins rj_dex_head rj_map rv_tutor unown_cell pgwatch_info wall_clock_open sv_clock
     sv_credits sv_credits_end sv_drawer sv_pool new_dexnav screen_title
+    wf_album_card wf_album_gen wf_bpshop wf_editor_open wf_history_open wf_island wf_pshop_sort wf_rent
+    wf_rent_help wf_starter wf_stat wf_stats wf_swap_help wf_turn wf_turn_top ekans_sitrus
   ].freeze
   # The tree and its findings, read once per run: neither changes during one.
   SCANS = {}

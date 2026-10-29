@@ -71,8 +71,8 @@ end
 # The game's view of one group's tip cards.
 def pbShowTipCardsGrouped(*_groups); :shown; end
 
-%w[comba internet_date tip_menu].each do |name|
-  path = File.join(Harness::ROOT, "games", "royal", "#{name}.rb")
+[%w[royal comba], %w[royal internet_date], %w[royal_common tip_menu]].each do |dir, name|
+  path = File.join(Harness::ROOT, "games", dir, "#{name}.rb")
   eval(Harness.source(path), TOPLEVEL_BINDING, path)
 end
 

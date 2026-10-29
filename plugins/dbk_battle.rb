@@ -41,3 +41,20 @@ end
 
 # The icon the kit's databox draws beside a Shadow Pokemon in Hyper Mode.
 PokeAccess::Battle.icon_mark(/\Aicon_hyper_mode\z/i, :dbk_mark_hyper)
+
+# The kit's evolution in battle (PokemonEvolutionScene#pbBattleEvolution) writes its "X is evolving!" straight into
+# the box, as the evolution scene does, so the box is read while it runs.
+PokeAccess::Hooks.around_hook("PokemonEvolutionScene", :pbBattleEvolution, :optional => true) do |scene, nxt, _a|
+  PokeAccess::EvolutionText.open(scene)
+  begin
+    nxt.call
+  ensure
+    PokeAccess::EvolutionText.close
+  end
+end
+
+# Midbattle Scripting's speaker: a scripted battle line shows who says it in a name window over the message, so while
+# that window shows (a game may hide it), its name leads the next line said, as a message box's name does.
+PokeAccess::Hooks.after_hook("Battle::Scene", :pbUpdateSpeakerWindows, :optional => true) do |scene, _ret, _args|
+  PokeAccess.lead_with_name_window(PokeAccess.sprite(scene, "nameWindow"))
+end

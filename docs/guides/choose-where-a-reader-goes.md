@@ -67,7 +67,9 @@ number of games that show it. Use it before [Add a reader](add-a-reader.md) or
 - A shared profile has no catalog entry and imports no other one, and some playable profile imports it. The loader
   evaluates its modules after the plugin readers and before the importing profile's own modules; the launcher installs
   it in `accessibility/common/<name>/`.
-- `games/lostie_common/` holds what Pokémon Z and Ópalo share, `games/skyflyer_common/` what Añil and Royal share, and
+- `games/lostie_common/` holds what Pokémon Z and Ópalo share, `games/skyflyer_common/` what the games built on La
+  Base de Sky share (Añil, Royal and World Frontier, on the [Sky fork](../reference/glossary.md), and Revival, on an
+  earlier release of the base), `games/royal_common/` what Royal and World Frontier share, and
   `games/infinitefusion_common/` what the two Infinite Fusion games share.
 - A derived engine that a saga shares belongs to the saga: its readers go to the shared profile, and it adds no
   [engine era](../reference/glossary.md). The engine of Reborn, Rejuvenation and Desolation lives in
@@ -77,7 +79,8 @@ number of games that show it. Use it before [Add a reader](add-a-reader.md) or
 
 - A screen only the game has goes to its profile, even when its reader reads no argument.
 - So does a plugin the game edited. Drimer's Trainer Sensor as Pokémon Z edits it is read by
-  `games/pokemon_z/trainer_sensor.rb`, and as Añil and Royal edit it by `games/skyflyer_common/trainer_sensor.rb`.
+  `games/pokemon_z/trainer_sensor.rb`; as La Base de Sky edits it, and World Frontier edits it again, by
+  `games/skyflyer_common/trainer_sensor.rb`.
 - A profile changes what a core reader does with `override`. `test/static/coupling_test.rb` fails a profile that
   reopens a core module other than `PokeAccess::Config`.
 

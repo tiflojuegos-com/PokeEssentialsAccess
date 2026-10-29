@@ -1,6 +1,6 @@
 module PokeAccess
-  # Arcky's Region Map: the extended preview's species grid (the cell index is updateSpeciesInfo's argument), the
-  # map mode and the location preview.
+  # Arcky's Region Map: the extended preview's progress page and species grid (the cell index is updateSpeciesInfo's
+  # argument), the map mode and the location preview.
   module ArckyRegionMap
     # The focused species, keyed on index and name (a new list restarts at 0), its panel detail on the info key;
     # the bottom-bar reader's slot is marked with the text it is about to see, so it stays quiet.
@@ -125,6 +125,66 @@ module PokeAccess
       PokeAccess.speak(line, true)
     end
 
+    # Starts collecting the progress page drawDataMain paints on its own bitmap. A page drawn while hidden (an opening)
+    # or over the encounter table (back from it) is said even if it repeats the last one.
+    def self.page_start(scene)
+      text = PokeAccess.sprite(scene, "extendedText")
+      box = PokeAccess.ivar(scene, :@extendedBox)
+      shown = text ? ((text.visible rescue false) ? true : false) : false
+      main = box ? ((box.isMain rescue true) ? true : false) : true
+      PokeAccess::Cursor.reset(scene, :arcky_page) unless shown && main
+      @page = [(text ? (text.bitmap rescue nil) : nil), []]
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # Collects the texts one pbDrawTextPositions call paints on the page's bitmap; the bottom bar, repainted three
+    # times along with it (the first time with the place it showed before), has its own bitmap and reader.
+    def self.page_note(bitmap, rows)
+      return unless @page && @page[0] && bitmap.equal?(@page[0]) && rows.is_a?(Array)
+      rows.each { |r| @page[1].push(r[0].to_s) if r.is_a?(Array) }
+    end
+
+    # While a page is drawn, marks the name it writes to the bottom bar as heard for the bar's own reader, since the
+    # page says it.
+    def self.page_bar(text)
+      return unless @page
+      t = PokeAccess.clean(text.to_s)
+      PokeAccess::Cursor.changed?(nil, :regionname, t) unless t.empty?
+    end
+
+    # Says the drawn page when it says something new, interrupting, and keeps it for the info key.
+    def self.page_end(scene)
+      rows = @page ? @page[1] : []
+      @page = nil
+      line = page_text(scene, rows)
+      return if line.empty? || !PokeAccess::Cursor.changed?(scene, :arcky_page, line)
+      PokeAccess::Info.set_info(:text, line)
+      PokeAccess.speak(line, true)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # Gives the info key back to the square under the cursor as the preview closes: the plugin then reads that square
+    # again (showAndUpdateMapInfo), and core keeps a square's detail only when the square changes.
+    def self.page_closed(scene)
+      PokeAccess::RegionMap.remember_details(scene, PokeAccess.ivar(scene, :@mapX), PokeAccess.ivar(scene, :@mapY))
+    end
+
+    # The page as sentences: the map's name as the bottom bar shows it, then each box the page parts with a blank row
+    # (encounters, trainers, items), its rows joined and a row ending in a colon run into the next.
+    def self.page_text(scene, rows)
+      name = PokeAccess.clean(PokeAccess.ivar(PokeAccess.sprite(scene, "mapbottom"), :@mapname).to_s)
+      boxes = [[]]
+      rows.each do |r|
+        t = PokeAccess.clean(r)
+        t.empty? ? boxes.push([]) : boxes.last.push(t)
+      end
+      PokeAccess.sentences([name] + boxes.map { |b| PokeAccess::PaintCapture.pair_labels(b).join(", ") })
+    end
+
     # The species name, through the shared data layer so the reader does not care which era resolves it.
     def self.species_name(sp)
       return nil if sp.nil?
@@ -165,4 +225,25 @@ PokeAccess::Hooks.around_hook("PokemonRegionMap_Scene", :getLocationInfo, :optio
 end
 PokeAccess::Hooks.before_hook("PokemonRegionMap_Scene", :drawText, :optional => true) do |_scene, args|
   PokeAccess::ArckyRegionMap.preview_note(args[5])
+end
+
+# The extended preview's progress page (drawDataMain): drawn as USE opens it over the location preview, again on left
+# and right, and back from its encounter table; closing the preview (hideExtendedPreview) gives the info key back to
+# the square.
+PokeAccess::Hooks.around_hook("PokemonRegionMap_Scene", :drawDataMain, :optional => true) do |scene, nxt, _a|
+  PokeAccess::ArckyRegionMap.page_start(scene)
+  begin
+    nxt.call
+  ensure
+    PokeAccess::ArckyRegionMap.page_end(scene)
+  end
+end
+PokeAccess::Hooks.after_hook("PokemonRegionMap_Scene", :hideExtendedPreview, :optional => true) do |scene, _r, _a|
+  PokeAccess::ArckyRegionMap.page_closed(scene)
+end
+PokeAccess::Hooks.wrap_kernel("pbDrawTextPositions", "arcky_page_draw", :before) do |args, _r|
+  PokeAccess::ArckyRegionMap.page_note(args[0], args[1])
+end
+PokeAccess::Hooks.before_hook("MapBottomSprite", :mapname=, :optional => true) do |_bar, args|
+  PokeAccess::ArckyRegionMap.page_bar(args[0])
 end

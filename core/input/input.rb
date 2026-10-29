@@ -59,11 +59,12 @@ module PokeAccess
       @menu_lock_ttl = 4
     end
 
-    # True only on the frame a configured key (by Config.keys name) goes down; an unbound name is never pressed.
+    # True only on the frame a configured key (by Config.keys name) goes down with the game in front: Windows reports
+    # the key whatever program has the keyboard. An unbound name is never pressed.
     def self.key(name)
       code = PokeAccess::Config.keys[name]
       return false unless code
-      hit = PokeAccess::Keyboard.pressed?(code)
+      hit = PokeAccess::Keyboard.pressed?(code) && focused?
       (PokeAccess::Recorder.note_key(name) rescue nil) if hit
       hit
     end

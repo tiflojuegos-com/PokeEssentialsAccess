@@ -35,8 +35,9 @@ class ArityTest < PokeAccessTest
     # The gen-6 battle reader binds PokeBattle_Scene only (era_scene), whose copies name these parameters two ways.
     "battle_g6.rb pbHPChanged[0]" => "the battler, which some gen-6 copies name pkmn",
     # The Reborn engine's (mons, anim): args[0] is then a list of [battler, old hp] pairs, and Battle.hp_changed reads
-    # args[1] as the old hp only where args[0] is a battler, never the animation flag.
-    "battle_g6.rb pbHPChanged[1]" => "the old hp beside a battler; hp_changed never reads the Reborn engine's flag",
+    # args[1] as the old hp beside a battler, or as the list of old hp beside Rejuvenation's (mons, oldhps, anim) list
+    # of battlers, never the animation flag.
+    "battle_g6.rb pbHPChanged[1]" => "the old hp, or their list; hp_changed never reads the Reborn engine's flag",
     "battle_g6.rb pbSelectBattler[0]" => "the target index, named index or idxbattler",
     "battle_g6.rb pbChooseTarget[0]" => "the battler choosing a target, named index or idxbattler"
   }.freeze

@@ -116,8 +116,8 @@ screen's loop before it returns. `:optional` and `:hook_container` pass on to th
 `around_hook(cname, meth, opts = {}) { |inst, call_next, args| ... }`
 
 The body takes the place of the call. The original runs only when the body calls `call_next`, and it runs without
-the guard. A failing body is logged once and its exception raised again. An exception of the original that passes
-through the body is logged the same way.
+the guard. A failing body is logged once and its exception raised again. An exception of the original passes through
+the body and is raised again unlogged.
 
 ### wrap
 
@@ -238,6 +238,8 @@ end
 | `wrap` middleware | raised, not logged | none |
 
 - A failing body is one that raises a `StandardError`. Other exceptions, such as mkxp-z's `Reset`, are not rescued.
+- An exception the game's own method raises under an `around_hook`, an instance `override` or an `:around` function
+  wrapper is raised again with no marker line.
 - After a swallowed exception the call goes on as if the body were not there: the original runs and answers, and
   the next function body runs.
 - `<n>` numbers the registrations of the session, so two hooks on one method log their failures apart.

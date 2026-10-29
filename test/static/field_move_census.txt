@@ -34,6 +34,16 @@ awakening|pbRockSmash|0118 PField_FieldMoves.rb:612|||ROCKSMASH
 awakening|pbStrength|0118 PField_FieldMoves.rb:655|||STRENGTH
 awakening|pbSurf|0118 PField_FieldMoves.rb:708|||SURF
 awakening|pbWaterfall|0118 PField_FieldMoves.rb:963|||WATERFALL
+darkhorizon|pbCut|0244_Overworld_FieldMoves.rb:176|||CUT
+darkhorizon|pbDive|0244_Overworld_FieldMoves.rb:277|||DIVE
+darkhorizon|pbDive|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:55||__followingpkmn__pbDive|DIVE
+darkhorizon|pbRockSmash|0244_Overworld_FieldMoves.rb:591|||ROCKSMASH
+darkhorizon|pbStrength|0244_Overworld_FieldMoves.rb:634|||STRENGTH
+darkhorizon|pbStrength|_PluginScripts/Dark Horizon Miscellaneous/18_DH_Moves.rb:48|||
+darkhorizon|pbSurf|0244_Overworld_FieldMoves.rb:685|||SURF
+darkhorizon|pbSurf|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:6||__followingpkmn__pbSurf|SURF
+darkhorizon|pbWaterfall|0244_Overworld_FieldMoves.rb:926|||WATERFALL
+darkhorizon|pbWaterfall|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:118||__followingpkmn__pbWaterfall|WATERFALL
 desolation|pbCut|HiddenMoves.rb:179|||CUT,switch:Cut_Convenience
 desolation|pbDive|HiddenMoves.rb:690|||DIVE
 desolation|pbRockSmash|HiddenMoves.rb:299|||ROCKSMASH,switch:Rock_Smash_Convenience,switch:Stop_Arrows_Shooting,switch:Stop_Icycle_Falling,switch:Wall_Smash
@@ -56,6 +66,14 @@ fireash|pbRockSmash|228_Overworld_FieldMoves.rb:570|||ROCKSMASH
 fireash|pbStrength|228_Overworld_FieldMoves.rb:613|||STRENGTH
 fireash|pbSurf|228_Overworld_FieldMoves.rb:655|||SURF
 fireash|pbWaterfall|228_Overworld_FieldMoves.rb:884|||WATERFALL
+goldencrown|pbCut|012_Overworld/004_Overworld_FieldMoves.rb:188|||CUT
+goldencrown|pbDive|012_Overworld/004_Overworld_FieldMoves.rb:298|||DIVE
+goldencrown|pbDive|_PluginScripts/Following Pokemon EX/Supplementary Scripts/Field Moves.rb:66|||DIVE
+goldencrown|pbRockSmash|012_Overworld/004_Overworld_FieldMoves.rb:616|||ROCKSMASH
+goldencrown|pbStrength|012_Overworld/004_Overworld_FieldMoves.rb:659|||STRENGTH
+goldencrown|pbSurf|012_Overworld/004_Overworld_FieldMoves.rb:710|||SURF
+goldencrown|pbSurf|_PluginScripts/Following Pokemon EX/Supplementary Scripts/Field Moves.rb:4|||SURF
+goldencrown|pbWaterfall|012_Overworld/004_Overworld_FieldMoves.rb:958|||WATERFALL
 gruelinggold|pbCut|012_Overworld/004_Overworld_FieldMoves.rb:192|||CUT
 gruelinggold|pbCut|_PluginScripts/HM Catalogue/Main_Script.rb:356|||
 gruelinggold|pbDive|012_Overworld/004_Overworld_FieldMoves.rb:301|||DIVE
@@ -131,6 +149,15 @@ reminiscencia|pbRockSmash|0970 PField_HiddenMoves.rb:381|||ROCKSMASH
 reminiscencia|pbStrength|0970 PField_HiddenMoves.rb:431|||STRENGTH
 reminiscencia|pbSurf|0970 PField_HiddenMoves.rb:492|||SURF
 reminiscencia|pbWaterfall|0970 PField_HiddenMoves.rb:648|||WATERFALL
+revival|pbCut|0246_Overworld_FieldMoves.rb:176|||CUT
+revival|pbDive|0246_Overworld_FieldMoves.rb:281|||DIVE
+revival|pbDive|_PluginScripts/Following Pokemon EX 1.1/Script Additions/Field Moves.rb:55||__followingpkmn__pbDive|DIVE
+revival|pbRockSmash|0246_Overworld_FieldMoves.rb:598|||ROCKSMASH
+revival|pbStrength|0246_Overworld_FieldMoves.rb:641|||STRENGTH
+revival|pbSurf|0246_Overworld_FieldMoves.rb:692|||SILBATOLAPRAS,SURF
+revival|pbSurf|_PluginScripts/Following Pokemon EX 1.1/Script Additions/Field Moves.rb:6||__followingpkmn__pbSurf|SURF
+revival|pbWaterfall|0246_Overworld_FieldMoves.rb:936|||WATERFALL
+revival|pbWaterfall|_PluginScripts/Following Pokemon EX 1.1/Script Additions/Field Moves.rb:118||__followingpkmn__pbWaterfall|WATERFALL
 royal|pbCut|037_Overworld/005_Overworld_FieldMoves.rb:181|||CUT
 royal|pbDive|037_Overworld/005_Overworld_FieldMoves.rb:282|||DIVE
 royal|pbDive|_PluginScripts/Following Pokemon EX/Field Moves.rb:110||__followingpkmn__pbDive|DIVE
@@ -177,6 +204,16 @@ uranium|pbRockSmash|0103__ PField_HiddenMoves.rb:385|||BOXINGGLOVES,ROCKSMASH
 uranium|pbStrength|0103__ PField_HiddenMoves.rb:497|||POWERCELL,POWERGLOVE,STRENGTH
 uranium|pbSurf|0103__ PField_HiddenMoves.rb:575|||SURF,SURFBOARD
 uranium|pbWaterfall|0103__ PField_HiddenMoves.rb:754|||CLIMBINGPICK,WATERFALL
+worldfrontier|pbCut|0255_Overworld_FieldMoves.rb:181|||CUT
+worldfrontier|pbDive|0255_Overworld_FieldMoves.rb:282|||DIVE
+worldfrontier|pbDive|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:110||__followingpkmn__pbDive|DIVE
+worldfrontier|pbRockSmash|0255_Overworld_FieldMoves.rb:597|||ROCKSMASH
+worldfrontier|pbStrength|0255_Overworld_FieldMoves.rb:640|||STRENGTH
+worldfrontier|pbSurf|0255_Overworld_FieldMoves.rb:691|||SURF
+worldfrontier|pbSurf|_PluginScripts/Cambios en LBDS/008_MOs.rb:58|||SURF
+worldfrontier|pbSurf|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:6||__followingpkmn__pbSurf|SURF
+worldfrontier|pbWaterfall|0255_Overworld_FieldMoves.rb:932|||WATERFALL
+worldfrontier|pbWaterfall|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:177||__followingpkmn__pbWaterfall|WATERFALL
 z218|pbCut|102_PField_HiddenMoves.rb:269|||CUT
 z218|pbDive|102_PField_HiddenMoves.rb:705|||DIVE
 z218|pbRockSmash|102_PField_HiddenMoves.rb:381|||ROCKSMASH

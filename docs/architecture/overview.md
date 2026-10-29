@@ -100,10 +100,10 @@ The subsystems of `core/`:
 | `core/speech/` | The speech output, its categories, the message history and verbosity |
 | `core/input/` | Hooks, keyboard, focus, remapping, key hints, the two beats, player control, the diagnostic dump |
 | `core/menus/` | Command windows, change detection, scene watchers, the configuration menu and menu screens |
-| `core/battle/` | Battle screens and the Pokédex pages |
+| `core/battle/` | Battle screens, the Battle Arena's judgment, the Bug-Catching Contest's comparison and the Pokédex pages |
 | `core/party/` | Party, summary and storage screens |
 | `core/dialogue/` | Messages and their pages |
-| `core/field/` | Field screens and messages: evolution, hatching, mail, fishing, phone, berries, minigames |
+| `core/field/` | Field screens and messages: evolution, hatching, mail, fishing, phone, berries, minigames, the event timer |
 | `core/world/` | The World layer: terrain, passability, events and map mechanics |
 | `core/routes/` | The route planner and its searches |
 | `core/nav/` | The locator, the guide, the pathfinder, the town and region maps |

@@ -83,6 +83,13 @@ module PokeAccess
     @head = text
   end
 
+  # A name window over the message (one naming who speaks): while it shows, its name leads the next dialogue line;
+  # hidden or empty, it drops a pending one.
+  def self.lead_with_name_window(win)
+    name = win && (win.visible rescue false) ? clean((win.text rescue nil).to_s) : ""
+    before_next_line(name.empty? ? nil : name)
+  end
+
   # The head promised for the next dialogue line, handed over once.
   def self.take_head
     t = @head

@@ -130,6 +130,16 @@ class Window_AdvancedTextPokemon
   def text=(value); @text = value; end
 end
 
+# The plain text window, the one a function builds its own money window from: as the real one, the constructor keeps
+# the text and sizes the window to it (resizeToFit), newWithSize goes through the constructor, and text= repaints.
+class Window_UnformattedTextPokemon
+  attr_reader :text
+  def initialize(text = ""); @text = text; resizeToFit(text); end
+  def self.newWithSize(text, _x, _y, _width, _height, _viewport = nil); new(text); end
+  def text=(value); @text = value; end
+  def resizeToFit(_text, _maxwidth = -1); nil; end
+end
+
 # Game_Picture, whose show the mod hooks to narrate picture-only screens (a new-game character slider).
 class Game_Picture
   attr_reader :number, :name, :x, :y

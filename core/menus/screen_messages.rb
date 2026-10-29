@@ -75,16 +75,24 @@ end
 # The pause menu's info box (pbShowInfo: Safari steps and balls, the contest's catch), queued before the focused
 # command; PokemonMenu_Scene on gen-6, PokemonPauseMenu_Scene from v19.
 module PokeAccess
-  # Says the pause menu's info box, a line of the box per piece.
-  def self.say_menu_info(text)
+  # Says an info box's text, queued: a line of the box per piece, a line ending in a colon (a heading) joined to the
+  # line under it.
+  def self.say_info_box(text)
     return unless text.is_a?(String)
-    parts = text.split(/\n/).map { |l| PokeAccess.clean(l) }.reject { |l| l.empty? }
+    parts = []
+    text.split(/\n/).map { |l| PokeAccess.clean(l) }.reject { |l| l.empty? }.each do |l|
+      if parts.last.to_s =~ /:\z/
+        parts[-1] = "#{parts[-1]} #{l}"
+      else
+        parts.push(l)
+      end
+    end
     PokeAccess.speak(parts.join(", "), false) unless parts.empty?
   end
 end
 
 ["PokemonMenu_Scene", "PokemonPauseMenu_Scene"].each do |cname|
   PokeAccess::Hooks.before_hook(cname, :pbShowInfo, :optional => true) do |_scene, args|
-    PokeAccess.say_menu_info(args[0])
+    PokeAccess.say_info_box(args[0])
   end
 end

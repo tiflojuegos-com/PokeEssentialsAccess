@@ -323,8 +323,8 @@ module PokeAccess
       PokeAccess.speak_clean(cmds[index], interrupt, :menu)
     end
 
-    # Speaks the focused gen-6 fight move once per change, at the battle_move level: brief the name and pp, medium
-    # adds the type, full the category. An empty slot passes key nil, which Cursor treats as unchanged.
+    # Speaks the focused gen-6 fight move once per change, at the battle_move level (fight_parts). An empty slot
+    # passes key nil, which Cursor treats as unchanged.
     # param interrupt false for the opening read, which queues behind the hp and turn lines
     def self.read_fight_move(disp, interrupt = true)
       b = PokeAccess.ivar(disp, :@battler)
@@ -332,19 +332,50 @@ module PokeAccess
       ok = b && b.moves[idx] && PokeAccess::MoveInfo.real_id?(PokeAccess::MoveInfo.id_of(b.moves[idx]))
       PokeAccess::Cursor.on_change(disp, :fight_move, ok ? idx : nil) do
         m = b.moves[idx]
-        ty = (PokeAccess::Data.type_name(m.type) rescue nil)
+        ty = (PokeAccess::Data.type_name(fight_type(m, b)) rescue nil)
         nm, ty = PokeAccess::MoveInfo.painted(m, m.name.to_s, ty)
-        pp = m.respond_to?(:pp) ? PokeAccess::I18n.t(:mv_pp, :pp => m.pp, :tot => PokeAccess.attr_of(m, :totalpp, :total_pp)) : nil
-        parts = [[nm.to_s, :brief],
-                 [(ty && !ty.to_s.empty?) ? PokeAccess::I18n.t(:mv_type, :t => ty) : nil, :medium],
-                 [PokeAccess::MoveInfo.category_word(PokeAccess::MoveInfo.category_of(m)), :full],
-                 [pp, :brief]]
+        parts = fight_line(disp, m, b, fight_parts(m, nm, ty, fight_pp(m)))
         PokeAccess.speak_clean(PokeAccess::Verbosity.line(:battle_move, parts, ". "), interrupt, :menu)
-        PokeAccess::Info.set_info(:move, m)
+        PokeAccess::Info.set_info(:move, m, fight_row(parts))
       end
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
+    end
+
+    # The type a gen-6 fight button paints for the battler's move: the move's own; an engine whose buttons paint the
+    # type the move will have overrides it from its common.
+    def self.fight_type(m, _b)
+      m.type
+    end
+
+    # A gen-6 fight line's parts as the move's button paints them: core's; an engine whose buttons paint more (a type
+    # the field adds, its boost) overrides it from its common.
+    def self.fight_line(_disp, _m, _b, parts)
+      parts
+    end
+
+    # Ctrl+T's row for a gen-6 fight line: none, so Ctrl+T says the move's sheet, which holds all the line says; an
+    # engine whose line says more than the sheet (a field's mark) overrides it from its common with the line whole.
+    def self.fight_row(_parts)
+      nil
+    end
+
+    # The PP a fight button paints for a move, or nil for a move with no count: none of its own, or a total of 0 (a
+    # Z-move, an ally move), which the buttons paint without one.
+    def self.fight_pp(m)
+      tot = PokeAccess.attr_of(m, :totalpp, :total_pp)
+      return nil unless m.respond_to?(:pp) && tot.to_i > 0
+      PokeAccess::I18n.t(:mv_pp, :pp => m.pp, :tot => tot)
+    end
+
+    # A fight line's [text, level] parts, from the name and type name the move's button paints and its PP (nil for a
+    # move that paints none): brief the name and the PP, medium the type, full the category.
+    def self.fight_parts(m, name, type_name, pp)
+      [[name.to_s, :brief],
+       [(type_name && !type_name.to_s.empty?) ? PokeAccess::I18n.t(:mv_type, :t => type_name) : nil, :medium],
+       [PokeAccess::MoveInfo.category_word(PokeAccess::MoveInfo.category_of(m)), :full],
+       [pp, :brief]]
     end
 
     # levelup_text from the raw pbLevelUp arguments, whose old stats come as hp, atk, def, speed, spatk, spdef in
@@ -515,8 +546,8 @@ module PokeAccess
     # whose game keeps a clock of its own overrides it.
     def self.clock_text; nil; end
 
-    # Speaks the overworld weather (clear when none), the game's clock if it keeps one, the time of day and
-    # field_event_text.
+    # Speaks the overworld weather (clear when none), the game's clock if it keeps one, the time of day,
+    # field_event_text and a running event timer.
     def self.announce_overworld
       parts = []
       wn = overworld_weather_name(($game_screen.weather_type rescue nil))
@@ -527,6 +558,8 @@ module PokeAccess
       parts.push(PokeAccess::I18n.t(tod)) if tod
       fe = field_event_text
       parts.push(fe) if fe
+      timer = PokeAccess::EventTimer.line
+      parts.push(timer) if timer
       PokeAccess.speak(parts.join(", "), true)
     rescue StandardError => e
       PokeAccess.swallowed(e)
@@ -657,10 +690,12 @@ module PokeAccess
       nil
     end
 
-    # The hp changes one pbHPChanged call reports: (battler, old hp), or the Reborn engine's list of [battler, old hp]
-    # pairs, whose second argument is an animation flag and is not read.
+    # The hp changes one pbHPChanged call reports: (battler, old hp), the Reborn engine's list of [battler, old hp]
+    # pairs, whose second argument is an animation flag and is not read, or Rejuvenation's list of battlers beside the
+    # list of their old hp.
     def self.hp_changed(first, second)
       return announce_hp_change(first, second) unless first.is_a?(Array)
+      return first.each_with_index { |b, i| announce_hp_change(b, second[i]) } if second.is_a?(Array)
       first.each { |pair| announce_hp_change(pair[0], pair[1]) if pair.is_a?(Array) }
     end
 

@@ -334,12 +334,13 @@ PokeAccess::Menus.def_extractor("Window_CommandPokemonEx") do |win, i|
   PokeAccess::TripleTriad.deck_row(win, i)
 end
 
-# Raises the shop flag around both halves of the shop; createBitmap also draws every card of a match.
+# Raises the shop flag around both halves of the shop (createBitmap also draws every card of a match) and watches
+# the "Money:" window each half builds.
 ["pbBuyTriads", "pbSellTriads"].each do |fn|
   PokeAccess::Hooks.wrap_kernel(fn, "triad_shop_#{fn}", :around) do |_args, call_next|
     PokeAccess::TripleTriad.shopping(true)
     begin
-      call_next.call
+      PokeAccess::MoneyWindow.watch { call_next.call }
     ensure
       PokeAccess::TripleTriad.shopping(false)
     end

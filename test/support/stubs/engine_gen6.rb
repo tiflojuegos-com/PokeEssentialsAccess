@@ -527,9 +527,24 @@ class TriadCard
   def createBitmap(size = 0); [self, size]; end
 end
 
-# The card shop, both halves: the preview is redrawn with createBitmap for the first card and each change of focused
-# species, walked from $triad_shop_script in place of the arrow keys.
+# The card shop, both halves, each its own function as in the game, over one body: with $triad_shop_money set, its
+# money window first, built and sized again as the game does, and its later texts repainted after the cards; the
+# preview is redrawn with createBitmap for the first card and each change of focused species, walked from
+# $triad_shop_script in place of the arrow keys.
 def pbBuyTriads(sorting = false)
+  triad_shop_stub(sorting)
+end
+
+def pbSellTriads(sorting = false)
+  triad_shop_stub(sorting)
+end
+
+def triad_shop_stub(_sorting)
+  money = $triad_shop_money
+  if money
+    gold = Window_UnformattedTextPokemon.newWithSize(money.first, 0, 0, 32, 32)
+    gold.resizeToFit(gold.text, 512)
+  end
   script = ($triad_shop_script || [])
   olditem = nil
   script.each_with_index do |sp, i|
@@ -537,11 +552,8 @@ def pbBuyTriads(sorting = false)
     TriadCard.new(sp).createBitmap(1)
     olditem = sp
   end
+  money[1..-1].each { |t| gold.text = t } if money
   nil
-end
-
-def pbSellTriads(sorting = false)
-  pbBuyTriads(sorting)
 end
 
 # The PC box screen: pbShowCommands writes its question into a standing window of its own, puts up the answers and
