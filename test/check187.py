@@ -4,7 +4,7 @@ import os, re, glob, subprocess, sys
 # those games import included).
 MODERN = ("games/anil/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
           "games/infinitefusion_hoenn/", "games/infinitefusion/", "games/infinitefusion_common/",
-          "games/emerald/", "games/skyflyer_common/", "games/gruelinggold/", "games/goldencrown/",
+          "games/emerald/", "games/gruelinggold/", "games/goldencrown/",
           "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/")
 def is_modern(path):
     p = path.replace("\\", "/")

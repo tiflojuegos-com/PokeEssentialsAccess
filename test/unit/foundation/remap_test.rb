@@ -7,6 +7,8 @@ class RemapTest < PokeAccessTest
   W = 0x57
   E = 0x45
   R = 0x52
+  ALT = PokeAccess::Keyboard::VK_ALT
+  LETTER = 0x4D
   EXTRA_VK = 0x60
   OTHER_VK = 0x61
   BUTTON_HOOKS = [:trigger?, :press?, :repeat?]
@@ -80,6 +82,28 @@ class RemapTest < PokeAccessTest
     with_extras([:pa_test_a, EXTRA_VK, :btn_x]) do
       assert_equal [:pa_test_a, nil], [Remap.sym_for_extra(EXTRA_VK), Remap.sym_for_extra(OTHER_VK)]
     end
+  end
+
+  test "finds an extra by how the game reads it, by name or by code, and none another way" do
+    with_extras([:pa_test_a, :M, :btn_x], [:pa_test_b, EXTRA_VK, :btn_y]) do
+      assert_equal [:pa_test_a, nil, nil, :pa_test_b],
+                   [Remap.sym_for_extra(:M), Remap.sym_for_extra(LETTER), Remap.sym_for_extra(:N), Remap.sym_for_extra(EXTRA_VK)]
+    end
+  end
+
+  test "an extra read as a button of the game's Input answers for that button and for its raw key, a constant it lacks for none" do
+    Input.const_set(:PA_TEST_BUTTON, 977) unless Input.const_defined?(:PA_TEST_BUTTON)
+    with_extras do
+      Remap.register_extra(:pa_test_a, LETTER, :btn_x, :PA_TEST_BUTTON)
+      Remap.register_extra(:pa_test_b, OTHER_VK, :btn_y, :PA_NOT_IN_THE_GAME)
+      assert_equal [:pa_test_a, :pa_test_a, :pa_test_b],
+                   [Remap.sym_for_button(977), Remap.sym_for_extra(LETTER), Remap.sym_for_extra(OTHER_VK)]
+      Remap.register_extra(:pa_test_a, LETTER, :btn_x)
+      assert_equal [nil, :pa_test_a], [Remap.sym_for_button(977), Remap.sym_for_extra(LETTER)]
+    end
+  ensure
+    Remap.extra_buttons.clear
+    Remap.instance_variable_set(:@button_extras, nil)
   end
 
   test "tells the mod's own hotkeys from the game's buttons and extras" do
@@ -489,6 +513,508 @@ class RemapTest < PokeAccessTest
     end
   end
 
+  test "an extra shipped on Alt answers Alt then its key, once, and no longer its key alone" do
+    with_shipped_extra do
+      engine_answers(true)
+      [[[LETTER], false], [[], false], [[ALT], false], [[ALT, LETTER], true], [[ALT, LETTER], false]].each do |keys, want|
+        key_frame(*keys)
+        assert_equal want, Input.triggerex?(:M), keys.inspect
+      end
+      assert_equal true, Input.pressex?(:M)
+    end
+  end
+
+  test "an extra shipped on no key answers nothing, its game's key neither, and holds no key" do
+    with_shipped_extra(:pa_test_a => "None") do
+      engine_answers(true)
+      2.times { key_frame(LETTER) }
+      assert_equal [false, false], [Input.triggerex?(:M), Input.pressex?(:M)]
+      assert_nil Remap.conflict(PokeAccess::Keyboard::NO_KEY, :c)
+      assert_equal PokeAccess::I18n.t(:rmp_unassigned), PokeAccess::KeyHints.bound_name(:pa_test_a)
+    end
+  end
+
+  test "an extra shipped on Alt alone counts while Alt is held, and no longer on its own key" do
+    with_shipped_extra(:pa_test_a => "Alt") do
+      engine_answers(true)
+      key_frame(LETTER)
+      assert_equal [false, false], [Input.triggerex?(:M), Input.pressex?(:M)]
+      key_frame(ALT)
+      assert_equal [true, true], [Input.triggerex?(:M), Input.pressex?(:M)]
+      key_frame(ALT)
+      assert_equal [false, true], [Input.triggerex?(:M), Input.pressex?(:M)]
+      key_frame
+      assert_equal false, Input.pressex?(:M)
+    end
+  end
+
+  test "a row read as a button answers for its raw key too, so one key moves both reads" do
+    Input.const_set(:PA_TEST_BUTTON, 977) unless Input.const_defined?(:PA_TEST_BUTTON)
+    with_shipped_extra do
+      Remap.register_extra(:pa_test_a, LETTER, :btn_x, :PA_TEST_BUTTON)
+      engine_answers(true)
+      key_frame(LETTER)
+      assert_equal [false, false], [Input.press?(977), Input.pressex?(LETTER)]
+      engine_answers(false)
+      key_frame(ALT)
+      key_frame(ALT, LETTER)
+      assert_equal [true, true], [Input.trigger?(977), Input.triggerex?(LETTER)]
+    end
+  ensure
+    Remap.extra_buttons.clear
+    Remap.instance_variable_set(:@button_extras, nil)
+  end
+
+  test "in a text field a button read through a row is the game's, whatever its row is on" do
+    Input.const_set(:PA_TEST_BUTTON, 977) unless Input.const_defined?(:PA_TEST_BUTTON)
+    with_shipped_extra do
+      Remap.register_extra(:pa_test_a, LETTER, :btn_x, :PA_TEST_BUTTON)
+      engine_answers(true)
+      key_frame(LETTER)
+      assert_equal false, Input.press?(977), "out of a field it answers its row"
+      PokeAccess::Keys.typing!
+      assert_equal true, Input.press?(977), "in one, the game's key"
+      engine_answers(false)
+      key_frame(ALT, LETTER)
+      assert_equal false, Input.press?(977), "and its row's key says nothing for it"
+    end
+  ensure
+    Reset.reset_keys
+    Remap.extra_buttons.clear
+    Remap.instance_variable_set(:@button_extras, nil)
+  end
+
+  test "with an action on Alt plus a key the game's Alt reads one frame as it is let go, and not as it goes down" do
+    with_shipped_extra do
+      [[[ALT], true, false], [[ALT], true, false], [[], false, true], [[], false, false]].each do |keys, engine, want|
+        engine_answers(engine)
+        key_frame(*keys)
+        reads = [Input.trigger?(Input::ALT), Input.press?(Input::ALT), Input.repeat?(Input::ALT)]
+        assert_equal [want] * 3, reads, keys.inspect
+      end
+    end
+  end
+
+  test "a game that reads its Alt inside its own Input.update, before the pulse, sees the same single frame" do
+    with_shipped_extra do
+      reads = [[[ALT], true], [[ALT], true], [[], false], [[], false], [[], false]].map do |keys, engine|
+        hold(*keys)
+        engine_answers(engine)
+        read = Input.trigger?(Input::ALT)
+        PokeAccess::Keyboard.snapshot
+        poll
+        read
+      end
+      assert_equal [false, false, false, true, false], reads
+    end
+  end
+
+  test "a tap too quick for any frame to see Alt down is still the engine's to answer" do
+    with_shipped_extra do
+      engine_answers(true)
+      key_frame
+      assert_equal true, Input.trigger?(Input::ALT)
+    end
+  end
+
+  test "what is shipped steps aside while the player or a mod's key holds its key, and comes back" do
+    code = PokeAccess::Keyboard.with_alt(LETTER)
+    with_shipped_extra do
+      assert_equal code, Remap.shipped(:pa_test_a)
+      PokeAccess::Config.rebinds = { :pa_test_a => code }
+      assert_equal code, Remap.shipped(:pa_test_a), "its own binding does not count"
+      PokeAccess::Config.rebinds = { :x => code }
+      assert_nil Remap.shipped(:pa_test_a), "the player's other binding"
+      PokeAccess::Config.rebinds = {}
+      PokeAccess::Config.keys[:hp] = code
+      assert_nil Remap.shipped(:pa_test_a), "a mod's key"
+      PokeAccess::Config.keys[:hp] = nil
+      assert_equal code, Remap.shipped(:pa_test_a)
+    end
+  end
+
+  test "an Alt let go in the mod's menu, where it picks a key, fires no game's Alt" do
+    menu = PokeAccess::ConfigMenu.method(:active?)
+    with_shipped_extra do
+      begin
+        PokeAccess::ConfigMenu.define_singleton_method(:active?) { true }
+        key_frame(ALT)
+        key_frame
+        assert_equal false, Input.trigger?(Input::ALT)
+      ensure
+        PokeAccess::ConfigMenu.define_singleton_method(:active?, menu)
+      end
+    end
+  end
+
+  test "a combination read that way fires no Alt either" do
+    with_shipped_extra do
+      reads = [[[ALT], true], [[ALT, LETTER], true], [[], false], [[], false]].map do |keys, engine|
+        hold(*keys)
+        engine_answers(engine)
+        read = Input.trigger?(Input::ALT)
+        PokeAccess::Keyboard.snapshot
+        poll
+        read
+      end
+      assert_equal [false] * 4, reads
+    end
+  end
+
+  test "what is shipped for the field takes no letter from the mod in a battle" do
+    with_shipped_extra do
+      Remap.ship({ :pa_test_a => "Alt+M" }, true)
+      kept = PokeAccess::Battle.method(:in_battle?)
+      begin
+        PokeAccess::Battle.define_singleton_method(:in_battle?) { true }
+        key_frame(ALT)
+        Remap.code_pressed?(LETTER)
+        key_frame(ALT, LETTER)
+        assert_equal true, Remap.code_pressed?(LETTER)
+      ensure
+        PokeAccess::Battle.define_singleton_method(:in_battle?, kept)
+      end
+    end
+  end
+
+  test "an action on Alt plus a key keeps the game's Alt from answering as that Alt is let go, and the next Alt alone does" do
+    with_shipped_extra do
+      [[ALT], [ALT, LETTER], [ALT], []].each do |keys|
+        key_frame(*keys)
+        assert_equal false, Input.trigger?(Input::ALT), keys.inspect
+      end
+      key_frame(ALT)
+      key_frame
+      assert_equal true, Input.trigger?(Input::ALT)
+    end
+  end
+
+  test "a mod's key on Alt plus a key keeps the game's Alt from answering too" do
+    code = PokeAccess::Keyboard.with_alt(Q)
+    with_shipped_extra do
+      PokeAccess::Config.keys[:hp] = code
+      [[[ALT], false], [[ALT, Q], true]].each do |keys, want|
+        key_frame(*keys)
+        assert_equal want, Remap.code_pressed?(code), keys.inspect
+      end
+      key_frame
+      assert_equal false, Input.trigger?(Input::ALT)
+    end
+  end
+
+  test "letting go a Ctrl+Alt gesture or AltGr fires no game's Alt" do
+    ctrl = PokeAccess::Keyboard::VK_CONTROL
+    with_shipped_extra do
+      [[ALT, ctrl], [ALT], []].each do |keys|
+        key_frame(*keys)
+        assert_equal false, Input.trigger?(Input::ALT), keys.inspect
+      end
+    end
+  end
+
+  test "the player's binding or a mod's key on Alt plus a key is enough for the game's Alt to read late" do
+    code = PokeAccess::Keyboard.with_alt(Q)
+    keys = PokeAccess::Config.keys.dup
+    with_scripted_input do
+      [lambda { PokeAccess::Config.rebinds = { :c => code } }, lambda { PokeAccess::Config.keys[:hp] = code }].each do |bind|
+        bind.call
+        engine_answers(true)
+        key_frame(ALT)
+        assert_equal false, Input.trigger?(Input::ALT)
+        engine_answers(false)
+        key_frame
+        assert_equal true, Input.trigger?(Input::ALT)
+        PokeAccess::Config.rebinds = {}
+        PokeAccess::Config.keys = keys.dup
+      end
+    end
+  ensure
+    PokeAccess::Config.keys = keys
+  end
+
+  test "with nothing on Alt plus a key the game's Alt is the engine's" do
+    with_scripted_input do
+      engine_answers(true)
+      key_frame(ALT)
+      assert_equal true, Input.trigger?(Input::ALT)
+      engine_answers(false)
+      key_frame
+      assert_equal false, Input.trigger?(Input::ALT)
+    end
+  end
+
+  test "the game's Alt bound by the player follows that key, with an action on Alt plus another" do
+    with_shipped_extra do
+      PokeAccess::Config.rebinds = { :alt => Q }
+      key_frame(ALT)
+      key_frame
+      assert_equal false, Input.trigger?(Input::ALT)
+      key_frame(Q)
+      assert_equal true, Input.trigger?(Input::ALT)
+    end
+  end
+
+  test "what is shipped for the field leaves the game's Alt to the engine in a battle" do
+    with_shipped_extra do
+      Remap.ship({ :pa_test_a => "Alt+M" }, true)
+      kept = PokeAccess::Battle.method(:in_battle?)
+      begin
+        PokeAccess::Battle.define_singleton_method(:in_battle?) { true }
+        engine_answers(true)
+        key_frame(ALT)
+        assert_equal true, Input.trigger?(Input::ALT)
+      ensure
+        PokeAccess::Battle.define_singleton_method(:in_battle?, kept)
+      end
+    end
+  end
+
+  test "the mod off forgets a held Alt: letting it go after fires nothing" do
+    with_shipped_extra do
+      key_frame(ALT)
+      with_mod_off { key_frame(ALT) }
+      key_frame
+      assert_equal false, Input.trigger?(Input::ALT)
+    end
+  end
+
+  test "a key pressed before Alt is no press of what is on Alt plus it" do
+    with_shipped_extra do
+      key_frame(LETTER)
+      key_frame(ALT, LETTER)
+      assert_equal [false, false], [Input.triggerex?(:M), Input.pressex?(:M)]
+    end
+  end
+
+  test "an extra read by its letter's name leaves that letter read by code to the game, as a text entry reads it" do
+    with_shipped_extra do
+      [false, true].each do |bound|
+        PokeAccess::Config.rebinds = bound ? { :pa_test_a => Q } : {}
+        { true => true, false => false }.each do |engine, want|
+          engine_answers(engine)
+          key_frame
+          assert_equal want, Input.triggerex?(LETTER), "bound #{bound}, with the engine at #{engine}"
+        end
+      end
+    end
+  end
+
+  test "with Alt held, a mod's key yields to an action on Alt plus its letter, and answers with none there" do
+    with_shipped_extra do
+      keys = PokeAccess::Keys
+      key_frame(ALT, LETTER)
+      assert_equal false, keys.key(:coords)
+      key_frame
+      key_frame(LETTER)
+      assert_equal true, keys.key(:coords)
+      PokeAccess::Config.rebinds = { :pa_test_a => Q }
+      key_frame
+      key_frame(ALT, LETTER)
+      assert_equal true, keys.key(:coords)
+    end
+  end
+
+  test "a mod's key on Alt plus a letter answers that, and the letter alone no more" do
+    with_shipped_extra do
+      PokeAccess::Config.keys[:hp] = PokeAccess::Keyboard.with_alt(Q)
+      [[[Q], false], [[], false], [[ALT], false], [[ALT, Q], true], [[ALT, Q], false]].each do |held, want|
+        key_frame(*held)
+        assert_equal want, PokeAccess::Keys.key(:hp), held.inspect
+      end
+    end
+  end
+
+  test "a game button the player binds to Alt plus a key answers that alone" do
+    with_shipped_extra do
+      PokeAccess::Config.rebinds = { :c => PokeAccess::Keyboard.with_alt(Q) }
+      engine_answers(true)
+      [[[Q], false], [[], false], [[ALT], false], [[ALT, Q], true], [[ALT, Q], false]].each do |held, want|
+        key_frame(*held)
+        assert_equal want, Input.trigger?(Input::C), held.inspect
+      end
+    end
+  end
+
+  test "a plain key the player binds yields to an action on Alt plus it, and answers only a press of its own" do
+    with_shipped_extra do
+      PokeAccess::Config.rebinds = { :c => LETTER }
+      key_frame(ALT, LETTER)
+      assert_equal false, Input.trigger?(Input::C), "with Alt"
+      key_frame(LETTER)
+      assert_equal false, Input.trigger?(Input::C), "letting Alt go first"
+      key_frame
+      key_frame(LETTER)
+      assert_equal true, Input.trigger?(Input::C), "its own press"
+      key_frame(ALT, LETTER)
+      key_frame(LETTER)
+      assert_equal false, Input.trigger?(Input::C), "tapping Alt while it is held"
+    end
+  end
+
+  test "a plain key with nothing on Alt plus it counts with Alt held, as ever" do
+    with_shipped_extra do
+      PokeAccess::Config.rebinds = { :c => Q }
+      key_frame(ALT, Q)
+      assert_equal true, Input.trigger?(Input::C)
+    end
+  end
+
+  test "AltGr, which holds Ctrl with Alt, is no Alt for a key with it, and leaves the letter's own press alone" do
+    with_shipped_extra do
+      kb = PokeAccess::Keyboard
+      PokeAccess::Config.keys[:hp] = kb.with_alt(Q)
+      key_frame(ALT, kb::VK_CONTROL, LETTER)
+      assert_equal [false, true], [Input.triggerex?(:M), PokeAccess::Keys.key(:coords)]
+      key_frame(ALT, kb::VK_CONTROL, Q)
+      assert_equal false, PokeAccess::Keys.key(:hp)
+    end
+  end
+
+  test "a key held before Alt, never asked about till then, is no press of what is on Alt plus it" do
+    with_shipped_extra do
+      Remap.ship(:z => "Alt+E")
+      key_frame(E)
+      key_frame(ALT, E)
+      assert_equal false, Input.trigger?(Input::Z)
+    end
+  end
+
+  test "in a text field an extra's key is a letter: its bound key and its shipped one say nothing for it" do
+    with_shipped_extra do
+      keys = PokeAccess::Keys
+      engine_answers(true)
+      keys.instance_variable_set(:@typing_ttl, 4)
+      begin
+        key_frame
+        assert_equal true, Input.triggerex?(:M), "the engine's own answer, on its key"
+        engine_answers(false)
+        key_frame(ALT, LETTER)
+        assert_equal false, Input.triggerex?(:M), "what it ships on"
+        PokeAccess::Config.rebinds = { :pa_test_a => Q }
+        key_frame(Q)
+        assert_equal false, Input.triggerex?(:M), "what the player bound it to"
+      ensure
+        keys.instance_variable_set(:@typing_ttl, 0)
+      end
+    end
+  end
+
+  test "a game button shipped on a key answers it alone, and the player's key takes its place" do
+    with_shipped_extra do
+      Remap.ship(:z => "Q")
+      engine_answers(true)
+      key_frame
+      assert_equal false, Input.trigger?(Input::Z)
+      key_frame(Q)
+      assert_equal true, Input.trigger?(Input::Z)
+      PokeAccess::Config.rebinds = { :z => W }
+      key_frame
+      key_frame(Q)
+      assert_equal false, Input.trigger?(Input::Z)
+      key_frame
+      key_frame(W)
+      assert_equal true, Input.trigger?(Input::Z)
+    end
+  end
+
+  test "a key the player binds to a shipped extra frees what it shipped on" do
+    with_shipped_extra do
+      assert_equal PokeAccess::Keyboard.with_alt(LETTER), Remap.bound_code(:pa_test_a)
+      PokeAccess::Config.rebinds = { :pa_test_a => Q }
+      assert_equal Q, Remap.bound_code(:pa_test_a)
+      key_frame(ALT, LETTER)
+      assert_equal false, Input.triggerex?(:M)
+      key_frame(Q)
+      assert_equal true, Input.triggerex?(:M)
+      assert_nil Remap.conflict(PokeAccess::Keyboard.with_alt(LETTER), :info)
+    end
+  end
+
+  test "what is shipped for the field holds out of battle, and a battle leaves the action on the game's keys" do
+    with_shipped_extra do
+      Remap.ship({ :pa_test_a => "Alt+M" }, true)
+      engine_answers(true)
+      kept = PokeAccess::Battle.method(:in_battle?)
+      begin
+        key_frame
+        assert_equal false, Input.triggerex?(:M)
+        PokeAccess::Battle.define_singleton_method(:in_battle?) { true }
+        key_frame
+        assert_equal [true, nil], [Input.triggerex?(:M), Remap.bound_code(:pa_test_a)]
+        engine_answers(false)
+        key_frame(ALT, LETTER)
+        assert_equal false, Input.triggerex?(:M)
+      ensure
+        PokeAccess::Battle.define_singleton_method(:in_battle?, kept)
+      end
+    end
+  end
+
+  test "with the mod off or out of focus, what is shipped is on the game's keys" do
+    with_shipped_extra do
+      engine_answers(true)
+      [:with_mod_off, :in_background].each do |condition|
+        send(condition) do
+          key_frame
+          assert_equal true, Input.triggerex?(:M), condition.to_s
+        end
+      end
+    end
+  end
+
+  test "a mod's key shipped elsewhere moves there, as its default, and into no table of the game's" do
+    with_shipped_extra do
+      Remap.ship(:hp => "Alt+K", :verbosity => "V")
+      cfg = PokeAccess::Config
+      with_k = PokeAccess::Keyboard.with_alt(0x4B)
+      assert_equal [with_k, with_k, 0x56, 0x56], [cfg.keys[:hp], cfg.key_defaults[:hp], cfg.keys[:verbosity], cfg.key_defaults[:verbosity]]
+      assert_equal [:pa_test_a], Remap.defaults.keys
+    end
+  end
+
+  test "what is shipped holds its key against the other entries and leaves its raw key free, and Alt frees no reserved key" do
+    with_shipped_extra do
+      kb = PokeAccess::Keyboard
+      alt_m = kb.with_alt(LETTER)
+      assert_equal [:pa_test_a, nil, :rmp_key_enter, :rmp_key_f1],
+                   [Remap.conflict(alt_m, :info), Remap.conflict(alt_m, :pa_test_a), Remap.conflict(kb.with_alt(0x0D), :info),
+                    Remap.conflict(kb.with_alt(0x70), :info)]
+      PokeAccess::Config.keys[:coords] = 0x4E
+      assert_nil Remap.conflict(LETTER, :info)
+    end
+  end
+
+  test "what is shipped holds in a battle too, unless shipped for the field" do
+    with_shipped_extra do
+      kept = PokeAccess::Battle.method(:in_battle?)
+      begin
+        PokeAccess::Battle.define_singleton_method(:in_battle?) { true }
+        assert_equal PokeAccess::Keyboard.with_alt(LETTER), Remap.bound_code(:pa_test_a)
+      ensure
+        PokeAccess::Battle.define_singleton_method(:in_battle?, kept)
+      end
+    end
+  end
+
+  test "an extra read by its letter's name, not shipped elsewhere, holds that letter against other entries" do
+    with_extras([:pa_test_a, :M, :btn_x]) do
+      kept = PokeAccess::Config.keys[:coords]
+      begin
+        PokeAccess::Config.keys[:coords] = 0x4E
+        assert_equal :pa_test_a, Remap.conflict(LETTER, :info)
+      ensure
+        PokeAccess::Config.keys[:coords] = kept
+      end
+    end
+  end
+
+  test "what a profile ships counts as a key moved" do
+    with_shipped_extra do
+      PokeAccess::Config.rebinds = {}
+      assert_equal false, Remap.no_rebinds?
+    end
+  end
+
   test "an extra not rebound answers the game's own raw key" do
     with_scripted_input do
       with_extras([:pa_test_a, EXTRA_VK, :btn_x]) do
@@ -628,6 +1154,7 @@ class RemapTest < PokeAccessTest
     yield
   ensure
     release_all
+    [:@alt_was, :@alt_tap, :@alt_used].each { |state| Remap.instance_variable_set(state, false) }
     (ENGINE_KEYS + ENGINE_DIRS).each { |orig| unscript_engine(sc, orig) }
     PokeAccess::Keyboard::GAKS.singleton_class.send(:remove_method, :call)
   end
@@ -704,6 +1231,34 @@ class RemapTest < PokeAccessTest
     yield
   ensure
     Remap.extras.replace(saved) if saved
+  end
+
+  # Runs the block with the keyboard and the engine scripted, one extra the game reads by the name of M, shipped on Alt
+  # plus it, and the mod's coordinates on that letter; the keys and the keyboard's picture are put back after.
+  def with_shipped_extra(map = { :pa_test_a => "Alt+M" })
+    keys = PokeAccess::Config.keys.dup
+    shipped = PokeAccess::Config.key_defaults.dup
+    with_scripted_input do
+      with_extras([:pa_test_a, :M, :btn_x]) do
+        PokeAccess::Config.keys[:coords] = LETTER
+        Remap.ship(map)
+        2.times { PokeAccess::Keyboard.snapshot }
+        yield
+      end
+    end
+  ensure
+    Remap.defaults.clear
+    Remap.field_defaults.clear
+    PokeAccess::Config.keys = keys
+    PokeAccess::Config.key_defaults = shipped
+    2.times { PokeAccess::Keyboard.snapshot }
+  end
+
+  # One frame with exactly these keys held: the picture the pulse takes, then the remapper's look at them.
+  def key_frame(*vks)
+    hold(*vks)
+    PokeAccess::Keyboard.snapshot
+    poll
   end
 
   # Runs the block with the mod switched off, as Ctrl+Alt+F8 does, and back on after.

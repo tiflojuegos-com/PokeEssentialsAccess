@@ -138,11 +138,8 @@ PokeAccess::Hooks.around_hook("TypeQuiz::Scene", :next_question, :optional => tr
 end
 
 # Every repaint is sampled for its status line and the result; the question itself is only pictures.
-PokeAccess::Hooks.around_hook("TypeQuiz::Scene", :refresh, :optional => true) do |scene, nxt, _a|
-  r = nil
-  pairs = PokeAccess::PaintCapture.sample { r = nxt.call }
+PokeAccess::Hooks.on_paint("TypeQuiz::Scene", :refresh, :optional => true) do |scene, pairs, _a|
   PokeAccess::FLTypeQuiz.painted(scene, pairs)
-  r
 end
 
 # The cursor moves with the player's keys, and once more to the right answer after a miss.

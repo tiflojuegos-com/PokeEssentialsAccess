@@ -25,12 +25,12 @@ end
 # Battle messages (also captures the battle so the hp key can read the active battlers).
 PokeAccess::Hooks.before_hook("Battle::Scene", :pbDisplayMessage) do |scene, args|
   PokeAccess::Battle.set_battle(scene.instance_variable_get(:@battle))
-  PokeAccess.say_dialogue(args[0])
+  PokeAccess.say_dialogue(args[0]) if PokeAccess::BattleScene.message_shown?(scene, args)
 end
 
 # Paused battle messages (exp, level up).
-PokeAccess::Hooks.before_hook("Battle::Scene", :pbDisplayPausedMessage) do |_s, args|
-  PokeAccess.say_dialogue(args[0])
+PokeAccess::Hooks.before_hook("Battle::Scene", :pbDisplayPausedMessage) do |scene, args|
+  PokeAccess.say_dialogue(args[0]) if PokeAccess::BattleScene.message_shown?(scene, args)
 end
 
 # The question of a battle prompt with options, which pbShowCommands writes straight onto the message window;

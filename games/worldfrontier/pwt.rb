@@ -3,12 +3,17 @@
 # Said as it opens, before the referee's line: the title, the round, who is still in and who is out, in slot order.
 module PokeAccess
   module WfBracket
+    # The title the board paints: the tournament's own translated one, from version 1.2.0; before it, the one in its data.
+    def self.title(pwt)
+      (pwt.respond_to?(:tournament_title) ? pwt.tournament_title : pwt.data[:title]).to_s
+    end
+
     # The board's reading for a tournament (FrentePWT): title, round label, then the names by whether they are out.
     def self.board(pwt)
       names = (0...pwt.participant_count).map { |i| [pwt.participant_name(i).to_s, (pwt.eliminated[i] rescue false)] }
       inside = names.reject { |_n, out| out }.map { |n, _o| n }
       outside = names.select { |_n, out| out }.map { |n, _o| n }
-      parts = [pwt.data[:title].to_s, pwt.round_label.to_s]
+      parts = [title(pwt), pwt.round_label.to_s]
       parts.push(PokeAccess::I18n.t(:wf_pwt_in, :list => inside.join(", "))) unless inside.empty?
       parts.push(PokeAccess::I18n.t(:wf_pwt_out, :list => outside.join(", "))) unless outside.empty?
       PokeAccess.sentences(parts)

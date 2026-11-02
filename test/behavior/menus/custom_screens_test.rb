@@ -120,7 +120,7 @@ class RaidDataScene
 end
 raid_path = File.join(Harness::ROOT, "plugins", "zud_raid_database.rb")
 raid_source = Harness.source(raid_path)
-raid_source.scan(/^PokeAccess::Hooks\.around_hook\("RaidDataScene".*?^end\r?\n/m) do
+raid_source.scan(/^PokeAccess::Hooks\.(?:around_hook|on_paint)\("RaidDataScene".*?^end\r?\n/m) do
   hook = Regexp.last_match
   eval(hook[0], TOPLEVEL_BINDING, raid_path, raid_source[0, hook.begin(0)].count("\n") + 1)
 end
@@ -1070,9 +1070,11 @@ class CustomScreensTest < PokeAccessTest
                  badges_page([false] * 5 + [true])
   end
 
-  test "a rebound R or Y button carries its badge's anthem to the bound key, while a key of its own stays" do
+  test "a rebound R, Y, T or I carries its badge's anthem to the bound key, while a key of its own stays" do
     { :r => [[false, false, true, true], "Ferro, Presa", ["E", "K"]],
-      :y => [[false] * 5 + [true], "Descarga", ["K"]] }.each do |button, (badges, names, keys)|
+      :y => [[false] * 5 + [true], "Descarga", ["K"]],
+      :op_anthem_t => [[false] * 4 + [true], "Évoca", ["K"]],
+      :op_anthem_i => [[false] * 7 + [true], "Témpano", ["K"]] }.each do |button, (badges, names, keys)|
       PokeAccess::Config.rebinds = { button => 0x4B }
       assert_equal [t(:tcard_badge_list, :list => names), anthem_keys(*keys), to_card].join(". "), badges_page(badges),
                    "#{button} rebound"

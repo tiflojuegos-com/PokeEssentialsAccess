@@ -1,7 +1,8 @@
 module PokeAccess
   # Optional key remapper: tracks how long each bound key has been held and feeds it into the engine's input, for
   # base buttons and game extras (register_extra). A rebound action silences the engine's key, except directions,
-  # while the mod is on and the game window in front.
+  # while the mod is on and the game window in front. Actions sit on key codes (Keyboard): the player's, from the remap
+  # menu, or those the profile ships them on (ship).
   module Remap
     # The engines' repeat schedules as [frames held past which a key repeats, every how many]: the games' own Input in
     # Ruby (getstate) past 20 frames on even ones, mkxp-z's input by frames past 15 every 4 (RGSS1, as Essentials runs).
@@ -47,6 +48,8 @@ module PokeAccess
       0x70 => :rmp_key_f1,    0x71 => :rmp_key_f2,     0x7B => :rmp_key_f12,
       0x77 => :rmp_key_f8,    0x78 => :rmp_key_f9,     0x79 => :rmp_key_f10
     }
+    # The mod's modifiers, each a key of its own: a key with Alt could not be held beside another.
+    PLAIN_KEYS = [:shift, :ctrl]
     @held = {}
     @live = true
 
@@ -55,28 +58,88 @@ module PokeAccess
       MOD_KEYS.assoc(sym) ? true : false
     end
 
-    # What already uses this virtual-key across the game's rebinds, the mod's keys and the game extras still on the
-    # raw key the game reads them by: a reserved key's i18n key or another action's symbol, or nil when free.
+    # What already uses this key code across the game's rebinds, what the profile ships, the mod's keys and the game extras
+    # still on the raw key the game reads them by: a reserved key's i18n key or another action's symbol, or nil when free.
     def self.conflict(code, action)
-      return nil if code.nil?
-      return RESERVED[code] if RESERVED.key?(code)
+      return nil if code.nil? || code == PokeAccess::Keyboard::NO_KEY
+      reserved = RESERVED[PokeAccess::Keyboard.key_of(code)]
+      return reserved if reserved
       binds = (PokeAccess::Config.rebinds rescue nil) || {}
       hit = nil
       binds.each { |s, c| hit ||= s if c == code && s != action }
+      defaults.each { |s, c| hit ||= s if c == code && s != action && binds[s].nil? }
       (PokeAccess::Config.keys rescue {}).each { |s, c| hit ||= s if c == code && s != action }
-      extras.each { |s, vk, _l| hit ||= s if vk == code && s != action && binds[s].nil? }
+      extras.each { |s, key, _l| hit ||= s if raw_key(key) == code && s != action && binds[s].nil? && !defaults.key?(s) }
       hit
     end
 
-    # The game extras as [action symbol, default virtual-key, label] rows, in registration order (an Array, since a
-    # Hash has no order under 1.8.7).
+    # The game extras as [action symbol, the raw key the game reads it by, label] rows, in registration order (an Array,
+    # since a Hash has no order under 1.8.7).
     def self.extras; @extras ||= []; end
 
-    # Registers a game-specific action read by raw virtual-key, so it can be rebound from the remap menu.
-    # Registering a symbol again replaces its row in place.
-    def self.register_extra(sym, default_vk, label)
+    # The extras the game reads as buttons of its own Input instead: action symbol => the constant's name.
+    def self.extra_buttons; @extra_buttons ||= {}; end
+
+    # Registers a game-specific action the game reads by a raw key, so it can be rebound from the remap menu: by its
+    # virtual-key or by mkxp-z's name for its letter (:M), and, given a button, as that constant of its Input too. A read
+    # any other way stays the game's. Registering a symbol again replaces its row in place.
+    def self.register_extra(sym, key, label, button = nil)
       extras.reject! { |row| row[0] == sym }
-      extras.push([sym, default_vk, label])
+      extras.push([sym, key, label])
+      if button
+        extra_buttons[sym] = button
+      else
+        extra_buttons.delete(sym)
+      end
+      @button_extras = nil
+    end
+
+    # An extra's raw key as a virtual-key.
+    def self.raw_key(key)
+      key.is_a?(Symbol) ? key.to_s.unpack("C")[0] : key
+    end
+
+    # The key codes the profile ships its game's actions on, as if the player had bound them, with nothing saved: action
+    # symbol => key code.
+    def self.defaults; @defaults ||= {}; end
+
+    # The shipped actions that hold out of battle alone: a battle leaves them on the game's keys.
+    def self.field_defaults; @field_defaults ||= {}; end
+
+    # Ships actions on the keys a profile names them (Keyboard.code_for): the mod's own in Config.key_defaults, the game's
+    # here.
+    # param field_only holds them out of battle alone
+    def self.ship(map, field_only = false)
+      map.each do |sym, spec|
+        code = PokeAccess::Keyboard.code_for(spec)
+        if mod_action?(sym)
+          PokeAccess::Config.key_defaults[sym] = code
+          PokeAccess::Config.keys[sym] = code
+        else
+          defaults[sym] = code
+          field_defaults[sym] = true if field_only
+        end
+      end
+    end
+
+    # The key code the profile ships an action on now, or nil: out of battle alone if shipped for the field, and not while
+    # the player's bindings or the mod's keys hold that code for something else (a key saved before the game shipped it).
+    def self.shipped(sym)
+      code = defaults[sym]
+      return nil if code.nil? || (field_defaults[sym] && PokeAccess::Battle.in_battle?)
+      held_elsewhere?(code, sym) ? nil : code
+    end
+
+    # Whether the player's bindings or the mod's keys hold this code for another action.
+    def self.held_elsewhere?(code, sym)
+      binds = (PokeAccess::Config.rebinds rescue nil) || {}
+      keys = (PokeAccess::Config.keys rescue nil) || {}
+      binds.any? { |s, c| c == code && s != sym } || keys.values.include?(code)
+    end
+
+    # The key code an action answers now: the player's binding, else the shipped one; nil on its game's keys.
+    def self.bound_code(sym)
+      (PokeAccess::Config.rebinds[sym] rescue nil) || shipped(sym)
     end
 
     # The full remap-menu list: base buttons, game extras, the mod's keys and a final reset-all entry.
@@ -127,10 +190,22 @@ module PokeAccess
       kb.raw_down?(kb::VK_CONTROL) && kb.raw_down?(kb::VK_ALT) ? true : false
     end
 
-    # The base action bound to an Input button integer, if any.
-    def self.sym_for_button(bi); int_sym_map[bi]; end
+    # The base action bound to an Input button integer, or the extra the game reads as that button, which a text field
+    # leaves to the game.
+    def self.sym_for_button(bi)
+      int_sym_map[bi] || (PokeAccess::Keys.typing? ? nil : button_extras[bi])
+    end
 
-    # The extra action whose default key is this raw virtual-key, if any.
+    # The reverse of extra_buttons: Input button integer => action symbol, resolved once, a constant the game lacks left out.
+    def self.button_extras
+      @button_extras ||= begin
+        m = {}
+        extra_buttons.each { |sym, const| m[Input.const_get(const)] = sym if Input.const_defined?(const) }
+        m
+      end
+    end
+
+    # The extra action the game reads by this raw key, if any.
     def self.sym_for_extra(vk)
       hit = extras.detect { |row| row[1] == vk }
       hit ? hit[0] : nil
@@ -145,19 +220,80 @@ module PokeAccess
       @live = (PokeAccess::Keys.enabled rescue true) && (PokeAccess::Keys.focused? rescue true)
       unless @live
         @held = {}
+        @alt_was = @alt_tap = @alt_used = false
         return
       end
-      binds = (PokeAccess::Config.rebinds rescue nil)
-      if binds.nil? || binds.empty?
+      watch_alt
+      binds = (PokeAccess::Config.rebinds rescue nil) || {}
+      if binds.empty? && defaults.empty?
         @held = {} unless @held.empty?
-        return
+      else
+        @held.each_key { |s| @held[s] = 0 unless binds[s] || defaults.key?(s) }
+        binds.each { |sym, code| hold(sym, code) if code }
+        defaults.each_key { |sym| hold(sym, shipped(sym)) unless binds[sym] }
       end
-      @held.each_key { |s| @held[s] = 0 unless binds.key?(s) }
-      binds.each do |sym, code|
-        next unless code
-        down = PokeAccess::Keyboard.raw_down?(code)
-        @held[sym] = down ? (@held[sym].to_i + 1) : 0
-      end
+      @held[:alt] = 1 if @alt_tap
+    end
+
+    # One frame of an action on a key code, or on none: how long it has been held.
+    def self.hold(sym, code)
+      held = @held[sym].to_i
+      down = code && code_held?(code, held > 0)
+      @alt_used = true if down && PokeAccess::Keyboard.alt_code?(code)
+      @held[sym] = down ? held + 1 : 0
+    end
+
+    # One frame of Alt: while the game reads it late (alt_late?), letting it go counts as one frame's press, unless an
+    # action on Alt plus a key or Ctrl went with it, or it was held in the mod's menu, where it picks a key.
+    def self.watch_alt
+      kb = PokeAccess::Keyboard
+      down = kb.raw_down?(kb::VK_ALT)
+      @alt_used ||= down && (kb.raw_down?(kb::VK_CONTROL) || PokeAccess::ConfigMenu.active?)
+      @alt_tap = @alt_was && !down && !@alt_used && alt_late?
+      @alt_used = false unless down
+      @alt_was = down
+    end
+
+    # Whether the game reads its Alt late now: Alt down, or let go since the last pulse, with an action on Alt plus a key
+    # and the game's Alt unbound. Asked at each read, as a game may read Alt inside its own Input.update, before the pulse.
+    def self.alt_late?
+      kb = PokeAccess::Keyboard
+      return false unless kb.raw_down?(kb::VK_ALT) || @alt_was
+      codes_in_use.any? { |code| code && kb.alt_code?(code) } && !bound_code(:alt)
+    end
+
+    # The key codes actions answer now: the player's bindings, the mod's keys and what the profile ships; nil for none.
+    def self.codes_in_use
+      binds = (PokeAccess::Config.rebinds rescue nil) || {}
+      keys = (PokeAccess::Config.keys rescue nil) || {}
+      binds.values + keys.values + defaults.keys.map { |sym| binds[sym] ? nil : shipped(sym) }
+    end
+
+    # Whether a key code counts as held this frame (running: it already counts). A key with Alt counts from when it goes
+    # down with Alt held. A key on its own counts while down, but with an action on Alt plus it, only from its own press
+    # with no Alt held, so letting Alt go first or tapping it starts nothing.
+    def self.code_held?(code, running)
+      kb = PokeAccess::Keyboard
+      vk = kb.key_of(code)
+      pressed = kb.pressed?(vk)
+      return false unless kb.raw_down?(vk)
+      alt = kb.alt_held?
+      return alt && (running || pressed) if kb.alt_code?(code)
+      !alt_bound?(vk) || (!alt && (running || pressed))
+    end
+
+    # True on the frame a key code goes down, for the mod's own keys: a key on its own yields, with Alt held, to an action
+    # on Alt plus it.
+    def self.code_pressed?(code)
+      kb = PokeAccess::Keyboard
+      return false unless kb.code_pressed?(code)
+      return @alt_used = true if kb.alt_code?(code)
+      !(kb.alt_held? && alt_bound?(code))
+    end
+
+    # Whether an action answers Alt plus this virtual-key now.
+    def self.alt_bound?(vk)
+      codes_in_use.include?(PokeAccess::Keyboard.with_alt(vk))
     end
 
     # True while the bound key for an action is held.
@@ -226,20 +362,22 @@ module PokeAccess
     def self.triggered?(bi); s = sym_for_button(bi); s ? triggered_sym?(s) : false; end
     def self.repeated?(bi);  s = sym_for_button(bi); s ? repeated_sym?(s)  : false; end
 
-    # True when the player has not rebound a single key: the Input wrappers' cheap early exit.
+    # True when no key has moved, by the player or by the profile: the Input wrappers' cheap early exit.
     def self.no_rebinds?
       h = (PokeAccess::Config.rebinds rescue nil)
-      h.nil? || h.empty?
+      (h.nil? || h.empty?) && defaults.empty?
     end
 
     # True if a non-direction base button is bound, so its hook answers only the bound key (directions stay
-    # additive); nothing is remapped without GAKS, nor on a frame the mod is off or the window behind (see update).
+    # additive), and for the game's Alt while it reads late (alt_late?); nothing is remapped without GAKS, nor on a frame
+    # the mod is off or the window behind (see update).
     def self.remapped_button?(bi)
       return false unless PokeAccess::Keys::GAKS && @live
+      return true if sym_for_button(bi) == :alt && alt_late?
       return false if no_rebinds?
       s = sym_for_button(bi)
       return false if s.nil? || DIR_CODE.key?(s)
-      !(PokeAccess::Config.rebinds[s] rescue nil).nil?
+      !bound_code(s).nil?
     end
 
     # The order bound directions are asked in, fixed (a 1.8.7 Hash has none) so two pressed on the same frame resolve
@@ -260,17 +398,22 @@ module PokeAccess
     #extra queries (by raw virtual-key)
 
     # True if the extra action for this raw key is bound, so triggerex? uses only the bound key; never on a frame the
-    # mod is off or the window behind.
+    # mod is off or the window behind, nor in a text field, whose keys are letters.
     def self.extra_remapped?(vk)
       return false unless PokeAccess::Keys::GAKS && @live
-      return false if no_rebinds?
+      return false if no_rebinds? || PokeAccess::Keys.typing?
       s = sym_for_extra(vk)
       return false if s.nil?
-      !(PokeAccess::Config.rebinds[s] rescue nil).nil?
+      !bound_code(s).nil?
     end
 
-    def self.extra_triggered?(vk); s = sym_for_extra(vk); s ? triggered_sym?(s) : false; end
-    def self.extra_pressed?(vk);   s = sym_for_extra(vk); s ? pressed_sym?(s)   : false; end
+    def self.extra_triggered?(vk); s = typing_free_extra(vk); s ? triggered_sym?(s) : false; end
+    def self.extra_pressed?(vk);   s = typing_free_extra(vk); s ? pressed_sym?(s)   : false; end
+
+    # The extra action for this raw key, or none in a text field.
+    def self.typing_free_extra(vk)
+      PokeAccess::Keys.typing? ? nil : sym_for_extra(vk)
+    end
   end
 end
 

@@ -118,7 +118,8 @@ En «Opciones de navegación y del buscador de rutas» decides cómo funciona la
 
 ### Otras herramientas
 
-- **Remapeo de teclas**: en «Reasignar los controles del juego» cambias las teclas del juego y las del mod.
+- **Remapeo de teclas**: en «Reasignar los controles del juego» cambias las teclas del juego y las del mod, a una tecla
+  sola o a `Alt` más otra.
 - **Grabador de sesiones**: «Grabar sesión», en «Depuración», guarda en un archivo lo que el mod vio y dijo, para
   adjuntarlo cuando informes de un fallo.
 
@@ -201,25 +202,46 @@ diálogos, combate, navegación y rutas), pero sin los lectores hechos para un j
 
 ## Notas por juego
 
-### Pokémon Insurgence
+### Teclas del juego que cambian de sitio
 
-Insurgence usa de serie tres letras que también son del mod, y una pulsación hace las dos cosas:
+Varios juegos usan de serie teclas que también son del mod. Para que una pulsación no haga las dos cosas, el mod se queda
+con la suya y la acción del juego pasa a otra:
 
-| Tecla | En el juego | En el mod |
-|-------|-------------|-----------|
-| `T` | Objeto registrado n.º 4 | Detalle de lo enfocado |
-| `M` | Acelerar el juego | Coordenadas |
-| `O` | Quitar al Pokémon que te sigue | Menú del mod |
+| Juego | Combinación | En el juego | La tecla de antes, en el mod |
+|-------|-------------|-------------|------------------------------|
+| Awakening | `Alt` + `M` | Mapa de la región; bola de fuego donde haga falta | `M`: coordenadas |
+| Awakening | `Alt` + `J` | Lente de la Verdad | `J`: objetivo anterior de la lista |
+| Awakening | `Alt` + `G` | Información del combate; fuera de él, historial de mensajes | `G`: estado del campo |
+| Awakening | `Alt` + `T` | Guardar | `T`: detalle de lo enfocado |
+| Realidea | `Alt` + `M` | Despejar la niebla; en puzles y minijuegos, reiniciar, repetir la frase o ver la guía | `M`: coordenadas |
+| Insurgence | `Alt` + `M` | Acelerar el juego | `M`: coordenadas |
+| Insurgence | `Alt` + `T` | Objeto registrado n.º 4 | `T`: detalle de lo enfocado |
+| Ópalo | `Alt` + `T` | Himno de la quinta medalla, en la tarjeta de entrenador | `T`: detalle de lo enfocado |
+| Ópalo | `Alt` + `I` | Himno de la octava medalla, en la tarjeta de entrenador | `I`: ruta al objetivo |
+| Reminiscencia | `Alt` + `T` | Viaje rápido o mejoras, Caja, habilidad en la ficha y Bolsa en el selector | `T`: detalle de lo enfocado |
+| Perseida | `Alt` + `M` | Mapa de la región | `M`: coordenadas |
+| Perseida | `Alt` + `T` | Hablar con Cometry, en el menú de pausa | `T`: detalle de lo enfocado |
+| GS Vitro | `Alt` + `M` | Mapa de la región | `M`: coordenadas |
+| GS Vitro | `Alt` + `T` | Guardar | `T`: detalle de lo enfocado |
+| GS Vitro | `Alt` + `J` | Misiones | `J`: objetivo anterior de la lista |
+| Sevii | `Alt`, mantenida | Acelerar el juego | `Shift`: modificador del mod |
+| Soulstones | `Alt` | Marcar un objeto para moverlo, en la mochila | `Shift`: modificador del mod |
+| Desolation | Ninguna | La `M` aceleraba el juego, y `Alt` lo sigue haciendo | `M`: coordenadas |
+| Uranium | Ninguna | La `O` cerraba la lista de objetos clave, y cancelar lo sigue haciendo | `O`: menú del mod |
 
-Para separarlas, pasa esas acciones del juego a otras teclas en su pantalla de controles («Controls», en el menú del
-título, que el mod lee), o mueve las del mod en «Reasignar los controles del juego».
+Para usar otra tecla, asígnasela a esa acción en «Reasignar los controles del juego», donde también se pueden elegir
+combinaciones con `Alt`. En los juegos con combinaciones, el `Alt` propio del juego, que en varios cambia la velocidad,
+responde al soltarlo, y no si lo has usado en una combinación.
 
-### Pokémon HGSS: Sevii Islands
+Algunos detalles:
 
-En Sevii, `Shift` es a la vez el acelerador del juego y el modificador del mod. Cada combinación con `Shift`
-(`Shift` + `T`, `Shift` + `H`…) acelera el juego un instante, y el mod dice «Velocidad rápida» y «Velocidad normal»,
-cortando lo que estaba diciendo. Para evitarlo, mueve el «Modificador mayúsculas» del mod a otra tecla en
-«Reasignar los controles del juego».
+- En combate, la `M` de Perseida y la de Realidea siguen siendo del juego y abren la información del combate. Si le
+  asignas otra tecla a esa acción, también la sustituye allí.
+- En GS Vitro, estos atajos, como los demás del juego, funcionan en el mapa y en el menú de pausa, y su opción de atajos
+  los apaga.
+- En Insurgence, esas dos acciones van a `Alt` aunque las hayas movido en su pantalla «Controls». Para ponerlas en otra
+  tecla, usa «Reasignar los controles del juego».
+- Los mensajes de Realidea que piden pulsar la `M` dicen ya la combinación.
 
 ## Teclas
 

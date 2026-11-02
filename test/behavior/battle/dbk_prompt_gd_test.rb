@@ -54,7 +54,7 @@ end
 
 prompt_path = File.join(Harness::ROOT, "plugins", "dbk_enhanced_ui.rb")
 prompt_src = Harness.source(prompt_path)
-prompt_hook = prompt_src.match(/^PokeAccess::Hooks\.around_hook\("Battle::Scene::EnhancedUIPrompt", :refresh.*?^end\n/m)
+prompt_hook = prompt_src.match(/^PokeAccess::Hooks\.(?:around_hook|on_paint)\("Battle::Scene::EnhancedUIPrompt", :refresh.*?^end\n/m)
 prompt_held = Battle::Scene.const_defined?(:EnhancedUIPrompt) ? Battle::Scene::EnhancedUIPrompt : nil
 begin
   Battle::Scene.send(:remove_const, :EnhancedUIPrompt) if prompt_held

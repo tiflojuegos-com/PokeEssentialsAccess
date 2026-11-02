@@ -12,13 +12,67 @@ module PokeAccess
       pct < 1 ? 1 : pct
     end
 
-    # The item splash's two lines: the item, then "de" its holder, as the bar paints them; nil without an item.
-    def self.item_splash(battler, item)
+    # The icon its edited move panel paints over a target (pbDrawTypeEffectiveness, from version 1.2.0): its type table
+    # for that move, and the weather and the abilities it weighs; nil on an earlier panel.
+    def self.move_icon(foe, type, scene = nil, move = nil, user = nil)
+      return nil unless scene.respond_to?(:pbMoveInfoWeatherBlocksMove?)
+      value = scene.pbMoveInfoTypeMod(type, foe, move)
+      return 1 if scene.pbMoveInfoWeatherBlocksMove?(move, type)
+      return 0 if value.nil?
+      return 1 if scene.pbMoveInfoAllAbilitiesImmune?(user, foe, move, type, value) || Effectiveness.ineffective?(value)
+      return 2 if Effectiveness.not_very_effective?(value)
+      Effectiveness.super_effective?(value) ? 3 : 4
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+  end
+
+  # The held item's splash: a bar with the item and its holder, shown ahead of the message about the item or of the
+  # animation before it. Its words wait for that message and go ahead of it, or are dropped where it names both; a
+  # splash no message follows is said as it leaves, or as the battle's scene ends with it still up.
+  module WfItemSplash
+    @pending = nil
+
+    # The name of the item a splash shows for a battler, or nil without one.
+    def self.item_name(battler, item)
       item ||= (battler.item rescue nil)
       item ||= (battler.effects[PBEffects::GemConsumed] rescue nil)
       name = item ? (GameData::Item.get(item).name rescue nil) : nil
-      return nil if name.nil? || name.to_s.empty?
-      "#{name} #{_INTL('de {1}', battler.name)}"
+      name.to_s.empty? ? nil : name.to_s
+    end
+
+    # Says any splash still waiting, then keeps this one's two lines as the bar paints them, the item and "de" its
+    # holder, with both names, which a message must hold to stand for it.
+    def self.hold(battler, item)
+      flush
+      name = item_name(battler, item)
+      return unless name
+      @pending = ["#{name} #{_INTL('de {1}', battler.name)}", name.downcase, battler.name.to_s.downcase]
+    end
+
+    # A message is about to be said: the waiting splash goes first, or is dropped where the message names it.
+    def self.before_line(message)
+      return unless @pending
+      line = PokeAccess.clean(message.to_s).downcase
+      return if line.empty?
+      return flush unless line.include?(@pending[1]) && line.include?(@pending[2])
+      @pending = nil
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # Says the waiting splash, queued, once.
+    def self.flush
+      text = @pending ? @pending[0] : nil
+      @pending = nil
+      PokeAccess.speak_clean(text, false) if text
+    end
+
+    # Drops the waiting splash.
+    def self.forget
+      @pending = nil
     end
   end
 
@@ -79,7 +133,14 @@ end
 
 PokeAccess::Battle.icon_mark(/\Atera_types\z/i, :bt_m_tera)
 
+PokeAccess::Caches.register(:wf_item_splash) { PokeAccess::WfItemSplash.forget }
+
 PokeAccess::Game.define("worldfrontier") do
+  # The Battle Camera shows a battle's first message in its intro, then swallows the same call the battle makes for it
+  # a moment later (@ebs_suppress_next_paused, which lets a brief message through): that call shows nothing.
+  override("PokeAccess::BattleScene", :message_shown?) do |_mod, original, args|
+    PokeAccess.ivar(args[0], :@ebs_suppress_next_paused) && !args[1][1] ? false : original.call
+  end
   override("PokeAccess::Battle", :shown_level) { |_mod, _original, _args| nil }
   override("PokeAccess::Battle", :shown_hp) do |_mod, original, args|
     b = args[0]
@@ -92,11 +153,20 @@ PokeAccess::Game.define("worldfrontier") do
   before("Battle::Scene::PokemonDataBox", :wf_draw_outlined_special_icon) do |_box, args|
     PokeAccess::PaintCapture.note_icons([[args[0], args[1], args[2]]])
   end
-  # The splash is a blocking animation, said before it; it runs only with the ability splash on.
-  before("WFItemSplashScene", :pbShowItemSplash) do |_scene, args|
+  override("PokeAccess::DBKMoveInfo", :effect_index) do |_mod, original, args|
+    PokeAccess::WfBattleBox.move_icon(*args) || original.call
+  end
+  # The splash runs only with the ability splash on. Held once it is up, as showing it first hides one still up, which
+  # says that one. A container: the slide-in is a loop of frames.
+  after("WFItemSplashScene", :pbShowItemSplash, :optional => true, :hook_container => true) do |_scene, _ret, args|
     shown = (::Battle::Scene::USE_ITEM_SPLASH rescue false)
-    text = shown && args[0] ? PokeAccess::WfBattleBox.item_splash(args[0], args[1]) : nil
-    PokeAccess.speak_clean(text, false) if text
+    PokeAccess::WfItemSplash.hold(args[0], args[1]) if shown && args[0]
+  end
+  before("WFItemSplashScene", :pbHideItemSplashSide, :optional => true) { |_scene, _a| PokeAccess::WfItemSplash.flush }
+  before("Battle::Scene", :pbEndBattle) { |_scene, _a| PokeAccess::WfItemSplash.flush }
+  override(PokeAccess, :say_dialogue) do |_mod, original, args|
+    PokeAccess::WfItemSplash.before_line(args[0])
+    original.call
   end
   # The key buttons, shown or hidden on each menu window and info panel the game opens or closes.
   after("Battle::Scene", :wf_update_info_buttons) { |scene, _ret, _args| PokeAccess::WfMenuKeys.shown(scene) }

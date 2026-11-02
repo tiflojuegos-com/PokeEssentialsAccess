@@ -1,4 +1,4 @@
-# The Trainer Sensor of Sky's base and World Frontier's edit (games/skyflyer_common/trainer_sensor.rb): the dark bars
+# The Trainer Sensor of Sky's base and World Frontier's edit (plugins/sky_trainer_sensor.rb): the dark bars
 # coming in are said once, queued, the first frame they can be seen; their staying and their leaving are silent.
 
 # The sensor as the game keeps it: show and hide slide the bars in and out, triggered? says whether they are in, update
@@ -25,7 +25,7 @@ module TrainerSensor
   def self.alpha=(value); @top.bitmap.alpha = value; end
 end
 
-sky_sensor_path = File.join(Harness::ROOT, "games", "skyflyer_common", "trainer_sensor.rb")
+sky_sensor_path = File.join(Harness::ROOT, "plugins", "sky_trainer_sensor.rb")
 begin
   verbose = $VERBOSE
   $VERBOSE = nil

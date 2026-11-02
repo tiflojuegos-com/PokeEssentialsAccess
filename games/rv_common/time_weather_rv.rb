@@ -49,11 +49,8 @@ module PokeAccess
 
     # Hooks the paint of the app and its frame.
     def self.bind
-      PokeAccess::Hooks.around_hook("Scene_TimeWeather", :pbTimeText, :optional => true) do |scene, nxt, _a|
-        r = nil
-        pairs = PokeAccess::PaintCapture.sample { r = nxt.call }
+      PokeAccess::Hooks.on_paint("Scene_TimeWeather", :pbTimeText, :optional => true) do |scene, pairs, _a|
         PokeAccess::TimeWeatherRV.painted(scene, pairs)
-        r
       end
       PokeAccess::Hooks.after_hook("Scene_TimeWeather", :update, :hook_container => true, :optional => true) do |scene, _r, _a|
         sel = PokeAccess.ivar(scene, :@selection)

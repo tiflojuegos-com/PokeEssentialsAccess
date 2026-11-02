@@ -21,11 +21,8 @@ module PokeAccess
 end
 
 # pbStartScene paints the certificate, then fades the scene in; what it paints is what is said.
-PokeAccess::Hooks.around_hook("DiplomaScene", :pbStartScene, :optional => true) do |_scene, nxt, _a|
-  r = nil
-  pairs = PokeAccess::PaintCapture.sample { r = nxt.call }
+PokeAccess::Hooks.on_paint("DiplomaScene", :pbStartScene, :optional => true) do |_scene, pairs, _a|
   PokeAccess::FLDiploma.opened(pairs)
-  r
 end
 
-PokeAccess::Hooks.before_hook("DiplomaScene", :pbEndScene, :optional => true) { |_scene, _a| PokeAccess::Info.clear_text }
+PokeAccess::Hooks.clear_info_on("DiplomaScene", :pbEndScene)

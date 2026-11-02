@@ -54,9 +54,10 @@ game's folder and ends with a profile the launcher detects, that loads in both p
    profile, and `test/static/profile_names_test.rb` requires that name to be the folder's. The name stamps the
    player's tag, mark and map-name files, and an import stamped with another name is refused.
 5. Declare the game-wide rules in `games/<name>/constants.rb`, each checked against the game's scripts, with a
-   comment naming the script it rests on. The usual ones are the letters its key hints paint (`key_hints`), what its
-   Surf asks of company (`surf_company`), the items that stand in for a field move (`field_move_item`,
-   `field_move_tool`) and its own status and weather ids (`names`).
+   comment naming the script it rests on. The usual ones are the letters its key hints paint (`key_hints`), the raw keys
+   it reads (`remap_extra`) and where they ship when a mod key holds that letter (`key_defaults`), what its Surf asks of
+   company (`surf_company`), the items that stand in for a field move (`field_move_item`, `field_move_tool`) and its own
+   status and weather ids (`names`).
 
    ```ruby
    # games/opalo/constants.rb

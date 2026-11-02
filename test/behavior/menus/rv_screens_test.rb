@@ -213,10 +213,10 @@ class RvScreensTest < PokeAccessTest
   QUEST = ["Find the Ruins", 1, [[2, "Talk to Lavender"], [1, "Enter the ruins"], [0, "Hidden"]], "true"]
   QUEST_BODY = [["Enter the ruins", 56], ["Talk to Lavender", 24]]
 
-  # Desolation's readers: the quest log's, bound as this file loads, and the Advanced Pokedex's, bound the first time
-  # a test needs it (with_desolation_dex), whose hooks the toolkit chains under names starting with DEX_HOOKS.
+  # Desolation's readers: the quest log's, bound as this file loads, and the Advanced Pokedex plugin's, bound the first
+  # time a test needs it (with_desolation_dex), whose hooks the toolkit chains under names starting with DEX_HOOKS.
   QUEST_LOG = File.join(Harness::ROOT, "games", "desolation", "quest_log.rb")
-  ADVANCED_DEX = File.join(Harness::ROOT, "games", "desolation", "advanced_dex.rb")
+  ADVANCED_DEX = File.join(Harness::ROOT, "plugins", "advanced_pokedex_v16.rb")
   DEX_HOOKS = "AdvancedPokedexScene#"
 
   [PokeAccess::FieldNotesRV, PokeAccess::TimeWeatherRV, PokeAccess::DexFormsRV, PokeAccess::MoveRestorerRV,
@@ -682,6 +682,16 @@ class RvScreensTest < PokeAccessTest
                    "Height: 1.2 m. Weight: 180.0 kg", true]], SpeakCapture.log
   end
 
+  test "the info key keeps the Advanced Pokedex's entry and each page turned, until the screen closes" do
+    line = "#{t(:adv_dex_page, :n => 2, :m => 5)}. Height: 1.2 m. Weight: 180.0 kg"
+    with_desolation_dex do
+      DesolationAdvancedPokedexScene.new(true, [:ELECTRIC, :STEEL]).pbStartScene(:MAGNEZONE)
+      assert_includes PokeAccess::Info.info_text, species(:MAGNEZONE)
+      turn_dex
+      assert_equal line, PokeAccess::Info.info_text
+    end
+  end
+
   test "an entry not caught opens with the species, its types and that it is not caught" do
     with_desolation_dex { DesolationAdvancedPokedexScene.new(false, [:ELECTRIC, :STEEL]).pbStartScene(:MAGNEZONE) }
     assert_equal [["#{species(:MAGNEZONE)}. #{types(:ELECTRIC, :STEEL)}. #{t(:pdx_not_caught)}", true]],
@@ -830,7 +840,7 @@ class RvScreensTest < PokeAccessTest
   end
 
   class << self
-    # The Desolation Advanced Pokedex reader's hook chains by name: the reader evaluated once, on the first call, which
+    # The Advanced Pokedex plugin's hook chains by name: the reader evaluated once, on the first call, which
     # with_desolation_dex makes with the stand-in under the game's name and no hooks left under it.
     def desolation_dex_chains
       @desolation_dex_chains ||= begin

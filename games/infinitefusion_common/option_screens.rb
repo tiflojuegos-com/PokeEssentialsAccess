@@ -15,9 +15,9 @@ module PokeAccess
       PokeAccess.clean((PokeAccess.sprite(scene, key).text rescue "").to_s)
     end
 
-    # What a submenu opens with: its title and the line in its box, or nil when both are blank.
+    # What a submenu opens with, after the title core says: the line in its box, or nil when it is blank.
     def self.opening(scene)
-      line = PokeAccess.sentences([text_of(scene, "title"), text_of(scene, "textbox")])
+      line = PokeAccess.sentences([text_of(scene, "textbox")])
       line.empty? ? nil : line
     end
 

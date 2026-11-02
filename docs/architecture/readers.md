@@ -64,7 +64,8 @@ command window, from its option list in the same way.
 
 A screen drawn with sprites keeps its cursor as an index on the scene. `FocusReader.define`, or `focus_reader` in a
 profile, declares a reader for it. After each call of the hooked method it reads the index, or the index of a window
-in `@sprites`, and says the focused entry when it changes.
+in `@sprites`, and says the focused entry when it changes. Given the method that closes the screen (`:close`), each line
+also stays on the info key until then.
 
 ## Change detection
 
@@ -105,7 +106,7 @@ function that drew it ([PaintCapture](../reference/reading-apis.md#pokeaccesspai
 
 A reader arms a capture with a tag before the game draws and takes the rows after it. One tag is armed at a time, and
 arming replaces a stale one. `PaintCapture.sample` captures what its block draws under a tag of its own and then
-restores any capture already armed, so samples nest. `PaintCapture.lines` orders the rows as the page lays them out,
+restores any capture already armed, so samples nest; `on_paint`, in a profile, runs a whole method under it. `PaintCapture.lines` orders the rows as the page lays them out,
 top to bottom, each line left to right.
 
 Reminiscencia's profile reads the warnings its Pokocho maker flashes this way, inside its `Game.define` block:
@@ -182,8 +183,10 @@ Two modifiers change what the key says (`Keys.info_key` in `core/input/input.rb`
   windows that belong to the row. A screen that published no row answers Ctrl+T as it answers T.
 - Shift with the info key says the last dialogue line again.
 
-A screen that published a ready line clears it when it closes (`Info.clear_text`), and the other kinds stay. The end
-of a battle clears a published move, foe or ready line.
+A screen that published a ready line clears it when it closes (`Info.clear_text`, `clear_info_on` in a profile), and the
+other kinds stay. A line left behind would answer on the menu under the screen, never on the map, whose next frame takes
+the key back; `test/static/info_close_test.rb` asks every file that publishes one where it goes. The end of a battle
+clears a published move, foe or ready line.
 
 While the mod listens on the map, each map frame publishes the map kind. Its line comes from the map owners, blocks
 registered with `Info.map_owner` and asked in order when the key is pressed. Core registers the puzzles and the
@@ -191,9 +194,6 @@ minigames, and profiles add their own screens over the map. When no owner answer
 movement around the player, such as where each press leads on ice. On other ground it says the trainer line: name,
 money, badges, Pokédex and play time, in the order of `Config.trainer_parts`, which a profile changes with
 `trainer_part` and `trainer_order`.
-
-A game screen that answers T itself claims the key with `Keys.yield_key!(:info)` on every frame, and the mod's key then
-does nothing for four pulses.
 
 ## Verbosity and readings
 

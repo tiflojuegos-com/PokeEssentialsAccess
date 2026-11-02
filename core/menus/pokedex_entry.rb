@@ -280,6 +280,10 @@ end
 PokeAccess::Hooks.before_hook("PokemonNestMapScene", :pbStartScene) do |_s, _a|
   PokeAccess::PaintCapture.arm(:nest_area)
 end
+# Closing the Pokedex, its forms page or its area map forgets what they published for the info key.
+["PokemonPokedexScene", "PokedexFormScene", "PokemonNestMapScene"].each do |cls|
+  PokeAccess::Hooks.clear_info_on(cls, :pbEndScene)
+end
 PokeAccess::Hooks.after_hook("PokemonNestMapScene", :pbStartScene) do |s, _r, args|
   PokeAccess::DexEntry.gen6_area(s, PokeAccess::PaintCapture.take(:nest_area), args[1], args[0])
 end

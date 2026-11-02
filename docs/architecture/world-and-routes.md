@@ -105,7 +105,8 @@ the profile declares `plain_passability`.
 ### Events and facets
 
 `World::Events` keeps one record per map event: its page, trigger, graphic, `through` flag, name and the tiles it
-covers. The area is the size the engine keeps (v19 and later) or the `size(w,h)` in the event's name (gen 6). Records
+covers. The area is the size the engine keeps (v19 and later) or the `size(w,h)` or `sizeC(w,h)` in the event's name
+(gen 6). Records
 are synced with the engine at most once a frame, and always as a search starts. Each change bumps `Events.gen` and tells
 the `Events.on_change` listeners the tiles it left or reached and how: `:come`, `:go`, `:move` or `:change`. The
 passability probe, the regions, HPA*, the water launches, the guide and the sound scene listen.
@@ -184,7 +185,8 @@ cannot silence a rule. The profile verbs are these:
 
 - `terrain_rule`: where a step that arrives on the tile ends (a slope, a current, a spin tile).
 - `held_key_ground`: tiles where the direction key has to stay held.
-- `terrain_exit`: terrain the player leaves by a move of its own (a rail hopped off).
+- `terrain_exit`: terrain the player leaves by a move of its own (a rail hopped off, a side stair walked a row up or
+  down).
 - `assisted_step`: something the player can do where walking stops, owned by the tiles in front.
 
 ```ruby

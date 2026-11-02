@@ -140,5 +140,5 @@ PokeAccess::Game.define("darkhorizon") do
     PokeAccess::DHAbilities.reel(scene) { nxt.call }
   end
 
-  before("TrainerAbility", :pbEndScene) { |_scene, _a| PokeAccess::Info.clear_text }
+  clear_info_on("TrainerAbility", :pbEndScene)
 end

@@ -65,6 +65,16 @@ module PokeAccess
       @mode = :deck; @scene = scene; @last = nil; @storage = storage
     end
 
+    # The [species, count] pairs of the cards the player owns, which the game keeps in $PokemonGlobal.triads (an Array,
+    # or a storage holding them in @items); nil where it keeps none.
+    def self.cards_owned
+      store = $PokemonGlobal.triads
+      store.is_a?(Array) ? store : PokeAccess.ivar(store, :@items)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
     # The focused deck row ("Bulbasaur x3") plus the card's type and four side numbers, which only its picture
     # shows; outside the deck loop, exactly what the generic reader says.
     def self.deck_row(win, i)
@@ -332,6 +342,13 @@ PokeAccess::Frame.each_pulse { PokeAccess::TripleTriad.poll }
 # (focused_text only falls back on an exception, so nil would silence every command window).
 PokeAccess::Menus.def_extractor("Window_CommandPokemonEx") do |win, i|
   PokeAccess::TripleTriad.deck_row(win, i)
+end
+
+# The player's card list, which an event opens on its own: its rows read as the deck chooser's, each with its card's
+# type and sides.
+PokeAccess::Hooks.wrap_kernel("pbTriadList", "triad_list", :around) do |_args, call_next|
+  PokeAccess::TripleTriad.start_deck(nil, PokeAccess::TripleTriad.cards_owned)
+  begin; call_next.call; ensure; PokeAccess::TripleTriad.stop; end
 end
 
 # Raises the shop flag around both halves of the shop (createBitmap also draws every card of a match) and watches

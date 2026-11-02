@@ -40,11 +40,8 @@ end
 
 PokeAccess::Game.define("sevii") do
   # createText paints the whole HUD: as it is built, then on each repaint its update makes.
-  around("CyclingRoadHUD", :createText) do |hud, nxt, _a|
-    r = nil
-    rows = PokeAccess::PaintCapture.sample { r = nxt.call }
+  on_paint("CyclingRoadHUD", :createText) do |hud, rows, _a|
     PokeAccess::SeviiCyclingRoad.painted(hud, rows)
-    r
   end
 
   # The field key says the run's time ahead of the field events core counts.

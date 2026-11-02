@@ -43,10 +43,7 @@ PokeAccess::Game.define("infinitefusion_hoenn") do
   # Also covers StartersSelectionSceneSingle, which inherits updateStarterSelectionGraphics.
   after("StartersSelectionScene", :updateStarterSelectionGraphics) { |s, _r, _a| PokeAccess::IF2Starters.focus(s) }
   # Inside the reader above: keeps the name and category lines the repaint draws, for it to read.
-  around("StartersSelectionScene", :updateStarterSelectionGraphics) do |s, nxt, _a|
-    r = nil
-    rows = PokeAccess::PaintCapture.sample { r = nxt.call }
+  on_paint("StartersSelectionScene", :updateStarterSelectionGraphics) do |s, rows, _a|
     s.instance_variable_set(:@access_if2_painted, rows.map { |row| row[0] })
-    r
   end
 end

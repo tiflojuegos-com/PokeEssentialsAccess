@@ -49,9 +49,6 @@ end
 PokeAccess::Hooks.before_hook("CharacterProfileListScene", :start, :optional => true) do |scene, _a|
   PokeAccess::CharacterProfiles.list_title(scene)
 end
-PokeAccess::Hooks.around_hook("CharacterPageDisplayScene", :drawPage, :optional => true) do |scene, nxt, args|
-  ret = nil
-  pairs = PokeAccess::PaintCapture.sample { ret = nxt.call }
+PokeAccess::Hooks.on_paint("CharacterPageDisplayScene", :drawPage, :optional => true) do |scene, pairs, args|
   PokeAccess::CharacterProfiles.page(scene, args[0], pairs)
-  ret
 end

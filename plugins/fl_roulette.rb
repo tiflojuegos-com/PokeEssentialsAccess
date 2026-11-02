@@ -59,22 +59,16 @@ module PokeAccess
   end
 end
 
-PokeAccess::Hooks.around_hook("RouletteScene", :pbDrawMultiplier, :optional => true) do |scene, nxt, _a|
-  r = nil
-  pairs = PokeAccess::PaintCapture.sample { r = nxt.call }
+PokeAccess::Hooks.on_paint("RouletteScene", :pbDrawMultiplier, :optional => true) do |scene, pairs, _a|
   t = PokeAccess::FLRoulette.bet_text(scene, pairs)
   if t
     PokeAccess::Info.set_info(:text, PokeAccess.sentences([t, PokeAccess::FLRoulette.played_text(scene)]))
     PokeAccess.speak(t, true)
   end
-  r
 end
 
-PokeAccess::Hooks.around_hook("RouletteScene", :pbDrawCredits, :optional => true) do |scene, nxt, _a|
-  r = nil
-  pairs = PokeAccess::PaintCapture.sample { r = nxt.call }
+PokeAccess::Hooks.on_paint("RouletteScene", :pbDrawCredits, :optional => true) do |scene, pairs, _a|
   PokeAccess::FLRoulette.coins(scene, pairs)
-  r
 end
 
 # The ball on its cell comes before the messages that say whether the bet won.
@@ -82,3 +76,4 @@ PokeAccess::Hooks.before_hook("RouletteScene", :pbEndSpin, :optional => true) do
   t = PokeAccess::FLRoulette.landing(scene)
   PokeAccess.speak(t, false) if t
 end
+PokeAccess::Hooks.clear_info_on("RouletteScene", :pbEndScene)

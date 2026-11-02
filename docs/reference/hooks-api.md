@@ -13,6 +13,8 @@ name to game resets, is explained in [Hooks](../architecture/hooks.md).
 | `frame_hook` | an instance method | after the original, which runs without the reentrancy guard |
 | `read_on_open` | an instance method | after the original, or before it |
 | `around_hook` | an instance method | in place of the original |
+| `on_paint` | an instance method | after the original, with what it painted |
+| `clear_info_on` | an instance method | before the original |
 | `override` | a mod module's method or a game class's instance method | in place of the original |
 | `wrap` | an instance method | as its middleware decides |
 | `wrap_global` | a function defined on `Object` | before, after or around the function |
@@ -118,6 +120,20 @@ screen's loop before it returns. `:optional` and `:hook_container` pass on to th
 The body takes the place of the call. The original runs only when the body calls `call_next`, and it runs without
 the guard. A failing body is logged once and its exception raised again. An exception of the original passes through
 the body and is raised again unlogged.
+
+### on_paint
+
+`on_paint(cname, meth, opts = {}) { |inst, rows, args| ... }`
+
+An `around_hook` that runs the original under `PaintCapture.sample` and hands the body the rows it painted. The game gets
+the original's value whatever the body answers, and a failing body is swallowed.
+
+### clear_info_on
+
+`clear_info_on(cname, meth = :pbEndScene)`
+
+A `before_hook`, `:optional`, that forgets the line a screen published for the info key (`Info.clear_text`) when `meth`
+closes it.
 
 ### wrap
 

@@ -12,7 +12,7 @@ explained in [Guide and sound](../architecture/guide-and-sound.md).
   keyboard the pulse takes first (`Keyboard.snapshot`).
 - A mod key answers only while the mod is on (`Keys.enabled`) and the game window is in front (`Keys.focused?`).
 - The game still sees the keys the mod answers. The mod's `Input` hooks change only the game buttons and extras that
-  have a binding.
+  have a binding, or that their profile ships on a key ([What a profile can change](#what-a-profile-can-change)).
 
 ## Global gestures
 
@@ -31,7 +31,8 @@ turbo on and takes no screenshot.
 
 ## Mod keys
 
-The mod keys are `Config.keys`, with their defaults in `Config::KEY_DEFAULTS` (`core/foundation/config.rb`).
+The mod keys are `Config.keys`, with their defaults in `Config::KEY_DEFAULTS` (`core/foundation/config.rb`) and what a
+profile moves in `Config.key_defaults`.
 
 | Action | Default | Alone | With Shift | With Ctrl |
 |---|---|---|---|---|
@@ -112,8 +113,10 @@ bindings.
 | `:info` | Says the row's help | Says the entry whole |
 | Ctrl with `:info` | Says the row, its value and its help | As `:info` alone |
 
-While the remap screen waits for a key, Cancel cancels and the first key pressed is bound. Alt is taken only when it
-is released with nothing pressed beside it, since Alt+Tab, Alt+F4 and Alt+Enter belong to the window and the engine.
+While the remap screen waits for a key, Cancel cancels and the first key pressed is bound, on its own or, pressed with
+Alt held, with Alt. Alt alone is taken when it is released with nothing pressed beside it. No key is taken with Alt beside
+Ctrl or Shift, as AltGr is Ctrl with Alt, nor Tab, F4, Enter, Escape or Space, which with Alt belong to the window and the
+engine. The mod's modifiers take no key with Alt (`Remap::PLAIN_KEYS`).
 After a capture, the screen ignores input until the captured key is released.
 
 ## Remap screen
@@ -149,8 +152,18 @@ read; mkxp-z's own F1 window cannot bind it.
   (`Remap.remapped_button?`). With the mod off, the engine's keys work again.
 - Direction: the bound key works beside the engine's keys, through `dir4` and `dir8`. Of several bound directions
   held, the one pressed last counts.
-- Extra: the bound key takes the place of the raw key the game reads, through `triggerex?` and `pressex?`, on
-  engines that have them.
+- Extra: the bound key takes the place of the raw key the game reads, on engines that have `triggerex?` and `pressex?`.
+  `remap_extra` says how the game reads it: by its virtual-key or by mkxp-z's name for its letter (`:M`), and with
+  `:button` as a constant of its own `Input` too, so one entry moves both reads. A read any other way stays the game's.
+- Key with Alt: a binding can be a key with Alt held (`Keyboard.with_alt`). It answers when the key goes down with Alt
+  held, not when Alt comes second, and not with Ctrl held too, as AltGr holds both. With an action on Alt plus a letter,
+  a mod key or a binding on that letter alone answers only a press of its own with no Alt held.
+- The game's Alt: while any action answers a key with Alt and `:alt` itself is not bound, the game reads its Alt for one
+  frame as it is let go, and only if no such action and no Ctrl went with it (`Remap.alt_late?`, `Remap.watch_alt`), also
+  a game that reads it inside its own `Input.update`. A game whose Alt sets its speed keeps that key, and a combination
+  does not change the speed on the way. A game that reads Alt by its raw key (Desolation) reads it as ever.
+- In a text field (`Keys.typing!`) the extras stay the game's, as raw keys and as buttons: their keys are letters there,
+  and Shift types capitals.
 - Repeat: a bound key repeats on the schedule of the input the game reads (`Remap.repeat_schedule`): the game's own
   Ruby input, or mkxp-z's.
 - Without `GetAsyncKeyState` (`Keys::GAKS`), no binding applies.
@@ -165,17 +178,18 @@ read; mkxp-z's own F1 window cannot bind it.
 | F12 | The game reset |
 | F8, F9, F10 | The mod's Ctrl+Alt gestures |
 
-The list is `Remap::RESERVED`. A key in it is refused with what keeps it.
+The list is `Remap::RESERVED`. A key in it is refused with what keeps it, with Alt or without.
 
 ### Conflicts and defaults
 
 - A key another entry holds is refused with that entry's name (`Remap.conflict`). An extra still on its default raw
-  key holds that key.
-- Left on a mod key restores its shipped key, or none for one that ships unassigned. Another entry holding that key
-  now blocks it.
-- Left on a game button puts it back on the engine's keys, and on an extra back on its default raw key.
-- The last entry resets all keys on a second Confirm. It drops every game binding and restores every mod key's
-  default.
+  key holds that key, and one its profile ships elsewhere holds that other key.
+- Left on a mod key restores its shipped key (`Config.key_defaults`), or none for one that ships unassigned. Another
+  entry holding that key now blocks it.
+- Left on a game button or extra puts it back on what its profile ships, unless another entry holds that key now. With
+  nothing shipped, a game button goes back on the engine's keys and an extra on its default raw key.
+- The last entry resets all keys on a second Confirm. It drops every game binding and restores what every mod key and
+  game action ships on.
 
 ## Saved keys
 
@@ -183,11 +197,13 @@ The list is `Remap::RESERVED`. A key in it is refused with what keeps it.
 
 - `bind_<action>=<code>`: a bound game button or extra.
 - `key_<action>=<code>`: a mod key moved off its default. A mod key on its default is not written, so a new default
-  reaches every player.
-- Codes are Windows virtual-key codes, written in decimal.
-- At load, a code that is not positive or is reserved is dropped (`Settings.free_code?`).
-- A mod key left on a default that a saved binding uses loads unassigned (`Settings.drop_taken_defaults`), so the
-  saved binding keeps working.
+  reaches every player. What a profile ships is not written either.
+- Codes are Windows virtual-key codes, written in decimal, plus 4608 for a key with Alt (`Keyboard::ALT_HELD`).
+- At load, a code that is not positive or is reserved is dropped (`Settings.free_code?`), and so is a key with Alt on
+  the mod's modifiers.
+- A mod key left on a default that a saved binding uses loads unassigned, so the saved binding keeps working
+  (`Settings.drop_taken_defaults`). A game action shipped on a key the player or a mod key holds goes back to the game's
+  keys while that lasts (`Remap.shipped`).
 
 ## Key names
 
@@ -209,17 +225,17 @@ in a game whose input mkxp-z answers. A game that reads the keyboard in Ruby def
 bindings do not apply to it. Royal and World Frontier take the letters from the game's own key menu
 (`games/royal_common/key_hints.rb`).
 
+Message lines go through it too, sentences included (`PokeAccess.dialogue_text`), so a line that asks for a declared key
+says where the player has it now. Realidea declares its M, which it names in three messages.
+
 ## Keys a screen takes over
 
 | Call | Effect | Called by |
 |---|---|---|
 | `Keys.typing!` | The pulse's keys do nothing; the gestures still answer | A text field |
-| `Keys.yield_key!(:info)` | The info key does nothing | A game screen that answers that key itself |
 | `Keys.menu_lock!` | `:config` does nothing; the other keys still answer | A game menu that reads raw keys |
 
-Each call lasts four pulses, so a caller repeats it on every frame the situation lasts. Reminiscencia's party screen
-opens the PC on T, so the info key yields to the game while the player chooses a member
-(`games/reminiscencia/party_keys.rb`).
+Each call lasts four pulses, so a caller repeats it on every frame the situation lasts.
 
 ## What a profile can change
 
@@ -227,6 +243,20 @@ opens the PC on T, so the info key yields to the game while the player chooses a
 |---|---|
 | `button_labels` | Renames game buttons on the remap screen, such as Pokémon Z's X, Y and Z |
 | `remap_extra` | Adds a raw key the game reads to the remap screen |
+| `key_defaults` | Ships actions on other keys in this game, as if the player had bound them |
+| `field_key_defaults` | The same, out of battle alone |
 | `key_hints` | Declares the letters its hints paint and the buttons they stand for |
+
+`key_defaults` takes any entry of the remap screen, on a key or on a key with Alt. It reads as if the player had bound it:
+the screen says it, Left and the last entry go back to it, and nothing is saved. When a letter a game reads is one of the
+mod's, the mod keeps the letter, so its keys stay the same in every game, and the game's action ships on Alt plus it. GS
+Vitro ships so its T, J and M, which save, open the quests and open the region map (`games/vitro/keys.rb`). Perseida ships
+so its M, which opens the region map, with `field_key_defaults`: in battle Alt sets the speed and the coordinates say
+nothing, so M stays the game's and opens the battle's information (`games/perseida/constants.rb`); Realidea does the same
+with its M. Awakening, Insurgence, Ópalo and Reminiscencia ship as GS Vitro does.
+
+A key can also be `"Alt"`, for what a game reads on Shift, the mod's modifier (Sevii, Soulstones), or `"None"`, for an
+action the game also has on another key (Desolation's M, Uranium's O): it answers nothing, and the remap screen says it
+is unassigned. The README's table lists what each game ships, and `test/static/key_defaults_test.rb` keeps the list.
 
 The methods are described in the [profile DSL reference](profile-dsl.md).

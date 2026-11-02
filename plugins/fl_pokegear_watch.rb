@@ -49,3 +49,5 @@ end
 PokeAccess::Hooks.after_hook("PokemonPokegearTheme_Scene", :refresh_date, :optional => true) do |scene, result, _a|
   PokeAccess::PokegearWatch.ticked(scene) if result
 end
+PokeAccess::Hooks.clear_info_on("PokemonPokegear_Scene", :pbEndScene)
+PokeAccess::Hooks.clear_info_on("PokemonPokegearTheme_Scene", :pbEndScene)

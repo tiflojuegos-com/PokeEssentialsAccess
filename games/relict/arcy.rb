@@ -96,11 +96,7 @@ PokeAccess::Game.define("relict") do
   before("NextFloor", :setup) { |s, _a| PokeAccess::RelictArcy.floor(s) }
   after("ArcyContest", :updateHearts) { |s, _r, _a| PokeAccess::RelictArcy.hearts(s) }
   before("ArcyContest", :pick_question) { |s, _a| PokeAccess::RelictArcy.hearts(s) }
-  around("ArcyContest", :addTips) do |s, nxt, _a|
-    ret = nil
-    PokeAccess::RelictArcy.board(s, PokeAccess::PaintCapture.sample { ret = nxt.call })
-    ret
-  end
+  on_paint("ArcyContest", :addTips) { |s, rows, _a| PokeAccess::RelictArcy.board(s, rows) }
   before("ArcyContest", :dispose) { |_s, _a| PokeAccess::RelictArcy.close_board }
   PokeAccess::Info.map_owner(:relict_board) { PokeAccess::RelictArcy.board_text }
   before("GivePlateMessage", :setup) { |s, args| PokeAccess::RelictArcy.plate(s, args[0]) }

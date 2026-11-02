@@ -46,6 +46,64 @@ class SettingsApplyTest < PokeAccessTest
     assert_equal [{}, DEFAULT_KEYS], [PokeAccess::Config.rebinds, PokeAccess::Config.keys]
   end
 
+  test "takes a key with Alt on a bind_ or key_ line, and no reserved key with Alt" do
+    kb = PokeAccess::Keyboard
+    apply_ini("bind_saltar=#{kb.with_alt(65)}", "key_next=#{kb.with_alt(88)}", "bind_a=#{kb.with_alt(0x70)}") do |ini|
+      assert_includes File.read(ini), "bind_saltar=#{kb.with_alt(65)}\n"
+      assert_includes File.read(ini), "key_next=#{kb.with_alt(88)}\n"
+    end
+    assert_equal({ :saltar => kb.with_alt(65) }, PokeAccess::Config.rebinds)
+    assert_equal kb.with_alt(88), PokeAccess::Config.keys[:next]
+  end
+
+  test "drops a key with Alt on the mod's modifiers, and a code with no key" do
+    kb = PokeAccess::Keyboard
+    apply_ini("key_shift=#{kb.with_alt(16)}", "bind_c=#{kb::ALT_HELD}")
+    assert_equal DEFAULT_KEYS[:shift], PokeAccess::Config.keys[:shift]
+    assert_nil (PokeAccess::Config.rebinds || {})[:c]
+  end
+
+  test "a game action shipped on a key a saved binding uses goes back to the game's keys, while that binding lasts" do
+    kb = PokeAccess::Keyboard
+    begin
+      PokeAccess::Remap.ship(:z => "Alt+T", :y => "Alt+Y")
+      apply_ini("bind_x=#{kb.with_alt(0x54)}")
+      assert_equal [nil, kb.with_alt(0x59)], [PokeAccess::Remap.shipped(:z), PokeAccess::Remap.shipped(:y)]
+      PokeAccess::Config.rebinds = {}
+      assert_equal kb.with_alt(0x54), PokeAccess::Remap.shipped(:z)
+    ensure
+      PokeAccess::Remap.defaults.clear
+    end
+  end
+
+  test "an action saved on the key it ships on keeps what it ships" do
+    kb = PokeAccess::Keyboard
+    begin
+      PokeAccess::Remap.ship(:z => "Alt+T")
+      apply_ini("bind_z=#{kb.with_alt(0x54)}")
+      assert_equal kb.with_alt(0x54), PokeAccess::Remap.shipped(:z)
+    ensure
+      PokeAccess::Remap.defaults.clear
+    end
+  end
+
+  test "writes no hotkey on what the profile ships it on, and one moved off it" do
+    shipped = PokeAccess::Config.key_defaults.dup
+    keys = PokeAccess::Config.keys.dup
+    begin
+      PokeAccess::Remap.ship(:hp => "V")
+      apply_ini do |ini|
+        refute_includes File.read(ini), "key_hp="
+      end
+      apply_ini("key_hp=88") do |ini|
+        assert_includes File.read(ini), "key_hp=88\n"
+      end
+    ensure
+      PokeAccess::Config.key_defaults = shipped
+      PokeAccess::Config.keys = keys
+    end
+  end
+
   test "moves the mod hotkey a key_ line names, and ignores an action the mod has no key for" do
     apply_ini("key_next=88", "key_prev=1", "key_bogus=99")
     assert_equal DEFAULT_KEYS.merge(:next => 88, :prev => 1), PokeAccess::Config.keys

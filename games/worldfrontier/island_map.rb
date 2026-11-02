@@ -38,4 +38,5 @@ PokeAccess::Game.define("worldfrontier") do
   after("IslaDesafioMapScene", :show_loading) do |_scene, _r, _a|
     PokeAccess.speak_clean(_INTL("Abriendo el mapa de la isla..."), true)
   end
+  clear_info_on("IslaDesafioMapScene", :pbEndScene)
 end

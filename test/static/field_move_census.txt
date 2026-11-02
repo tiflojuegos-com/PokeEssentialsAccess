@@ -51,6 +51,12 @@ desolation|pbStrength|HiddenMoves.rb:381|||STRENGTH,switch:Stop_Icycle_Falling
 desolation|pbSurf|HiddenMoves.rb:445|||SURF,switch:Cant_Surf,switch:Surf_Convenience
 desolation|pbWaterfall|HiddenMoves.rb:623||pbWaterfallDialogue|
 desolation|pbWaterfallDialogue|HiddenMoves.rb:629|||WATERFALL,switch:Waterfall_Convenience
+edas|pbCut|0105_PField_HiddenMoves.rb:269|||CUCHILLADAASTRAL,CUT,LEAFBLADE,NIGHTSLASH,SLASH
+edas|pbDive|0105_PField_HiddenMoves.rb:714|||DIVE
+edas|pbRockSmash|0105_PField_HiddenMoves.rb:385|||ROCKSMASH
+edas|pbStrength|0105_PField_HiddenMoves.rb:435|||STRENGTH
+edas|pbSurf|0105_PField_HiddenMoves.rb:495|||BICYCLE
+edas|pbWaterfall|0105_PField_HiddenMoves.rb:656|||WATERFALL
 emerald|pbCut|244_Overworld_FieldMoves.rb:176|||CUT
 emerald|pbDive|244_Overworld_FieldMoves.rb:277|||DIVE
 emerald|pbDive|_PluginScripts/Following Pokemon EX/013_Script Additions_Field Moves.rb:55||__followingpkmn__pbDive|DIVE
@@ -115,6 +121,13 @@ opalo|pbStrength|102_PField_HiddenMoves.rb:431|||STRENGTH
 opalo|pbSurf|102_PField_HiddenMoves.rb:491|||SURF
 opalo|pbSurf|189_Following.rb:866|||SURF,switch:Following_Activated_Switch
 opalo|pbWaterfall|102_PField_HiddenMoves.rb:646|||WATERFALL
+perseida|pbCut|0108_PField_HiddenMoves.rb:269|||switch:JOYA_NARANJA
+perseida|pbDive|0108_PField_HiddenMoves.rb:703|||DIVE
+perseida|pbRockSmash|0108_PField_HiddenMoves.rb:378|||BRAZALFUERZA,ROCKSMASH
+perseida|pbStrength|0108_PField_HiddenMoves.rb:428|||STRENGTH
+perseida|pbSurf|0108_PField_HiddenMoves.rb:488|||SURF
+perseida|pbSurf|0317_Pokemon_Followpoke_Bezier.rb:1926|||SURF,switch:JOYA_TURQUESA
+perseida|pbWaterfall|0108_PField_HiddenMoves.rb:645|||WATERFALL
 realidea|pbCut|0103_PField_HiddenMoves.rb:273|||switch:142
 realidea|pbDive|0103_PField_HiddenMoves.rb:679|||DIVE
 realidea|pbRockSmash|0103_PField_HiddenMoves.rb:370|||
@@ -204,6 +217,14 @@ uranium|pbRockSmash|0103__ PField_HiddenMoves.rb:385|||BOXINGGLOVES,ROCKSMASH
 uranium|pbStrength|0103__ PField_HiddenMoves.rb:497|||POWERCELL,POWERGLOVE,STRENGTH
 uranium|pbSurf|0103__ PField_HiddenMoves.rb:575|||SURF,SURFBOARD
 uranium|pbWaterfall|0103__ PField_HiddenMoves.rb:754|||CLIMBINGPICK,WATERFALL
+vitro|pbCut|0121_PField_HiddenMoves.rb:270|||SLASH
+vitro|pbCut|0318_MO Mejoradas.rb:114|||EMBER,SLASH
+vitro|pbDive|0121_PField_HiddenMoves.rb:821|||DIVE
+vitro|pbRockSmash|0121_PField_HiddenMoves.rb:396|||ROCKSMASH
+vitro|pbStrength|0121_PField_HiddenMoves.rb:446|||STRENGTH,SUPERPOWER
+vitro|pbSurf|0121_PField_HiddenMoves.rb:526|||SURF
+vitro|pbSurf|0362_Pokemon_Followpoke_Bezier.rb:1858|||WATERFALL
+vitro|pbWaterfall|0121_PField_HiddenMoves.rb:763|||WATERFALL
 worldfrontier|pbCut|0255_Overworld_FieldMoves.rb:181|||CUT
 worldfrontier|pbDive|0255_Overworld_FieldMoves.rb:282|||DIVE
 worldfrontier|pbDive|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:110||__followingpkmn__pbDive|DIVE

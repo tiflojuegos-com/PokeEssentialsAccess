@@ -38,11 +38,8 @@ module PokeAccess
 end
 
 # start_scene paints the whole screen, then fades it in; the egg is a sprite with no text, found among the sprites.
-PokeAccess::Hooks.around_hook("DayCareChecker::Scene", :start_scene, :optional => true) do |scene, nxt, _a|
-  r = nil
-  pairs = PokeAccess::PaintCapture.sample { r = nxt.call }
+PokeAccess::Hooks.on_paint("DayCareChecker::Scene", :start_scene, :optional => true) do |scene, pairs, _a|
   PokeAccess::FLDayCare.opened(scene, pairs)
-  r
 end
 
-PokeAccess::Hooks.before_hook("DayCareChecker::Scene", :end_scene, :optional => true) { |_scene, _a| PokeAccess::Info.clear_text }
+PokeAccess::Hooks.clear_info_on("DayCareChecker::Scene", :end_scene)

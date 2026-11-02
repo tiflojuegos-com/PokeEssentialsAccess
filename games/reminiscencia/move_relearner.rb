@@ -69,4 +69,5 @@ PokeAccess::Game.define("reminiscencia") do
   after("MoveRelearnerScene", :pbDrawMoveList) do |scene, _result, _args|
     PokeAccess::ReminMoveRelearner.sync_info(scene)
   end
+  clear_info_on("MoveRelearnerScene", :pbEndScene)
 end

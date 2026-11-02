@@ -57,6 +57,25 @@ class DialoguePagesTest < PokeAccessTest
     assert_equal [["Primera línea.", true], ["Segunda página.", true]], SpeakCapture.log
   end
 
+  test "a page asking for a key says it as the player has it now, and a copy of the message is still skipped" do
+    was = PokeAccess::Config.key_hint_letters
+    PokeAccess::Config.key_hint_letters = { "M" => :c }
+    PokeAccess::Config.rebinds = { :c => 0x51 }
+    begin
+      win = follow("Puedes pulsar M.", "Puedes pulsar M.")
+      win.draw_all
+      Pages.poll
+      assert_equal ["Puedes pulsar Q."], SpeakCapture.lines
+      assert_equal "Puedes pulsar Q.", PokeAccess.last_dialogue
+      copy = follow("Puedes pulsar M.", "Puedes pulsar M.")
+      copy.draw_all
+      Pages.poll
+      assert_nothing_spoken
+    ensure
+      PokeAccess::Config.key_hint_letters = was
+    end
+  end
+
   test "says nothing while the window is still drawing a page" do
     win = follow("Primera línea. Segunda página.", "Primera línea.\1Segunda página.")
     win.draw_to(7)

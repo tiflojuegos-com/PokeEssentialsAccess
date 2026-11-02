@@ -51,4 +51,5 @@ end
 
 PokeAccess::Game.define("soulstones1") do
   after("EncounterListUI_withforms", :getEncData) { |s, _r, _a| PokeAccess::Soulstones1Encounters.read(s) }
+  clear_info_on("EncounterListUI_withforms", :dispose)
 end

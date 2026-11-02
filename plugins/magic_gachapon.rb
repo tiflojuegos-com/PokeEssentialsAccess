@@ -139,10 +139,15 @@ module PokeAccess
       sel = PokeAccess.ivar(scn, :@banner_sel).to_i
       b = (PokeAccess.ivar(scn, :@banners) || [])[sel]
       d = (b.description rescue nil)
-      PokeAccess.speak_clean(d.to_s, true)
+      PokeAccess.speak_clean(description(d.to_s), true)
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
+    end
+
+    # A banner's description as it is said. A game whose copy marks it up in its own way rewrites it from its profile.
+    def self.description(text)
+      text
     end
   end
 end

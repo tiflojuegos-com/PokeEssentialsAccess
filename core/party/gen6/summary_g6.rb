@@ -68,12 +68,13 @@ module PokeAccess
     # The stats page: current/max hp, the five stats, the nature's effect its label colours show, and the
     # ability, with the description where the page writes it under it.
     # param painted the strings the page painted, or nil when it was not captured
-    def self.stats_text(pk, painted = nil)
+    # param more sentences a page of its own adds beside the stats, after the profile's stats_extras
+    def self.stats_text(pk, painted = nil, more = nil)
       return nil unless pk
       t = PokeAccess::I18n.t(:sm_stats) + ". " + PokeAccess::I18n.t(:sum_stats, :hp => pk.hp, :tot => pk.totalhp,
             :atk => pk.attack, :def => pk.defense, :spa => pk.spatk, :spd => pk.spdef, :spe => pk.speed)
-      extra = (stats_extras(pk) rescue [])
-      t += " " + extra.join(" ") unless extra.nil? || extra.empty?
+      extra = Array((stats_extras(pk) rescue [])) + Array(more)
+      t += " " + extra.join(" ") unless extra.empty?
       nat = PokeAccess::Summary.nature_effect_line(pk)
       t += " " + nat if nat
       ab = PokeAccess::Summary.ability_line(pk, painted)
@@ -172,6 +173,24 @@ module PokeAccess
       args[0] || PokeAccess.ivar(scene, :@pokemon)
     end
 
+    # Page one on arrival. The egg capture is taken whichever the page, so it does not stay armed; then, unless the
+    # profile reads page one itself, the egg page, or the data sheet with the dex number and trainer ID the page
+    # painted, a Shadow Pokemon's heart paragraph, the sentences a page of its own adds and the key hints it painted.
+    # param more sentences a page of its own adds after the sheet
+    def self.info_page(scene, pk, more = nil)
+      pairs = PokeAccess::PaintCapture.take_pairs(:summary_egg)
+      return if PokeAccess::Summary.single_page
+      PokeAccess::Summary.say_egg_page(scene, pk, pairs)
+      return if PokeAccess::Summary.egg?(pk)
+      dex = PokeAccess::Summary.painted_dex_number(pairs)
+      heart = PokeAccess::Summary.heart_of(pk, pairs.select { |r| r[1] == :formatted }.map { |r| r[0] })
+      t = PokeAccess::Info.summary_text(pk, dex, PokeAccess::Summary.painted_trainer_id(pairs))
+      t = "#{t} #{heart}" if t && heart
+      t = "#{t} #{Array(more).join(' ')}" if t && !Array(more).empty?
+      t = PokeAccess::Summary.with_hints(t, pairs.map { |r| r[0] })
+      PokeAccess::Summary.speak_page(scene, pk, 1, t, true)
+    end
+
     # A move-detail redraw as [pokemon, move id], from (pokemon, moveToLearn, moveid[, flag]) or Awakening's
     # (moveToLearn, moveid), whose Pokemon comes from the scene.
     def self.selected_move(scene, args)
@@ -188,20 +207,8 @@ end
 
 # Info page: the data sheet, or the egg page. Skipped under Summary.single_page, whose profile reads it, but the
 # egg capture is still taken so it does not stay armed.
-PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageOne) do |s, _r, args|
-  pk = PokeAccess::SummaryGen6.subject(s, args)
-  pairs = PokeAccess::PaintCapture.take_pairs(:summary_egg)
-  unless PokeAccess::Summary.single_page
-    PokeAccess::Summary.say_egg_page(s, pk, pairs)
-    unless PokeAccess::Summary.egg?(pk)
-      dex = PokeAccess::Summary.painted_dex_number(pairs)
-      heart = PokeAccess::Summary.heart_of(pk, pairs.select { |r| r[1] == :formatted }.map { |r| r[0] })
-      t = PokeAccess::Info.summary_text(pk, dex, PokeAccess::Summary.painted_trainer_id(pairs))
-      t = "#{t} #{heart}" if t && heart
-      t = PokeAccess::Summary.with_hints(t, pairs.map { |r| r[0] })
-      PokeAccess::Summary.speak_page(s, pk, 1, t, true)
-    end
-  end
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageOne, :optional => true) do |s, _r, args|
+  PokeAccess::SummaryGen6.info_page(s, PokeAccess::SummaryGen6.subject(s, args))
 end
 
 # The egg page where drawPage calls drawPageOneEgg directly (Awakening); called from inside drawPageOne, this
@@ -217,10 +224,10 @@ end
 
 # The memo page, read as painted (a game's own ways of meeting a Pokemon included); composed by memo_text where
 # nothing was painted.
-PokeAccess::Hooks.before_hook(PokeAccess::SummaryGen6::SCENE, :drawPageTwo) do |_s, _a|
+PokeAccess::Hooks.before_hook(PokeAccess::SummaryGen6::SCENE, :drawPageTwo, :optional => true) do |_s, _a|
   PokeAccess::PaintCapture.arm(:summary_memo6)
 end
-PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageTwo) do |s, _r, args|
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageTwo, :optional => true) do |s, _r, args|
   painted = PokeAccess::PaintCapture.take(:summary_memo6, :formatted)
   pk = PokeAccess::SummaryGen6.subject(s, args)
   PokeAccess::Summary.speak_page(s, pk, 2, PokeAccess::Summary.painted_memo(painted) || PokeAccess::SummaryGen6.memo_text(pk))
@@ -228,17 +235,17 @@ end
 
 # Summary stats page (the five stats and ability), captured so the ability's description is said only where
 # the page writes it.
-PokeAccess::Hooks.before_hook(PokeAccess::SummaryGen6::SCENE, :drawPageThree) do |_s, _a|
+PokeAccess::Hooks.before_hook(PokeAccess::SummaryGen6::SCENE, :drawPageThree, :optional => true) do |_s, _a|
   PokeAccess::PaintCapture.arm(:summary_stats)
 end
-PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageThree) do |s, _r, args|
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageThree, :optional => true) do |s, _r, args|
   painted = PokeAccess::PaintCapture.take(:summary_stats)
   pk = PokeAccess::SummaryGen6.subject(s, args)
   PokeAccess::Summary.speak_page(s, pk, 3, PokeAccess::Summary.with_hints(PokeAccess::SummaryGen6.stats_text(pk, painted), painted))
 end
 
 # Summary moves page (drawPageFour lists the four moves): read them on arrival.
-PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFour) do |s, _r, args|
+PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFour, :optional => true) do |s, _r, args|
   pk = PokeAccess::SummaryGen6.subject(s, args)
   PokeAccess::Summary.speak_page(s, pk, 4, PokeAccess::Summary.moves_text(pk))
 end
@@ -280,3 +287,4 @@ end
 PokeAccess::Hooks.before_hook(PokeAccess::SummaryGen6::SCENE, :pbChooseMoveToForget) do |scene, args|
   PokeAccess.speak(PokeAccess::SummaryGen6.forget_prompt(scene, args[0]), false)
 end
+PokeAccess::Hooks.clear_info_on(PokeAccess::SummaryGen6::SCENE, :pbEndScene)

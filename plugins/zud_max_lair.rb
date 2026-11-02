@@ -615,15 +615,8 @@ end
 PokeAccess::Hooks.after_hook("MaxLairEventScene", :pbDrawStatScreen, :optional => true) do |scene, _r, args|
   PokeAccess::ZudLairMenus.drawn(scene, args[0])
 end
-PokeAccess::Hooks.around_hook("MaxLairEventScene", :pbDrawTutorScreen, :optional => true) do |scene, nxt, args|
-  ret = nil
-  rows = PokeAccess::PaintCapture.sample { ret = nxt.call }
-  begin
-    PokeAccess::ZudLairMenus.tutor_panel(scene, args[0], args[1], rows)
-  rescue StandardError => e
-    PokeAccess.swallowed(e)
-  end
-  ret
+PokeAccess::Hooks.on_paint("MaxLairEventScene", :pbDrawTutorScreen, :optional => true) do |scene, rows, args|
+  PokeAccess::ZudLairMenus.tutor_panel(scene, args[0], args[1], rows)
 end
 # The menus' paint, looked at only while the treasure or record screen is open.
 PokeAccess::Hooks.wrap_kernel("pbDrawTextPositions", "plugin_zud_lair_pbDrawTextPositions", :before) do |args, _r|
@@ -634,3 +627,5 @@ PokeAccess::Frame.each_pulse do
   PokeAccess::ZudLairMap.poll
   PokeAccess::ZudLairMenus.poll
 end
+PokeAccess::Hooks.clear_info_on("LairMapScene", :pbEndScene)
+PokeAccess::Hooks.clear_info_on("MaxLairEventScene", :pbEndScene)

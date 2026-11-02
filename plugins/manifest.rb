@@ -8,6 +8,7 @@
   :spin_tiles          => "PokemonGlobalMetadata#spinning",
   :item_crafting     => "ItemCraft_Scene",
   :gender_selection  => "PokemonGenderSelection",
+  :bw_gender_selector => "GenderSelectorScene",
   :text_log          => "Log",
   :incubator         => "Incubadora",
   :challenge_rules   => "Window_CommandPokemon_Challenge",
@@ -24,6 +25,23 @@
   :summary_habilidades => "PokemonSummaryScene#Habilidades",
   # A method probe: the six-page summary extends the stock gen-6 scene, and only it draws a sixth page.
   :summary_six_pages => "PokemonSummaryScene#drawPageSix",
+  # A method probe: the stock gen-6 summary draws drawPageOne to drawPageFive; only Essentials BES rewrote them as
+  # drawPageInfo and its sisters.
+  :bes_summary       => "PokemonSummaryScene#drawPageInfo",
+  :bes_battle_info   => "BattleInfoScene",
+  :bes_move_info     => "MoveInfoScene",
+  # A method probe: Rejuvenation's fight menu has the Z-Move and Tera buttons too, and only BES's has the Dynamax one.
+  :bes_battle        => "FightMenuDisplay#dynaButton",
+  # A method probe: the stock bag paints no machine card.
+  :bes_bag           => "PokemonBag_Scene#drawTMInfo",
+  # La Base de Sky, another fork games build on. Its marker, for what it paints with no class of its own; the rest by
+  # their own classes, which Pokemon Z's edited trainer sensor and animated picture share, read in its profile.
+  :sky_base          => "LBDSKY",
+  :sky_trainer_sensor => "TrainerSensor",
+  :sky_damage_numbers => "DamageNumberSettings",
+  :sky_animated_pokemon => "MostrarPokemonAnimado",
+  # A method probe: the fork's map scene is the stock one, with an icon for each roaming Pokemon added.
+  :bes_region_map    => "PokemonRegionMapScene#drawRoamingPosition",
   :book_scene        => "BookScene",
   :bag_search_entry  => "WindowTextEntryKeyboardPerKey",
   # A method probe on an engine class: the fork adds favourite? to the bag every game has.
@@ -35,6 +53,8 @@
   :voltseon_pausemenu => "VoltseonsPauseMenu",
   :modular_pokemon_selection => "ModularSelection_Scene",
   :simple_encounter_list => "EncounterListUI",
+  # A method probe: the paged version of the same window, with its own class name unchanged.
+  :encounter_pages   => "EncounterListUI#loadCurrentPage",
   :magic_gachapon    => "GachaScene",
   :slide_banners     => "Scene_Map#addSprite",
   # The DBK readers probe a method the kit adds to a vanilla battle class, which alone would match every game.
@@ -81,6 +101,9 @@
   :storage_utilities => "StorageGrabber",
   :pwt               => "AdvancedWorldTournament",
   :advanced_pokedex  => "PokemonPokedexInfo_Scene#displaySubPage",
+  # FL's older Advanced Pokedex, a scene of its own: Pokemon Z edits its copy and Rejuvenation rewrites it, and each
+  # reads its own.
+  :advanced_pokedex_v16 => "AdvancedPokedexScene",
   :arcky_region_map  => "PokemonRegionMap_Scene#updateSpeciesInfo",
   # The payout-table window, not the scene, which the census would key on a bare "Scene"; written qualified
   # for the runtime gate, which resolves it segment by segment.
@@ -162,5 +185,9 @@
   :contest_hall      => "ContestHall",
   :pokesearch        => "PokeSearch_Scene",
   :modular_menu      => "ModularMenu",
-  :boons_phenomena   => "Phenomenon"
+  :boons_phenomena   => "Phenomenon",
+  # A method probe: the boss lives script reopens the stock battle scene and battler and brings no class of its own.
+  :battle_lives      => "PokeBattle_Scene#pbBreakBar",
+  # A method probe: the gen-6 copies of the side stairs alias the stock moves under this name; the v19 port does not.
+  :boon_side_stairs  => "Game_Player#move_left_stairs"
 }

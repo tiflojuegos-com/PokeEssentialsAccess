@@ -11,6 +11,55 @@ class KeyboardTest < PokeAccessTest
   GAME_THREAD = 77
   GAME_HKL = 0x080A080A
 
+  test "a key with Alt held is a code of its own, which gives its key back" do
+    code = Keyboard.with_alt(K)
+    assert_equal [true, false, K, K], [Keyboard.alt_code?(code), Keyboard.alt_code?(K), Keyboard.key_of(code), Keyboard.key_of(K)]
+  end
+
+  test "reads a key named as a profile names it" do
+    { "M" => 0x4D, "5" => 0x35, "F6" => 0x75, "F12" => 0x7B, "Alt+M" => Keyboard.with_alt(0x4D),
+      "Alt+F6" => Keyboard.with_alt(0x75), 0x4E => 0x4E }.each do |spec, want|
+      assert_equal want, Keyboard.code_for(spec), spec.inspect
+    end
+    assert_nil Keyboard.code_for(nil)
+  end
+
+  test "a key with Alt is pressed on the frame its key goes down with Alt held, and a key alone with Alt or without" do
+    with_keys do
+      alt = Keyboard::VK_ALT
+      code = Keyboard.with_alt(K)
+      frame(K)
+      assert_equal [false, true], [Keyboard.code_pressed?(code), Keyboard.code_pressed?(K)]
+      frame
+      frame(alt)
+      assert_equal false, Keyboard.code_pressed?(code)
+      frame(alt, K)
+      assert_equal [true, true], [Keyboard.code_pressed?(code), Keyboard.code_pressed?(K)]
+      frame(alt, K)
+      assert_equal false, Keyboard.code_pressed?(code)
+    end
+  end
+
+  test "a key held before Alt, asked about each frame, is no press with Alt" do
+    with_keys do
+      never_asked(K)
+      code = Keyboard.with_alt(K)
+      frame(K)
+      assert_equal false, Keyboard.code_pressed?(code)
+      frame(Keyboard::VK_ALT, K)
+      assert_equal false, Keyboard.code_pressed?(code)
+    end
+  end
+
+  test "Alt is held for a key with it unless Ctrl is too, as AltGr holds both" do
+    with_keys do
+      frame(Keyboard::VK_ALT)
+      assert_equal true, Keyboard.alt_held?
+      frame(Keyboard::VK_ALT, Keyboard::VK_CONTROL)
+      assert_equal false, Keyboard.alt_held?
+    end
+  end
+
   test "a key is pressed only on the frames it goes down" do
     got = with_keys { [[], [K], [K], [], [K]].map { |held| frame(*held); Keyboard.pressed?(K) } }
     assert_equal [false, true, false, false, true], got

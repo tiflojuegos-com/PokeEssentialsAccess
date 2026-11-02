@@ -35,7 +35,8 @@ number of games that show it. Use it before [Add a reader](add-a-reader.md) or
 | Stock Essentials, alike in every era | `core/<subsystem>/` |
 | Stock Essentials of one era | `core/<subsystem>/gen6/`, `v21/` or `v22/` |
 | A third-party plugin, unedited | `plugins/<name>.rb`, with its probe in `plugins/manifest.rb` |
-| A saga, an author or a derived engine several games share | a shared profile, `games/<name>_common/` |
+| A fork of Essentials that games build on | `plugins/<fork>_<screen>.rb`, each with its probe in `plugins/manifest.rb` |
+| A saga, an author or an engine no game outside them uses | a shared profile, `games/<name>_common/` |
 | The game's own screen, or its old or edited copy of a plugin | the game's profile, `games/<profile>/` |
 
 ## Stock screens
@@ -58,20 +59,28 @@ number of games that show it. Use it before [Add a reader](add-a-reader.md) or
   [probe](../reference/glossary.md) identifies, and another game may ship it.
 - The [generic profile](../reference/glossary.md) loads the reader in any game that has the probe; a game's own
   profile declares it under `:plugins`.
+- A public fork of Essentials that anyone can build a game on is read the same way, however few surveyed games use it:
+  a game made with it needs no profile for what the fork brings. The fork's screens that stock Essentials also has are
+  read by the `core/` readers.
+  - Essentials BES, a Spanish fork of v16.2 with a rebuilt interface, has among others `plugins/bes_summary.rb`,
+    `bes_battle_info.rb`, `bes_move_info.rb`, `bes_battle.rb`, `bes_bag.rb` and `bes_region_map.rb`, each probed by a
+    class or method that only the fork defines.
+  - La Base de Sky has `plugins/sky_trainer_sensor.rb`, `sky_damage_numbers.rb` and `sky_animated_pokemon.rb`, probed by
+    the classes they read, and `sky_base.rb`, probed by the fork's `LBDSKY` marker, for what it paints with no class of
+    its own.
 
 ## Shared profiles
 
-- A reader of a screen that the games of one saga, one author or one derived engine share lives in a shared profile,
-  `games/<name>_common/`, which each of those profiles imports with `:imports`. `test/static/imports_test.rb` fails a
+- A reader of a screen that the games of one saga, one author or one engine of their own share lives in a shared
+  profile, `games/<name>_common/`, which each of those profiles imports with `:imports`. `test/static/imports_test.rb` fails a
   file copied between two playable profiles, even when the copies differ only in their profile names.
 - A shared profile has no catalog entry and imports no other one, and some playable profile imports it. The loader
   evaluates its modules after the plugin readers and before the importing profile's own modules; the launcher installs
   it in `accessibility/common/<name>/`.
-- `games/lostie_common/` holds what Pokémon Z and Ópalo share, `games/skyflyer_common/` what the games built on La
-  Base de Sky share (Añil, Royal and World Frontier, on the [Sky fork](../reference/glossary.md), and Revival, on an
-  earlier release of the base), `games/royal_common/` what Royal and World Frontier share, and
-  `games/infinitefusion_common/` what the two Infinite Fusion games share.
-- A derived engine that a saga shares belongs to the saga: its readers go to the shared profile, and it adds no
+- `games/lostie_common/` holds what Pokémon Z and Ópalo share, `games/royal_common/` what Royal and World Frontier share,
+  `games/infinitefusion_common/` what the two Infinite Fusion games share, and `games/clara_common/` what Clara Dragon's
+  games share.
+- An engine only one saga uses belongs to the saga: its readers go to the shared profile, and it adds no
   [engine era](../reference/glossary.md). The engine of Reborn, Rejuvenation and Desolation lives in
   `games/rv_common/`, which registers its data provider with `PokeAccess::Data.register`.
 
@@ -79,8 +88,9 @@ number of games that show it. Use it before [Add a reader](add-a-reader.md) or
 
 - A screen only the game has goes to its profile, even when its reader reads no argument.
 - So does a plugin the game edited. Drimer's Trainer Sensor as Pokémon Z edits it is read by
-  `games/pokemon_z/trainer_sensor.rb`; as La Base de Sky edits it, and World Frontier edits it again, by
-  `games/skyflyer_common/trainer_sensor.rb`.
+  `games/pokemon_z/trainer_sensor.rb`. The copy La Base de Sky ships is the fork's, read by
+  `plugins/sky_trainer_sensor.rb`, whose reader also holds for World Frontier's edit of it: an edit that changes nothing
+  the reader reads needs no reader of its own.
 - A profile changes what a core reader does with `override`. `test/static/coupling_test.rb` fails a profile that
   reopens a core module other than `PokeAccess::Config`.
 

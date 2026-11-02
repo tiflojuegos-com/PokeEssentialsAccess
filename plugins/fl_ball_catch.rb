@@ -191,17 +191,11 @@ module PokeAccess
   end
 end
 
-PokeAccess::Hooks.around_hook("BallCatch::Scene", :pbStartScene, :optional => true) do |scene, nxt, _a|
-  r = nil
-  rows = PokeAccess::PaintCapture.sample { r = nxt.call }
+PokeAccess::Hooks.on_paint("BallCatch::Scene", :pbStartScene, :optional => true) do |scene, rows, _a|
   PokeAccess::FLBallCatch.opened(scene, rows)
-  r
 end
-PokeAccess::Hooks.around_hook("BallCatch::Scene", :applyCollisions, :optional => true) do |scene, nxt, _a|
-  r = nil
-  rows = PokeAccess::PaintCapture.sample { r = nxt.call }
+PokeAccess::Hooks.on_paint("BallCatch::Scene", :applyCollisions, :optional => true) do |scene, rows, _a|
   PokeAccess::FLBallCatch.frame(scene, rows)
-  r
 end
 PokeAccess::Hooks.before_hook("BallCatch::Scene", :pbEndScene, :optional => true) do |scene, _a|
   PokeAccess::FLBallCatch.finished(scene)

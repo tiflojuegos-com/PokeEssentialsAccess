@@ -103,6 +103,7 @@ PokeAccess::Hooks.around_hook("Logros_Scene", :pbUpdate, :optional => true) do |
       call_next.call
     ensure
       PokeAccess::LogrosIndexed.unwatch
+      PokeAccess::Info.clear_text
     end
   else
     call_next.call

@@ -76,3 +76,4 @@ end
 PokeAccess::Hooks.before_hook(PokeAccess::SummaryV21::SCENE, :pbChooseMoveToForget) do |scene, args|
   PokeAccess.speak(PokeAccess::SummaryV21.forget_prompt(scene, args[0]), false)
 end
+PokeAccess::Hooks.clear_info_on(PokeAccess::SummaryV21::SCENE, :pbEndScene)

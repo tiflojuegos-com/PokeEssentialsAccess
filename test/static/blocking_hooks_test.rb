@@ -7,11 +7,9 @@ class BlockingHooksTest < PokeAccessTest
   CENSUS = File.join(ReaderSites::ROOT, "test", "static", "loop_census.txt")
   UNRESOLVED_CEILING = 44
   # The rows no dump can corroborate, by name so a new one needs its reason here: royal's Puntos scene defines
-  # pbChangeSelection but not updateDescription, hence both bound :optional. The rest are generic-only readers whose
-  # scripts only reference copies hold (_refmods), checked by hand there: moveCursor, redrawSelector and update_clock
-  # place sprites and return; drawIcons runs the ring's fixed-length turn and returns.
-  KNOWN_NO_DUMP = ["PokemonOptionPuntos_Scene#updateDescription", "BlocUnownScene#moveCursor", "Menu2#drawIcons",
-                   "Menu2#redrawSelector", "WallClockScene#update_clock"].freeze
+  # pbChangeSelection but not updateDescription, hence both bound :optional. update_clock belongs to a generic-only
+  # reader whose script only reference copies hold (_refmods), checked by hand there: it places sprites and returns.
+  KNOWN_NO_DUMP = ["PokemonOptionPuntos_Scene#updateDescription", "WallClockScene#update_clock"].freeze
   # The DSL's own definitions as core/foundation/game.rb writes them: a computed class and method on each.
   GAME_DSL_AFTER = "def after(cname, meth, opts = {}, &blk); PokeAccess::Hooks.after_hook(cname, meth, opts, &blk); end"
   GAME_DSL_READ_ON_OPEN = "def read_on_open(cname, meth = :pbStartScene, opts = {}, &blk); " \
@@ -34,16 +32,13 @@ class BlockingHooksTest < PokeAccessTest
                          PokeAccess::SummaryV21::SCENE#pbUpdate PokedexFormScene#pbUpdate
                          PokemonChallenges_Scene#pbUpdate PokemonCharacterGridEntryScene#pbUpdate
                          PokemonEntryScene2#pbUpdate PokemonHatView#update
-                         PokemonMGift_Scene#pbUpdate PokemonMenu_Scene#update PokemonPauseMenu_Scene#update
+                         PokemonMGift_Scene#pbUpdate PokemonMenu2_Scene#update PokemonMenu_Scene#update PokemonPauseMenu_Scene#update
                          PokemonPokegearTheme_Scene#pbUpdate
                          PokemonPokegear_Scene#pbUpdate PokemonReadyMenu_Scene#pbUpdate PokemonSummaryScene#pbUpdate
                          PokemonSummary_Scene#pbUpdate Pokemon_Achievements_Scene#update QuestInfo_Scene#pbUpdate
                          RSESTarterChoice#pbUpdate Scene_Leaf#update SecretBaseMart_Scene#update SlotMachineScene#update
                          SpeciesTypeMatch_Scene#pbUpdate TeamPreview_Scene#update TilePuzzleScene#update
-                         cname#update],
-    # Reminiscencia's party screen keeps the info key for the game while it runs: its update only refreshes sprites,
-    # and the party panels speak from selected=, which the selection loop calls outside it.
-    :sprites_only => %w[PokemonScreen_Scene#update]
+                         cname#update]
   }.freeze
   # An after-style hook on update or pbUpdate: the class as written, the method and the rest of the line.
   DRIVER_HOOK = /(?:Hooks\.after_hook|\A\s*after)\(\s*("[^"]+"|[A-Za-z_][\w:]*)\s*,\s*:(update|pbUpdate)\b(.*)/

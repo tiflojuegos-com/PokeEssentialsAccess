@@ -8,4 +8,10 @@ PokeAccess::Game.define("insurgence") do
   # Its overworld weathers are RPG Maker's weather types with sandstorm at 4 and sun at 5, as pbPrepareBattle
   # carries them into battle (086_PokemonField.rb); it has no PBFieldWeather, whose 4 and 5 the core reads.
   names(:field_weather_names, 4 => :w_sandstorm, 5 => :w_sun)
+
+  # M and T are the mod's coordinates and info keys; by default its Input moves Speed-Up (Input::I, 167_Turbo) to M and
+  # the fourth registered item (Input::T, 021_Scene_Map) to T.
+  remap_extra(:ins_speed, 0x4D, :ins_key_m, :button => :I)
+  remap_extra(:ins_item4, 0x54, :ins_key_t, :button => :T)
+  key_defaults(:ins_speed => "Alt+M", :ins_item4 => "Alt+T")
 end

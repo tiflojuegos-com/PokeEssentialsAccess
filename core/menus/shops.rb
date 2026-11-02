@@ -81,3 +81,6 @@ end
 PokeAccess::Hooks.after_hook("Window_AdvancedTextPokemon", :text=, :optional => true) do |w, _r, args|
   PokeAccess::Shops.prompt_text(w, args[0])
 end
+PokeAccess::Engine.scene_classes("PokemonMartScene", "PokemonMart_Scene").each do |cls|
+  [:pbEndBuyScene, :pbEndSellScene].each { |meth| PokeAccess::Hooks.clear_info_on(cls, meth) }
+end

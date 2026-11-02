@@ -22,10 +22,7 @@ PokeAccess::Game.define("reminiscencia") do
   around("Poffin", :drawTextAnnouncement, :optional => true) do |_s, nxt, _a|
     PokeAccess::PaintCapture.speak_around(:rem_pokocho_warn, true) { nxt.call }
   end
-  around("Poffin", :showResult, :optional => true) do |scene, nxt, _a|
-    ret = nil
-    pairs = PokeAccess::PaintCapture.sample { ret = nxt.call }
+  on_paint("Poffin", :showResult, :optional => true) do |scene, pairs, _a|
     PokeAccess::ReminPokocho.results(scene, pairs)
-    ret
   end
 end

@@ -11,7 +11,7 @@ module PokeAccess
         :master => ["PA3D_Master", ["i"], "v"], :rate => ["PA3D_Rate", [], "i"], :latency => ["PA3D_Latency", [], "i"],
         :occl => ["PA3D_Occl", ["i", "i"], "v"], :air => ["PA3D_Air", ["i"], "v"],
         :pitch => ["PA3D_Pitch", ["i", "i"], "v"], :range => ["PA3D_Range", ["i"], "v"],
-        :hrtf => ["PA3D_Hrtf", ["i"], "v"]
+        :output => ["PA3D_Output", ["i"], "i"], :device_channels => ["PA3D_DeviceChannels", [], "i"]
       }
       # The entry points the engine cannot run without.
       NEEDED = [:init, :channel, :listener, :set, :master]

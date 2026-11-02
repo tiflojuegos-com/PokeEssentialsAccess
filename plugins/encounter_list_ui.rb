@@ -61,3 +61,4 @@ PokeAccess::Hooks.after_hook("EncounterList_Scene", :drawPresent, :optional => t
 PokeAccess::Hooks.after_hook("EncounterList_Scene", :drawAbsent, :optional => true) do |_s, _r, _a|
   PokeAccess.speak(PokeAccess::I18n.t(:enc_none, :loc => ($game_map.name rescue nil).to_s), true)
 end
+PokeAccess::Hooks.clear_info_on("EncounterList_Scene", :pbEndScene)

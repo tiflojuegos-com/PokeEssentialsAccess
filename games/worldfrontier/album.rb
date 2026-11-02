@@ -126,4 +126,6 @@ PokeAccess::Game.define("worldfrontier") do
   # Back from a card the grid repaints: its trainer is said again, queued.
   before("AlbumEntrenadores_Scene", :open_detail) { |scene, _a| PokeAccess::Cursor.reset(scene, :wf_album) }
   after("AlbumEntrenadores_DetailScene", :refresh) { |scene, _r, _a| PokeAccess::WfAlbum.card(scene) }
+  clear_info_on("AlbumEntrenadores_Scene", :pbEndScene)
+  clear_info_on("AlbumEntrenadores_DetailScene", :dispose)
 end

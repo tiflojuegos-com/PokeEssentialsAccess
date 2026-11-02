@@ -160,10 +160,8 @@ PokeAccess::Game.define("infinitefusion_hoenn") do
     end
   end
 
-  around("FusionMovesOptionsScene", :draw_pokemon_info) do |scene, nxt, _a|
-    ret = nil
-    rows = PokeAccess::PaintCapture.sample { ret = nxt.call }
+  on_paint("FusionMovesOptionsScene", :draw_pokemon_info) do |scene, rows, _a|
     PokeAccess::HoennFusionMoves.stats_painted(scene, rows)
-    ret
   end
+  clear_info_on("FusionMovesOptionsScene", :pbEndScene)
 end

@@ -11,7 +11,7 @@ end
 # line, over the method above.
 mui_path = File.join(Harness::ROOT, "plugins", "enhanced_pokemon_ui.rb")
 mui_src = Harness.source(mui_path)
-mui_at = mui_src.index(/^PokeAccess::Hooks\.around_hook\("PokemonSummary_Scene", :pbLegacyMenu/)
+mui_at = mui_src.index(/^PokeAccess::Hooks\.(?:around_hook|on_paint)\("PokemonSummary_Scene", :pbLegacyMenu/)
 eval(mui_src[mui_at..-1][/\A.*?^end\r?\n/m], TOPLEVEL_BINDING, mui_path, mui_src[0, mui_at].count("\n") + 1)
 
 class EnhancedPokemonUiGdTest < PokeAccessTest

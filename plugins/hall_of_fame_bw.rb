@@ -152,3 +152,5 @@ PokeAccess::Hooks.after_hook("HallDeLaFama", :create_gen5_final_windows, :option
 end
 
 PokeAccess::Verbosity.define_reading(:hall_of_fame, :vb_hall_of_fame, :vbh_hall_of_fame, :game)
+PokeAccess::Hooks.clear_info_on("HallOfFameViewerScene", :pbEndScene)
+PokeAccess::Hooks.clear_info_on("HallDeLaFama", :dispose)

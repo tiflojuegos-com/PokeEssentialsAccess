@@ -52,7 +52,7 @@ class BagPartyPanelGdTest < PokeAccessTest
   T = PokeAccess::I18n
   BAG = PokeAccess::BagParty
   PATH = File.join(Harness::ROOT, "plugins", "bag_screen_party.rb")
-  HOOK_BLOCK = /^PokeAccess::Hooks\.around_hook\("PokemonBag_Scene".*?^end\r?\n/m
+  HOOK_BLOCK = /^PokeAccess::Hooks\.(?:around_hook|on_paint)\("PokemonBag_Scene".*?^end\r?\n/m
   BOUND = {}
   MALE = " ♂"
   ABLE = ["APTO", "NO APTO", "APTO"].freeze

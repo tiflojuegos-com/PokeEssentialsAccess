@@ -52,7 +52,8 @@ module PokeAccess
       def self.held_key_rule(owner = nil, &rule); register(@held_rules, owner, rule); end
 
       # Registers terrain the player leaves by a move of its own (a rail hopped off): the block gets (x, y, dir) and
-      # answers the [x, y] the press lands on, false when it fails, or nil when (x,y) is none of its terrain.
+      # answers the [x, y] the press lands on ([x, y, presses] for a move walked, no hop), false when it fails, or nil
+      # when (x,y) is none of its terrain.
       # param owner as arrival_rule's, of the tile left
       def self.leave_rule(owner = nil, &rule); register(@leave_rules, owner, rule); end
 
@@ -126,6 +127,7 @@ module PokeAccess
         nx = cx + dx; ny = cy + dy
         kind = :jump
         nbr = departure(cx, cy, dir)
+        kind = :walk if nbr && nbr[2]
         if nbr.nil?
           c = PokeAccess::World::Terrain.cell(nx, ny)
           if (c & PokeAccess::World::Terrain::LEDGE) != 0

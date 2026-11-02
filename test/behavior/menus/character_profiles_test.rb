@@ -46,7 +46,7 @@ end
 
 # The plugin's hooks, which the harness's own load of the file left unbound as the classes were not there yet.
 CHARACTER_PROFILE_HOOKS = Harness.source(File.join(Harness::ROOT, "plugins", "character_profiles.rb"))
-                                 .scan(/^PokeAccess::Hooks\.(?:before_hook|around_hook)\("Character\w+".*?^end\n/m)
+                                 .scan(/^PokeAccess::Hooks\.(?:before_hook|on_paint)\("Character\w+".*?^end\n/m)
 CHARACTER_PROFILE_HOOKS.each { |hook| eval(hook, TOPLEVEL_BINDING, "plugins/character_profiles.rb") }
 
 class CharacterProfilesTest < PokeAccessTest

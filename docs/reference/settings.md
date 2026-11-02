@@ -176,17 +176,19 @@ from, as `full`. The verbosity key, unbound by default, steps through the same v
 | `sound_nav` | `full` | `off`, `basic`, `full` | Which navigation sounds play |
 | `sonar_only_locatable` | `false` | Flag | The sonar plays only for what the locator keys reach |
 | `game_bump` | `false` | Flag | Also plays the game's own bump at a wall |
-| `audio3d_hrtf` | `true` | Flag | Spatializes the positional engine through the HRTF; off, in plain stereo |
+| `audio3d_output` | `binaural` | `binaural`, `stereo`, `mono`, `quad`, `surround51`, `surround71` | How the positional engine reaches the speakers |
 | `audio3d_volume` | `80` | `:vol` | Master volume of the positional engine |
 
 - `sound_nav`: `off` plays no footsteps or walls and does not start the positional engine; `basic` plays footsteps
   and wall cues; `full` adds the sonar, water, wind and the radar. The guide, puzzles and minigames sound in every
   mode ([Guide and sound](../architecture/guide-and-sound.md)).
 - `game_bump`: off, the game's bump is silent while the mod's wall cue is on.
-- `audio3d_hrtf`: off, the engine plays in plain stereo. Each sound pans between the left and the right, and its
-  pitch rises up to 20 % straight ahead and falls as much straight behind; a sound on the player keeps its pitch.
-  Occlusion, air absorption, distance and the families' tones apply as with the HRTF.
-- `sonar_only_locatable` shows with Sonar, `game_bump` with Navigation on, and `audio3d_hrtf` and `audio3d_volume`
+- `audio3d_output`: `binaural` goes through the HRTF. The others pan each sound between their speakers. `mono` and
+  `stereo` have none behind, so the pitch rises up to 20 % straight ahead and falls as much straight behind; a sound
+  on the player keeps its pitch. `quad`, `surround51` and `surround71` need those speakers set up in Windows: a device
+  with fewer channels plays the largest layout that fits, and the player is told. Occlusion, air absorption, distance
+  and the families' tones apply in every output.
+- `sonar_only_locatable` shows with Sonar, `game_bump` with Navigation on, and `audio3d_output` and `audio3d_volume`
   with Navigation and engine.
 
 ## Sound families

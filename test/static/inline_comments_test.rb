@@ -5,7 +5,7 @@ class InlineCommentsTest < PokeAccessTest
   ROOT = File.expand_path("../..", File.dirname(__FILE__))
   SWEPT = %w[core games plugins loader tools]
   DEF_OPENER = /^(\s*)def\b/
-  HOOK_OPENERS = [/^(\s*)(?:after|before|around|override|wrap_global|wrap_kernel)\(/,
+  HOOK_OPENERS = [/^(\s*)(?:after|before|around|on_paint|override|wrap_global|wrap_kernel)\(/,
                   /^(\s*)(?:PokeAccess::Hooks|Hooks)\.[A-Za-z_][A-Za-z0-9_]*\(/]
 
   test "no shipped file has a comment inside a method or hook body" do

@@ -48,7 +48,7 @@ end
 # The plugin's two hooks, which the harness's own load of the file left unbound as the class was not there yet; its
 # per-frame poller, registered then, is the one that runs.
 BES_CARD_HOOKS = Harness.source(File.join(Harness::ROOT, "plugins", "bes_trainer_card.rb"))
-                        .scan(/^PokeAccess::Hooks\.around_hook\("TrainerCard".*?^end\n/m)
+                        .scan(/^PokeAccess::Hooks\.(?:around_hook|on_paint)\("TrainerCard".*?^end\n/m)
 BES_CARD_HOOKS.each { |hook| eval(hook, TOPLEVEL_BINDING, "plugins/bes_trainer_card.rb") }
 
 class BesTrainerCardTest < PokeAccessTest
@@ -176,7 +176,7 @@ class BesTrainerCardTest < PokeAccessTest
     ensure
       PokeAccess::Config.rebinds, PokeAccess::Config.key_hint_letters = was
     end
-    assert_equal ["#{FRONT_TEXT}, Pulsa E para girar la tarjeta"], SpeakCapture.lines
+    assert_equal ["#{FRONT_TEXT.sub('Pulsar C', 'Pulsar E')}, Pulsa E para girar la tarjeta"], SpeakCapture.lines
   end
 
   test "a line painted twice on purpose is said twice" do

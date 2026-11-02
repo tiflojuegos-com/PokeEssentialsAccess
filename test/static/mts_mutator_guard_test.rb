@@ -10,7 +10,7 @@ class MtsMutatorGuardTest < PokeAccessTest
   # check187.py's, check187_real.rb's and the catalog's.
   MODERN = ["games/anil/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
             "games/infinitefusion_hoenn/", "games/infinitefusion/", "games/infinitefusion_common/",
-            "games/emerald/", "games/skyflyer_common/", "games/gruelinggold/", "games/goldencrown/",
+            "games/emerald/", "games/gruelinggold/", "games/goldencrown/",
             "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/"]
 
   # An uppercase constant of 3+ chars: the array constants that get corrupted (BUTTONS, TEXT_CODES, NUMERIC).

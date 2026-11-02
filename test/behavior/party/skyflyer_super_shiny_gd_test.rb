@@ -1,4 +1,4 @@
-# Skyflyer's super shiny (games/skyflyer_common/super_shiny.rb, loaded by the anil profile): the shiny word of lists
+# Skyflyer's super shiny (plugins/sky_base.rb): the shiny word of lists
 # and summary and the battle box's mark say which star is painted, a super shiny's purple one or any other's red one.
 class SkyflyerSuperShinyGdTest < PokeAccessTest
   T = PokeAccess::I18n

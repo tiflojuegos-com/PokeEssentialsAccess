@@ -41,6 +41,7 @@ module PokeAccess
                      lambda { |v| PokeAccess::Verbosity.name_of(PokeAccess::Verbosity.rotation.include?(v) ? v : :full) }],
       :hide      => [[:off, :unreachable, :room], "hide_"],
       :navmode   => [[:off, :basic, :full], "nav_"],
+      :output    => [[:binaural, :stereo, :mono, :quad, :surround51, :surround71], "output_"],
       :occ       => [[:hear, :occlude, :hide], "occ_"],
       :algo      => [lambda { PokeAccess::Pathfinder::ALGORITHMS }, "algo_"],
       :aweight   => [lambda { PokeAccess::Pathfinder::WEIGHT_CHOICES }, "aweight_"],
@@ -52,7 +53,7 @@ module PokeAccess
     }
 
     # Internal/structural config (not user settings, not in the menu).
-    OTHER = [:keys, :bump_cooldown, :rebinds, :rebind_labels, :key_hint_letters, :categories,
+    OTHER = [:keys, :key_defaults, :bump_cooldown, :rebinds, :rebind_labels, :key_hint_letters, :categories,
              :status_names, :weather_names, :field_weather_names, :gender_numbers, :money_label, :trainer_parts]
 
     class << self
@@ -252,7 +253,7 @@ module PokeAccess
     define(:sound_nav,            :full,  :navmode,   :audio,          :lbl_sound_nav,        :help_sound_nav)
     define(:sonar_only_locatable, false,  :flag,      :audio,          :lbl_sonar_locatable,  :help_sonar_locatable, SONAR)
     define(:game_bump,            false,  :flag,      :audio,          :lbl_game_bump,        :help_game_bump, NAV_ON)
-    define(:audio3d_hrtf,         true,   :flag,      :audio,          :lbl_pos_hrtf,         :help_pos_hrtf, NAV_ENGINE)
+    define(:audio3d_output,       :binaural, :output, :audio,          :lbl_pos_output,       :help_pos_output, NAV_ENGINE)
     define(:audio3d_volume,       80,     :vol,       :audio,          :lbl_pos_master,       :help_pos_master, NAV_ENGINE)
     [:on, :vol, :freq, :tone].each do |kind|
       Sound::Catalog.rows(kind).each do |key, default, k, group, label, help, shown|
@@ -275,14 +276,15 @@ module PokeAccess
 
     #--- non-schema defaults ---
 
-    # Mod hotkeys: action => Windows virtual-key code. The frozen defaults let the remap menu restore one key and
-    # settings.rb save only the changed ones; :verbosity ships unbound (every letter is some game's).
+    # Mod hotkeys: action => key code (Keyboard). :verbosity ships unbound (every letter is some game's). key_defaults, these
+    # with what the profile moves, let the remap menu restore one key and settings.rb save only the changed ones.
     KEY_DEFAULTS = {
       :next => 0x4C, :prev => 0x4A, :where => 0x4B, :route => 0x49,
       :info => 0x54, :hp => 0x48, :coords => 0x4D, :field => 0x47,
       :config => 0x4F, :shift => 0x10, :ctrl => 0x11,
       :hist_prev => 0x24, :hist_next => 0x23, :verbosity => nil
     }.freeze
+    self.key_defaults = KEY_DEFAULTS.dup
     self.keys = KEY_DEFAULTS.dup
     # Wall-cue cooldown in frames.
     self.bump_cooldown = 16

@@ -75,6 +75,17 @@
       "engine": "gen6"
     },
     {
+      "key": "edas",
+      "display": "Pokémon Edas",
+      "titles": [
+        "pokemon edas",
+        "pokémon edas"
+      ],
+      "detect": "\\bedas\\b",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
       "key": "emerald",
       "display": "Pokemon Eternal Emerald",
       "titles": [
@@ -178,6 +189,17 @@
         "pokémon ópalo"
       ],
       "detect": "opalo|ópalo",
+      "exes": [],
+      "engine": "gen6"
+    },
+    {
+      "key": "perseida",
+      "display": "Pokémon Perseida",
+      "titles": [
+        "pokemon perseida",
+        "pokémon perseida"
+      ],
+      "detect": "perseida",
       "exes": [],
       "engine": "gen6"
     },
@@ -324,6 +346,17 @@
         "KleinBitmap.dll"
       ],
       "compat": "compat.rb"
+    },
+    {
+      "key": "vitro",
+      "display": "Pokémon GS Vitro",
+      "titles": [
+        "pokemon gs vitro",
+        "pokémon gs vitro"
+      ],
+      "detect": "\\bvitro\\b",
+      "exes": [],
+      "engine": "gen6"
     },
     {
       "key": "worldfrontier",

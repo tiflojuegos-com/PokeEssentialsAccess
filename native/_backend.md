@@ -11,7 +11,9 @@ void PA3D_Set(int ch, int x100, int y100, int vol100, int play)
 void PA3D_Master(int vol100)
 void PA3D_Occl(int ch, int occ100)                 // 0 clear .. 100 fully muffled behind a wall, clamped
 void PA3D_Air(int on)                              // distant sources lose treble
-void PA3D_Hrtf(int on)                             // 1 HRTF (the default), 0 plain stereo
+int  PA3D_Output(int output)                       // 0 binaural (the default), 1 mono, 2 stereo, 3 quad, 4 5.1, 5 7.1;
+                                                   // -> the output playing, or -1 if none opened
+int  PA3D_DeviceChannels(void)                     // the channels the device really has, 0 if down
 void PA3D_Pitch(int ch, int pitch100)              // playback rate percent, 100 = as recorded, 25..400
 void PA3D_Range(int tiles)                         // the distance a source falls silent at, 2 at least
 int  PA3D_Rate(void)                               // the device's native sample rate, 0 if down
@@ -39,13 +41,30 @@ highs 0.05), so behind a wall a source loses some level and most of its treble b
 `accessibility/lib/` folder; `SetDllDirectory` (set in `speech.rb`) puts that folder on the DLL search
 path so it resolves.
 
-With `PA3D_Hrtf` off a channel skips the binaural effect. It pans between left and right with constant
-power, left `cos((x + 1) * pi/4)` and right `sin((x + 1) * pi/4)` for `x` the left-right part of its
-direction, ramped across the block from the last block's weights. Its step takes one more factor,
-`1 - STEREO_TILT * z`, with `z` -1 straight ahead and 1 straight behind and `STEREO_TILT` 0.2, so ahead
-plays higher and behind lower; a source on the listener keeps its pitch. The panning is Steam Audio's
-stereo formula, computed in place: its `iplPanningEffect` in 4.8.1 crossfades by the channel index
+With any output but binaural a channel skips the binaural effect and pans between the layout's speakers
+at constant power, ramped across the block from the last block's weights. These are Steam Audio's
+formulas and layouts, computed in place: its `iplPanningEffect` in 4.8.1 crossfades by the channel index
 instead of the sample, so each block would play at the previous block's direction.
+
+- Mono is one channel at the level stereo gives the centre. On a device of more channels miniaudio plays it from all
+  of them, so it comes out louder there.
+- Stereo goes by `x`, the left-right part of the direction: left `cos((x + 1) * pi/4)`, right
+  `sin((x + 1) * pi/4)`.
+- Quad, 5.1 and 7.1 share each source between the two speakers either side of its azimuth (`k_layouts`),
+  in Steam Audio's channel order, and the low-frequency one stays silent. Each opens on its own channel
+  map: front left, right and, past quad, centre and low frequency, then back left and right, then side
+  left and right.
+
+With no speakers behind (mono, stereo) a channel's step takes one more factor, `1 - PITCH_TILT * z`, with
+`z` -1 straight ahead and 1 straight behind and `PITCH_TILT` 0.2, so ahead plays higher and behind lower.
+A source on the listener keeps its pitch.
+
+`PA3D_Output` reopens the device at the same rate when the channel count changes, about 30 ms on a stereo
+device. A device with too few channels plays the largest layout that fits instead, 5.1 as stereo on two
+channels, because miniaudio's mix would leave a rear speaker 12 dB below a front one. If an output will not
+open it tries binaural, and if that fails too it returns -1 with the device closed, and the next call tries
+again. A device whose surround pair is at the sides, with none at the back, is reopened with the layout's rear
+pair there, so nothing blends across speakers; miniaudio converts any other difference.
 
 miniaudio is compiled into the DLL (header-only). Z/Ópalo are x86; Reminiscencia/Añil are x64.
 
@@ -73,6 +92,6 @@ creates a context, HRTF and binaural effect, renders a 440 Hz tone toward severa
 asserts the output is non-silent and properly panned (left direction => more energy in the left ear).
 `test_pitch.c` checks the resampler's pitch: it includes `pa3d_steam.c` whole, pulls a ramp through
 `pull_samples` at several rates and asserts the read head and the interpolated samples, then the
-exports' clamping and the range; last it renders a low and a high tone through `process_block` from
-behind a wall at 80 and 100 and asserts the highs lose far more than the lows. Both run with the x64
-`phonon.dll` beside them.
+exports' clamping and the range; it renders a low and a high tone through `process_block` from behind
+a wall at 80 and 100 and asserts the highs lose far more than the lows; and it checks each output's
+layout, the fit to the device's channels and the panning. Both run with the x64 `phonon.dll` beside them.

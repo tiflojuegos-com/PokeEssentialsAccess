@@ -13,7 +13,8 @@ class DedupTest < PokeAccessTest
     afr_archer afr_tables afr_kick afr_race_count afr_race_lap afr_race_half afr_race_bend afr_race_place afr_race_hp
     afr_race_turbo album_state arcky_species auto_focus pach awk_ball awk_binfo awk_comp awk_evs
     awk_glos awk_hist_section awk_lore awk_talisman bdx_page cc_dots charcreate dex_page
-    gacha gacha_banner hatch hof hof_pk hof_record load_info ready_side if2_challenge if2_door if2_starter if_fusion
+    clara_clock edas_continue gacha gacha_banner hatch hof hof_pk hof_record load_info ready_side if2_challenge if2_door
+    if2_starter if_fusion
     list_entry ls_autosub mgift_card mono_type move_idx opt_tab pchm_ring place_idx place_row pm
     rea_baya rea_mankey rea_postre_col rea_ppt rea_timon rea_timon_dir ready_last rem_build
     rem_tree ribbon_idx rse_starter sb_place slot_spin slot_wager starter_sel sum_key sumkey support tl tm_name
@@ -32,7 +33,10 @@ class DedupTest < PokeAccessTest
     sb_mart_desc fl_roulette_coins rj_dex_head rj_map rv_tutor unown_cell pgwatch_info wall_clock_open sv_clock
     sv_credits sv_credits_end sv_drawer sv_pool new_dexnav screen_title
     wf_album_card wf_album_gen wf_bpshop wf_editor_open wf_history_open wf_island wf_pshop_sort wf_rent
-    wf_rent_help wf_starter wf_stat wf_stats wf_swap_help wf_turn wf_turn_top ekans_sitrus
+    wf_rent_help wf_starter wf_stat wf_stats wf_swap_help wf_turn wf_turn_top ekans_sitrus perseida_book perseida_mana perseida_type perseida_craft_bar
+    vitro_controls vitro_encounters vitro_language
+    vitro_ct_order vitro_ct_applause vitro_bb_button vitro_bb_slots vitro_bb_cell vitro_radio_tune vitro_radio_station
+    vitro_radio_line vitro_radio_info vitro_walker_text vitro_walker_option vitro_trade_panel vitro_ev
   ].freeze
   # The tree and its findings, read once per run: neither changes during one.
   SCANS = {}

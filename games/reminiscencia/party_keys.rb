@@ -25,9 +25,7 @@ module PokeAccess
   end
 end
 
-# Reminiscencia's party screen jumps to the PC on T (0x54), also the mod's info key: while the player chooses a
-# member, the info key yields to the game unless it was rebound; elsewhere on the screen it stays the mod's. A
-# refresh while choosing is the 1 key's swap with the lead.
+# On Reminiscencia's party screen, a refresh while the player chooses a member is the 1 key's swap with the lead.
 PokeAccess::Game.define("reminiscencia") do
   around("PokemonScreen_Scene", :pbChoosePokemon, :optional => true) do |scene, nxt, _a|
     scene.instance_variable_set(:@access_choosing, true)
@@ -37,10 +35,6 @@ PokeAccess::Game.define("reminiscencia") do
     ensure
       scene.instance_variable_set(:@access_choosing, false)
     end
-  end
-  after("PokemonScreen_Scene", :update, :optional => true) do |scene, _r, _a|
-    next unless PokeAccess.ivar(scene, :@access_choosing)
-    PokeAccess::Keys.yield_key!(:info) if (PokeAccess::Config.keys[:info] rescue nil) == 0x54
   end
   after("PokemonScreen_Scene", :pbRefresh, :optional => true) do |scene, _r, _a|
     PokeAccess::ReminPartyLead.refreshed(scene) if PokeAccess.ivar(scene, :@access_choosing)

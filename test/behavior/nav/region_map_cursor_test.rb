@@ -1,9 +1,27 @@
 # The region map (core/nav/region_map.rb): the square under the cursor is said when it changes, by its place or its
 # coordinates, with the fly mark and the player's head; reopening the map re-reads it, the bottom bar keeps quiet on
 # the place just said, and the bar's region name opens the map.
+
+# The sprite class a map's extra pictures are drawn on.
+class BitmapSprite
+  attr_reader :bitmap
+  def initialize(bitmap); @bitmap = bitmap; end
+end
+
 class RegionMapCursorTest < PokeAccessTest
   # A sprite of the map, shown or hidden.
   Icon = Struct.new(:visible)
+  # The sprite the map's extra pictures are drawn on.
+  Extras = BitmapSprite
+  # A sprite of another kind under the same name, holding a picture of its own (Armonia's second map).
+  OtherMap = Struct.new(:bitmap)
+  Pixel = Struct.new(:alpha)
+
+  # What is drawn on that sprite: clear but for the pixels listed.
+  class ExtraPicture
+    def initialize(*painted); @painted = painted; end
+    def get_pixel(x, y); Pixel.new(@painted.include?([x, y]) ? 255 : 0); end
+  end
 
   test "reads the first square under the cursor, queued" do
     rm.announce(Object.new, "Pueblo Paleta", 3, 4)
@@ -107,6 +125,41 @@ class RegionMapCursorTest < PokeAccessTest
       rm.announce(map_scene("point0" => Object.new), "Pueblo Paleta", 3, 4)
       assert_equal ["Pueblo Paleta, #{t(:brm_fly)}"], SpeakCapture.lines
     end
+  end
+
+  test "a square an extra picture of the map covers, even off its centre, says it is a revealed area" do
+    rm.announce(map_scene("map2" => Extras.new(ExtraPicture.new([58, 70]))), "Isla Ensueño", 3, 4)
+    assert_equal ["Isla Ensueño, #{t(:rmap_extra)}"], SpeakCapture.lines
+  end
+
+  test "the squares around an extra picture say nothing of it" do
+    extras = Extras.new(ExtraPicture.new([58, 70]))
+    [[2, 4], [4, 4], [3, 3], [3, 5]].each do |x, y|
+      SpeakCapture.clear
+      rm.announce(map_scene("map2" => extras), "Mar", x, y)
+      assert_equal ["Mar"], SpeakCapture.lines, "square #{x}, #{y}"
+    end
+  end
+
+  test "a bare square with an extra picture says its coordinates and that it is revealed" do
+    rm.announce(map_scene("map2" => Extras.new(ExtraPicture.new([50, 66]))), "", 3, 4)
+    assert_equal ["#{t(:brm_square, :x => 3, :y => 4)}, #{t(:rmap_extra)}"], SpeakCapture.lines
+  end
+
+  test "a sprite of another kind named as the extras' adds nothing, however it is painted" do
+    rm.announce(map_scene("map2" => OtherMap.new(ExtraPicture.new([50, 66]))), "Mar", 3, 4)
+    assert_equal ["Mar"], SpeakCapture.lines
+  end
+
+  test "an extra sprite with no picture to read adds nothing" do
+    rm.announce(map_scene("map2" => Extras.new(nil)), "Mar", 3, 4)
+    assert_equal ["Mar"], SpeakCapture.lines
+  end
+
+  test "a map's square size comes from either era's constants, else the stock one" do
+    gen6 = Class.new { const_set(:SQUAREWIDTH, 24); const_set(:SQUAREHEIGHT, 20) }
+    modern = Class.new { const_set(:SQUARE_WIDTH, 32); const_set(:SQUARE_HEIGHT, 28) }
+    assert_equal [[24, 20], [32, 28], [16, 16]], [gen6.new, modern.new, Object.new].map { |s| rm.square_size(s) }
   end
 
   test "switching the town map's fly mode says the help it paints, then the square again with or without its mark" do

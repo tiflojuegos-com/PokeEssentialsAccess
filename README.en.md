@@ -115,7 +115,8 @@ Under "Navigation and pathfinder options" you decide how the target list works:
 
 ### Other tools
 
-- **Key remapping**: "Remap game controls" changes the game's keys and the mod's.
+- **Key remapping**: "Remap game controls" changes the game's keys and the mod's, to a single key or to `Alt` plus
+  another.
 - **Session recorder**: "Record session", under "Debugging", writes what the mod saw and said to a file, to attach
   when you report a problem.
 
@@ -197,25 +198,46 @@ battle, navigation and pathfinding), without the readers made for one particular
 
 ## Notes per game
 
-### Pokémon Insurgence
+### Game keys that move
 
-Out of the box, Insurgence uses three letters that are also the mod's, and one press does both things:
+Out of the box, several games use keys that are also the mod's. So that one press does not do both things, the mod keeps
+its key and the game's action moves to another:
 
-| Key | In the game | In the mod |
-|-----|-------------|------------|
-| `T` | Registered item 4 | Details of what has focus |
-| `M` | Speed up the game | Coordinates |
-| `O` | Remove the Pokémon following you | The mod's menu |
+| Game | Combination | In the game | The old key, in the mod |
+|------|-------------|-------------|-------------------------|
+| Awakening | `Alt` + `M` | Region map; fireball where needed | `M`: coordinates |
+| Awakening | `Alt` + `J` | Lens of Truth | `J`: previous target on the list |
+| Awakening | `Alt` + `G` | Battle information; outside battle, message log | `G`: field status |
+| Awakening | `Alt` + `T` | Save | `T`: details of what has focus |
+| Realidea | `Alt` + `M` | Clear the fog; in puzzles and minigames, reset, repeat the line or see the guide | `M`: coordinates |
+| Insurgence | `Alt` + `M` | Speed up the game | `M`: coordinates |
+| Insurgence | `Alt` + `T` | Registered item 4 | `T`: details of what has focus |
+| Ópalo | `Alt` + `T` | Anthem of the fifth badge, on the trainer card | `T`: details of what has focus |
+| Ópalo | `Alt` + `I` | Anthem of the eighth badge, on the trainer card | `I`: route to the target |
+| Reminiscencia | `Alt` + `T` | Fast travel or upgrades, Box, ability on the summary and Bag in the picker | `T`: details of what has focus |
+| Perseida | `Alt` + `M` | Region map | `M`: coordinates |
+| Perseida | `Alt` + `T` | Talk to Cometry, in the pause menu | `T`: details of what has focus |
+| GS Vitro | `Alt` + `M` | Region map | `M`: coordinates |
+| GS Vitro | `Alt` + `T` | Save | `T`: details of what has focus |
+| GS Vitro | `Alt` + `J` | Quests | `J`: previous target on the list |
+| Sevii | `Alt`, held | Speed up the game | `Shift`: the mod's modifier |
+| Soulstones | `Alt` | Mark an item to move it, in the bag | `Shift`: the mod's modifier |
+| Desolation | None | `M` sped the game up, and `Alt` still does | `M`: coordinates |
+| Uranium | None | `O` closed the key item list, and cancel still does | `O`: the mod's menu |
 
-To split them, move those game actions to other keys on the game's controls screen ("Controls", on the title menu;
-the mod reads it), or move the mod's keys under "Remap game controls".
+To use another key, assign it to that action under "Remap game controls", where you can also choose combinations with
+`Alt`. In the games with combinations, the game's own `Alt`, which changes the speed in several of them, answers when you
+let it go, and not if you used it in a combination.
 
-### Pokémon HGSS: Sevii Islands
+A few details:
 
-In Sevii, `Shift` is both the game's speed-up key and the mod's modifier. Every combination with `Shift`
-(`Shift` + `T`, `Shift` + `H`…) speeds the game up for a moment, and the mod says "Fast speed" and "Normal speed",
-cutting off what it was saying. To avoid it, move the mod's "Shift modifier" to another key under "Remap game
-controls".
+- In battle, Perseida's `M` and Realidea's stay the game's and open the battle's information. A key you assign to that
+  action replaces it there too.
+- In GS Vitro, these shortcuts, like the game's others, work on the map and in the pause menu, and its shortcuts option
+  turns them off.
+- In Insurgence, those two actions go on `Alt` even if you moved them on its "Controls" screen. To put them on another
+  key, use "Remap game controls".
+- Realidea's messages that ask you to press `M` already say the combination.
 
 ## Keys
 

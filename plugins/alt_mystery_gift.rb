@@ -175,11 +175,8 @@ PokeAccess::Hooks.around_hook("MysteryGiftScene", :pbChooseGiftFromList, :option
 end
 PokeAccess::Frame.each_pulse { PokeAccess::AltMysteryGift.poll_list }
 
-PokeAccess::Hooks.around_hook("CardAlbumScene", :writeOverlayInfo, :optional => true) do |scene, nxt, _a|
-  ret = nil
-  pairs = PokeAccess::PaintCapture.sample { ret = nxt.call }
+PokeAccess::Hooks.on_paint("CardAlbumScene", :writeOverlayInfo, :optional => true) do |scene, pairs, _a|
   PokeAccess::AltMysteryGift.overlay(scene, pairs)
-  ret
 end
 PokeAccess::Hooks.before_hook("CardAlbumScene", :pbShowCommandsAlbum, :optional => true) do |_scene, args|
   PokeAccess::AltMysteryGift.prompt(args[0])

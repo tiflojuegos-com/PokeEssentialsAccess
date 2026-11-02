@@ -30,4 +30,5 @@ end
 
 PokeAccess::Game.define("worldfrontier") do
   after("StarterTeamSelector_Scene", :pbRefresh) { |scene, _r, _a| PokeAccess::WfStarterTeam.refresh(scene) }
+  clear_info_on("StarterTeamSelector_Scene", :pbEndScene)
 end

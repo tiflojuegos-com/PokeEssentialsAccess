@@ -62,18 +62,10 @@ module PokeAccess
       (PokeAccess::Data.species_types(@species[0]) rescue nil) || []
     end
 
-    # Whether the info key is the key the game's T answers to now (T, or wherever its extra was rebound), which opens
-    # the bag in the picker.
-    def self.info_on_game_t?
-      game_t = (PokeAccess::Config.rebinds[:fast_travel] rescue nil) || 0x54
-      (PokeAccess::Config.keys[:info] rescue nil) == game_t
-    end
-
-    # Once per frame: yields the info key to the game's T (not while its bag is open) and says the panel's burst,
+    # Once per frame: says the panel's burst,
     # kept for the info key, at the choose-a-Pokemon reading's full level; at medium, only the species' types.
     def self.flush
       return unless @active
-      PokeAccess::Keys.yield_key!(:info) if info_on_game_t? && !(PokeAccess::ReminBag.watching? rescue false)
       @icons = [] if @rows.empty?
       return if @rows.empty?
       rows = @rows

@@ -543,6 +543,7 @@ module Battle
     end
 
     def pbDisplayMessage(msg, _brief = false); msg; end
+    def pbDisplayPausedMessage(msg); msg; end
 
     # The Enhanced Battle UI's closing of its panels (Confirm, Cancel and Shift of the fight menu).
     def pbHideInfoUI; @enhancedUIToggle = nil; end
@@ -691,8 +692,9 @@ class Window_PokemonOption < Window_DrawableCommand
   def refresh; (@options.length + 1).times { |i| drawItem(i, @options.length + 1, nil) }; end
 end
 
-# The options screen, reduced to its closing: a submenu is one of these opened from a row of another.
+# The options screen, reduced to its frame and its closing: a submenu is one of these opened from a row of another.
 class PokemonOption_Scene
+  def pbUpdate; end
   def pbEndScene; end
 end
 

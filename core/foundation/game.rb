@@ -71,7 +71,7 @@ module PokeAccess
       def screen_reader(cname, &blk); PokeAccess::Menus.def_extractor(cname, &blk); end
 
       # Says the focused entry of a screen whose cursor is an index each time it moves (FocusReader.define: :on,
-      # :index, :items, :slot, :queue, :key, :optional, :hook_container); the block gives the line.
+      # :index, :items, :slot, :queue, :key, :close, :optional, :hook_container); the block gives the line.
       def focus_reader(cname, opts = {}, &text); PokeAccess::FocusReader.define(cname, opts, &text); end
 
       # Declares one of this game's standing information windows (a sprite repainted with text= as the cursor moves).
@@ -94,6 +94,13 @@ module PokeAccess
       # (instance, nxt, args). opts as in after (:optional).
       def around(cname, meth, opts = {}, &body); PokeAccess::Hooks.around_hook(cname, meth, opts, &body); end
 
+      # Reads what a method paints: runs it, then yields (instance, the painted rows, args), and its value goes back to the
+      # game (see Hooks.on_paint). opts as in around.
+      def on_paint(cname, meth, opts = {}, &read); PokeAccess::Hooks.on_paint(cname, meth, opts, &read); end
+
+      # Forgets the line a screen published for the info key when this method closes it (see Hooks.clear_info_on).
+      def clear_info_on(cname, meth = :pbEndScene); PokeAccess::Hooks.clear_info_on(cname, meth); end
+
       # Speaks the block's text when a scene opens, queued (see Hooks.read_on_open). Yields (scene) ->
       # text; meth defaults to :pbStartScene; :timing => :before for openers that block in their own loop.
       def read_on_open(cname, meth = :pbStartScene, opts = {}, &blk); PokeAccess::Hooks.read_on_open(cname, meth, opts, &blk); end
@@ -109,9 +116,17 @@ module PokeAccess
       # Adds a section to the diagnostic dump (and the debug menu's group); yields the output line array.
       def diag_section(name, group = :scene, &body); PokeAccess::Keys.register_diag_section(name, group, &body); end
 
-      # Registers a remappable extra action (a raw key that would otherwise clash), reassignable from
-      # the controls menu.
-      def remap_extra(sym, default_vk, label); PokeAccess::Remap.register_extra(sym, default_vk, label); end
+      # Registers a remappable extra action (a raw key that would otherwise clash), reassignable from the controls menu:
+      # by the virtual-key the game reads it by, by mkxp-z's name for its letter (:M), or with :button as that constant of
+      # the game's Input, on that virtual-key.
+      def remap_extra(sym, key, label, opts = {}); PokeAccess::Remap.register_extra(sym, key, label, opts[:button]); end
+
+      # Ships this game's keys elsewhere, as if the player had bound them and with nothing saved: any action of the remap
+      # screen, on a key named as Keyboard.code_for reads it ("N", "F6", "Alt+M"). The remap screen restores these.
+      def key_defaults(map); PokeAccess::Remap.ship(map); end
+
+      # key_defaults that hold out of battle alone: a battle leaves those actions on the game's keys.
+      def field_key_defaults(map); PokeAccess::Remap.ship(map, true); end
 
       # Runs a block once per frame in every scene, for menus the game drives from its own blocking loop.
       def poll_each_frame(&blk); PokeAccess::Frame.each_pulse(&blk); end

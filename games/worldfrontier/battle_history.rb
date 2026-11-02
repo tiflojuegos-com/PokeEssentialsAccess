@@ -126,4 +126,6 @@ PokeAccess::Game.define("worldfrontier") do
   before("Battle::Scene", :pbSelectBattlerInfo, :optional => true) do |scene, _a|
     PokeAccess::WfTurnLog.selection_hint(scene)
   end
+  clear_info_on("BattleHistoryScene", :pbEndScene)
+  clear_info_on("BattleTurnLog::UI", :dispose)
 end

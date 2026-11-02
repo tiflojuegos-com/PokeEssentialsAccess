@@ -27,11 +27,8 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("reminiscencia") do
-  around("Logros_Scene", :showTexts, :optional => true) do |scene, nxt, _a|
-    ret = nil
-    pairs = PokeAccess::PaintCapture.sample { ret = nxt.call }
+  on_paint("Logros_Scene", :showTexts, :optional => true) do |scene, pairs, _a|
     PokeAccess::ReminLogros.note(scene, pairs)
-    ret
   end
   poll_each_frame { PokeAccess::ReminLogros.flush }
 end

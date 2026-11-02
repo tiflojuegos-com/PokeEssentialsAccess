@@ -65,8 +65,14 @@ class IvarsTest < PokeAccessTest
     assert_equal ["plugins/voltseon_pausemenu.rb: @ghost"], got[:uncensused]
   end
 
+  test "a reference copy vouches only for the plugin whose probe it defines, and for nothing outside plugins/" do
+    assert ReferenceNames.ivar_of?("plugins/bes_battle_info.rb", "@all_battlers"), "the fork's own reader"
+    refute ReferenceNames.ivar_of?("plugins/fl_tetra.rb", "@all_battlers"), "a plugin from another copy"
+    refute ReferenceNames.ivar_of?("core/battle/a.rb", "@all_battlers"), "a file with no copy"
+  end
+
   test "a plugin only the generic profile loads may read a name only a reference copy uses" do
-    reference = lambda { |n| n == "copied" }
+    reference = lambda { |_path, n| n == "copied" }
     census = { "copied" => [], "unknown" => [] }
     got = judge({ "plugins/fl_tetra.rb" => ["copied", "unknown"] }, census, :all, reference)
     assert_equal ["plugins/fl_tetra.rb: @unknown is in no surveyed game"], got[:offenders]
@@ -96,8 +102,8 @@ class IvarsTest < PokeAccessTest
   # The census's verdict on the ivar reads ({ path => [name, ...] }) as sorted lists: :uncensused, names the census
   # lacks; :offenders, names none of the reader's games has; :partial, names some of them lack. targets is the
   # reader's profiles (:all for everywhere), or a lambda answering them by path; reference answers whether a reference
-  # copy uses a name.
-  def judge(reads, census, targets, reference = lambda { |_n| false })
+  # copy the reader at a path comes from uses a name.
+  def judge(reads, census, targets, reference = lambda { |_path, _n| false })
     out = { :uncensused => [], :offenders => [], :partial => [] }
     reads.each do |path, names|
       next if SELF_INTROSPECTION.include?(path)
@@ -105,7 +111,7 @@ class IvarsTest < PokeAccessTest
       generic_only = aims == :all && path =~ %r{\Aplugins/[^/]+\.rb\z}
       names.each do |n|
         have = census[n]
-        next if generic_only && (have || []).empty? && reference.call(n)
+        next if generic_only && (have || []).empty? && reference.call(path, n)
         if have.nil?
           out[:uncensused].push("#{path}: @#{n}")
         elsif aims == :all
@@ -127,6 +133,7 @@ class IvarsTest < PokeAccessTest
     assert File.file?(CENSUS), "the ivar census is committed"
     declarations = ReaderSites.declarations
     judge(ReaderSites.ivars_by_file, parse_census(File.read(CENSUS)),
-          lambda { |path| ReaderSites.profiles_for(path, declarations) }, lambda { |n| ReferenceNames.ivar?(n) })
+          lambda { |path| ReaderSites.profiles_for(path, declarations) },
+          lambda { |path, n| ReferenceNames.ivar_of?(path, n) })
   end
 end

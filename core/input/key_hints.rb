@@ -8,7 +8,7 @@ module PokeAccess
 
     # What a sentence puts before the key it asks for ("pulsa la tecla Z", "press Z", "appuie sur C"), in the
     # games' and the mod's languages; the second list names the key without a verb ("con la tecla D").
-    VERBS = "pulsa|pulse|pulsando|pulsas|presiona|presionando|aprieta|press|pressing|appuie sur|appuyez sur|dr\\S{1,2}cke|naci\\S{1,2}nij|pressione|carrega"
+    VERBS = "pulsa|pulsar|pulse|pulsando|pulsas|presiona|presionar|presionando|aprieta|press|pressing|appuie sur|appuyez sur|dr\\S{1,2}cke|naci\\S{1,2}nij|pressione|carrega"
     KEY_WORDS = "(?:la\\s+|el\\s+|the\\s+|sur\\s+la\\s+)?(?:tecla\\s+|key\\s+|touche\\s+|bot\\S{1,2}n\\s+)?"
     NAMED = "con la tecla|la tecla|con el bot\\S{1,2}n|el bot\\S{1,2}n|the key|la touche"
 
@@ -43,10 +43,11 @@ module PokeAccess
       sentences.reject { |s| s.empty? || s =~ HINT }.join(" ")
     end
 
-    # The spoken name of the key the player bound to an action with the mod's remap, or nil while it keeps its own.
+    # The spoken name of the key the player bound to an action with the mod's remap or its profile ships it on, or nil
+    # while it keeps its own.
     def self.bound_name(sym)
-      vk = (PokeAccess::Config.rebinds[sym] rescue nil)
-      vk ? PokeAccess::ConfigMenu.keyname(vk) : nil
+      code = PokeAccess::Remap.bound_code(sym)
+      code ? PokeAccess::ConfigMenu.keyname(code) : nil
     end
 
     # The key to say for an action: the one bound with the mod, else the one F1 moved it to, else the game's.

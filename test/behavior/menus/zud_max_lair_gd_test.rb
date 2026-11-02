@@ -61,7 +61,7 @@ class MaxLairEventScene
 end
 lair_path = File.join(Harness::ROOT, "plugins", "zud_max_lair.rb")
 lair_source = Harness.source(lair_path)
-lair_hooks = /^(?:PokeAccess::Hooks\.(?:around|before|after)_hook\("(?:LairMapScene|MaxLairEventScene)"|\[\[:pbRentalSelect).*?^end\r?\n/m
+lair_hooks = /^(?:PokeAccess::Hooks\.(?:(?:around|before|after)_hook|on_paint)\("(?:LairMapScene|MaxLairEventScene)"|\[\[:pbRentalSelect).*?^end\r?\n/m
 lair_source.scan(lair_hooks) do
   hook = Regexp.last_match
   eval(hook[0], TOPLEVEL_BINDING, lair_path, lair_source[0, hook.begin(0)].count("\n") + 1)

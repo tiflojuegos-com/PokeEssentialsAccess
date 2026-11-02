@@ -109,11 +109,10 @@ class ReminPickerTest < PokeAccessTest
     assert_equal ["♀, #{SECOND_STATS}, Burbuja, Placaje", false], SpeakCapture.log.first
   end
 
-  test "outside the picker a repaint is not read and the info key is not claimed" do
+  test "outside the picker a repaint is not read" do
     paint_panel(*FIRST)
     Input.update
     assert_nothing_spoken
-    assert_equal false, PokeAccess::Keys.yielded?(:info)
   end
 
   test "after the picker returns its repaints are not read" do
@@ -180,33 +179,6 @@ class ReminPickerTest < PokeAccessTest
       rows = [[OVERLAY, "Stat", 82, 22], [NARROW, "Burbuja", 502, y]]
       assert_equal line, PokeAccess::ReminPicker.text(rows, button), "for a row painted at #{y}"
     end
-  end
-
-  test "while the picker runs, the info key yields to the key the game's T answers to" do
-    { [{}, 0x54] => true, [{ :fast_travel => 0x37 }, 0x54] => false, [{}, 0x49] => false,
-      [{ :fast_travel => 0x49 }, 0x49] => true }.each do |(rebinds, info), yields|
-      Reset.reset_keys
-      PokeAccess::Config.rebinds = rebinds
-      PokeAccess::Config.keys[:info] = info
-      claimed = PokeAccess::ReminPicker.watch do
-        PokeAccess::ReminPicker.flush
-        PokeAccess::Keys.yielded?(:info)
-      end
-      assert_equal yields, claimed, "with the game's T rebound as #{rebinds.inspect} and the info key on #{info}"
-    end
-  end
-
-  test "while the bag it opened is up, T stays the info key" do
-    claimed = PokeAccess::ReminPicker.watch do
-      begin
-        PokeAccess::ReminBag.watch(Object.new)
-        PokeAccess::ReminPicker.flush
-        PokeAccess::Keys.yielded?(:info)
-      ensure
-        PokeAccess::ReminBag.unwatch
-      end
-    end
-    assert_equal false, claimed
   end
 
   private

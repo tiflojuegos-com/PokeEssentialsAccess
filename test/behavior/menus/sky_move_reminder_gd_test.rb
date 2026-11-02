@@ -1,6 +1,6 @@
 # The move reminder of Sky's base (core/menus/v21/move_reminder_open_v21.rb and UIV21's rows): its first move read as
 # the screen fades in, its egg-move tutor's own main included, and a machine row's tag said as the relearner paints
-# it, through the game's translation (games/skyflyer_common/relearner_labels.rb, loaded with Anil's profile).
+# it, through the game's translation (plugins/sky_base.rb).
 
 # The screens down to what their opening reads: the base screen fades in with start_screen, the reminder keeps its
 # Pokemon and moves and runs start_screen first in its main, as the game's do.

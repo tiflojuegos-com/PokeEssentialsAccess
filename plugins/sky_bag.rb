@@ -36,9 +36,6 @@ end
 
 PokeAccess::Menus.bag_decorators.push(PokeAccess::SkyBag) unless PokeAccess::Menus.bag_decorators.include?(PokeAccess::SkyBag)
 
-PokeAccess::Hooks.around_hook("PokemonBag_Scene", :pbStartScene, :optional => true) do |_scene, nxt, _a|
-  ret = nil
-  pairs = PokeAccess::PaintCapture.sample { ret = nxt.call }
+PokeAccess::Hooks.on_paint("PokemonBag_Scene", :pbStartScene, :optional => true) do |_scene, pairs, _a|
   PokeAccess::SkyBag.opening_hints(pairs)
-  ret
 end

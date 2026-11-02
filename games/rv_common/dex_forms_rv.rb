@@ -11,11 +11,9 @@ module PokeAccess
 
     # Hooks the page's paint.
     def self.bind
-      PokeAccess::Hooks.around_hook("PokedexFormScene", :pbUpdate, :optional => true) do |_scene, nxt, _a|
-        r = nil
-        t = PokeAccess::DexFormsRV.painted_text(PokeAccess::PaintCapture.sample { r = nxt.call })
+      PokeAccess::Hooks.on_paint("PokedexFormScene", :pbUpdate, :optional => true) do |_scene, rows, _a|
+        t = PokeAccess::DexFormsRV.painted_text(rows)
         PokeAccess.speak(t, true) unless t.empty?
-        r
       end
     end
   end

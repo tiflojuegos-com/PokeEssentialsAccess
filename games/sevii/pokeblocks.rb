@@ -244,28 +244,19 @@ PokeAccess::Game.define("sevii") do
     PokeAccess::SeviiPokeblocks.grid(scene, shown)
     r
   end
-  around("PokeBlock", :draw_title) do |scene, nxt, _a|
-    r = nil
-    rows = PokeAccess::PaintCapture.sample { r = nxt.call }
+  on_paint("PokeBlock", :draw_title) do |scene, rows, _a|
     PokeAccess::SeviiPokeblocks.title_painted(scene, rows)
-    r
   end
-  around("PokeBlock", :draw_quantity) do |scene, nxt, _a|
-    r = nil
-    rows = PokeAccess::PaintCapture.sample { r = nxt.call }
+  on_paint("PokeBlock", :draw_quantity) do |scene, rows, _a|
     PokeAccess::SeviiPokeblocks.quantity_painted(scene, rows)
-    r
   end
   after("PokeBlock", :disappear_scene) { |scene, _r, _a| PokeAccess::SeviiPokeblocks.levels(scene, true) }
 
   # draw_scene_pokemon draws the condition screen, for pbStart_pokemon or for the case's feeding.
   before("PokeBlock", :draw_scene_pokemon) { |scene, _a| PokeAccess::SeviiPokeblocks.condition_opened(scene) }
-  around("PokeBlock", :information_pokemon) do |scene, nxt, _a|
-    r = nil
-    rows = PokeAccess::PaintCapture.sample { r = nxt.call }
+  on_paint("PokeBlock", :information_pokemon) do |scene, rows, _a|
     PokeAccess::SeviiPokeblocks.member(scene, rows)
-    r
   end
   around("PokeBlock", :increase_condition) { |scene, nxt, _a| PokeAccess::SeviiPokeblocks.feed(scene) { nxt.call } }
-  before("PokeBlock", :pbEndScene) { |_s, _a| PokeAccess::Info.clear_text }
+  clear_info_on("PokeBlock", :pbEndScene)
 end

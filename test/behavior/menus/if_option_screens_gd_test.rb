@@ -27,6 +27,7 @@ class FusionSelectOptionsScene < PokemonOption_Scene
     @sprites["textbox"] = FakeTextWin.new(@opening) unless @opening.nil?
     @sprites["option"] = Window_PokemonOption.new(@options)
     @sprites["option"].refresh
+    pbUpdate
     nil
   end
 end
@@ -81,7 +82,7 @@ class IfOptionScreensGdTest < PokeAccessTest
 
   test "a submenu whose box already holds a line says the title, then that line" do
     FusionSelectOptionsScene.new(HELP, FusionSelectOptionsScene::TITLE, "Pick the nature first.").pbStartScene
-    assert_equal [["Select your Pokémon's ability and nature. Pick the nature first.", false]], SpeakCapture.log
+    assert_equal [[FusionSelectOptionsScene::TITLE, false], ["Pick the nature first.", false]], SpeakCapture.log
   end
 
   test "a submenu with no box says its title alone" do

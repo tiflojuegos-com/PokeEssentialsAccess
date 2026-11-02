@@ -55,10 +55,7 @@ PokeAccess::Hooks.after_hook("PokemonLoadScene", :pbChooseAutoSubFile, :optional
 end
 
 # The name of the save on offer, which multi-save titles paint above the panels: taken from the paint, queued.
-PokeAccess::Hooks.around_hook(PokeAccess::Engine.scene_class("PokemonLoad_Scene", "PokemonLoadScene").to_s, :pbDrawCurrentSaveFile, :optional => true) do |_s, nxt, _a|
-  ret = nil
-  rows = PokeAccess::PaintCapture.sample { ret = nxt.call }
+PokeAccess::Hooks.on_paint(PokeAccess::Engine.scene_class("PokemonLoad_Scene", "PokemonLoadScene").to_s, :pbDrawCurrentSaveFile, :optional => true) do |_s, rows, _a|
   t = PokeAccess::PaintCapture.text(rows.map { |r| r[0] })
   PokeAccess.speak(t, false) unless t.empty?
-  ret
 end

@@ -97,6 +97,7 @@ PokeAccess::Game.define("darkhorizon") do
   end
 
   before("DiegoWTsStarterSelection", :pbConfirm) { |scene, _a| PokeAccess::DHStarters.asked(scene) }
+  clear_info_on("DiegoWTsStarterSelection", :pbCloseScene)
 
   # A No puts the cursor back on the ball, said again; hook_container, as the question's loop runs inside.
   after("DiegoWTsStarterSelection", :pbChooseBall, :hook_container => true) do |scene, _r, _a|

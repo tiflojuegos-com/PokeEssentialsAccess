@@ -1,22 +1,20 @@
 # The screens tools/silent_screens.rb lists that were checked by hand and need no reader of their own, each as
 # name | the games it was checked in | why. A game or a name not here shows in the report as still to check. The
 # painting methods its --painters report lists are triaged here too, named Class#method.
-pbTriadList | africanvs anil armonia awakening darkhorizon emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 | Triple Triad's card list: a command window, read by the command reader
-pbButtonInputProcessing | africanvs armonia awakening desolation goldencrown insurgence opalo realidea reborn rejuvenation reminiscencia sevii soulstones1 uranium z218 | the event command that waits for a key: no screen
-PokeBattle_DebugScene | africanvs armonia awakening insurgence opalo realidea reminiscencia sevii soulstones1 uranium z218 | debug battle scene
+pbButtonInputProcessing | africanvs armonia awakening desolation edas goldencrown insurgence opalo realidea reborn rejuvenation reminiscencia sevii soulstones1 uranium z218 perseida vitro | the event command that waits for a key: no screen
+PokeBattle_DebugScene | africanvs armonia awakening edas insurgence opalo realidea reminiscencia sevii soulstones1 uranium z218 perseida vitro | debug battle scene
 PokemonPokedexMenu_Scene | anil awakening darkhorizon emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn relict revival royal soulstones1 soulstones2 worldfrontier | the regional Pokedex menu: Window_DexesList, read by core's extractor
-Scene_PokedexMenu | africanvs armonia desolation insurgence opalo realidea reborn reminiscencia sevii z218 | the regional Pokedex menu: Window_DexesList, read by core's extractor
+Scene_PokedexMenu | africanvs armonia desolation edas insurgence opalo realidea reborn reminiscencia sevii z218 perseida vitro | the regional Pokedex menu: Window_DexesList, read by core's extractor
 PokemonLoad | armonia desolation opalo reborn rejuvenation uranium z218 | the load screen's controller: core reads PokemonLoadScene and its panels
 Scene_Intro | anil darkhorizon emerald gruelinggold royal uranium worldfrontier | the title screen: core's title reader, a plugin's (Modular Title Screen) or the profile's (Uranium's GenCustomStyle)
 pbMessageWaitForInput | anil darkhorizon emerald relict revival royal worldfrontier | waits for a key after a message the dialogue reader says
 BattleCreationHelperMethods | anil darkhorizon emerald relict revival royal worldfrontier | battle setup helpers: no screen
-pbListScreen | armonia emerald relict royal worldfrontier | debug list screen
-pbListScreenBlock | armonia emerald relict royal worldfrontier | debug list screen
+pbListScreen | armonia emerald relict royal worldfrontier vitro | debug list screen
+pbListScreenBlock | armonia emerald relict royal worldfrontier vitro | debug list screen
 Scene_FieldNotes_Info | desolation reborn rejuvenation | read by games/rv_common/field_notes_rv.rb (Window_FieldEffectNotes)
 Scene_ItemTracker | desolation reborn rejuvenation | unreachable: its Pokegear entry is commented out (Rejuvenation does not load it)
 Scene_ItemTracker_Info | desolation reborn rejuvenation | unreachable: its Pokegear entry is commented out (Rejuvenation does not load it)
 CableClubScreen | anil sevii | the Cable Club's controller: its scene is read by plugins/cable_club.rb
-ClothesShopView | infinitefusion infinitefusion_hoenn | a PokemonMart_Scene: core's mart extractor and games/infinitefusion_common/outfits.rb
 Connect | insurgence reborn | online play (Insurgence's and Reborn's servers): left out
 HabitatDetailScene | desolation rejuvenation | unreachable: nothing calls pbHabitatDetail (Rejuvenation does not load Habitats.rb)
 PokemonFusionScene | infinitefusion infinitefusion_hoenn | the fusion cutscene: its lines and choices are messages, read
@@ -36,11 +34,11 @@ Battle::AI_CableClub | anil | online battle (Cable Club)
 Battle_CableClub | anil | online battle (Cable Club)
 BerryBlender_Scene | infinitefusion_hoenn | unreachable: SIMPLIFIED_BERRY_BLENDING runs the simple blender, read
 ChooseBerryMultiple_Scene | royal | read through its window, Window_ChooseBerryMultiple (games/royal/curry_select.rb)
-DependentEvents | armonia insurgence opalo sevii | the following events' manager: moves events on the map, no screen
+DependentEvents | armonia insurgence opalo sevii perseida vitro | the following events' manager: moves events on the map, no screen
 GTSSearchMethod | insurgence | the online GTS: unreachable, its own online menu comments it out and no script or event opens it (the Egg Generator is read)
 Gachabueno | realidea | unreachable: nothing creates it (the gacha read is LootBox, games/realidea/gacha.rb)
 HM7::Tilemap | insurgence | Mode 7 tilemap: no screen
-InterpreterFieldMixin | realidea | event interpreter: no screen
+InterpreterFieldMixin | realidea perseida | event interpreter: no screen
 ItemInfog_Scene | z218 | unreachable in 2.18: nothing calls pbItemInfog
 PokeBattle_CableClub | sevii | online battle (Cable Club)
 PokeBattle_CableClub_AI | sevii | online battle (Cable Club)
@@ -77,8 +75,8 @@ pbTweening | soulstones2 | animation editor
 pbVictoryRoadPuzzle | reborn | a list window of the crystals' clues, read row by row
 pbWildBattle | reminiscencia | a battle starter whose loop is the rematch yes/no, read
 pbWildBattleDungeon | reminiscencia | a battle starter whose loop is the rematch yes/no, read
-selectAutosave | awakening | a command window and messages, read
-showSearchWindow | armonia | debug list search
+selectAutosave | awakening edas perseida vitro | a command window and messages, read
+showSearchWindow | armonia vitro | debug list search
 PokeBattle_Battler | awakening fireash goldencrown | a battler, not a screen: its lines go through the battle's pbDisplay, read by core
 Randomizer | gruelinggold soulstones2 | the randomizer's options: a command window of [X] rows, read by the command reader
 CinematicScene | africanvs | map pictures animated under the event's narration, which the dialogue reader says
@@ -122,9 +120,9 @@ Battle::Scene::RaidPokemonDataBox#draw_gender | soulstones2 | the battle reader 
 Battle::Scene::RaidPokemonDataBox#draw_name | soulstones2 | the battle reader says the name from the battler
 Battle::Scene::RaidPokemonDataBox#draw_style_text | soulstones2 | games/soulstones2/styled_box.rb reads the styled boxes
 Battle::Scene::TargetMenu#refreshButtons | v20.1 v21.1 anil darkhorizon emerald gruelinggold relict revival royal soulstones2 worldfrontier | the target menu, read from the battlers by core's target reader
-BattleSwapScene#pbInitSwapScreen | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 | the rental list's help line, read by core's BattleSwapList after the next row
-BattleSwapScene#pbSwapChosen | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 | the rental list's help line, read by core's BattleSwapList after the next row
-BattleSwapScene#pbUpdateChoices | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 | the rental list's help line, read by core's BattleSwapList after the next row
+BattleSwapScene#pbInitSwapScreen | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation edas emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 perseida vitro | the rental list's help line, read by core's BattleSwapList after the next row
+BattleSwapScene#pbSwapChosen | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation edas emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 perseida vitro | the rental list's help line, read by core's BattleSwapList after the next row
+BattleSwapScene#pbUpdateChoices | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation edas emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 perseida vitro | the rental list's help line, read by core's BattleSwapList after the next row
 BerryBlender#name_one | sevii | the corner names; the results pages say them (games/sevii/berry_blender.rb)
 BerryBlender#name_player | sevii | the corner names; the results pages say them (games/sevii/berry_blender.rb)
 BerryBlender#name_special | sevii | the corner names; the results pages say them (games/sevii/berry_blender.rb)
@@ -136,12 +134,11 @@ BitmapSprite#draw_shadowed_text | anil royal worldfrontier | text plumbing (a wi
 BoundedPokemonEntryScene#pbEntry | rejuvenation | read by games/rejuvenation/text_entry.rb: the question, matches and help
 ChallengeModes#select_custom_rules | anil emerald | read by plugins/challenge_rules.rb: each rule, its state and description
 ContactsAppTrainerButton#draw_text | infinitefusion_hoenn | read by games/infinitefusion_hoenn/pokenav.rb: the button and its marks
-DiegoWTsStarterSelection#pbOpenScene | darkhorizon | read by games/darkhorizon/starter_selection.rb: the textbox and keys
+DiegoWTsStarterSelection#pbOpenScene | darkhorizon vitro | read by each profile's starter_selection.rb: the textbox and keys
 EnemyBuffs_Scene#pbOptions | fireash | the rows by the options reader; games/fireash/enemy_buffs.rb watches the textbox
 EnemyBuffs_Scene#showBuffDescription | fireash | sets the textbox games/fireash/enemy_buffs.rb watches
 FrentePWTBracket#draw_board | worldfrontier | read by games/worldfrontier/pwt.rb: title, round, who is in and who is out
 FrentePWTBracket#draw_slot | worldfrontier | read by games/worldfrontier/pwt.rb with the bracket
-FusionMovesOptionsScene#draw_move_info | infinitefusion_hoenn | read by games/infinitefusion_hoenn/fusion_moves.rb from the move data
 FusionMovesOptionsScene#updateCounter | infinitefusion_hoenn | read by games/infinitefusion_hoenn/fusion_moves.rb from the counter
 FusionQuiz#refresh_score_display | infinitefusion_hoenn | the quiz's dialogue says the score; fusion_quiz.rb says the streak
 GachaScene#actualizarTiradas | royal | read by plugins/magic_gachapon.rb: the pulls and coins
@@ -174,7 +171,7 @@ Object#encuentroAnimWarning | reminiscencia | read by plugins/slide_banners.rb w
 Object#getDrawnTextWOutline | desolation reborn rejuvenation | the Reborn engine's clock drawing; rv_common reads the clock (clock_text)
 Object#gotPointMessage | reminiscencia | read by plugins/slide_banners.rb when its bitmap reaches Scene_Map#addSprite
 Object#handle_input | anil revival royal worldfrontier z218 | the per-key text entry beside a message (pb_free_text_with_on_input): the question is the message's, the typing is read by plugins/bag_search_entry.rb
-Object#itemAnim | awakening relict reminiscencia revival z218 | the pickup popup (and Pokemon Z's achievement popup): its bitmap is read as it reaches Scene_Map#addSprite, by plugins/slide_banners.rb
+Object#itemAnim | awakening edas relict reminiscencia revival z218 | the pickup popup (and Pokemon Z's achievement popup): its bitmap is read as it reaches Scene_Map#addSprite, by plugins/slide_banners.rb
 Object#itemGoldAnim | relict | read by plugins/slide_banners.rb when its bitmap reaches Scene_Map#addSprite
 Object#mensaje_huevo | royal worldfrontier | read by plugins/slide_banners.rb when its bitmap reaches Scene_Map#addSprite
 Object#mensaje_logro_nuevo | royal worldfrontier | read by plugins/slide_banners.rb when its bitmap reaches Scene_Map#addSprite
@@ -185,16 +182,16 @@ Object#pbCutSpriteReel | sevii uranium | developer tool: nothing calls it
 Object#pbDemoShadowParticles | royal worldfrontier | unreachable: demo code no script or event calls
 Object#pbDisplayNumber | infinitefusion infinitefusion_hoenn | the age the character creator paints (displayAge), said as its Age row by games/infinitefusion_common/character_creator.rb; the intro events that paint variable 99 cannot run (Map295 ev1 and ev3)
 Object#pbDrawOutlineTextThin | reminiscencia | unreachable: no script calls it outside commented-out code, and no map, common or troop event does (0470 SpriteWindow_OLD.rb is commented out)
-Object#pbDrawShadow | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
+Object#pbDrawShadow | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation edas emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 perseida vitro | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
 Object#pbFreeTextBlack | royal worldfrontier | unreachable: its only caller, pbMessageFreeTextBlack, is never called
 Object#pbMakeNumericTileset | realidea | unreachable: no script calls it outside commented-out code, and no map, common or troop event does (KleinAnimatedTiles is disabled)
 Object#pbMysteryGiftBattlePointsSprite | worldfrontier | the points icon (text only without it); the gift message says the points
-Object#pbTextBitmap | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 | EventScene's label bitmap: the one screen that adds labels, the controls help (ButtonEventScene), is read by core's controls_help from the labels it registers
+Object#pbTextBitmap | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation edas emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 vitro | EventScene's label bitmap: the one screen that adds labels, the controls help (ButtonEventScene), is read by core's controls_help from the labels it registers
 Object#pbTrainerAbilityTextUpdateLevelUp | darkhorizon | captured by games/darkhorizon/trainer_abilities.rb around its caller
 Object#printSavestateMessage | realidea | unreachable in play: the missing-savestate error of a commented-out key path
 Object#raiseCharaHappiness | reminiscencia | read by plugins/slide_banners.rb when its bitmap reaches Scene_Map#addSprite
-Object#renderLineBrokenChunks | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
-Object#renderMultiLine | africanvs awakening infinitefusion infinitefusion_hoenn realidea reminiscencia sevii soulstones1 | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
+Object#renderLineBrokenChunks | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation edas emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 perseida vitro | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
+Object#renderMultiLine | africanvs awakening edas infinitefusion infinitefusion_hoenn realidea reminiscencia sevii soulstones1 perseida vitro | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
 Object#resizePngs | sevii uranium | developer tool: nothing calls it
 Object#tareaFinishPop | reminiscencia | read by plugins/slide_banners.rb when its bitmap reaches Scene_Map#addSprite
 Original_PokemonParty_Scene#pbAnnotate | soulstones2 | read by the party panel reader (core/menus/v21/ui_v21.rb), bound in games/soulstones2/renamed_screens.rb
@@ -205,13 +202,13 @@ PokeBattle_Scene#pbClear | rejuvenation | plumbing: it only empties the message 
 PokeBattle_Scene#pbDisplayEffect | uranium | with USENEWUI it goes to showAbilityMessage, read by plugins/ebs_scene.rb
 PokeblockCase_Scene#pbDrawBlockInfo | infinitefusion_hoenn | read by games/infinitefusion_hoenn/pokeblocks.rb (case_row)
 PokemonBag_Scene#drawBagItemDescription | rejuvenation | read by core's bag extractor: the description on the info key
-PokemonBag_Scene#pbChooseItem | africanvs armonia desolation insurgence opalo realidea reborn sevii soulstones1 z218 | the focused item's description box: core's row reader keeps the description for the info key
+PokemonBag_Scene#pbChooseItem | africanvs armonia desolation edas insurgence opalo realidea reborn sevii soulstones1 z218 perseida vitro | the focused item's description box: core's row reader keeps the description for the info key
 PokemonBag_Scene#pbFadeInScene | anil darkhorizon emerald relict revival royal soulstones2 worldfrontier | the bag with the party beside it, read by plugins/bag_screen_party.rb
 PokemonBag_Scene#pbHardRefresh | anil darkhorizon emerald relict revival royal soulstones2 worldfrontier | the bag with the party beside it, read by plugins/bag_screen_party.rb
 PokemonBag_Scene#pbRefreshIndexChanged | v19.1 v20.1 v21.1 awakening fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn | the focused item's description box: core's row reader keeps the description for the info key
 PokemonBag_Scene#pbUpdateAnnotation | gruelinggold | unreachable: guarded by PluginManager.installed?("Bag Screen w/int. Party"), which the game lacks
-PokemonLoadScene#pbDrawSaveText | armonia desolation opalo reborn rejuvenation z218 | the save list, read by core's LoadScreen from pbDrawSaveCommands and pbMoveSaveSel (hooked under a class name computed at load, which the census does not resolve)
-PokemonMartScene#pbChooseBuyItem | africanvs armonia desolation insurgence opalo realidea reborn reminiscencia sevii uranium z218 | the mart's description and money windows: core's shop rows keep the description for the info key, and the money window is watched
+PokemonLoadScene#pbDrawSaveText | armonia desolation opalo reborn rejuvenation z218 vitro | the save list, read by core's LoadScreen from pbDrawSaveCommands and pbMoveSaveSel (hooked under a class name computed at load, which the census does not resolve)
+PokemonMartScene#pbChooseBuyItem | africanvs armonia desolation edas insurgence opalo realidea reborn reminiscencia sevii uranium z218 perseida vitro | the mart's description and money windows: core's shop rows keep the description for the info key, and the money window is watched
 PokemonMartScene#pbStartBuyOrSellScene | reminiscencia | only builds the windows, whose rows and money core/menus/shops.rb reads
 PokemonMart_Scene#pbChooseBuyItem | v19.1 awakening fireash goldencrown infinitefusion infinitefusion_hoenn soulstones1 | the mart's description and money windows: core's shop rows keep the description for the info key, and the money window is watched
 PokemonMart_Scene#pbStartBuyOrSellScene | v20.1 v21.1 anil darkhorizon emerald gruelinggold relict revival royal soulstones2 worldfrontier | the mart's description and money windows: core's shop rows keep the description for the info key, and the money window is watched
@@ -224,18 +221,18 @@ PokemonPokedexInfo_Scene#drawPageData | anil emerald revival royal soulstones2 w
 PokemonPokedexInfo_Scene#drawPageSizes | royal worldfrontier | read by core/battle/v21/pokedex_info_v21.rb: the height and comparison
 PokemonPokedexInfo_Scene#drawPageW | royal worldfrontier | read by core/battle/v21/pokedex_info_v21.rb: the weight and comparison
 PokemonPokedexScene#activateDex | uranium | an empty text and the slider; games/uranium/pokedex.rb reads the rows
-PokemonPokedexScene#pbPokedex | africanvs armonia desolation insurgence opalo realidea reborn reminiscencia z218 | the list's side panel repeats the focused species, which core's Window_Pokedex rows say
+PokemonPokedexScene#pbPokedex | africanvs armonia desolation edas insurgence opalo realidea reborn reminiscencia z218 perseida vitro | the list's side panel repeats the focused species, which core's Window_Pokedex rows say
 PokemonPokedexScene#pbRegionMenu | rejuvenation | read by games/rejuvenation/pokedex.rb: each region and its counts
 PokemonPokedexScene#pbStartPokedexScene | rejuvenation | read by games/rejuvenation/pokedex.rb: the rows and counts
 PokemonPokedexScene#pbUpdatePokedexList | uranium | an empty text and the slider; games/uranium/pokedex.rb reads the rows
 PokemonRegionMap_Scene#freeTextMap | royal | a Window_TextEntry_Keyboard, read by core/menus/text_entry.rb
 PokemonRegionMap_Scene#showCommandsMap | royal | a command list in a message, read as dialogue and choices
 PokemonRulesetScene#pbOptions | uranium | read by games/uranium/new_game.rb: the title and each rule's help
-PokemonScreen_Scene#pbAnnotate | africanvs armonia desolation insurgence opalo realidea reborn rejuvenation reminiscencia sevii uranium z218 | the panels' annotations, said with each member by core's party reader
-PokemonScreen_Scene#pbHardRefresh | africanvs armonia desolation insurgence opalo realidea reborn rejuvenation sevii uranium z218 | rebuilds the party panels, read again on the next move by core's party reader
+PokemonScreen_Scene#pbAnnotate | africanvs armonia desolation edas insurgence opalo realidea reborn rejuvenation reminiscencia sevii uranium z218 perseida vitro | the panels' annotations, said with each member by core's party reader
+PokemonScreen_Scene#pbHardRefresh | africanvs armonia desolation edas insurgence opalo realidea reborn rejuvenation sevii uranium z218 perseida vitro | rebuilds the party panels, read again on the next move by core's party reader
 PokemonScreen_Scene#updateHeart | reminiscencia | read by games/reminiscencia/party_panel.rb: the info window's text
-PokemonStorageScene#drawMarkings | reminiscencia | unreachable: no script calls it outside commented-out code, and no map, common or troop event does: the storage in use (1350 PScreen_Storage_NEW.rb) never draws the markings
-PokemonSummaryScene#drawMarkings | realidea | unreachable: every call in the summary is commented out
+PokemonStorageScene#drawMarkings | reminiscencia perseida vitro | unreachable: no script calls it outside commented-out code, and no map, common or troop event does: the storage in use (1350 PScreen_Storage_NEW.rb) never draws the markings
+PokemonSummaryScene#drawMarkings | realidea vitro | unreachable: every call in the summary is commented out
 PokemonSummaryScene#drawSpecialMoveSelection | rejuvenation | unreachable: no script calls it outside commented-out code, and no map, common or troop event does
 PokemonSummary_Scene#drawPageAllStats | anil revival royal worldfrontier | a page drawPage dispatches, read on arrival by core's summary_v21 (hooked under SummaryV21::SCENE, which the census does not resolve)
 PsyduckHunt#extendedSceneStart | awakening | fixed labels; games/awakening/psyduck_hunt.rb reads the values
@@ -263,19 +260,46 @@ VideoPoker::Scene#confirm_double_or_nothing | emerald | messages and confirmatio
 VideoPoker::Scene#confirm_view_rules | emerald | messages and confirmations, read as dialogue; plugins/video_poker.rb reads the message window
 WFEstadisticas#draw_wrapped | worldfrontier | read by games/worldfrontier/island_map.rb and estadisticas.rb: the texts it wraps
 Window_AdvancedCommandPokemon#render_command | rejuvenation | plumbing: renders one row of a window the mod reads
-Window_AdvancedTextPokemon#height= | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation emerald fireash goldencrown gruelinggold insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 uranium worldfrontier z218 | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
-Window_AdvancedTextPokemon#lineHeight | v19.1 v20.1 africanvs armonia awakening desolation fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation reminiscencia sevii soulstones1 soulstones2 uranium z218 | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
+Window_AdvancedTextPokemon#height= | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation edas emerald fireash goldencrown gruelinggold insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 uranium worldfrontier z218 vitro | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
+Window_AdvancedTextPokemon#lineHeight | v19.1 v20.1 africanvs armonia awakening desolation edas fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation reminiscencia sevii soulstones1 soulstones2 uranium z218 perseida vitro | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
 Window_AdvancedTextPokemon#lineHeight= | v21.1 anil darkhorizon emerald relict revival royal worldfrontier | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
-Window_AdvancedTextPokemon#redrawText | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation emerald fireash goldencrown gruelinggold insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 uranium worldfrontier z218 | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
+Window_AdvancedTextPokemon#redrawText | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation edas emerald fireash goldencrown gruelinggold insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 uranium worldfrontier z218 vitro | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
 Window_AdvancedTextPokemon#setHW_XYZ | desolation reborn rejuvenation | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
-Window_AdvancedTextPokemon#setTextToFit | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
-Window_AdvancedTextPokemon#width= | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation emerald fireash goldencrown gruelinggold insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 uranium worldfrontier z218 | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
+Window_AdvancedTextPokemon#setTextToFit | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation edas emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 perseida vitro | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
+Window_AdvancedTextPokemon#width= | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation edas emerald fireash goldencrown gruelinggold insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 uranium worldfrontier z218 vitro | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
 Window_AdvancedTextPokemonCentro#height= | reminiscencia | plumbing: lays out a window whose text games/reminiscencia/command_help.rb and the dialogue reader say
 Window_AdvancedTextPokemonCentro#lineHeight | reminiscencia | plumbing: lays out a window whose text games/reminiscencia/command_help.rb and the dialogue reader say
 Window_AdvancedTextPokemonCentro#redrawText | reminiscencia | plumbing: lays out a window whose text games/reminiscencia/command_help.rb and the dialogue reader say
 Window_AdvancedTextPokemonCentro#setTextToFit | reminiscencia | unreachable: no script calls it outside commented-out code, and no map, common or troop event does (0470 SpriteWindow_OLD.rb is commented out)
 Window_AdvancedTextPokemonCentro#width= | reminiscencia | plumbing: lays out a window whose text games/reminiscencia/command_help.rb and the dialogue reader say
 Window_UnformattedTextPokemon#setSkin | v19.1 v20.1 v21.1 anil darkhorizon emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn relict revival royal soulstones2 worldfrontier | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
-Window_UnformattedTextPokemon#setTextToFit | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
+Window_UnformattedTextPokemon#setTextToFit | v19.1 v20.1 v21.1 africanvs anil armonia awakening darkhorizon desolation edas emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn insurgence opalo realidea reborn rejuvenation relict reminiscencia revival royal sevii soulstones1 soulstones2 uranium worldfrontier z218 perseida vitro | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
 WonderCardAlbumScene#pbDrawGrid | emerald | read by plugins/bw_mystery_gift.rb: each card's title, contents and date
 WonderCardAlbumScene#updateTitleText | emerald | only the constant album title and the arrows
+pbDirBoard | edas perseida | a direction board no script and no event calls
+Object#pbDirBoard | edas perseida | a direction board no script and no event calls
+Object#questAnim | edas perseida vitro | the quest banner: painted with pbDrawTextPositions, read as it reaches Scene_Map#addSprite (plugins/slide_banners.rb)
+Object#sendstatusErrorAnim | edas perseida vitro | no call that runs: its only caller, pbSendStatus, sits inside an if false; vitro has no call at all
+Object#autosaveAnim | edas perseida vitro | edas: its only call, in the autosave script, is commented out and no event has one; perseida's events (common event 45, maps 48, 63 and 122) and vitro's code trades call it, and its bitmap is read as it reaches Scene_Map#addSprite (slide_banners)
+Object#pbMysteryGiftSwitchSprite | worldfrontier | the event gift's mark: its text is a fallback painted only without Graphics/UI/Pause Menu/regalo.png, which both versions ship
+RedArcana | perseida | dead: pbCallRedArcana has no call in the scripts or in Data; the Pokegear opens its entries directly
+SpaceFlight | perseida | dead: pbCallSpace has no call in the scripts or in Data
+Object#questAnimTask | perseida vitro | the quest's popup: its bitmap is read as it reaches Scene_Map#addSprite (slide_banners)
+Object#sendstatusAnim | perseida vitro | dead: no call in the scripts or in Data
+BattleInfo_BattleUI#drawFixTexts | perseida | the fixed labels of the battle information, said with its values by games/perseida/battle_info.rb
+Object#logroAnim | perseida | the achievement's popup: its bitmap is read as it reaches Scene_Map#addSprite (slide_banners)
+BattleInfoScene#draw_battle_effects | vitro | Essentials BES's battle sheet: said from the battler by plugins/bes_battle_info.rb, not from what it paints
+BattleInfoScene#draw_detailed_info | vitro | Essentials BES's battle sheet: said from the battler by plugins/bes_battle_info.rb, not from what it paints
+BattleInfoScene#draw_last_move | vitro | Essentials BES's battle sheet: said from the battler by plugins/bes_battle_info.rb, not from what it paints
+BattleInfoScene#draw_selection_info | vitro | Essentials BES's battle sheet: said from the battler by plugins/bes_battle_info.rb, not from what it paints
+BattleInfoScene#draw_stats | vitro | Essentials BES's battle sheet: said from the battler by plugins/bes_battle_info.rb, not from what it paints
+BattleInfoScene#draw_weather | vitro | Essentials BES's battle sheet: said from the battler by plugins/bes_battle_info.rb, not from what it paints
+MoveInfoScene#draw_flags | vitro | Essentials BES's move screen: the text it paints is said in paint order by plugins/bes_move_info.rb
+MoveInfoScene#draw_power_accuracy_pp | vitro | Essentials BES's move screen: the text it paints is said in paint order by plugins/bes_move_info.rb
+MoveInfoScene#draw_target | vitro | Essentials BES's move screen: the text it paints is said in paint order by plugins/bes_move_info.rb
+MysteryGiftScene#drawMenuTexts | vitro | the menu's rows, @text: said by plugins/alt_mystery_gift.rb
+Object#clChainUpdate | vitro | the rescue chain's banner (0366_OWE_Chain): its bitmap is read as it reaches Scene_Map#addSprite (slide_banners)
+PokemonCreaturesMart_Scene#pbChooseBuyItem | vitro | the Pokedex entry beside the list: games/vitro/creature_mart.rb keeps it for the info key with the row
+PokemonDataBox#_tkDrawDmgSprite | vitro | the hit points lost or gained (0248_Damage Numbers): said by core's hp line, foes' too, as games/vitro/battle_menus.rb declares them painted
+PokemonLanguageSelection#createLanguageOptions | vitro | the language rows: said by games/vitro/title.rb as the cursor moves
+RadioInterface#draw_frequency_marks | vitro | the bar's marks, which carry no number: games/vitro/radio.rb says their frequencies on the info key

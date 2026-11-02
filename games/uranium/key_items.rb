@@ -27,6 +27,10 @@ PokeAccess::Game.define("uranium") do
     n = (($PokemonBag.keyItemsSelected || []).length rescue 0)
     PokeAccess.speak(PokeAccess::I18n.t(:ura_keylist_open, :n => n), true)
   end
+  # O, the mod's config key, also closes the list (0200_BW_KeyItemList), as cancel does: it is left on no key.
+  remap_extra(:ura_close_list, 0x4F, :ura_key_o)
+  key_defaults(:ura_close_list => "None")
+
   before("KeyItemList", :initialize) do |_list, _a|
     held = ($PokemonBag.keyItemsSelected rescue nil)
     PokeAccess.speak(PokeAccess::I18n.t(:ura_keylist_none), true) if held.is_a?(Array) && held.empty?

@@ -32,9 +32,9 @@ else
 end
 
 # Read binary (the dumps carry Latin-1 in comments). Each class records its games and whether it came from a
-# _PluginScripts/ folder; methods and attr_reader/accessor names are recorded as "Class#method" for the probes that
-# name one, the owner by indentation; a def at column 0 is also recorded as "Object#name", the owner of a top-level
-# function; =begin/=end blocks are skipped.
+# _PluginScripts/ folder; methods, the names they are aliased under and attr_reader/accessor names are recorded as
+# "Class#method" for the probes that name one, the owner by indentation; a def at column 0 is also recorded as
+# "Object#name", the owner of a top-level function; =begin/=end blocks are skipped.
 owners = {}
 meth_owners = {}
 games.each do |g|
@@ -66,7 +66,7 @@ games.each do |g|
             m[2].scan(/:([a-zA-Z_][A-Za-z0-9_]*[?!]?)/) { |a| ((meth_owners["#{owner}##{a[0]}"] ||= {}))[g] = true }
             next
           end
-          next unless line =~ /^(\s*)def\s+(?:self\.)?([a-zA-Z_][A-Za-z0-9_]*[?!]?)/
+          next unless line =~ /^(\s*)(?:def\s+(?:self\.)?|alias\s+:?)([a-zA-Z_][A-Za-z0-9_]*[?!]?)/
           owner = stack.owner_at($1.length) || cur
           ((meth_owners["#{owner}##{$2}"] ||= {}))[g] = true
         end

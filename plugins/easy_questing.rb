@@ -219,3 +219,4 @@ PokeAccess::Hooks.wrap_kernel("pbDrawOutlineText", "plugin_quests_paint", :befor
 end
 
 PokeAccess::Verbosity.define_reading(:quest, :vb_quest, :vbh_quest, :game)
+PokeAccess::Hooks.clear_info_on("Questlog", :pbEnd)

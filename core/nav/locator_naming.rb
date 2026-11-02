@@ -1091,11 +1091,15 @@ module PokeAccess
       hit && hit[1]
     end
 
-    # "Wild <species>" for a visible overworld encounter (the VOE plugin's Game_PokeEvent), with the shiny word
-    # (Party.shiny_word) for a shiny one, which its sprite shows; else nil.
+    # The name of a visible overworld encounter (the VOE plugin's Game_PokeEvent), see wild_name; else nil.
     def self.wild_pokemon_name(ev)
       return nil unless defined?(Game_PokeEvent) && ev.is_a?(Game_PokeEvent)
-      pk = (ev.pokemon rescue nil)
+      wild_name((ev.pokemon rescue nil))
+    end
+
+    # "Wild <species>" for a Pokemon walking the map, with the shiny word (Party.shiny_word) for a shiny one, which its
+    # sprite shows; nil with no Pokemon or name.
+    def self.wild_name(pk)
       return nil unless pk
       nm = (pk.name rescue nil); nm = (pk.speciesName rescue nil) if nm.nil? || nm.to_s.empty?
       return nil if nm.nil? || nm.to_s.empty?
@@ -1206,12 +1210,14 @@ module PokeAccess
     # "salidas" is refused, as "crisalidas" carries it.
     EXIT_SPRITE_RE = /door|puerta|salida(?!s)|exit|flecha|arrow|stair|escalera|ladder|entrada|entrance/i
 
-    # Editor annotations stuck to an event name, stripped before speaking it: size(3,1) for a multi-tile object, .sl
-    # and forced_z=N for its drawing layer, .shadowless and .noshadow for its shadow, and the notes the engines read
-    # there: counter(N) and sight(N) for how far an event is talked to or sees, bush_depth(N) and glowsize(N) for how it
-    # is drawn.
-    EDITOR_NOTE_RE = /\s*(?:size\s*\(\s*\d+\s*,\s*\d+\s*\)|\.(?:sl|shadowless|noshadow)\b|\bforced_z\s*=\s*-?\d+|
-                         \b(?:counter|sight|bush_depth|glowsize)\s*\(\s*\d+\s*\))/ix
+    # Editor annotations stuck to an event name, stripped before speaking it: size(3,1) or sizeC(3,1) for a multi-tile
+    # object, .sl and forced_z=N for its drawing layer, .shadowless and .noshadow, or a bare noShadow, for its shadow, and
+    # the notes the engines read there: counter(N) and sight(N) for how far an event is talked to or sees, bush_depth(N)
+    # for how it is drawn, and Caruban's Dynamic Darkness's light: glowsize(N), glowswitch(X), glowswitchreverse,
+    # glowalways, glowstatic and flashlight or flashlight(N).
+    EDITOR_NOTE_RE = /\s*(?:sizec?\s*\(\s*\d+\s*,\s*\d+\s*\)|\.(?:sl|shadowless|noshadow)\b|\bforced_z\s*=\s*-?\d+|
+                         \b(?:counter|sight|bush_depth|glowsize)\s*\(\s*\d+\s*\)|\bglowswitch\s*\(\s*\w+\s*\)|
+                         \b(?:noshadow|glowswitchreverse|glowalways|glowstatic)\b|\bflashlight\b(?:\s*\(\s*\d+\s*\))?)/ix
     # A trainer's sight range in its name ("Cultist Trainer(3)"), where the word stays and the number goes.
     TRAINER_RANGE_RE = /\b(trainer)\s*\(\s*\d+\s*\)/i
     # A name of punctuation alone (an apostrophe, a dot), which is how some mappers leave an event unnamed.

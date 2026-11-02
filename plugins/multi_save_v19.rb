@@ -69,12 +69,9 @@ PokeAccess::Hooks.after_hook("ScreenChooseFileSave", :textPanel, :optional => tr
 end
 
 # The page is drawn once per visit; going back to the list forgets the row, so it is read again on return.
-PokeAccess::Hooks.around_hook("ScreenChooseFileSave", :drawInfor, :optional => true) do |screen, nxt, _a|
-  ret = nil
-  pairs = PokeAccess::PaintCapture.sample { ret = nxt.call }
+PokeAccess::Hooks.on_paint("ScreenChooseFileSave", :drawInfor, :optional => true) do |screen, pairs, _a|
   PokeAccess::Cursor.reset(screen, :msv_row)
   PokeAccess.speak(PokeAccess::MultiSaveV19.page_text(pairs, PokeAccess::MultiSaveV19.team_text(screen)), true)
-  ret
 end
 
 PokeAccess::Hooks.after_hook("ScreenChooseFileSave", :choosePanelInfor, :optional => true) do |screen, _r, _a|

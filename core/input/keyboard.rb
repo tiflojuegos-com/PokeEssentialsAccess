@@ -19,6 +19,10 @@ module PokeAccess
     VK_F8      = 0x77
     VK_F9      = 0x78
     VK_F10     = 0x79
+    # What marks a key code as a key pressed with Alt held; the key tables and settings.ini hold it like any other code.
+    ALT_HELD   = 0x1200
+    # The key code of no key: an action on it answers nothing, and its game's key stops answering for it.
+    NO_KEY     = 0
 
     @now = {}
     @prev = {}
@@ -26,6 +30,29 @@ module PokeAccess
 
     # Raw physical state of a virtual-key; nil (falsy) where GetAsyncKeyState is unavailable.
     def self.raw_down?(vk); GAKS && (GAKS.call(vk) & 0x8000) != 0; end
+
+    # The key code of a virtual-key pressed with Alt held.
+    def self.with_alt(vk); ALT_HELD | vk; end
+
+    # Whether a key code is a key pressed with Alt held.
+    def self.alt_code?(code); code >= ALT_HELD; end
+
+    # The virtual-key of a key code.
+    def self.key_of(code); code & 0xFF; end
+
+    # Whether Alt is held for a key with it: AltGr, which holds Ctrl with it, types instead.
+    def self.alt_held?; raw_down?(VK_ALT) && !raw_down?(VK_CONTROL); end
+
+    # The key code of a key named as a profile names it: a letter, a digit or an F key, after "Alt+" for one with Alt
+    # held; "Alt" for Alt alone; "None" for no key. A number is a code already, and nil stays nil.
+    def self.code_for(spec)
+      return spec unless spec.is_a?(String)
+      return NO_KEY if spec == "None"
+      return VK_ALT if spec == "Alt"
+      key = spec.sub(/\AAlt\+/, "")
+      vk = key =~ /\AF(\d+)\z/ ? 0x6F + $1.to_i : key.unpack("C")[0]
+      key == spec ? vk : with_alt(vk)
+    end
 
     # The code point of the character a virtual-key types unshifted in the game window's keyboard layout (game_char),
     # else in the calling thread's, a dead key's accent too; nil where the layout puts none on it or Windows cannot be
@@ -78,6 +105,13 @@ module PokeAccess
     # True on the frame a virtual-key goes down, until a reader consumes it.
     def self.pressed?(vk)
       down?(vk) && !@prev[vk] && !@used[vk]
+    end
+
+    # True on the frame a key code goes down, until a reader consumes it; a key with Alt needs Alt held by then, and its
+    # key is asked about every frame, so one held before Alt is no new press.
+    def self.code_pressed?(code)
+      pressed = pressed?(key_of(code))
+      pressed && (!alt_code?(code) || alt_held?)
     end
 
     # True on the frame a whole chord becomes held: every key down now, not all of them down the frame before.

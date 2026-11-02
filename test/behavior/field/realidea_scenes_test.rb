@@ -192,10 +192,12 @@ class EncounterListUI
 end
 
 # The readers, evaluated once the stand-ins exist, so their hooks bind to them as they do in the game.
-encounter_window = File.join(Harness::ROOT, "plugins", "simple_encounter_list.rb")
-eval(Harness.source(encounter_window), TOPLEVEL_BINDING, encounter_window)
+%w[simple_encounter_list encounter_pages].each do |f|
+  path = File.join(Harness::ROOT, "plugins", "#{f}.rb")
+  eval(Harness.source(path), TOPLEVEL_BINDING, path)
+end
 
-%w[porygon_ray scenes story_minigames encounters].each do |f|
+%w[porygon_ray scenes story_minigames].each do |f|
   path = File.join(Harness::ROOT, "games", "realidea", "#{f}.rb")
   eval(Harness.source(path), TOPLEVEL_BINDING, path)
 end

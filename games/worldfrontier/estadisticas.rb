@@ -390,4 +390,6 @@ PokeAccess::Game.define("worldfrontier") do
   kernel("pbPlayCancelSE") { |_args, _r| PokeAccess::WfEditor.guard { PokeAccess::WfEditor.sound_played(:cancel) } }
   kernel("pbPlayBuzzerSE") { |_args, _r| PokeAccess::WfEditor.guard { PokeAccess::WfEditor.sound_played(:buzzer) } }
   poll_each_frame { PokeAccess::WfEditor.guard { PokeAccess::WfEditor.poll } }
+  clear_info_on("PokemonEditor_Scene", :pbEndScene)
+  clear_info_on("PokemonStatEditor_Scene", :pbEndScene)
 end

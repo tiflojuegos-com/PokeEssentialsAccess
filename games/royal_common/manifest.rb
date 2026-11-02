@@ -1,6 +1,6 @@
 # Load order for what the games on Pokemon Royal's code share (no .rb): Royal and World Frontier, which ships Royal's
 # own scripts ("Scripts del Royal", its "Cambios en LBDS", its edits of the DBK and Hall de la Fama BW), none of which
-# Anil and Revival, the other games skyflyer_common serves, have. Imported by both, loaded before each game's own
+# Anil and Revival, the other games on La Base de Sky, have. Imported by both, loaded before each game's own
 # modules; each profile names the transcription of its own controls picture (RoyalControls.key).
 {
   :modules => %w[

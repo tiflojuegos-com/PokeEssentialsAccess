@@ -34,12 +34,11 @@ module Reset
     nil
   end
 
-  # Drops the input layer's short-lived claims (typing hold, menu lock, yielded keys), which lapse only with play.
+  # Drops the input layer's short-lived claims (typing hold, menu lock), which lapse only with play.
   def self.reset_keys
     k = PokeAccess::Keys
     k.instance_variable_set(:@typing_ttl, 0)
     k.instance_variable_set(:@menu_lock_ttl, 0)
-    k.instance_variable_set(:@yielded, {})
   end
 
   # Clears the frame's stall count, which specs driving Input.update alone build up, and settles control on the
@@ -61,7 +60,9 @@ module Reset
     end
     (PokeAccess::Config.rebinds = {} rescue nil)
     (PokeAccess::Config.rebind_labels = {} rescue nil)
-    (PokeAccess::Config.keys = PokeAccess::Config::KEY_DEFAULTS.dup rescue nil)
+    (PokeAccess::Config.keys = PokeAccess::Config.key_defaults.dup rescue nil)
+    (PokeAccess::Remap.defaults.clear rescue nil)
+    (PokeAccess::Remap.field_defaults.clear rescue nil)
   end
 
   # Runs the block with a capability answering value, whatever the engine state earlier suites left; the registered

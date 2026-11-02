@@ -13,14 +13,19 @@ end
 PokeAccess::Hooks.before_hook(PokeAccess::BattleG6::SCENE, :pbDisplayMessage) do |scene, args|
   battle = scene.instance_variable_get(:@battle)
   PokeAccess::Battle.set_battle(battle)
+  PokeAccess::BattleScene.flush_strip(args[0])
   PokeAccess.say_dialogue(args[0])
   PokeAccess::Battle.announce_opening_field(battle)
 end
 
 # Paused battle messages (exp, level up): a different method from pbDisplayMessage, so its own hook.
 PokeAccess::Hooks.before_hook(PokeAccess::BattleG6::SCENE, :pbDisplayPausedMessage) do |_s, args|
+  PokeAccess::BattleScene.flush_strip(args[0])
   PokeAccess.say_dialogue(args[0])
 end
+
+PokeAccess::Frame.each_pulse { PokeAccess::BattleScene.strip_frame }
+PokeAccess::Caches.register(:ability_strip) { PokeAccess::BattleScene.forget_strip }
 
 # Move-target selection in doubles, through pbUpdateSelected or, on a fork without it, pbSelectBattler in mode 2
 # (a spread move's array and the -1 deselect pass too). hook_container: the original drives hooked setters.
@@ -77,7 +82,10 @@ end
 # pbCommandMenu sets the initial cursor with cw.index=, so the next index= read is flagged as an open.
 [PokeAccess::BattleG6::SCENE].each do |cn|
   ["pbCommandMenu", "pbCommandMenuEx"].each do |m|
-    PokeAccess::Hooks.before_hook(cn, m) { |_s, _args| PokeAccess::Battle.cmd_opening! }
+    PokeAccess::Hooks.before_hook(cn, m) do |_s, _args|
+      PokeAccess::BattleScene.flush_strip
+      PokeAccess::Battle.cmd_opening!
+    end
   end
 end
 

@@ -167,9 +167,9 @@ class Ruby187Test < PokeAccessTest
   private
 
   # [output, status] of check187.py at script over the given files (every file of its repo when none), with no 1.8.7
-  # interpreter for the planted runs.
+  # interpreter for the planted runs. The real one takes no RUBYOPT: game_overrides' preload is for this Ruby.
   def sweep(script, files)
-    env = script == SWEEP && files.empty? ? {} : NO_INTERPRETER
+    env = script == SWEEP && files.empty? ? { "RUBYOPT" => nil } : NO_INTERPRETER
     Open3.capture2e(env, "python", script, *files)
   end
 

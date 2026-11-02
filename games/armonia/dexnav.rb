@@ -133,4 +133,5 @@ PokeAccess::Game.define("armonia") do
       end
     end
   end
+  clear_info_on("DexNav", :dispose)
 end

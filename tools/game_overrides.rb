@@ -6,7 +6,8 @@
 #   ruby tools/game_overrides.rb <scripts folder> --write out.rb  # writes the preload (RUBYOPT=-rout.rb)
 # The scripts folder holds the game's scripts as .rb files (tools/dump_scripts.rb writes one). Under --run, a
 # redefined method answers the game's way only when the mod's own code (core/, games/, plugins/) calls it, so the
-# test framework and the stubs keep Ruby's behavior.
+# test framework and the stubs keep Ruby's behavior. A method Ruby lacks answers everyone, save to_hash: Hash[] and
+# IO.popen ask any object for it, so anyone else gets nil, which to them means no conversion.
 require "prism"
 require "tmpdir"
 
@@ -56,7 +57,7 @@ end
 # left out and named.
 def preload(found, skipped)
   only_native = %w[Object Kernel Module Class BasicObject]
-  lines = ['MOD_SITE = %r{[/\\\\](core|games|plugins)[/\\\\][^:]*\.rb}']
+  lines = ["MOD_SITE = %r{\\A(?!(?:#{Regexp.escape(ROOT)}[/\\\\])?test[/\\\\]).*[/\\\\](core|games|plugins)[/\\\\][^:]*\\.rb}"]
   found.each do |klass, defs, aliases, file|
     klass = "Integer" if klass == "Fixnum" || klass == "Bignum"
     kind = %w[Kernel Comparable Enumerable].include?(klass) ? "module" : "class"
@@ -73,11 +74,18 @@ def preload(found, skipped)
       native = "method_defined?(#{sym}) || private_method_defined?(#{sym})"
       lines << "  if #{native}" if only_native.include?(klass)
       lines << body
-      lines << "  if #{native}"
+      lines << "  if method_defined?(:__pa_ruby_#{safe}, false) || private_method_defined?(:__pa_ruby_#{safe}, false)"
+      lines << "  elsif #{native}"
       lines << "    alias_method :__pa_ruby_#{safe}, #{sym}"
       lines << "    define_method(#{sym}) do |*a, &b|"
       lines << "      loc = caller_locations(1, 1)[0]"
       lines << "      loc && loc.path =~ MOD_SITE ? __pa_game_#{safe}(*a, &b) : __pa_ruby_#{safe}(*a, &b)"
+      lines << "    end"
+      lines << "    ruby2_keywords(#{sym})"
+      lines << "  elsif #{(name == 'to_hash').inspect}"
+      lines << "    define_method(#{sym}) do |*a, &b|"
+      lines << "      loc = caller_locations(1, 1)[0]"
+      lines << "      loc && loc.path =~ MOD_SITE ? __pa_game_#{safe}(*a, &b) : nil"
       lines << "    end"
       lines << "  else"
       lines << "    alias_method #{sym}, :__pa_game_#{safe}"

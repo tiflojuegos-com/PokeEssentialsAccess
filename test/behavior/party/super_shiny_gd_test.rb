@@ -1,5 +1,5 @@
 # Skyflyer's games (anil, royal, worldfrontier) paint a super shiny with its own purple star: the lists say it
-# (skyflyer_common), and so does the copy of the DBK battler panel Royal's code edits (royal_common), its file loaded
+# (plugins/sky_base.rb), and so does the copy of the DBK battler panel Royal's code edits (royal_common), its file loaded
 # for each test and taken back after.
 class SuperShinyGdTest < PokeAccessTest
   ROYAL = File.join(Harness::ROOT, "games", "royal_common", "super_shiny.rb")

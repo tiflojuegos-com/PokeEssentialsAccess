@@ -3,6 +3,9 @@ module PokeAccess
   # change; pbGetMapDetails(x,y) gives the detail the bar paints beside it (a point of interest), said after the
   # place where descriptions are said and kept for the info key.
   module RegionMap
+    # Where inside a square extra_here? looks for paint, in eighths of it: a thin road crosses it off its centre.
+    EXTRA_SPOTS = [1, 3, 5, 7]
+
     # Says the square under the cursor when it or its fly mark changes (a move interrupts, the same square queues),
     # keeps its description for the info key and marks the bottom bar's dedup slot with the name (speak_marked).
     def self.announce(scene, name, x, y)
@@ -31,10 +34,31 @@ module PokeAccess
       parts.join(", ")
     end
 
-    # What a map draws on a square beyond its place, the fly icon and the player's head (a roaming Pokemon's icon), as
-    # words; none on a stock map, and a profile whose map draws more overrides it.
-    def self.square_marks(_scene, _x, _y)
-      []
+    # What a map draws on a square beyond its place, the fly icon and the player's head, as words: on a stock map, an
+    # area the game has revealed; a profile or plugin whose map draws more (a roaming Pokemon's icon) adds to it.
+    def self.square_marks(scene, x, y)
+      extra_here?(scene, x, y) ? [PokeAccess::I18n.t(:rmap_extra)] : []
+    end
+
+    # Whether an extra picture of the map covers part of the square: the game's map extras (a hidden island a switch
+    # reveals), all drawn on the BitmapSprite named "map2", in step with the map's squares. A sprite of another kind with
+    # that name is no such canvas (Armonia's holds a whole second map).
+    def self.extra_here?(scene, x, y)
+      sprite = PokeAccess.sprite(scene, "map2")
+      return false unless sprite && sprite.is_a?(::BitmapSprite)
+      w, h = square_size(scene)
+      EXTRA_SPOTS.any? do |a|
+        EXTRA_SPOTS.any? { |b| sprite.bitmap.get_pixel(x * w + a * w / 8, y * h + b * h / 8).alpha > 0 }
+      end
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      false
+    end
+
+    # A map square's size in pixels, under either era's constants.
+    def self.square_size(scene)
+      k = scene.class
+      [(k::SQUARE_WIDTH rescue (k::SQUAREWIDTH rescue 16)), (k::SQUARE_HEIGHT rescue (k::SQUAREHEIGHT rescue 16))]
     end
 
     # Whether the square is the one the map opened on, where the player's head is drawn; a map screen whose squares

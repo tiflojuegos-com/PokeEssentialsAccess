@@ -1,6 +1,6 @@
 # World Frontier's own screens, gamedata pass (games/worldfrontier/): the pause menu, the trainer album and its card,
 # the player's data hub, card and statistics, the island map, the starter teams, the Pokemon and Battle Point shops,
-# the rental and swap screens, the battle roulette, the tournament bracket and the temple's item counter.
+# the rental and swap screens, the battle roulette, the tournament bracket and the temple's counters.
 
 # The controls key its constants name lives in royal_common's controls reader, which another test evaluates.
 module PokeAccess
@@ -170,15 +170,20 @@ class WfTournament
   def round_label; "Semifinal"; end
 end
 
+# A tournament of version 1.2.0, which translates its own title.
+class WfTranslatedTournament < WfTournament
+  def tournament_title; "World Tournament"; end
+end
+
 # The bracket board, a function of its own.
 module FrentePWTBracket
   def self.show(_pwt); :shown; end
 end
 
-# The temple's item counter.
+# The temple's counters, which it repaints together when one changes.
 module BattleTemple
   class RoomItemLabel
-    def paint(_text); :painted; end
+    def paint(_items_text, _trainers_text); :painted; end
   end
 end
 
@@ -192,6 +197,8 @@ PokeAccess::RoyalControls.key = controls_was
 
 class WorldfrontierScreensGdTest < PokeAccessTest
   I18n = PokeAccess::I18n
+  TEMPLE_ITEMS = "Objetos de la sala: 1/3"
+  TEMPLE_TRAINERS = "Entrenadores derrotados: 0/3"
   # A trainer of the album: id, name and team entries.
   Trainer = Struct.new(:id, :name, :team)
   # The player as far as the shop's header goes.
@@ -252,6 +259,40 @@ class WorldfrontierScreensGdTest < PokeAccessTest
     lines = SpeakCapture.lines
     assert_match(/\ADATOS DEL JUEGO\. #{Regexp.escape(vb_entry("MIS DATOS", 1, 2))}/, lines[0])
     assert_equal [vb_entry("ÁLBUM", 2, 2), vb_entry("ÁLBUM", 2, 2)], lines[1..2]
+  end
+
+  test "the data hub says the symbols it draws as icons after its panel, each won by its building and tier" do
+    with_symbols([:oro, nil, :plata]) { TarjetasHub_Scene.new.refresh }
+    list = [I18n.t(:wf_symbol_gold, :name => "Edificio torre"), I18n.t(:wf_symbol_silver, :name => "Edificio templo")]
+    assert_includes SpeakCapture.lines[0], "#{vb_entry('MIS DATOS', 1, 2)}. Símbolos obtenidos: #{list.join(', ')}"
+  end
+
+  test "the data hub with no symbol won says none, and each move says only the panel" do
+    hub = TarjetasHub_Scene.new
+    with_symbols([nil, nil, nil]) do
+      hub.refresh
+      assert_includes SpeakCapture.lines[0], "Símbolos obtenidos: #{I18n.t(:sum_none)}"
+      hub.move(1)
+    end
+    assert_equal vb_entry("ÁLBUM", 2, 2), SpeakCapture.lines[1]
+  end
+
+  test "the load screen appends the symbols its panel draws as icons, from the save's own tiers" do
+    with_symbols([nil, nil, nil]) do
+      with_load_panel([nil, :plata, nil]) do
+        assert_equal ["Símbolos obtenidos: #{I18n.t(:wf_symbol_silver, :name => 'Edificio dojo')}"],
+                     PokeAccess::LoadPanel.extras(nil, [])
+      end
+    end
+  end
+
+  test "a load panel that keeps no symbols appends nothing" do
+    assert_equal [], PokeAccess::LoadPanel.extras(nil, [])
+  end
+
+  test "a version of the game with no symbols says none of them" do
+    TarjetasHub_Scene.new.refresh
+    refute_includes SpeakCapture.lines[0], "Símbolos"
   end
 
   test "the player's card says each label with its value, and the keys" do
@@ -362,9 +403,38 @@ class WorldfrontierScreensGdTest < PokeAccessTest
     assert_equal [[board, true]], SpeakCapture.log
   end
 
-  test "the temple says its room's item counter each time it is repainted" do
-    BattleTemple::RoomItemLabel.new.paint("Objetos de la sala: 1/3")
-    assert_equal [["Objetos de la sala: 1/3", false]], SpeakCapture.log
+  test "the bracket says the title the tournament translates, where it has one" do
+    assert_equal "World Tournament", PokeAccess::WfBracket.title(WfTranslatedTournament.new(%w[Rojo], [false]))
+    assert_equal "Torneo Mundial", PokeAccess::WfBracket.title(WfTournament.new(%w[Rojo], [false]))
+  end
+
+  test "the temple's first paint says both counters, queued, and keeps the game's value" do
+    assert_equal :painted, BattleTemple::RoomItemLabel.new.paint(TEMPLE_ITEMS, TEMPLE_TRAINERS)
+    assert_equal [[TEMPLE_ITEMS, false], [TEMPLE_TRAINERS, false]], SpeakCapture.log
+  end
+
+  test "a later paint of the temple says only the counter that changed, even on a new label after a battle" do
+    BattleTemple::RoomItemLabel.new.paint(TEMPLE_ITEMS, TEMPLE_TRAINERS)
+    SpeakCapture.clear
+    BattleTemple::RoomItemLabel.new.paint(TEMPLE_ITEMS, "Entrenadores derrotados: 1/3")
+    assert_equal ["Entrenadores derrotados: 1/3"], SpeakCapture.lines
+    SpeakCapture.clear
+    BattleTemple::RoomItemLabel.new.paint("Objetos de la sala: 2/3", "Entrenadores derrotados: 1/3")
+    assert_equal ["Objetos de la sala: 2/3"], SpeakCapture.lines
+  end
+
+  test "a paint of the temple with nothing changed says nothing" do
+    label = BattleTemple::RoomItemLabel.new
+    2.times { label.paint(TEMPLE_ITEMS, TEMPLE_TRAINERS) }
+    assert_equal [TEMPLE_ITEMS, TEMPLE_TRAINERS], SpeakCapture.lines
+  end
+
+  test "resetting the caches, as a new floor of the temple loads, says its counters again" do
+    BattleTemple::RoomItemLabel.new.paint(TEMPLE_ITEMS, TEMPLE_TRAINERS)
+    PokeAccess::Caches.reset_all
+    SpeakCapture.clear
+    BattleTemple::RoomItemLabel.new.paint(TEMPLE_ITEMS, TEMPLE_TRAINERS)
+    assert_equal [TEMPLE_ITEMS, TEMPLE_TRAINERS], SpeakCapture.lines
   end
 
   private
@@ -372,6 +442,33 @@ class WorldfrontierScreensGdTest < PokeAccessTest
   # A list row with its place, as the verbosity in use says it.
   def vb_entry(name, n, tot)
     PokeAccess::Verbosity.list_entry(name, n, tot)
+  end
+
+  # Runs the block with the game's symbols in the given tiers, and the names of their buildings; taken off after.
+  def with_symbols(tiers)
+    logros = Module.new
+    logros.const_set(:SIMBOLOS, %w[torre dojo templo])
+    logros.define_singleton_method(:simbolos_estado) { |_global| tiers }
+    stats = Module.new
+    stats.define_singleton_method(:building_label) { |key| "Edificio #{key}" }
+    Object.const_set(:WF_Logros, logros)
+    Object.const_set(:WFPlayerCardStats, stats)
+    yield
+  ensure
+    Object.send(:remove_const, :WF_Logros)
+    Object.send(:remove_const, :WFPlayerCardStats)
+  end
+
+  # Runs the block with the load panel's class keeping the save's symbol tiers, what it stood for put back after.
+  def with_load_panel(tiers)
+    was = Object.const_defined?(:PokemonLoadPanel) ? Object.send(:remove_const, :PokemonLoadPanel) : nil
+    panel = Class.new
+    panel.define_singleton_method(:wf_simbolos_flags) { tiers }
+    Object.const_set(:PokemonLoadPanel, panel)
+    yield
+  ensure
+    Object.send(:remove_const, :PokemonLoadPanel)
+    Object.const_set(:PokemonLoadPanel, was) if was
   end
 
   # Runs the block with the player as given, put back after.

@@ -80,7 +80,7 @@ module PokeAccess
         words = flag_words(move)
         parts.push(PokeAccess::I18n.t(:dbk_flags, :list => words.join(", "))) unless words.empty?
       end
-      eff = effectiveness(scene, move, t)
+      eff = effectiveness(scene, move, t, battler)
       parts.push(eff) if eff
       parts.empty? ? nil : parts
     rescue StandardError => e
@@ -183,13 +183,14 @@ module PokeAccess
 
     # How the move lands on each opposing battler, worded from the icon the panel paints over it; nil for a status
     # move, which has no icon.
-    def self.effectiveness(scene, move, type)
+    # param user the battler whose move it is
+    def self.effectiveness(scene, move, type, user = nil)
       battle = (scene ? scene.instance_variable_get(:@battle) : nil)
       return nil unless battle && type && (move.category rescue STATUS_CAT) < STATUS_CAT
       out = []
       (battle.allBattlers rescue []).each do |b|
         next if b.nil? || (b.index rescue 0).even? || (b.fainted? rescue true)
-        word = PokeAccess::I18n.t(EFFECT_KEYS[effect_index(b, type)])
+        word = PokeAccess::I18n.t(EFFECT_KEYS[effect_index(b, type, scene, move, user)])
         out.push([PokeAccess.clean((b.name rescue "")), word])
       end
       return nil if out.empty?
@@ -200,8 +201,9 @@ module PokeAccess
       nil
     end
 
-    # The icon index for one target, classified as pbDrawTypeEffectiveness does, the hidden unknown species included.
-    def self.effect_index(b, type)
+    # The icon index for one target, classified as pbDrawTypeEffectiveness does, the hidden unknown species included; a
+    # game that edited the panel overrides it, with what its draw weighs (scene, move and user).
+    def self.effect_index(b, type, _scene = nil, _move = nil, _user = nil)
       return 0 if unknown_species?(b)
       return 3 if (b.tera? rescue false) && type == :STELLAR
       value = Effectiveness.calculate(type, *b.pbTypes(true))
@@ -585,10 +587,7 @@ end
 
 # The prompt's keys as its refresh paints or draws them, on each window= and battler= (the menu it stands beside, its
 # battler).
-PokeAccess::Hooks.around_hook("Battle::Scene::EnhancedUIPrompt", :refresh, :optional => true) do |prompt, nxt, _a|
-  ret = nil
-  rows = PokeAccess::PaintCapture.sample { ret = nxt.call }
+PokeAccess::Hooks.on_paint("Battle::Scene::EnhancedUIPrompt", :refresh, :optional => true) do |prompt, rows, _a|
   PokeAccess::DBKPrompt.painted(prompt, rows)
-  ret
 end
 PokeAccess::Frame.each_pulse { PokeAccess::DBKPrompt.release }

@@ -47,6 +47,22 @@ class CatalogDetectTest < PokeAccessTest
     end
   end
 
+  test "the games on Essentials BES go to their own profiles, by declared title and by folder" do
+    { "Pokemon Edas" => "edas", "Pokemon Perseida" => "perseida", "Pokemon GS Vitro" => "vitro" }.each do |title, key|
+      assert_equal key, by_title(title), "for #{title.inspect}"
+    end
+    { "f:/fangames/pok\u00e9mon edas/game.exe" => "edas", "f:/fangames/pok\u00e9mon perseida/game.exe" => "perseida",
+      "f:/fangames/pokemon gs vitro/game.exe" => "vitro" }.each do |path, key|
+      assert_equal key, by_folder(path), "for #{path}"
+    end
+  end
+
+  test "the Edas and Vitro patterns take the whole word" do
+    ["d:/games/pedasos/game.exe", "d:/games/vitrola/game.exe", "d:/games/pokemon edash/game.exe"].each do |path|
+      assert_nil by_folder(path), "for #{path}"
+    end
+  end
+
   test "a folder no profile names goes to none, as the generic profile is never detected" do
     ["d:/games/my fangame/game.exe", "c:/juegos/pokemon esmeralda/game.exe", "e:/rpg/generic/game.exe"].each do |path|
       assert_nil by_folder(path), "for #{path}"

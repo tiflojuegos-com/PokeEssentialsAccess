@@ -42,6 +42,11 @@ module PokeAccess
       nil
     end
 
+    # A hint of the telegraph's, with its keys as the player has them now.
+    def self.hint(key)
+      PokeAccess::KeyHints.localize(PokeAccess::I18n.t(key))
+    end
+
     # Once, queued: the keys the panel paints (and M for the guide once it is owned), then the ones it does not, which
     # enter a dot or a dash on the press, unheld (inputtecla: Left or numpad plus, Right or numpad minus); with the
     # puzzle assist, how many symbols the answer has.
@@ -49,9 +54,9 @@ module PokeAccess
       return unless PokeAccess::Cursor.changed?(scene, :rea_morse_keys, true)
       parts = []
       if PokeAccess::Verbosity.hints?
-        parts.push(PokeAccess::KeyHints.localize(PokeAccess::I18n.t(:rea_morse_keys)))
+        parts.push(hint(:rea_morse_keys))
         guide = PokeAccess.sprite(scene, "help1")
-        parts.push(PokeAccess::I18n.t(:rea_morse_guide_key)) if guide && (guide.visible rescue false)
+        parts.push(hint(:rea_morse_guide_key)) if guide && (guide.visible rescue false)
         parts.push(PokeAccess::I18n.t(:rea_morse_arrows))
       end
       target = PokeAccess.ivar(scene, :@secuenciacorrecta)
@@ -94,7 +99,7 @@ module PokeAccess
       help = PokeAccess.sprite(scene, "help")
       shown = help ? ((help.visible rescue false) ? true : false) : false
       return unless PokeAccess::Cursor.changed?(scene, :rea_morse_guide, shown) && shown
-      PokeAccess.speak(PokeAccess::Verbosity.with_hint(guide_text, PokeAccess::I18n.t(:rea_morse_guide_close)), true)
+      PokeAccess.speak(PokeAccess::Verbosity.with_hint(guide_text, hint(:rea_morse_guide_close)), true)
     end
 
     # "A: punto raya. B: raya punto punto punto..." for the whole table.

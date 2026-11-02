@@ -9,7 +9,7 @@ module PokeAccess
       return false unless (PokeAccess::Config.dialogue_pages rescue false)
       return false if letterbyletter == false || PokeAccess.message_depth > 0
       return false unless win.respond_to?(:pausing?) && PokeAccess.ivar(win, :@textchars).is_a?(Array)
-      t = PokeAccess.clean(message)
+      t = PokeAccess.dialogue_text(message)
       @skip = PokeAccess.recently_said?(t)
       PokeAccess.note_dialogue_seen
       @head = @skip ? nil : PokeAccess.take_head
@@ -47,7 +47,7 @@ module PokeAccess
     def self.flush(w, chars)
       cur = [PokeAccess.ivar_i(w, :@curchar), chars.length].min
       return if cur <= @said
-      text = PokeAccess.clean(chars[@said...cur].join)
+      text = PokeAccess.dialogue_text(chars[@said...cur].join)
       @said = cur
       return if @skip || text.strip.empty?
       text = PokeAccess.led(@head, text) unless @heard

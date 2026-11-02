@@ -4,6 +4,11 @@ PokeAccess::Game.define("opalo") do
   # Key hints for the letters Opalo's Input maps to one button each: R and Y are anthem keys, A is bound to two.
   key_hints "Z" => :a, "X" => :b, "C" => :c, "D" => :z
 
+  # T and I, the mod's info and route keys, play the anthems of the fifth and eighth badges on its card (190_OpaloCard).
+  remap_extra(:op_anthem_t, 0x54, :op_key_t, :button => :T)
+  remap_extra(:op_anthem_i, 0x49, :op_key_i, :button => :I)
+  key_defaults(:op_anthem_t => "Alt+T", :op_anthem_i => "Alt+I")
+
   # Its Kernel.pbSurf (189_Following.rb) refuses while anyone walks along as a dependent event, unless the following
   # Pokemon's switch is on.
   surf_company(:dependents) { $game_switches[Following_Activated_Switch] }

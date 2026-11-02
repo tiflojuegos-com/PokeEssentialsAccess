@@ -1,14 +1,15 @@
-# The title a list screen paints in its corner (core/menus/screen_title.rb): the jukebox in both builds and the HM
+# The title a list screen paints in its corner (core/menus/screen_title.rb): the jukebox in every build and the HM
 # Catalogue, over stand-ins whose header is a text window. Said once per screen, queued, ahead of the first row.
 
 # A header as the screens make it: a text window, here only its text.
 TitleHeader = Struct.new(:text)
 
-# Gen6's jukebox loops over update; v19's and the HM Catalogue's screens update their sprites in pbUpdate. Each is
-# built here with the title it paints, or none.
+# xLeD's jukebox loops over update; the v16.2 one (Essentials BES's too), v19's and the HM Catalogue's screens update
+# their sprites in pbUpdate. Each is built here with the title it paints, or none.
 class Scene_Jukebox
   def initialize(title = nil); @sprites = title ? { "header" => TitleHeader.new(title) } : {}; end
   def update; :updated; end
+  def pbUpdate; :updated; end
 end
 class PokemonJukebox_Scene
   def initialize(title = nil); @sprites = title ? { "header" => TitleHeader.new(title) } : {}; end
@@ -25,13 +26,14 @@ hm = File.join(Harness::ROOT, "plugins", "hm_catalogue.rb")
 eval(Harness.source(hm)[/^PokeAccess::Hooks\.before_hook\("HM_Scene".*?^end$/m], TOPLEVEL_BINDING, hm)
 
 class ScreenTitleTest < PokeAccessTest
-  SCREENS = { Scene_Jukebox => :update, PokemonJukebox_Scene => :pbUpdate, HM_Scene => :pbUpdate }
+  SCREENS = [[Scene_Jukebox, :update], [Scene_Jukebox, :pbUpdate], [PokemonJukebox_Scene, :pbUpdate],
+             [HM_Scene, :pbUpdate]]
 
   test "each screen says its title on its first frame, queued, and keeps the game's own result" do
     SCREENS.each do |klass, meth|
       SpeakCapture.clear
-      assert_equal :updated, klass.new("Jukebox").send(meth), "for #{klass}"
-      assert_equal [["Jukebox", false]], SpeakCapture.log, "for #{klass}"
+      assert_equal :updated, klass.new("Jukebox").send(meth), "for #{klass}##{meth}"
+      assert_equal [["Jukebox", false]], SpeakCapture.log, "for #{klass}##{meth}"
     end
   end
 
@@ -40,8 +42,29 @@ class ScreenTitleTest < PokeAccessTest
       SpeakCapture.clear
       scene = klass.new("HM Catalogue")
       3.times { scene.send(meth) }
-      assert_equal [["HM Catalogue", false]], SpeakCapture.log, "for #{klass}"
+      assert_equal [["HM Catalogue", false]], SpeakCapture.log, "for #{klass}##{meth}"
     end
+  end
+
+  test "the Options screen says its title window on its first frame, queued, once" do
+    scene = PokemonOptionScene.new
+    scene.sprites = { "title" => TitleHeader.new("Opciones") }
+    3.times { scene.pbUpdate }
+    assert_equal [["Opciones", false]], SpeakCapture.log
+  end
+
+  test "a title painted over the parent's as the screen opens is said as it changes, cutting in" do
+    scene = PokemonOptionScene.new
+    scene.sprites = { "title" => TitleHeader.new("Opciones") }
+    scene.pbUpdate
+    scene.sprites = { "title" => TitleHeader.new("Ajustes del aleatorio") }
+    2.times { scene.pbUpdate }
+    assert_equal [["Opciones", false], ["Ajustes del aleatorio", true]], SpeakCapture.log
+  end
+
+  test "an Options screen with no title window says nothing" do
+    PokemonOptionScene.new.pbUpdate
+    assert_nothing_spoken
   end
 
   test "a new visit says the title again" do

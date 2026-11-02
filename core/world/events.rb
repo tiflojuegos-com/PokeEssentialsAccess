@@ -257,8 +257,9 @@ module PokeAccess
         end
       end
 
-      # The tiles an event covers: w x h right and up from (x, y), the size the engine keeps (v19+) or the size(w,h) in
-      # the name (gen 6), else one tile.
+      # The tiles an event covers: w x h right and up from (x, y), the size the engine keeps (v19+) or the size(w,h) or
+      # sizeC(w,h) in the name (gen 6), else one tile. The script's sizeC blocks the same width a tile further left, which
+      # the probe asks the engine; this is where the event is acted on.
       def self.area(x, y, w, h, name)
         w, h = size_in(name) unless w.is_a?(Integer) && h.is_a?(Integer)
         out = []
@@ -266,12 +267,12 @@ module PokeAccess
         out
       end
 
-      # The size(w,h) a name gives, [1, 1] without one; kept per name.
+      # The size(w,h) or sizeC(w,h) a name gives, [1, 1] without one; kept per name.
       def self.size_in(name)
         @sizes ||= {}
         hit = @sizes[name]
         return hit if hit
-        m = name.to_s.match(/size\(\s*(\d+)\s*,\s*(\d+)\s*\)/i)
+        m = name.to_s.match(/sizec?\(\s*(\d+)\s*,\s*(\d+)\s*\)/i)
         @sizes[name] = m ? [m[1].to_i, m[2].to_i] : [1, 1]
       end
 

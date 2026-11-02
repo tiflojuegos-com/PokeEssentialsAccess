@@ -83,7 +83,7 @@ begin
   eval(ui_src[bar_at...bar_end], TOPLEVEL_BINDING, ui, ui_src[0, bar_at].count("\n") + 1)
   arcky = File.join(Harness::ROOT, "plugins", "arcky_region_map.rb")
   arcky_src = Harness.source(arcky)
-  [/^PokeAccess::Hooks\.around_hook\("PokemonRegionMap_Scene", :drawDataMain.*?^end\r?\n/m,
+  [/^PokeAccess::Hooks\.(?:around_hook|on_paint)\("PokemonRegionMap_Scene", :drawDataMain.*?^end\r?\n/m,
    /^PokeAccess::Hooks\.after_hook\("PokemonRegionMap_Scene", :hideExtendedPreview.*?^end\r?\n/m,
    /^PokeAccess::Hooks\.before_hook\("MapBottomSprite", :mapname=.*?^end\r?\n/m].each do |part|
     found = arcky_src.match(part)

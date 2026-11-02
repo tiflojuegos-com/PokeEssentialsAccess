@@ -27,7 +27,7 @@ class MaxRaidScene
 end
 dens_path = File.join(Harness::ROOT, "plugins", "zud_raid_dens.rb")
 dens_source = Harness.source(dens_path)
-dens_source.scan(/^PokeAccess::Hooks\.around_hook\("MaxRaidScene".*?^end\r?\n/m) do
+dens_source.scan(/^PokeAccess::Hooks\.(?:around_hook|on_paint)\("MaxRaidScene".*?^end\r?\n/m) do
   hook = Regexp.last_match
   eval(hook[0], TOPLEVEL_BINDING, dens_path, dens_source[0, hook.begin(0)].count("\n") + 1)
 end

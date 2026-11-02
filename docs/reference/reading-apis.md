@@ -137,6 +137,7 @@ module-wide table when `holder` is nil; `:@x` and `:x` name the same slot. The t
   - `:queue`: false lets the first read interrupt too; by default it is queued.
   - `:key`: a proc of the scene, the index and the entry giving what must change for a new read; by default the
     entry and the index with `:items`, else the index.
+  - `:close`: the method that closes the screen; each line stays on the info key until it runs.
   - `:optional`, `:hook_container`: passed to the hook.
 
   The block gets the entry, the index and the scene with `:items`, else the index and the scene, as many as it takes.
@@ -200,7 +201,7 @@ Each of the four text functions also feeds `recent`.
 - `PaintCapture.armed?(tag)`: true while `tag` is armed.
 - `PaintCapture.pending?(tag)`: true while `tag` is armed and at least one row landed.
 - `PaintCapture.sample { ... }`: the rows the block draws, as `take_pairs` gives them, under a tag of its own; a
-  capture already armed is restored after.
+  capture already armed is restored after. `on_paint` in a profile runs a whole method under it.
 - `PaintCapture.speak_around(tag, interrupt) { ... }`: arms `tag`, runs the block, speaks the rows through
   `KeyHints.gate` and `text`; returns the block's value.
 - `PaintCapture.flush_pending(tag, interrupt)`: from a poller, speaks the rows of a tag armed before a blocking loop
@@ -244,7 +245,8 @@ Shift, the last dialogue line; with Ctrl, `Info.row_text` when the screen publis
   `set_info`.
 - `Info.row_text`: the row and its windows as sentences, or nil.
 - `Info.info_text`: the line of the published kind.
-- `Info.clear_text`: forgets a published ready line; other kinds stay.
+- `Info.clear_text`: forgets a published ready line; other kinds stay. `clear_info_on` in a profile calls it as a method
+  closes a screen.
 - `Info.clear_combat`: forgets a published move, foe or ready line; runs when a battle ends.
 - `Info.map_owner(name) { ... }`: registers a block that answers the info key on the map, or nil to pass; the same name
   replaces it. Owners are asked in registration order.
@@ -277,12 +279,6 @@ Shift, the last dialogue line; with Ctrl, `Info.row_text` when the screen publis
   the end of the order. `trainer_part` in a profile; `trainer_order` sets the order.
 
 The default parts are `:name`, `:money`, `:badges`, `:pokedex` and `:playtime`.
-
-### Claiming the key
-
-- `Keys.yield_key!(name)`: called each frame a game screen answers a mod key itself; the key does nothing for four
-  pulses.
-- `Keys.yielded?(name)`: whether a screen claimed the key.
 
 ## PokeAccess::Verbosity
 
@@ -376,7 +372,7 @@ Plugins and profiles declare more; `rg -n "Verbosity.define_reading" plugins gam
   mod's remap nor mkxp-z's F1 bindings move a button.
 - `KeyHints.key(sym, painted)`: the key to say for button `sym`: the one bound with the mod's remap, else the one
   mkxp-z's F1 menu gave it, else `painted`.
-- `KeyHints.bound_name(sym)`: the name of the key bound to `sym` with the mod's remap, or nil.
+- `KeyHints.bound_name(sym)`: the name of the key bound to `sym` with the mod's remap or shipped by its profile, or nil.
 - `KeyHints.table`: `Config.key_hint_letters`.
 
 | Constant | Matches or holds |

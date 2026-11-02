@@ -81,3 +81,5 @@ if PokeAccess::Engine.has?("UI::PokedexEntryVisuals")
     end
   end
 end
+# Closing the list forgets what it and its entries published for the info key.
+PokeAccess::Hooks.clear_info_on("UI::PokedexVisuals", :dispose)

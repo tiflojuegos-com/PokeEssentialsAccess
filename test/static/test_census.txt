@@ -1,4 +1,5 @@
 # Test files test/run.rb must discover. Regenerate: ruby test/static/build_census.rb
+behavior/battle/ability_strip_test.rb
 behavior/battle/anil_damage_numbers_gd_test.rb
 behavior/battle/announce_field_test.rb
 behavior/battle/announce_hp_test.rb
@@ -8,7 +9,11 @@ behavior/battle/arena_judgment_test.rb
 behavior/battle/awakening_battle_test.rb
 behavior/battle/battle_close_gd_test.rb
 behavior/battle/battle_close_test.rb
+behavior/battle/battle_lives_test.rb
 behavior/battle/battler_box_gd_test.rb
+behavior/battle/bes_battle_info_test.rb
+behavior/battle/bes_battle_test.rb
+behavior/battle/bes_move_info_test.rb
 behavior/battle/command_menu_test.rb
 behavior/battle/command_menu_window_test.rb
 behavior/battle/contest_help_gd_test.rb
@@ -71,14 +76,23 @@ behavior/battle/worldfrontier_damage_cap_gd_test.rb
 behavior/battle/z_ball_key_test.rb
 behavior/battle/z_battle_bag_test.rb
 behavior/battle/z_damage_numbers_test.rb
+behavior/core/clara_common_test.rb
 behavior/core/desolation_profile_test.rb
 behavior/core/dialogue_pages_test.rb
+behavior/core/edas_profile_test.rb
 behavior/core/insurgence_profile_test.rb
 behavior/core/insurgence_screens_profile_test.rb
+behavior/core/perseida_battle_test.rb
+behavior/core/perseida_profile_test.rb
+behavior/core/perseida_screens_test.rb
 behavior/core/reborn_profile_test.rb
 behavior/core/silence_test.rb
 behavior/core/uranium_profile_test.rb
 behavior/core/uranium_screens_test.rb
+behavior/core/vitro_battle_test.rb
+behavior/core/vitro_map_test.rb
+behavior/core/vitro_profile_test.rb
+behavior/core/vitro_screens_test.rb
 behavior/field/africanus_minigames_test.rb
 behavior/field/africanus_race_test.rb
 behavior/field/anil_diploma_gd_test.rb
@@ -180,7 +194,6 @@ behavior/field/z_turbo_test.rb
 behavior/foundation/boot_loader_test.rb
 behavior/foundation/game_lang_test.rb
 behavior/foundation/if_game_lang_gd_test.rb
-behavior/foundation/key_yield_test.rb
 behavior/foundation/settings_apply_test.rb
 behavior/foundation/speak_net_test.rb
 behavior/input/hook_initialize_test.rb
@@ -189,6 +202,7 @@ behavior/input/mini_update_busy_test.rb
 behavior/input/remin_raw_keys_test.rb
 behavior/menus/advanced_pokedex_gd_test.rb
 behavior/menus/advanced_pokedex_labels_test.rb
+behavior/menus/advanced_pokedex_v16_test.rb
 behavior/menus/africanus_pictures_test.rb
 behavior/menus/alt_mystery_gift_test.rb
 behavior/menus/anil_pause_panel_gd_test.rb
@@ -209,11 +223,13 @@ behavior/menus/berry_flavors_gd_test.rb
 behavior/menus/berry_pots_test.rb
 behavior/menus/berrydex_header_gd_test.rb
 behavior/menus/berrydex_test.rb
+behavior/menus/bes_bag_test.rb
 behavior/menus/bes_blackjack_test.rb
 behavior/menus/bes_piano_test.rb
 behavior/menus/bes_trainer_card_test.rb
 behavior/menus/bloc_unown_test.rb
 behavior/menus/bp_shop_gd_test.rb
+behavior/menus/bw_gender_selector_gd_test.rb
 behavior/menus/bw_mystery_gift_gd_test.rb
 behavior/menus/bw_save_screen_gd_test.rb
 behavior/menus/bw_summary_gd_test.rb
@@ -234,7 +250,6 @@ behavior/menus/cursor_dedup_test.rb
 behavior/menus/custom_screens_test.rb
 behavior/menus/darkhorizon_abilities_gd_test.rb
 behavior/menus/darkhorizon_cp_moves_gd_test.rb
-behavior/menus/darkhorizon_gender_selector_gd_test.rb
 behavior/menus/darkhorizon_messages_gd_test.rb
 behavior/menus/darkhorizon_new_game_gd_test.rb
 behavior/menus/darkhorizon_pokedex_gd_test.rb
@@ -327,6 +342,7 @@ behavior/menus/plugins_smoke_test.rb
 behavior/menus/pokedex_entry_gen6_test.rb
 behavior/menus/pokedex_list_v22_gd_test.rb
 behavior/menus/pokedex_nest_test.rb
+behavior/menus/pokegear_bes_test.rb
 behavior/menus/pokegear_gen6_test.rb
 behavior/menus/pokegear_return_test.rb
 behavior/menus/pokesearch_gd_test.rb
@@ -429,7 +445,9 @@ behavior/menus/zud_max_lair_gd_test.rb
 behavior/menus/zud_raid_dens_gd_test.rb
 behavior/nav/arcky_preview_gd_test.rb
 behavior/nav/arcky_progress_gd_test.rb
+behavior/nav/bes_region_map_test.rb
 behavior/nav/better_region_map_test.rb
+behavior/nav/boon_side_stairs_test.rb
 behavior/nav/carried_inside_test.rb
 behavior/nav/carry_test.rb
 behavior/nav/cluster_exits_test.rb
@@ -506,6 +524,7 @@ behavior/nav/town_map_test.rb
 behavior/nav/town_map_v22_gd_test.rb
 behavior/nav/visits_test.rb
 behavior/party/bag_party_panel_gd_test.rb
+behavior/party/bes_summary_test.rb
 behavior/party/better_summary_heart_gd_test.rb
 behavior/party/dynamax_gd_test.rb
 behavior/party/enhanced_pokemon_ui_gd_test.rb
@@ -588,9 +607,11 @@ static/hooked_classes_test.rb
 static/i18n_parity_test.rb
 static/i18n_refs_test.rb
 static/imports_test.rb
+static/info_close_test.rb
 static/info_window_lifecycle_test.rb
 static/inline_comments_test.rb
 static/ivars_test.rb
+static/key_defaults_test.rb
 static/manifest_check_test.rb
 static/match_globals_test.rb
 static/mts_mutator_guard_test.rb
@@ -643,6 +664,7 @@ unit/input/info_owner_test.rb
 unit/input/key_hints_test.rb
 unit/input/keyboard_test.rb
 unit/input/native_keys_test.rb
+unit/input/paint_verbs_test.rb
 unit/input/wrap_singleton_test.rb
 unit/menus/bag_filter_test.rb
 unit/menus/bag_registered_test.rb

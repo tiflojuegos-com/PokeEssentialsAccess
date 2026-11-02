@@ -535,6 +535,8 @@ PokeAccess::Hooks.before_hook("PokemonPokedexInfo_Scene", :pbChooseSpeciesDataLi
   PokeAccess::Cursor.reset(s, :pdx_list_page)
 end
 
+# Closing the Pokedex or an entry forgets what they published for the info key.
+["PokemonPokedex_Scene", "PokemonPokedexInfo_Scene"].each { |cls| PokeAccess::Hooks.clear_info_on(cls, :pbEndScene) }
 # Reset the dedup when an entry's loop begins so reopening reads it again.
 PokeAccess::Hooks.before_hook("PokemonPokedexInfo_Scene", :pbScene) do |s, _a|
   PokeAccess::PokedexInfoV21.reset(s)

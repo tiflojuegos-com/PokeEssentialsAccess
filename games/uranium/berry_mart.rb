@@ -53,4 +53,6 @@ PokeAccess::Game.define("uranium") do
   [:pbDisplay, :pbDisplayPaused, :pbConfirm].each do |meth|
     before("PokemonBerryMartScene", meth) { |_s, args| PokeAccess.say_screen_message(args) }
   end
+  clear_info_on("PokemonBerryMartScene", :pbEndBuyScene)
+  clear_info_on("PokemonBerryMartScene", :pbEndSellScene)
 end

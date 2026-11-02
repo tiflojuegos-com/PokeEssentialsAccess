@@ -39,7 +39,7 @@ module PokeAccess
   # hook's) is remembered as it was said but not spoken again.
   def self.say_dialogue(message)
     note_dialogue_seen
-    t = clean(message)
+    t = dialogue_text(message)
     if recently_said?(t)
       note_dialogue(@last_led || t)
       return
@@ -52,6 +52,11 @@ module PokeAccess
     speak(@last_led, false, kind)
     tail = empty ? nil : take_tail
     speak(tail, false, kind) if tail
+  end
+
+  # A message line as it is said: cleaned, with the keys it asks for as the player has them now.
+  def self.dialogue_text(message)
+    PokeAccess::KeyHints.localize(clean(message), nil, true)
   end
 
   # The speech category of a message line: :battle during a fight, else :dialogue.
@@ -106,7 +111,7 @@ module PokeAccess
   # about to route through the message hooks.
   # param head the head its reader says it with, kept with it for the repeat key
   def self.say_dialogue_skip(message, head = nil)
-    t = clean(message)
+    t = dialogue_text(message)
     @last_led = head ? led(head, t) : nil
     note_dialogue(@last_led || t)
     @last_say = t

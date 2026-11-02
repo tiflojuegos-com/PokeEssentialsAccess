@@ -40,6 +40,13 @@ with the script that builds it and its sources. Read it when a static check fail
 - `imports_test.rb`: every `:imports` names a [shared profile](glossary.md) with a manifest. A shared profile has no
   catalog entry, imports no other and is imported by some playable profile. No file is copied between two playable
   profiles; files are compared with each one's profile name blanked out.
+- `key_defaults_test.rb`: what each profile ships its keys on (`key_defaults`, `field_key_defaults`), read from its source
+  and its imports': a name a key can have, an action of the remap screen, no key no entry can take, no key with Alt for
+  the mod's modifiers, and no two actions on one key. It also keeps the list of what each game ships, which the README's
+  table repeats.
+- `info_close_test.rb`: a file that publishes a ready line for the info key says where it goes (`Info.clear_text`,
+  `clear_info_on` or `focus_reader` with `:close`), or is listed with why it need not: a battle screen, a panel over the
+  map, or a page of a stock screen whose close core declares.
 - `coupling_test.rb`: no constant crosses layers. An era folder names nothing another era folder defines, shared core
   names nothing an era folder defines, a profile names nothing another profile defines (a shared profile it imports
   aside), plugins name no profile, and no other file names what a plugin defines. No profile reopens a core module but
@@ -49,9 +56,9 @@ with the script that builds it and its sources. Read it when a static check fail
   entry with a [probe](glossary.md). Every plugin a profile declares exists. Some profile declares every plugin file,
   or the file is a reader only the generic profile loads, whose probe no surveyed game ships and a reference copy
   defines. Every hook in `plugins/` is `:optional`, and no two readers claim one `Class#method`. Each profile declares
-  the plugins its game ships (`plugin_census.txt`), save one its game ships in an edited copy that the profile reads
-  itself, listed in `OWN_COPIES` (Revival's Modular Menu), which counts as declared. Such a profile does not load the
-  plugin's reader too.
+  the plugins its game ships (`plugin_census.txt`), save one its game ships in a copy the plugin's reader does not fit
+  or that never runs, read by the profile, by another plugin or by nobody: those are listed in `OWN_COPIES` (Revival's
+  Modular Menu, Vitro's berry pots), which counts as declared. Such a profile does not load the plugin's reader too.
 - `profile_load_test.rb`: every profile, and every shared profile on its own, loads whole as the loader loads it, in a
   Ruby process of its own under each engine's stubs. A misspelt DSL method shows only when its `define` block runs.
 - `profile_names_test.rb`: the first `define` a profile's modules run, through `Game.define` or a core wrapper of it
@@ -62,8 +69,8 @@ with the script that builds it and its sources. Read it when a static check fail
 ## Hooks against the games
 
 - `hooked_classes_test.rb`: every class the mod hooks by a string name exists in some surveyed source
-  (`all_classes.txt`) or in a reference copy (`reference_census.txt`). Every census in `CENSUSES` states, in its
-  header, the number of surveyed sources in `SOURCES`.
+  (`all_classes.txt`) or, for a plugin reader, in a reference copy that defines its probe (`reference_census.txt`).
+  Every census in `CENSUSES` states, in its header, the number of surveyed sources in `SOURCES`.
 - `arity_test.rb`: every `args[N]` a hook body reads is an argument that each surveyed game passes that method
   (`arity_census.txt`). A body bound to several classes reads one meaning per position. Allow tables: `ALLOW` and
   `MEANING_ALLOW`, each entry with its reason; an entry the scan does not find fails.
@@ -72,8 +79,8 @@ with the script that builds it and its sources. Read it when a static check fail
   `# blocks-on-purpose`, a `read_on_open` with `:timing => :before` and a [container](glossary.md) are left out. Allow
   table: `KNOWN_NO_DUMP`, the hooks no script dump can confirm.
 - `ivars_test.rb`: every instance variable a reader takes off a game object exists in a game that reader runs in
-  (`ivar_census.txt`). A plugin reader only the generic profile loads may take one a reference copy uses. Lists:
-  `SELF_INTROSPECTION` (the diagnostic dump and the session recorder) and `UNSURVEYED`.
+  (`ivar_census.txt`). A plugin reader only the generic profile loads may take one a reference copy that defines its
+  probe uses. Lists: `SELF_INTROSPECTION` (the diagnostic dump and the session recorder) and `UNSURVEYED`.
 - `info_window_lifecycle_test.rb`: each scene `PokeAccess::InfoWindow` watches declares a lifecycle that meets one its
   games define (`lifecycle_census.txt`). A watch whose lifecycle meets none is never entered.
 - `era_calls_test.rb`: each `pb*` name that shared core calls and some surveyed source lacks (`era_census.txt`) has an
@@ -178,8 +185,9 @@ edited by hand.
 - The vanilla Essentials scripts, at `../../pokemon-essentials/Data/Scripts` or `PA_VANILLA`. The arity, era, fangame
   and reader builders survey them as one more source, `vanilla`, when the folder exists.
 - Reference copies: third-party plugins no surveyed game ships, under `../../../repositorios genericos/_refmods`, in its
-  `pokeliberty`, `FL-essentials` and `eeveeexpo` collections. `build_reference_census.rb` takes another folder as its
-  first argument or `PA_REFERENCE`.
+  `pokeliberty`, `FL-essentials` and `eeveeexpo` collections, which hold one plugin per folder, and in `Essentials-BES`,
+  a whole base read from its `Data/Scripts` folder. `build_reference_census.rb` takes another folder as its first
+  argument or `PA_REFERENCE`.
 
 Each census built from the script dumps gives the count of its surveyed sources in its header, as
 `surveyed sources (N)`, `surveyed games (N)` or `surveyed profiles (N)`. `hooked_classes_test.rb` and

@@ -242,8 +242,8 @@ class SchedulerTest < PokeAccessTest
     end
   end
 
-  test "never asks an older dll without the range, the air or the HRTF entry point for it" do
-    [:range, :air, :hrtf].each do |entry|
+  test "never asks an older dll without the range, the air or the output entry point for it" do
+    [:range, :air, :output].each do |entry|
       with_trainer do
         with_sound_engine(true, 44100, [entry]) do |dll|
           asked = asked_of(dll)
@@ -264,23 +264,63 @@ class SchedulerTest < PokeAccessTest
     end
   end
 
-  test "tells the engine whether to spatialize through the HRTF, as set" do
-    { true => [[1]], false => [[0]] }.each do |on, want|
+  test "tells the engine how sources reach the speakers, as set" do
+    { :binaural => 0, :mono => 1, :stereo => 2, :quad => 3, :surround51 => 4, :surround71 => 5 }.each do |output, number|
       with_frame do |dll, sch|
-        Config.audio3d_hrtf = on
+        Config.audio3d_output = output
         sch.tick
-        assert_equal want, dll.args(:hrtf), "with the HRTF #{on ? 'on' : 'off'}"
+        assert_equal [[number]], dll.args(:output), output.to_s
       end
     end
   end
 
-  test "sends the HRTF switch again only when it changes" do
+  test "lists every output the engine has a number for" do
+    assert_equal PokeAccess::Sound::Pa3d::OUTPUTS.keys.map { |o| o.to_s }.sort,
+                 PokeAccess::Config::LISTS[:output][0].map { |o| o.to_s }.sort
+  end
+
+  test "sends the output again only when it changes" do
     with_frame do |dll, sch|
       sch.tick
       sch.tick
-      Config.audio3d_hrtf = false
+      Config.audio3d_output = :stereo
       sch.tick
-      assert_equal [[1], [0]], dll.args(:hrtf)
+      assert_equal [[0], [2]], dll.args(:output)
+    end
+  end
+
+  test "tells the player, queued and once, when the device plays another output" do
+    with_frame do |dll, sch|
+      dll.device_channels = 2
+      dll.plays_output = 2
+      Config.audio3d_output = :surround51
+      2.times { sch.tick }
+      told = PokeAccess::I18n.t(:audio3d_output_short, :output => "5.1", :used => PokeAccess::I18n.t(:output_stereo),
+                                :channels => 2)
+      assert_equal [[told, false]], SpeakCapture.log
+    end
+  end
+
+  test "tells the player, queued and once, when no output opens, and asks again when the setting changes" do
+    with_frame do |dll, sch|
+      dll.plays_output = -1
+      Config.audio3d_output = :surround71
+      2.times { sch.tick }
+      assert_equal [[PokeAccess::I18n.t(:audio3d_output_failed), false]], SpeakCapture.log
+      dll.plays_output = nil
+      Config.audio3d_output = :stereo
+      sch.tick
+      assert_equal [[5], [2]], dll.args(:output)
+    end
+  end
+
+  test "says nothing of an output that plays as asked" do
+    PokeAccess::Config::LISTS[:output][0].each do |output|
+      with_frame do |_dll, sch|
+        Config.audio3d_output = output
+        sch.tick
+        assert_equal [], SpeakCapture.lines, output.to_s
+      end
     end
   end
 

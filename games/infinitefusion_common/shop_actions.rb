@@ -84,4 +84,5 @@ PokeAccess::Game.define("infinitefusion_common") do
   override(PokeAccess::Menus, :mart_price) do |_menus, original, args|
     PokeAccess::IFShopActions.price(args[0], args[1], original.call)
   end
+  clear_info_on("ClothesShopView", :pbEndBuyScene)
 end

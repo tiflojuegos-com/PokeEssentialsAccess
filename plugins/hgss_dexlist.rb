@@ -89,3 +89,4 @@ PokeAccess::Hooks.around_hook("PokemonPokedex_Scene", :pbDexEntry, :optional => 
     PokeAccess::Cursor.reset(scene, :hgss_dex)
   end
 end
+PokeAccess::Hooks.clear_info_on("PokemonPokedex_Scene", :pbEndScene)

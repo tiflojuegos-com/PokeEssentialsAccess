@@ -112,6 +112,24 @@ class RouteTerrainTest < PokeAccessTest
     end
   end
 
+  test "the spin stops on the stop tile a copy of the script defines, and on no tile where it defines -1" do
+    with_spin_arrows do
+      begin
+        got = [36, -1].map do |stop|
+          PBTerrain.send(:remove_const, :SpinTileStop) if PBTerrain.const_defined?(:SpinTileStop)
+          PBTerrain.const_set(:SpinTileStop, stop)
+          grid(["#######",
+                "#@....#",
+                "#######"], { [2, 1] => 34, [4, 1] => 36 })
+          spots(traced(1, 1, 0, [6]))
+        end
+        assert_equal [[[4, 1, 0]], [[5, 1, 0]]], got
+      ensure
+        PBTerrain.send(:remove_const, :SpinTileStop)
+      end
+    end
+  end
+
   test "Realidea's copy stops the spin on plain floor in its map 323 alone" do
     with_spin_arrows do
       with_profile("realidea/spin_stop", PokeAccess::SpinTiles => :extra_stop?) do

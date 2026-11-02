@@ -62,10 +62,12 @@ at all is decided in [Choose where a reader goes](choose-where-a-reader-goes.md)
    key and the profiles whose script dump defines it: a class probe by its last name segment, a method probe as
    `<last segment>#<method>`.
 7. For a plugin no surveyed game ships, put a copy of it in one of the reference collections, `pokeliberty`,
-   `FL-essentials` or `eeveeexpo`, under `../../../repositorios genericos/_refmods`. Then run
+   `FL-essentials` or `eeveeexpo`, under `../../../repositorios genericos/_refmods`. A base that several readers
+   share, such as `Essentials-BES`, is a collection of its own whose scripts are in `Data/Scripts`. Then run
    `ruby test/static/build_reference_census.rb`. The static tests accept a reader no profile names when no script
-   dump ships its probe and a reference copy defines it, and accept the classes and instance variables the copy
-   defines. `plugins/fl_character_selection_v1.rb` is such a reader, for the generic profile alone.
+   dump ships its probe and a reference copy defines it, and accept the classes and instance variables of the copies
+   that define its own probe, not those of another plugin's copy. `plugins/fl_character_selection_v1.rb` is such a
+   reader, for the generic profile alone.
 8. Write the reader's test under `test/behavior/`, in a file ending in `_gd_test.rb` for a GameData-era plugin, and
    regenerate the censuses, which list the test files ([Tests](tests.md)).
 9. Run `ruby test/run_all.rb`.

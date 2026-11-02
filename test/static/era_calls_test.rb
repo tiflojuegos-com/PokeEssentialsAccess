@@ -4,7 +4,7 @@ require "tmpdir"
 
 class EraCallsTest < PokeAccessTest
   CENSUS = File.join(File.dirname(__FILE__), "era_census.txt")
-  SOURCES = 28
+  SOURCES = 31
   KNOWN = {
     # Ladders: the gen-6 spelling is tried and the modern one follows (or the other way round).
     "pbIsImportantItem?" => "gen-6 bag predicate; GameData::Item#is_important? follows (menus.rb bag_hides_qty?)",
@@ -33,6 +33,7 @@ class EraCallsTest < PokeAccessTest
     "pbDisplayHeartScalesWindow" => "money-window variant wrapped where it exists (money_window.rb)",
     "pbDisplayQuestPointsWindow" => "money-window variant wrapped where it exists (money_window.rb)",
     "pbDisplayAchievementPointsWindow" => "money-window variant wrapped where it exists (money_window.rb)",
+    "pbDisplayBankWindow" => "money-window variant wrapped where it exists (money_window.rb)",
     "pbFreeText" => "the message box's text field, wrapped by name (text_entry.rb); Golden Crown dropped it with pbMessageFreeText",
     # In every fangame but not the stock v21.1 tree, which reworked those screens and no surveyed game runs.
     "pbGetHealingSpot" => "all fifteen games; the stock tree dropped the name (town_map.rb healing_spot)",
@@ -53,10 +54,11 @@ class EraCallsTest < PokeAccessTest
     "pbMoverEstatuas" => "script-text pattern for a statue an event pushes (routes/effects.rb PUSH_SCRIPTS)",
     "pbBridgeOn" => "script-text pattern for the height a bridge ramp's page sets (event_pages.rb ramp)",
     "pbBridgeOff" => "script-text pattern for a bridge ramp's page that lowers it (event_pages.rb ramp)",
-    # Absent from Reborn alone, which has no Bug Catching Contest and no Triple Triad.
+    # Absent from Desolation, Reborn and Rejuvenation, which have no Bug Catching Contest and no Triple Triad.
     "pbBugContestState" => "the contest status for the field key, rescued where the game has no contest (battle.rb field_event_text)",
     "pbBuyTriads" => "the Triple Triad card shop, wrapped by name where the minigame exists (minigame_text.rb)",
-    "pbSellTriads" => "the same shop's selling half, wrapped by name (minigame_text.rb)"
+    "pbSellTriads" => "the same shop's selling half, wrapped by name (minigame_text.rb)",
+    "pbTriadList" => "the player's card list, an event's call, wrapped by name (minigame_text.rb)"
   }.freeze
 
   test "the census was built from every surveyed source and saw a realistic number of names" do

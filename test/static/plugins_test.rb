@@ -11,17 +11,27 @@ class PluginsTest < PokeAccessTest
   CENSUS = File.join(File.dirname(__FILE__), "plugin_census.txt")
 
   # A hook registration on a class named in quotes, which a game may lack: its line must carry :optional.
-  HOOK_RE = /\b(after_hook|before_hook|around_hook|read_on_open|override|after|before|around)\s*\(\s*"/
+  HOOK_RE = /\b(after_hook|before_hook|around_hook|on_paint|read_on_open|override|after|before|around)\s*\(\s*"/
 
   # Plugins a game ships in a copy it edited, read by its own profile instead (the version rule): its :plugins list
   # leaves them out on purpose, and they count as declared.
-  OWN_COPIES = { "revival" => %w[modular_menu] }
+  OWN_COPIES = { "perseida" => %w[alt_mystery_gift book_scene kyu_autosave simple_encounter_list],
+                 "revival" => %w[modular_menu],
+                 "pokemon_z" => %w[advanced_pokedex_v16 sky_animated_pokemon sky_trainer_sensor],
+                 "rejuvenation" => %w[advanced_pokedex_v16],
+                 "edas" => %w[kyu_autosave],
+                 "uranium" => %w[bw_gender_selector],
+                 "royal" => %w[bw_gender_selector],
+                 "worldfrontier" => %w[bw_gender_selector],
+                 "vitro" => %w[berry_pots bes_region_map encounter_pages kyu_autosave simple_encounter_list teleport_menu] }
 
   # The shapes a reader claims a slot ("Class#method") with; a file matching none is a failure, not clean. A claim on
   # the mod's own PokeAccess:: methods counts as registering but claims no slot, since those add up or chain.
   FORMS = [
-    /(?:after_hook|before_hook|around_hook|read_on_open|override)\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!=]*)/,
+    /(?:after_hook|before_hook|around_hook|on_paint|read_on_open|override)\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!=]*)/,
     /SceneWatcher\.reader\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!=]*)/,
+    # A hook on a module's own method, as a class may keep its state.
+    /wrap_singleton\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!=]*)/,
     /def_extractor\(\s*"([A-Za-z_:][\w:]*)"()/,
     # A bag decorator claims its own module, pushed into Menus.bag_decorators.
     /bag_decorators\.push\(\s*([A-Za-z_:][\w:]*)()/,
@@ -35,7 +45,7 @@ class PluginsTest < PokeAccessTest
     /(PokeAccess::Hooks)\.wrap_kernel\(\s*"(\w+)"/,
     # A hook in a loop records its method variable's name, so two loops on one class under different variable
     # names, or a loop and a plain hook, are not seen to collide.
-    /(?:after_hook|before_hook|around_hook|read_on_open|override)\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*([a-z_]\w*)\s*[,)]/
+    /(?:after_hook|before_hook|around_hook|on_paint|read_on_open|override)\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*([a-z_]\w*)\s*[,)]/
   ]
 
   test "the manifest table and the plugin files match one to one, each entry with a probe" do
@@ -83,8 +93,8 @@ class PluginsTest < PokeAccessTest
   end
 
   test "checks every hook form on a quoted class, and none on the mod's own module" do
-    %w[after before around PokeAccess::Hooks.after_hook PokeAccess::Hooks.before_hook PokeAccess::Hooks.around_hook
-       PokeAccess::Hooks.read_on_open PokeAccess::Hooks.override].each do |form|
+    %w[after before around on_paint PokeAccess::Hooks.after_hook PokeAccess::Hooks.before_hook PokeAccess::Hooks.around_hook
+       PokeAccess::Hooks.on_paint PokeAccess::Hooks.read_on_open PokeAccess::Hooks.override].each do |form|
       assert_equal ["reader.rb:1"], non_optional_hooks("reader.rb" => "#{form}(\"Scene\", :run) { }\n"), form
       assert_equal [], non_optional_hooks("reader.rb" => "#{form}(\"Scene\", :run, :optional) { }\n"), form
     end

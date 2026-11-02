@@ -152,6 +152,55 @@ module PokeAccess
       nil
     end
 
+    # An ability strip has finished sliding in (the Elite Battle System's showAbilityMessage, in the games that copied
+    # it): holds its line, the Pokemon and the ability it paints, for the battle's next line.
+    # param shown what the strip paints in the ability's place, or nil
+    def self.hold_strip(battler, shown = nil)
+      flush_strip
+      pk = (battler.pokemon rescue nil)
+      ability = pk ? PokeAccess.clean((shown || PokeAccess::Data.ability_name(battler.ability)).to_s) : ""
+      return if ability.empty?
+      name = PokeAccess.clean(pk.name.to_s)
+      @strip = [PokeAccess::I18n.t(:bt_ability, :name => pk.name, :ability => ability), ability, name]
+      @strip_wait = STRIP_WAIT
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # Says the held strip, queued: ahead of the battle line that follows, unless that line names both the ability and
+    # the Pokemon itself.
+    # param line the battle line about to be said, or nil
+    def self.flush_strip(line = nil)
+      held = @strip
+      @strip = nil
+      return unless held
+      text = PokeAccess.clean(line.to_s)
+      PokeAccess.speak(held[0], false) unless text.include?(held[1]) && text.include?(held[2])
+    end
+
+    # One frame with a strip held: says it once the wait is over, for a line that never came.
+    def self.strip_frame
+      return unless @strip
+      @strip_wait -= 1
+      flush_strip if @strip_wait <= 0
+    end
+
+    # Drops the held strip.
+    def self.forget_strip
+      @strip = nil
+    end
+
+    # Frames a held strip waits for its line: the battle often plays the ability's animation in between.
+    STRIP_WAIT = 120
+
+    # Whether a battle scene will show the message it was just handed, so that it is said; a game whose scene may
+    # swallow one overrides it.
+    # param args the arguments of the scene's message method
+    def self.message_shown?(_scene, _args)
+      true
+    end
+
     # Spoken hp change for a battler (lost for damage): in hit points for the player's own and, for a foe, whose box
     # paints only its bar, as the change of the percentage left unless the game paints the figures.
     def self.hp_change_text(battler, amt, lost)

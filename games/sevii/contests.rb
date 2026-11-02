@@ -267,4 +267,5 @@ PokeAccess::Game.define("sevii") do
   end
   around("PokeContestScene", :pbResultsScene) { |s, nxt, _a| PokeAccess::SeviiContests.results(s) { nxt.call } }
   kernel("pbDrawTextPositions") { |args, _r| PokeAccess::SeviiContests.results_paint(args[0], args[1]) }
+  clear_info_on("PokeContestScene", :pbEndScene)
 end

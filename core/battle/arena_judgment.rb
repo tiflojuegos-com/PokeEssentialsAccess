@@ -41,10 +41,7 @@ module PokeAccess
 end
 
 PokeAccess::Engine.scene_classes("PokeBattle_Scene", "Battle::Scene").each do |cn|
-  PokeAccess::Hooks.around_hook(cn, :updateJudgment, :optional => true) do |_scene, nxt, args|
-    r = nil
-    rows = PokeAccess::PaintCapture.sample { r = nxt.call }
+  PokeAccess::Hooks.on_paint(cn, :updateJudgment, :optional => true) do |_scene, rows, args|
     PokeAccess::ArenaJudgment.judged(args, rows)
-    r
   end
 end

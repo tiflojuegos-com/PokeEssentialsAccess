@@ -103,6 +103,8 @@ PokeAccess::Hooks.after_hook("PurifyChamberSetView", :refresh, :optional => true
   end
 end
 
+PokeAccess::Hooks.clear_info_on("PurifyChamberScene", :pbEnd)
+
 # The set list (Window_PurifyChamberSets), drawn as gauges: the focused set's overview.
 PokeAccess::Menus.def_extractor("Window_PurifyChamberSets") do |win, i|
   PokeAccess::PurifyChamber.set_text(win.instance_variable_get(:@chamber), i, win.instance_variable_get(:@switching) == i)

@@ -515,6 +515,11 @@ class FieldHelpersTest < PokeAccessTest
     assert_equal ["Pagina uno con negrita.", "Pagina dos."], [0, 1].map { |page| PokeAccess.book_text(book, page) }
   end
 
+  test "keeps the words a page paints in angle brackets, whatever the case of its markup" do
+    book = ["El libro <El Durmiente> dice <B>así</B>, <c2=043C3AFF>en azul</c2>."]
+    assert_equal "El libro El Durmiente dice así, en azul.", PokeAccess.book_text(book, 0)
+  end
+
   test "gives no book page past the end, an empty one, or without a book or a page" do
     book = ["Pagina uno.", ""]
     { [book, 9] => "past the end", [book, 1] => "empty page", [nil, 0] => "no book", [book, nil] => "no page" }.each do |(b, page), what|

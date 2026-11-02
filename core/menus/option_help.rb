@@ -45,3 +45,6 @@ PokeAccess::Engine.scene_classes("PokemonOption_Scene", "PokemonOptionScene").ea
     PokeAccess::OptionHelp.read(scene)
   end
 end
+PokeAccess::Engine.scene_classes("PokemonOption_Scene", "PokemonOptionScene").each do |cls|
+  PokeAccess::Hooks.clear_info_on(cls, :pbEndScene)
+end

@@ -258,6 +258,27 @@ module PokeAccess
       end
     end
 
+    # Runs a method that paints, then hands the block what it painted (PaintCapture.sample): yields (instance, the painted
+    # rows, args). The method's value goes back to the game, and an error in the block stays in the block.
+    # param opts as in around_hook: :optional
+    def self.on_paint(cname, meth, opts = {}, &read)
+      around_hook(cname, meth, opts) do |inst, nxt, args|
+        ret = nil
+        rows = PokeAccess::PaintCapture.sample { ret = nxt.call }
+        begin
+          read.call(inst, rows, args)
+        rescue StandardError => e
+          PokeAccess.swallowed(e)
+        end
+        ret
+      end
+    end
+
+    # Forgets the line a screen published for the info key (Info.clear_text) when this method closes it.
+    def self.clear_info_on(cname, meth = :pbEndScene)
+      before_hook(cname, meth, :optional => true) { |_scene, _args| PokeAccess::Info.clear_text }
+    end
+
     # Runs the game's own method or function, marking an error it raises as the game's, so a hook around it passes
     # the error on without logging it as its own.
     def self.original_call

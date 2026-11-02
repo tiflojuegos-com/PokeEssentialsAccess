@@ -13,7 +13,6 @@
     lasers
     jade_screens
     scenes
-    encounters
     hall_of_fame
     pause_overlay
     gacha
@@ -25,5 +24,5 @@
     levers
     party
   ],
-  :plugins => %w[easy_questing gender_selection text_log book_scene hatcher simple_encounter_list luka_title marin_side_stairs spin_tiles hall_of_fame_bw_gen6 quest_marker fancy_badges]
+  :plugins => %w[easy_questing encounter_pages gender_selection text_log book_scene hatcher simple_encounter_list luka_title marin_side_stairs spin_tiles hall_of_fame_bw_gen6 quest_marker fancy_badges]
 }

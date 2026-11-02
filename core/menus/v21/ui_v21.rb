@@ -253,9 +253,17 @@ PokeAccess::Hooks.after_hook("PokegearButton", :selected=) do |btn, _r, args|
   PokeAccess::UIV21.speak_changed(:pokegear, (btn.name rescue nil).to_s) if args[0]
 end
 
-# Opening the pokegear resets its dedup; :optional, as an RMXP-style copy has only Scene_Pokegear#main (below).
-PokeAccess::Hooks.before_hook("PokemonPokegear_Scene", :pbStartScene, :optional => true) do |_s, _a|
-  PokeAccess::UIV21.reset(:pokegear)
+# Opening the pokegear resets its dedup. The modern scene is PokemonPokegear_Scene, or Scene_Pokegear in a gen-6 fork
+# that rebuilt it with pbStartScene and pbScene (scene_classes keeps the parent of an empty alias). :optional, as an
+# RMXP-style copy has only Scene_Pokegear#main (below).
+PokeAccess::Engine.scene_classes("PokemonPokegear_Scene", "Scene_Pokegear").each do |cn|
+  PokeAccess::Hooks.before_hook(cn, :pbStartScene, :optional => true) do |_s, _a|
+    PokeAccess::UIV21.reset(:pokegear)
+  end
+  PokeAccess::Hooks.before_hook(cn, :pbScene, :optional => true) do |scene, _a|
+    PokeAccess::UIV21.reset(:pokegear) if PokeAccess.ivar(scene, :@access_scene_seen)
+    scene.instance_variable_set(:@access_scene_seen, true)
+  end
 end
 PokeAccess::Hooks.before_hook("Scene_Pokegear", :main, :optional => true) do |_s, _a|
   PokeAccess::UIV21.reset(:pokegear)
@@ -266,12 +274,6 @@ end
 PokeAccess::MenuReturn.on_return do
   gear = PokeAccess.const_at("Scene_Pokegear")
   PokeAccess::UIV21.reset(:pokegear) if gear && $scene.is_a?(gear)
-end
-
-# Back from an app, pbScene runs again on the same buttons and cursor: every call after the first resets the dedup.
-PokeAccess::Hooks.before_hook("PokemonPokegear_Scene", :pbScene, :optional => true) do |scene, _a|
-  PokeAccess::UIV21.reset(:pokegear) if PokeAccess.ivar(scene, :@access_scene_seen)
-  scene.instance_variable_set(:@access_scene_seen, true)
 end
 
 # Scene_Pokegear hides an active command window under its buttons: claimed before every update, the first one

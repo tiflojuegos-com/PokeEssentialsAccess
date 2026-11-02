@@ -41,7 +41,7 @@ module PokeAccess
     # A line without the byte order mark it may start with, cut by bytes in either Ruby.
     def self.drop_bom(raw)
       return raw unless raw.unpack("C3") == BOM
-      raw.respond_to?(:byteslice) ? raw.byteslice(3, raw.bytesize - 3) : raw[3..-1]
+      raw.respond_to?(:byteslice) ? raw.byteslice(3..-1) : raw[3..-1]
     end
   end
 end

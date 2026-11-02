@@ -1,6 +1,6 @@
 # raZ's Simple Encounter List Window (EncounterListUI; Awakening, Pokemon Z): the map's wild species, read the frame
-# after getEncData fills @encarray, once their icons are drawn; a last 7 means no encounters. Realidea's edited copy
-# (loadEncounterData) is read by its profile.
+# after getEncData fills @encarray, once their icons are drawn; a last 7 means no encounters. Realidea's and Perseida's
+# edited copies (loadEncounterData) are read by plugins/encounter_pages.rb.
 module PokeAccess
   module SimpleEncounterList
     @pending = nil
@@ -62,3 +62,4 @@ end
 PokeAccess::Hooks.after_hook("EncounterListUI", :getEncData, :optional => true) { |s, _r, _a| PokeAccess::SimpleEncounterList.filled(s) }
 PokeAccess::Frame.each_pulse { PokeAccess::SimpleEncounterList.poll }
 PokeAccess::Caches.register(:simple_encounter_list) { PokeAccess::SimpleEncounterList.reset }
+PokeAccess::Hooks.clear_info_on("EncounterListUI", :dispose)

@@ -581,6 +581,22 @@ class SeviiBattleTest < PokeAccessTest
       outcome("ability strip") do
         scene = PokeBattle_Scene.new(single)
         scene.showAbilityMessage(scene.battle.battlers[1])
+        held = said
+        PokeAccess::BattleScene::STRIP_WAIT.times { PokeAccess::Frame.run_pollers }
+        { :held => held, :log => said }
+      end
+      outcome("ability strip then a line") do
+        scene = PokeBattle_Scene.new(single)
+        scene.showAbilityMessage(scene.battle.battlers[1])
+        scene.pbDisplayMessage("The weather cleared!")
+        PokeAccess::Frame.run_pollers
+        { :log => said }
+      end
+      outcome("ability strip then a line naming it") do
+        scene = PokeBattle_Scene.new(single)
+        scene.showAbilityMessage(scene.battle.battlers[1])
+        scene.pbDisplayMessage("Habilidad7 of Foe cured it!")
+        PokeAccess::Frame.run_pollers
         { :log => said }
       end
       outcome("ability strip of an empty slot") do
@@ -588,6 +604,7 @@ class SeviiBattleTest < PokeAccessTest
         battler = scene.battle.battlers[1]
         battler.pokemon = nil
         scene.showAbilityMessage(battler)
+        PokeAccess::Frame.run_pollers
         { :log => said }
       end
 
@@ -750,8 +767,19 @@ class SeviiBattleTest < PokeAccessTest
                  outcome("bag last used")[:log]
   end
 
-  test "the ability strip says the Pokemon and the ability it paints, queued" do
-    assert_equal [[t(:bt_ability, :name => "Foe", :ability => "Habilidad7"), false]], outcome("ability strip")[:log]
+  test "the ability strip holds the Pokemon and the ability it paints, said queued when its wait is over" do
+    result = outcome("ability strip")
+    assert_equal [], result[:held]
+    assert_equal [[t(:bt_ability, :name => "Foe", :ability => "Habilidad7"), false]], result[:log]
+  end
+
+  test "the ability strip goes ahead of the next battle line, once" do
+    assert_equal [[t(:bt_ability, :name => "Foe", :ability => "Habilidad7"), false], ["The weather cleared!", false]],
+                 outcome("ability strip then a line")[:log]
+  end
+
+  test "the ability strip gives way to a next battle line that names the ability" do
+    assert_equal [["Habilidad7 of Foe cured it!", false]], outcome("ability strip then a line naming it")[:log]
   end
 
   test "an ability strip with no Pokemon paints nothing and says nothing" do

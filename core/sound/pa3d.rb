@@ -8,6 +8,8 @@ module PokeAccess
       TILE_UNITS = 100
       # The 48000 Hz copies of the sounds, used when the device runs at that rate.
       SND48 = "#{PokeAccess::Paths::SOUNDS}/48000"
+      # Each output of audio3d_output and the dll's number for it.
+      OUTPUTS = { :binaural => 0, :mono => 1, :stereo => 2, :quad => 3, :surround51 => 4, :surround71 => 5 }
 
       @ready = false
       @boot_tried = false
@@ -23,7 +25,8 @@ module PokeAccess
         @listener = nil
         @master = nil
         @air = nil
-        @hrtf = nil
+        @output = nil
+        @playing = nil
         @reach = nil
       end
       forget
@@ -206,16 +209,39 @@ module PokeAccess
         nil
       end
 
-      # Spatializes through the HRTF, or in plain stereo with the pitch telling ahead from behind.
-      def self.hrtf(on)
-        return unless @ready && Native.has?(:hrtf)
-        h = on ? 1 : 0
-        Native.call(:hrtf, h) unless h == @hrtf
-        @hrtf = h
+      # Sets how sources reach the speakers, where the dll takes it. The player is told, queued, when another output
+      # plays instead, and when none could open; changing the setting tries again.
+      def self.output(mode)
+        return unless @ready && Native.has?(:output) && mode != @output
+        @output = mode
+        number = OUTPUTS[mode]
+        return unless number
+        @playing = Native.call(:output, number)
+        return if @playing == number
+        used = OUTPUTS.keys.find { |o| OUTPUTS[o] == @playing }
+        return output_failed(mode) unless used
+        s = PokeAccess::Config.setting(:audio3d_output)
+        PokeAccess.speak(PokeAccess::I18n.t(:audio3d_output_short, :output => PokeAccess::Config.value_name(s, mode),
+                                            :used => PokeAccess::Config.value_name(s, used),
+                                            :channels => device_channels), false)
       rescue StandardError => e
         PokeAccess.swallowed(e)
         nil
       end
+
+      # Logs and tells the player that positional sound stays silent, no output having opened.
+      def self.output_failed(mode)
+        PokeAccess::Sound.log(:output, "no output opens, asked for #{mode}")
+        PokeAccess.speak(PokeAccess::I18n.t(:audio3d_output_failed), false)
+      end
+
+      # How many channels the device really has; nil before booting.
+      def self.device_channels
+        @ready ? Native.call(:device_channels) : nil
+      end
+
+      # The dll's number for the output playing, or -1 when none opened; nil until one was set.
+      def self.output_playing; @playing; end
     end
   end
 end

@@ -178,6 +178,8 @@ PokeAccess::Game.define("reminiscencia") do
   remap_extra(:key_2, 0x32, :rem_ext_key_2)
   remap_extra(:key_3, 0x33, :rem_ext_key_3)
   remap_extra(:key_4, 0x34, :rem_ext_key_4)
+  # T is the mod's info key, so the game's goes on Alt + T.
+  key_defaults(:fast_travel => "Alt+T")
 end
 
 # Each image menu held during its blocking loop.

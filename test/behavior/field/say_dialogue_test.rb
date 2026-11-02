@@ -25,6 +25,35 @@ class SayDialogueTest < PokeAccessTest
     assert_equal "Hola entrenador", PokeAccess.last_dialogue
   end
 
+  test "a line asking for a key says it as the player has it now, and its copy is swallowed all the same" do
+    was = PokeAccess::Config.key_hint_letters
+    PokeAccess::Config.key_hint_letters = { "M" => :c }
+    PokeAccess::Config.rebinds = { :c => 0x51 }
+    begin
+      PokeAccess.say_dialogue("Puedes pulsar M para reiniciar la sala.")
+      PokeAccess.say_dialogue("Puedes pulsar M para reiniciar la sala.")
+      PokeAccess.say_dialogue("Para usarla, basta con presionar M donde haya niebla.")
+      PokeAccess.say_dialogue("Presiona la tecla M y mira a la M de arriba.")
+      assert_equal ["Puedes pulsar Q para reiniciar la sala.", "Para usarla, basta con presionar Q donde haya niebla.",
+                    "Presiona la tecla Q y mira a la M de arriba."], SpeakCapture.lines
+    ensure
+      PokeAccess::Config.key_hint_letters = was
+    end
+  end
+
+  test "a line skipped as said keeps the key it would have said, so its copy is swallowed" do
+    was = PokeAccess::Config.key_hint_letters
+    PokeAccess::Config.key_hint_letters = { "M" => :c }
+    PokeAccess::Config.rebinds = { :c => 0x51 }
+    begin
+      PokeAccess.say_dialogue_skip("Puedes pulsar M.")
+      PokeAccess.say_dialogue("Puedes pulsar M.")
+      assert_equal [], SpeakCapture.lines
+    ensure
+      PokeAccess::Config.key_hint_letters = was
+    end
+  end
+
   test "a copy of the last line within half a second is swallowed" do
     with_clock do |at|
       PokeAccess.say_dialogue("Bienvenido a Pueblo Paleta")

@@ -28,6 +28,7 @@ require File.join(SUPPORT, "harness")
    replay game_functions arity_net].each { |f| require File.join(SUPPORT, f) }
 require "minitest"
 require File.join(SUPPORT, "test_case")
+require File.join(SUPPORT, "profile_process")
 
 PROFILE = ENGINE == :gamedata ? "anil" : "pokemon_z"
 

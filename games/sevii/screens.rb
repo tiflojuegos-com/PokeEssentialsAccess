@@ -57,13 +57,10 @@ PokeAccess::Game.define("sevii") do
   end
 
   # startScene paints the whole screen, then fades it in; the egg is a picture with no text.
-  around("DayCareCheckerScene", :startScene) do |scene, nxt, _a|
-    r = nil
-    pairs = PokeAccess::PaintCapture.sample { r = nxt.call }
+  on_paint("DayCareCheckerScene", :startScene) do |scene, pairs, _a|
     PokeAccess::SeviiScreens.daycare_opened(scene, pairs)
-    r
   end
-  before("DayCareCheckerScene", :endScene) { |_s, _a| PokeAccess::Info.clear_text }
+  clear_info_on("DayCareCheckerScene", :endScene)
 
   # The map's loop starts once its opening reads are queued: the hint goes after them, while key hints are said.
   before("PokemonRegionMapScene", :pbMapScene) do |_s, _a|

@@ -539,6 +539,12 @@ def pbSellTriads(sorting = false)
   triad_shop_stub(sorting)
 end
 
+# The player's card list, an event's call: its loop is cut down to the block a test gives it.
+def pbTriadList
+  yield if block_given?
+  nil
+end
+
 def triad_shop_stub(_sorting)
   money = $triad_shop_money
   if money

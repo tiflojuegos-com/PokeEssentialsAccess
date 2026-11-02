@@ -50,7 +50,7 @@ class ConfigMenuTest < PokeAccessTest
   test "lists the audio settings and every sound screen with the positional engine up" do
     on_screen(:audio) do
       Reset.with_capability(:positional, true) do
-        assert_equal [:sound_nav, :sonar_only_locatable, :game_bump, :audio3d_hrtf, :audio3d_volume,
+        assert_equal [:sound_nav, :sonar_only_locatable, :game_bump, :audio3d_output, :audio3d_volume,
                       [:enter, :audio3d_on], [:enter, :audio3d_vol], [:enter, :audio3d_freq], [:enter, :audio3d_tone],
                       [:enter, :audio3d_walls], [:enter, :audio3d_adv], :back], rows(:audio)
       end
@@ -66,12 +66,12 @@ class ConfigMenuTest < PokeAccessTest
     end
   end
 
-  test "shows the HRTF switch while the engine plays, with sound navigation basic or full" do
+  test "shows the output while the engine plays, with sound navigation basic or full" do
     { :off => false, :basic => true, :full => true }.each do |nav, shown|
       Reset.with_capability(:positional, true) do
         on_screen(:audio) do
           Cfg.sound_nav = nav
-          assert_equal shown, rows(:audio).include?(:audio3d_hrtf), nav.to_s
+          assert_equal shown, rows(:audio).include?(:audio3d_output), nav.to_s
         end
       end
     end
@@ -308,6 +308,38 @@ class ConfigMenuTest < PokeAccessTest
     end
   end
 
+  test "a key capture asks for a key alone or with Alt, and for one alone on the mod's modifiers" do
+    [[:c, :rmp_press_alt], [:shift, :rmp_press]].each do |action, prompt|
+      on_entry(action) do
+        SpeakCapture.clear
+        Menu.start_capture
+        Menu.instance_variable_set(:@capturing, false)
+        assert_equal [T.t(prompt, :action => PokeAccess::Remap.label(action))], SpeakCapture.lines
+      end
+    end
+  end
+
+  test "a key capture takes a key pressed with Alt held, and names it with Alt" do
+    said = T.t(:rmp_assigned, :action => PokeAccess::Remap.label(:c), :key => "#{T.t(:key_alt)} Q")
+    assert_equal [[said], PokeAccess::Keyboard.with_alt(0x51)], capture(:c, [[[0x12], true], [[0x12, 0x51], true], [[], true]])
+  end
+
+  test "a key capture takes no key with Alt beside Ctrl or Shift, as AltGr holds them together" do
+    [0x10, 0x11].each do |other|
+      frames = [[[0x12], true], [[0x12, other], true], [[0x12, other, 0x51], true], [[], true]]
+      assert_equal [[], nil], capture(:c, frames), "beside #{other}"
+    end
+  end
+
+  test "the mod's modifiers take no key with Alt" do
+    assert_equal [[], Cfg.keys[:shift]], capture(:shift, [[[0x12], true], [[0x12, 0x51], true], [[], true]])
+  end
+
+  test "a key with Alt on a reserved key is said as reserved for what holds it" do
+    said = T.t(:rmp_reserved, :key => "#{T.t(:key_alt)} #{T.t(:key_f, :n => 8)}", :action => T.t(:rmp_key_f8))
+    assert_equal [[said], nil], capture(:c, [[[0x12], true], [[0x12, 0x77], true]])
+  end
+
   test "a key capture takes Alt once it is released with nothing pressed beside it" do
     said = T.t(:rmp_assigned, :action => PokeAccess::Remap.label(:c), :key => T.t(:key_alt))
     assert_equal [[said], 0x12], capture(:c, [[[0x12], true], [[], true]])
@@ -514,6 +546,76 @@ class ConfigMenuTest < PokeAccessTest
     end
   ensure
     PokeAccess::Remap.extras.reject! { |row| row[0] == :test_extra }
+  end
+
+  test "says a game extra its letter's name reads by that letter" do
+    PokeAccess::Remap.register_extra(:test_extra, :T, :btn_x)
+    on_entry(:test_extra) do
+      assert_equal "#{T.t(:rmp_entry, :action => T.t(:btn_x), :key => "T")}. #{T.t(:rmp_entry_hint)}", Menu.rebind_desc
+    end
+  ensure
+    PokeAccess::Remap.extras.reject! { |row| row[0] == :test_extra }
+  end
+
+  test "says an action its profile ships on a key by that key, the player's over it, and left goes back to it, saying so" do
+    PokeAccess::Remap.ship(:z => "Alt+T")
+    on_entry(:z) do
+      label = PokeAccess::Remap.label(:z)
+      shipped = "#{T.t(:rmp_entry, :action => label, :key => "#{T.t(:key_alt)} T")}. #{T.t(:rmp_entry_hint)}"
+      assert_equal shipped, Menu.rebind_desc
+      PokeAccess::Config.rebinds = { :z => 0x4B }
+      assert_equal "#{T.t(:rmp_entry, :action => label, :key => "K")}. #{T.t(:rmp_entry_hint)}", Menu.rebind_desc
+      SpeakCapture.clear
+      Menu.clear_binding
+      assert_equal [T.t(:rmp_restored, :action => label)], SpeakCapture.lines
+      assert_equal shipped, Menu.rebind_desc
+    end
+  ensure
+    PokeAccess::Remap.defaults.delete(:z)
+  end
+
+  test "left on an action on what its profile ships says so, and with that key taken it stays and says who holds it" do
+    PokeAccess::Remap.ship(:z => "Alt+T")
+    on_entry(:z) do
+      label = PokeAccess::Remap.label(:z)
+      SpeakCapture.clear
+      Menu.clear_binding
+      assert_equal [T.t(:rmp_at_default, :action => label)], SpeakCapture.lines
+      PokeAccess::Config.rebinds = { :z => 0x4B, :x => PokeAccess::Keyboard.with_alt(0x54) }
+      SpeakCapture.clear
+      Menu.clear_binding
+      key = "#{T.t(:key_alt)} T"
+      assert_equal [T.t(:rmp_inuse, :key => key, :action => PokeAccess::Remap.label(:x))], SpeakCapture.lines
+      assert_equal 0x4B, PokeAccess::Config.rebinds[:z]
+    end
+  ensure
+    PokeAccess::Remap.defaults.delete(:z)
+  end
+
+  test "left on an action whose shipped key something else holds says it had none, as it is on the game's key" do
+    PokeAccess::Remap.ship(:z => "Alt+T")
+    on_entry(:z) do
+      PokeAccess::Config.rebinds = { :x => PokeAccess::Keyboard.with_alt(0x54) }
+      SpeakCapture.clear
+      Menu.clear_binding
+      assert_equal [T.t(:rmp_none)], SpeakCapture.lines
+    end
+  end
+
+  test "left on a mod key its profile ships elsewhere, and the reset of all keys, go back to there" do
+    shipped = Cfg.key_defaults.dup
+    keys = Cfg.keys.dup
+    PokeAccess::Remap.ship(:hp => "V")
+    Cfg.keys[:hp] = 0x4E
+    on_entry(:hp) { Menu.clear_binding }
+    assert_equal 0x56, Cfg.keys[:hp]
+    Cfg.keys[:hp] = 0x4E
+    Menu.instance_variable_set(:@armed, :reset_keys)
+    Menu.reset_all
+    assert_equal 0x56, Cfg.keys[:hp]
+  ensure
+    Cfg.key_defaults = shipped
+    Cfg.keys = keys
   end
 
   test "left on a bound game button gives it the game's keys back and says so, then finds nothing to undo" do

@@ -1,8 +1,9 @@
 # A stand-in for PA3D_steam.dll (Sound::Native.shadow): it answers as the dll does (init 1, the channels numbered in
 # load order from 0, the device's rate) and records every other call as [name, args]; the entry points named missing
-# are not there, as in an older dll.
+# are not there, as in an older dll. It plays the output asked for unless a test sets another (-1: none opens).
 class SoundShadow
   attr_reader :log, :loaded
+  attr_accessor :device_channels, :plays_output
 
   def initialize(rate = 44100, missing = [])
     @log = []
@@ -10,6 +11,7 @@ class SoundShadow
     @rate = rate
     @n = -1
     @missing = missing
+    @device_channels = 8
   end
 
   def has?(name); !@missing.include?(name); end
@@ -23,6 +25,10 @@ class SoundShadow
       (@n += 1)
     when :rate then @rate
     when :latency then 20
+    when :device_channels then @device_channels
+    when :output
+      @log.push([name, args])
+      @plays_output || args[0]
     else
       @log.push([name, args])
       nil

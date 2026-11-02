@@ -3,17 +3,6 @@
 # global one ModalPanel reads.
 module PokeAccess
   module EbsScene
-    # The ability strip sliding in: the Pokemon and the ability it paints, queued behind the battle's lines.
-    def self.ability(battler)
-      pk = (battler.pokemon rescue nil)
-      return if pk.nil?
-      line = PokeAccess::I18n.t(:bt_ability, :name => pk.name, :ability => PBAbilities.getName(battler.ability))
-      PokeAccess.speak(line, false)
-    rescue StandardError => e
-      PokeAccess.swallowed(e)
-      nil
-    end
-
     # Runs a pbLevelUp counting the stat panels it shows; the first, the gains, is the one the core says beforehand.
     def self.levelling
       @panels = 0
@@ -34,8 +23,9 @@ module PokeAccess
   end
 end
 
-PokeAccess::Hooks.before_hook("PokeBattle_Scene", :showAbilityMessage, :optional => true) do |_s, args|
-  PokeAccess::EbsScene.ability(args[0])
+PokeAccess::Hooks.after_hook("PokeBattle_Scene", :showAbilityMessage, :optional => true,
+                             :hook_container => true) do |_s, _r, args|
+  PokeAccess::BattleScene.hold_strip(args[0])
 end
 PokeAccess::Hooks.around_hook("PokeBattle_Scene", :pbLevelUp, :optional => true) do |_s, nxt, _a|
   PokeAccess::EbsScene.levelling { nxt.call }

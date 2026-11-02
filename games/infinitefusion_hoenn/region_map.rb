@@ -159,4 +159,5 @@ PokeAccess::Game.define("infinitefusion_hoenn") do
   end
   after("QuestMap", :update_text_at_location) { |s, _r, _a| PokeAccess::IF2QuestMap.read(s) }
   after("QuestMap", :show_popup) { |s, _r, _a| PokeAccess::IF2QuestMap.popup(s) }
+  clear_info_on("QuestMap", :dispose)
 end

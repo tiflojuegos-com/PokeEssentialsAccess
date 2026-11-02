@@ -47,11 +47,12 @@ module PokeAccess
   end
 end
 
-# Reads the window each builder returns; a builder the game lacks is skipped. The last four are added by games or
-# plugins: battle-factory points (\ft), heart scales (\hs), quest points (\qp), achievement points (\apw).
+# Reads the window each builder returns; a builder the game lacks is skipped. The last five are added by games or
+# plugins: battle-factory points (\ft), heart scales (\hs), quest points (\qp), achievement points (\apw), the savings
+# of the Bank of Mom script (\mg).
 %w[pbDisplayGoldWindow pbDisplayCoinsWindow pbDisplayBattlePointsWindow
    pbDisplayBattleFactoryPointsWindow pbDisplayHeartScalesWindow pbDisplayQuestPointsWindow
-   pbDisplayAchievementPointsWindow].each do |meth|
+   pbDisplayAchievementPointsWindow pbDisplayBankWindow].each do |meth|
   PokeAccess::Hooks.wrap_global(meth, "hook_money", :after) { |_args, r| PokeAccess.say_money_window(r) }
 end
 

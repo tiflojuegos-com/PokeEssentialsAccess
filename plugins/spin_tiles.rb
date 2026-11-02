@@ -16,10 +16,12 @@ module PokeAccess
       @arrows = {}
     end
 
-    # True where a game's own copy of the script ends the spin besides a blocked way: none in the original.
+    # True where the spin ends besides a blocked way: on the stop tile the script defines, PBTerrain::SpinTileStop (-1 in
+    # copies with no such tile); a game's own copy adds its rules from its profile.
     # param x, y the player's tile before each step of the spin
-    def self.extra_stop?(_x, _y)
-      false
+    def self.extra_stop?(x, y)
+      stop = PokeAccess.const_at("PBTerrain::SpinTileStop")
+      !stop.nil? && PokeAccess::World::Terrain.number(x, y) == stop
     end
 
     # The way the arrow at (x,y) spins the player, or nil.

@@ -1,4 +1,4 @@
-# Sky's animated species picture (games/skyflyer_common/animated_pokemon.rb), as pbMostrarPkmnAnimado shows a starter
+# Sky's animated species picture (plugins/sky_animated_pokemon.rb), as pbMostrarPkmnAnimado shows a starter
 # or a gift: the species, the shiny word for a shiny Pokemon and the type its background paints, said as it comes up.
 
 # The picture as the game draws it: the background only when one is asked for and its type's picture exists (a seam
@@ -17,7 +17,7 @@ class MostrarPokemonAnimado
     :shown
   end
 end
-animated_path = File.join(Harness::ROOT, "games", "skyflyer_common", "animated_pokemon.rb")
+animated_path = File.join(Harness::ROOT, "plugins", "sky_animated_pokemon.rb")
 eval(Harness.source(animated_path), TOPLEVEL_BINDING, animated_path)
 
 class SkyAnimatedPokemonGdTest < PokeAccessTest

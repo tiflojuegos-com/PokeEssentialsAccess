@@ -201,7 +201,7 @@ module ReaderSites
   # PokeAccess::SummaryGen6::SCENE (assigned from Engine.era_scene, resolved through constant_rows).
   CLS_ARG = '(?:"(?<cls_lit>[A-Z][A-Za-z0-9_:]*)"|(?<cls_var>[a-z_]\w*)|(?<cls_const>[A-Z][A-Za-z0-9_:]*))'
   METH_ARG = '(?::(?<m_lit>[a-zA-Z_][A-Za-z0-9_?!]*=?)|"(?<m_str>[a-zA-Z_][A-Za-z0-9_?!]*=?)"|(?<m_var>[a-z_]\w*)(?:\.to_sym)?)'
-  REG_FORM = /\b(?:after|before|around)(?:_hook)?\(\s*#{CLS_ARG}\s*,\s*#{METH_ARG}/
+  REG_FORM = /\b(?:after|before|around|on_paint|clear_info_on)(?:_hook)?\(\s*#{CLS_ARG}\s*,\s*#{METH_ARG}/
   ONE_ARG_FORMS = [
     /\bread_on_open\(\s*#{CLS_ARG}\s*(?:,\s*#{METH_ARG})?/,
     /\bframe_hook\(\s*#{CLS_ARG}\s*,\s*#{METH_ARG}/

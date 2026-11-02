@@ -42,16 +42,36 @@ class WfMenuScene
     @sprites["enhancedUI"].visible = open
     wf_update_info_buttons
   end
+
+  def pbEndBattle(_result = nil); :ended; end
 end
 
 # The splash's scene half, prepended to the battle scene in the game.
 module WfItemSplashHalf
-  def pbShowItemSplash(battler, item = nil); [battler, item]; end
+  # Shows the bar, hiding first one still up, as the game does.
+  def pbShowItemSplash(battler, item = nil)
+    pbHideItemSplashSide(0) if @bar_up
+    @bar_up = true
+    [battler, item]
+  end
+
+  def pbHideItemSplashSide(side)
+    @bar_up = false
+    side
+  end
 end
 
 # A battle scene with the splash.
 class WfSplashScene
   include WfItemSplashHalf
+end
+
+# A battle scene with the move panel of version 1.2.0, down to the answers its icon is worked out from.
+class WfPanelScene
+  def initialize(value, blocked, immune); @value = value; @blocked = blocked; @immune = immune; end
+  def pbMoveInfoTypeMod(_type, _foe, _move); @value; end
+  def pbMoveInfoWeatherBlocksMove?(_move, _type); @blocked; end
+  def pbMoveInfoAllAbilitiesImmune?(_user, _foe, _move, _type, _value); @immune; end
 end
 
 # A battler holding an item, as the splash reads it.
@@ -60,6 +80,9 @@ class WfHolder < Battle::Battler
 end
 
 seams = [:shown_level, :shown_hp].map { |m| [m, PokeAccess::Battle.method(m)] }
+line_seams = [[PokeAccess, :say_dialogue], [PokeAccess::BattleScene, :message_shown?],
+              [PokeAccess::DBKMoveInfo, :effect_index]]
+core_lines = line_seams.map { |owner, m| [owner, m, owner.method(m)] }
 harness_scene = Battle.send(:remove_const, :Scene)
 Battle.const_set(:Scene, WfMenuScene)
 Object.const_set(:WFItemSplashScene, WfItemSplashHalf)
@@ -73,6 +96,8 @@ ensure
 end
 WF_BATTLE_SEAMS = [:shown_level, :shown_hp].map { |m| [m, PokeAccess::Battle.method(m)] }
 seams.each { |m, original| PokeAccess::Battle.define_singleton_method(m, original) }
+WF_LINE_SEAMS = line_seams.map { |owner, m| [owner, m, owner.method(m)] }
+core_lines.each { |owner, m, original| owner.define_singleton_method(m, original) }
 
 class WorldfrontierBattleGdTest < PokeAccessTest
   I18n = PokeAccess::I18n
@@ -104,22 +129,155 @@ class WorldfrontierBattleGdTest < PokeAccessTest
     assert_equal [I18n.t(:bt_mark_mega), I18n.t(:bt_m_tera)], PokeAccess::Battle.marks_of(icons)
   end
 
-  test "the item splash says the item and its holder as its two lines paint them, queued" do
+  test "the item splash waits, then says the item and its holder as its two lines paint them as it leaves, queued" do
+    holder = WfHolder.new("Snorlax", 100, 200, 1)
+    holder.item = :LEFTOVERS
+    with_item_splash(true) do
+      WfSplashScene.new.pbShowItemSplash(holder)
+      assert_nothing_spoken
+      WfSplashScene.new.pbHideItemSplashSide(1)
+      WfSplashScene.new.pbHideItemSplashSide(0)
+    end
+    assert_equal [["Item#{:LEFTOVERS} de Snorlax", false]], SpeakCapture.log
+  end
+
+  test "a second splash says the one still waiting" do
     holder = WfHolder.new("Snorlax", 100, 200, 1)
     holder.item = :LEFTOVERS
     with_item_splash(true) do
       WfSplashScene.new.pbShowItemSplash(holder)
       WfSplashScene.new.pbShowItemSplash(Battle::Battler.new("Onix", 10, 20, 1), :SITRUSBERRY)
     end
-    assert_equal [["Item#{:LEFTOVERS} de Snorlax", false], ["Item#{:SITRUSBERRY} de Onix", false]], SpeakCapture.log
+    assert_equal [["Item#{:LEFTOVERS} de Snorlax", false]], SpeakCapture.log
   end
 
-  test "a splash with no item, or with the splash off, says nothing" do
+  test "a splash shown over one still up says that one, and waits for its own message" do
+    holder = WfHolder.new("Snorlax", 100, 200, 1)
+    holder.item = :LEFTOVERS
+    scene = WfSplashScene.new
+    with_item_splash(true) do
+      with_wf_lines do
+        scene.pbShowItemSplash(holder)
+        scene.pbShowItemSplash(Battle::Battler.new("Onix", 10, 20, 1), :SITRUSBERRY)
+        assert_equal ["ItemLEFTOVERS de Snorlax"], SpeakCapture.lines
+        PokeAccess.say_dialogue("Onix usó su ItemSITRUSBERRY.")
+      end
+    end
+    assert_equal ["ItemLEFTOVERS de Snorlax", "Onix usó su ItemSITRUSBERRY."], SpeakCapture.lines
+  end
+
+  test "a splash goes ahead of a message that does not name both the item and its holder" do
+    with_item_splash(true) do
+      with_wf_lines do
+        ["¡Onix se recuperó!", "¡ItemSITRUSBERRY brilla!"].each do |message|
+          SpeakCapture.clear
+          WfSplashScene.new.pbShowItemSplash(Battle::Battler.new("Onix", 10, 20, 1), :SITRUSBERRY)
+          PokeAccess.say_dialogue(message)
+          assert_equal [["ItemSITRUSBERRY de Onix", false], [message, false]], SpeakCapture.log
+        end
+      end
+    end
+  end
+
+  test "a splash gives way to a message that names the item and its holder, in any case" do
+    with_item_splash(true) do
+      with_wf_lines do
+        WfSplashScene.new.pbShowItemSplash(Battle::Battler.new("Onix", 10, 20, 1), :SITRUSBERRY)
+        PokeAccess.say_dialogue("¡ONIX recuperó PS con su itemsitrusberry!")
+        assert_equal ["¡ONIX recuperó PS con su itemsitrusberry!"], SpeakCapture.lines
+        WfMenuScene.new.pbEndBattle
+        assert_equal 1, SpeakCapture.lines.length, "and nothing waits any more"
+      end
+    end
+  end
+
+  test "a splash still up as the battle's scene ends is said" do
+    with_item_splash(true) do
+      WfSplashScene.new.pbShowItemSplash(Battle::Battler.new("Onix", 10, 20, 1), :SITRUSBERRY)
+      assert_equal :ended, WfMenuScene.new.pbEndBattle
+    end
+    assert_equal ["ItemSITRUSBERRY de Onix"], SpeakCapture.lines
+  end
+
+  test "a blank message leaves the splash waiting" do
+    with_item_splash(true) do
+      with_wf_lines do
+        WfSplashScene.new.pbShowItemSplash(Battle::Battler.new("Onix", 10, 20, 1), :SITRUSBERRY)
+        PokeAccess.say_dialogue("  ")
+        assert_nothing_spoken
+        PokeAccess::WfItemSplash.flush
+      end
+    end
+    assert_equal ["ItemSITRUSBERRY de Onix"], SpeakCapture.lines
+  end
+
+  test "resetting the caches drops the splash waiting" do
+    with_item_splash(true) { WfSplashScene.new.pbShowItemSplash(Battle::Battler.new("Onix", 10, 20, 1), :SITRUSBERRY) }
+    PokeAccess::Caches.reset_all
+    PokeAccess::WfItemSplash.flush
+    assert_nothing_spoken
+  end
+
+  test "a splash with no item, or with the splash off, holds nothing" do
     with_item_splash(true) { WfSplashScene.new.pbShowItemSplash(Battle::Battler.new("Onix", 10, 20, 1)) }
     with_item_splash(false) do
       WfSplashScene.new.pbShowItemSplash(Battle::Battler.new("Onix", 10, 20, 1), :SITRUSBERRY)
     end
+    PokeAccess::WfItemSplash.flush
     assert_nothing_spoken
+  end
+
+  test "the battle's first message is said once: the call the camera swallows after showing it says nothing" do
+    scene = Battle::Scene.new
+    with_wf_lines do
+      scene.pbDisplayPausedMessage("¡Lola te desafía!")
+      scene.instance_variable_set(:@ebs_suppress_next_paused, true)
+      scene.pbDisplayPausedMessage("¡Eco de Lola te desafía!")
+      scene.pbDisplayMessage("¡Eco de Lola saca a Onix!")
+      scene.instance_variable_set(:@ebs_suppress_next_paused, false)
+      scene.pbDisplayPausedMessage("¡Lola saca a Onix!")
+    end
+    assert_equal ["¡Lola te desafía!", "¡Lola saca a Onix!"], SpeakCapture.lines
+  end
+
+  test "a brief message passes the camera's swallowing, as the game lets it" do
+    scene = Battle::Scene.new
+    scene.instance_variable_set(:@ebs_suppress_next_paused, true)
+    with_wf_lines { scene.pbDisplayMessage("¡Adelante, Onix!", true) }
+    assert_equal ["¡Adelante, Onix!"], SpeakCapture.lines
+  end
+
+  test "the move panel's icon follows its own table, the weather it weighs and the abilities it weighs, as painted" do
+    with_effectiveness do
+      {
+        [nil, false, false] => 0, [0.0, false, false] => 1, [0.5, false, false] => 2, [2.0, false, false] => 3,
+        [1.0, false, false] => 4, [2.0, true, false] => 1, [nil, true, false] => 1, [2.0, false, true] => 1
+      }.each do |(value, blocked, immune), icon|
+        scene = WfPanelScene.new(value, blocked, immune)
+        with_wf_lines do
+          assert_equal icon, PokeAccess::DBKMoveInfo.effect_index(:foe, :FIRE, scene, :move, :user),
+                       "#{value.inspect}, blocked #{blocked}, immune #{immune}"
+        end
+      end
+    end
+  end
+
+  test "an earlier panel, with no weather of its own to weigh, leaves the icon to the plugin" do
+    assert_nil PokeAccess::WfBattleBox.move_icon(:foe, :FIRE, Object.new, :move, :user)
+    assert_nil PokeAccess::WfBattleBox.move_icon(:foe, :FIRE)
+  end
+
+  test "a panel that raises asking leaves the icon to the plugin" do
+    scene = WfPanelScene.new(1.0, false, false)
+    def scene.pbMoveInfoTypeMod(*_a); raise "no battle"; end
+    assert_nil PokeAccess::WfBattleBox.move_icon(:foe, :FIRE, scene, :move, :user)
+  end
+
+  test "core says every message a scene is handed, the camera's mark or not" do
+    scene = Battle::Scene.new
+    scene.instance_variable_set(:@ebs_suppress_next_paused, true)
+    scene.pbDisplayPausedMessage("¡Lola te desafía!")
+    assert_equal ["¡Lola te desafía!"], SpeakCapture.lines
   end
 
   test "the command menu's info button is said once the menu shows, after its first line, queued" do
@@ -208,6 +366,28 @@ class WorldfrontierBattleGdTest < PokeAccessTest
     yield
   ensure
     Battle::Scene.send(:remove_const, :USE_ITEM_SPLASH)
+  end
+
+  # Runs the block with the game's type table, by the multiplier; taken off after.
+  def with_effectiveness
+    table = Module.new do
+      def self.ineffective?(value); value == 0.0; end
+      def self.not_very_effective?(value); value == 0.5; end
+      def self.super_effective?(value); value == 2.0; end
+    end
+    Object.const_set(:Effectiveness, table)
+    yield
+  ensure
+    Object.send(:remove_const, :Effectiveness)
+  end
+
+  # The block's value with World Frontier's seams on the battle's lines in place, the core's put back after.
+  def with_wf_lines
+    kept = WF_LINE_SEAMS.map { |owner, m, _wf| [owner, m, owner.method(m)] }
+    WF_LINE_SEAMS.each { |owner, m, wf| owner.define_singleton_method(m, wf) }
+    yield
+  ensure
+    kept.each { |owner, m, original| owner.define_singleton_method(m, original) }
   end
 
   # The block's value with World Frontier's box seams in place, the core's put back after.

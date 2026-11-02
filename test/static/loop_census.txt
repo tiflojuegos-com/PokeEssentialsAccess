@@ -7,12 +7,12 @@
 #
 #
 # format: Class#method = <profile>, <profile>...
-# surveyed sources (28): africanus, anil, armonia, awakening, darkhorizon, desolation, emerald, fireash, goldencrown, gruelinggold, infinitefusion, infinitefusion_hoenn, insurgence, opalo, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, soulstones1, soulstones2, uranium, vanilla, worldfrontier
+# surveyed sources (31): africanus, anil, armonia, awakening, darkhorizon, desolation, edas, emerald, fireash, goldencrown, gruelinggold, infinitefusion, infinitefusion_hoenn, insurgence, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier
 # A row marked NO-DUMP is one no surveyed game defines: it was not checked and found clean, it
 # could not be checked at all. The two used to print identically, which made a sixth of the file
 # read as evidence it was not.
-# after-style hook sites: 398 / blocking somewhere: 1 / no dump defines it: 5
-# after-style sites the extractor cannot resolve (computed class or method): 43
+# after-style hook sites: 440 / blocking somewhere: 1 / no dump defines it: 2
+# after-style sites the extractor cannot resolve (computed class or method): 44
 AdvancedPokedexScene#displayPage = 
 AdvancedPokedexScene#pbStartScene = 
 AdventureItembox#setItemValues = 
@@ -49,9 +49,12 @@ BattleHistoryScene#pbRefresh =
 BattlePointShop_Scene#pbRefresh = 
 BattleRouletteUI#draw_overlay = 
 BattleTurnLog::UI#refresh = 
+BerryBlenderScene#pbRefreshButtons = 
+BerryBlenderScene#pbRefreshSlots = 
+BerryBlenderScene#pbUpdateCursor = 
 BetterRegionMap#dispose = 
 BlessingsOverlay#updateInfoWindow = 
-BlocUnownScene#moveCursor = NO-DUMP
+BlocUnownScene#moveCursor = 
 BookScene#texto = 
 BossPokemonDataBox#appear = 
 BossPokemonDataBox#refresh = 
@@ -61,6 +64,9 @@ ButtonEventScene#addLabel =
 ButtonEventScene#addLabelForScreen = 
 ButtonEventScene#set_up_screen = 
 CharacterSelectMenuPresenter#updateDisplayedName = 
+ClawMachine#pbDrawText = 
+ClawMachine#pbEndScene = 
+ClawMachine#pbStartScene = 
 ColorCodeDoor#handle_input = 
 CommandMenuDisplay#index= = 
 CommandMenuDisplay#setIndexAndMode = 
@@ -94,6 +100,7 @@ EggRelearner_Scene#pbDrawMoveList =
 Ekans_Interface_Game#set_sitrus_timer = 
 Ekans_Interface_Hiscores#get_text_pos = 
 Ekans_Interface_Main#draw = 
+EncounterListUI#drawAllTexts = 
 EncounterListUI#getEncData = 
 EncounterListUI#loadCurrentPage = 
 EncounterListUI#loadEncounterData = 
@@ -107,13 +114,18 @@ EquipScreen#update_lore_window =
 FatesMenuPanels#cambio = 
 FatesMenuPanels#initialize = 
 FightMenuDisplay#battler= = 
+FightMenuDisplay#cometryButton= = 
 FightMenuDisplay#impulseButton= = 
+FightMenuDisplay#megaButton= = 
 FightMenuDisplay#setIndexAndMode = 
 FightMenuDisplay#teraButton= = 
 FightMenuDisplay#zButton= = 
+FightMenuDisplay#zodiacButton= = 
 FightMenuDisplaySpecial#battler= = 
 FightMenuDisplaySpecial#setIndex = 
 FightWindowEBDX#battler= = 
+FishingMinigame#createGraphics = 
+FishingMinigame#refresh = 
 FusionQuiz#refresh_streak_ui = 
 FusionQuizAppScene#pbStartScene = 
 GachaScene#dispose = 
@@ -151,6 +163,7 @@ Hatcher#dispose =
 Hatcher#refresh = 
 IMGroup#toggle_pin = 
 IconMenu#setActive = 
+Idol#pbStartScene = 
 Incubadora#dispose = 
 Incubadora#refresh = 
 InfoTarjetasLiga_Scene#pbEndScene = 
@@ -165,6 +178,7 @@ ItemBerryPots_Scene#pbUpdateCursor =
 ItemCraft_Scene#pbRedrawItem = 
 ItemCraft_Scene#pbRedrawMenu = 
 ItemCraft_Scene#refreshNumbers = 
+ItemsM#redrawSelector = 
 JumpMinigame::Play#drawPoints = 
 JumpMinigame::Play#drawRope = 
 LocationWindow#initialize = 
@@ -175,9 +189,9 @@ MapBottomSprite#maplocation= =
 MapBottomSprite#mapname= = 
 MaxLairEventScene#pbDrawItemScreen = 
 MaxLairEventScene#pbDrawStatScreen = 
-Menu2#drawIcons = NO-DUMP
+Menu2#drawIcons = 
 Menu2#pbActualizarIconosMenu = 
-Menu2#redrawSelector = NO-DUMP
+Menu2#redrawSelector = 
 MenuFases#show_image = 
 MenuFases2#show_image = 
 MenuFases3#show_image = 
@@ -192,6 +206,7 @@ MostrarPokemonAnimado#mostrar_poke_animado =
 MoveRelearnerScene#pbDrawMoveList = 
 MoveRemember_Scene#pbDrawMoveList = 
 MultiBerrySelection_Scene#pbRefresh = 
+NewBattleBag#drawPocket = 
 NewBattleBag#update = 
 NewCommandWindow#text= = 
 NewFightWindow#battler= = 
@@ -206,13 +221,17 @@ OutfitSelector#changeToNextHairstyle =
 OutfitSelector#changeToNextHat = 
 PartyLineupEBDX#refresh = 
 Perlita#escogersaquito = 
+Phasmophobia#initialize = 
 PickBlessing#swapCard = 
 PickBlessing#updateCursor = 
 PickDifficulty#update = 
 PlaceDecoration_Scene#pbUpdate = 
 Poffin#announceStart = 
+PokeBattle_Battle#pbDynamax = 
+PokeBattle_Battler#showAbilityMessage = 
 PokeBattle_Scene#pbDamageAnimation = fireash, goldencrown, infinitefusion, infinitefusion_hoenn
 PokeBattle_Scene#rewriteType = 
+PokeBattle_Scene#showAbilityMessage = 
 PokeBlock#disappear_scene = 
 PokeContestScene#choose_move = 
 PokeContestScene#pbDrawText = 
@@ -246,9 +265,11 @@ PokemonCurrydex_Scene#pbStartScene =
 PokemonEditor_Scene#pbRefresh = 
 PokemonEntryScene2#pbUpdate = 
 PokemonHatView#update = 
+PokemonLanguageSelection#updateSelection = 
 PokemonLoadScene#pbChooseAutoSubFile = 
 PokemonLoadScene#pbMoveSaveSel = 
 PokemonMGift_Scene#pbUpdate = 
+PokemonMenu2_Scene#update = 
 PokemonMenu_Scene#pbEndScene = 
 PokemonMenu_Scene#pbShowMenu = 
 PokemonMenu_Scene#selectButton = 
@@ -270,6 +291,7 @@ PokemonPokedexInfo_Scene#drawPage =
 PokemonPokedexInfo_Scene#pbDrawDataList = 
 PokemonPokedexInfo_Scene#pbDrawDataNotes = 
 PokemonPokedexInfo_Scene#pbDrawSpeciesDataList = 
+PokemonPokedexMenu_Scene#pbRefresh = 
 PokemonPokedexScene#pbChangeToDexEntry = 
 PokemonPokedexScene#pbRefreshDexSearch = 
 PokemonPokedexScene#pbRefreshMainMenu = 
@@ -290,7 +312,6 @@ PokemonRegionMap_Scene#updateSpeciesInfo =
 PokemonRulesetScene#pbStartScene = 
 PokemonSave#initialize = 
 PokemonScreen_Scene#pbRefresh = 
-PokemonScreen_Scene#update = 
 PokemonShop_Scene#pbRefresh = 
 PokemonStatEditor_Scene#pbRefresh = 
 PokemonStorageScene#pbMarkingSetArrow = 
@@ -298,9 +319,18 @@ PokemonStorageScene#pbSetArrow =
 PokemonStorageScene#pbSetQuickSwap = 
 PokemonStorageScene#pbUpdateOverlay = 
 PokemonStorageScene#setFusing = 
+PokemonSummaryScene#drawInfoZodiac = 
+PokemonSummaryScene#drawPageContestMoves = 
+PokemonSummaryScene#drawPageData = 
+PokemonSummaryScene#drawPageInfo = 
+PokemonSummaryScene#drawPageMoves = 
 PokemonSummaryScene#drawPageOne = 
+PokemonSummaryScene#drawPageRibbons = 
 PokemonSummaryScene#drawPageSix = 
+PokemonSummaryScene#drawPageStats = 
+PokemonSummaryScene#drawSelectedContestMove = 
 PokemonSummaryScene#pbUpdate = 
+PokemonSummaryScene#pbdrawRibDesc = 
 PokemonSummary_Scene#pbUpdate = 
 PokemonTrainerCardSceneGBC#changeIndexParty = 
 PokemonTrainerCardSceneGBC#drawSummaryHeader = 
@@ -332,6 +362,7 @@ Questlog#show_quest_list =
 Questlog#switch_button = 
 RSESTarterChoice#pbStartScene = 
 RSESTarterChoice#pbUpdate = 
+RadioInterface#update_display = 
 RentalChooseScene#refresh_top_slots = 
 Scene_Glosario#refresh = 
 Scene_Map#addSprite = 
@@ -342,6 +373,8 @@ ScrollTree#pbEndScene =
 ScrollTree#positionSelector = 
 ScrollTree#raiseStat = 
 SecretBaseMart_Scene#update = 
+SeleccionTipo#pbStartScene = 
+SeleccionTipo#redrawSelector = 
 SelectMoveMenu_Scene#refresh_buttons = 
 SlideDay#initialize = 
 SlotMachineReel#update = 
@@ -366,11 +399,13 @@ TarjetasLiga_Scene#actualizarTarjetasPantalla =
 TarjetasLiga_Scene#pbEndScene = 
 TarjetasPlayerStats_Scene#refresh = 
 TeamPreview_Scene#update = 
+Textbook_Scene#drawTextbookPage = 
 TilePuzzleScene#update = 
 TiltLabyrinth::Scene#update_sounds = 
 TipCardGroups_Scene#pbDrawTip = 
 TipCard_Scene#pbDrawTip = 
 TipMenu_Scene#pbRedrawList = 
+TradeUI_Base#refreshOverlay = 
 UI::BagVisuals#set_pocket = 
 UI::LoadVisuals#set_index = 
 UI::LoadVisuals#set_slot_index = 
@@ -387,6 +422,13 @@ UI::TownMapVisuals#refresh_on_cursor_move =
 UI::TrainerCard#start_screen = 
 VideoPoker::Scene#update_all = 
 VideoPoker::Screen#select_wager = 
+WalkerScene#busy = 
+WalkerScene#fit_text = 
+WalkerScene#hint_bar = 
+WalkerScene#option_list = 
+WalkerScene#text = 
+WalkerScene#title_bar = 
+WalkerScene#wrap = 
 WallClockScene#update_clock = NO-DUMP
 WeatherIcon#initialize = 
 WindowTextEntryKeyboardPerKey#delete = 
@@ -433,12 +475,12 @@ WonderCardScene#pbStartScene =
 # core/nav/region_map.rb: PokeAccess::Hooks.after_hook(cn, :pbGetMapLocation) do |s, ret, args|
 # core/nav/region_map.rb: PokeAccess::Hooks.after_hook(cn, :pbEndScene) do |s, _r, _a|
 # core/party/gen6/party_g6.rb: PokeAccess::Hooks.after_hook(party_sel_class, :pbChangeSelection) do |scene, ret, args|
-# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageOne) do |s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageOne, :optional => true) do |s, _r, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageOneEgg, :optional => true) do |s, _r, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawSelectedRibbon, :optional => true) do |s, _r, args|
-# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageTwo) do |s, _r, args|
-# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageThree) do |s, _r, args|
-# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFour) do |s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageTwo, :optional => true) do |s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageThree, :optional => true) do |s, _r, args|
+# core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFour, :optional => true) do |s, _r, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawPageFive, :optional => true) do |s, _r, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :drawSelectedMove) do |s, _r, args|
 # core/party/gen6/summary_g6.rb: PokeAccess::Hooks.after_hook(PokeAccess::SummaryGen6::SCENE, :pbUpdate) do |scene, _r, _a|
@@ -452,6 +494,7 @@ WonderCardScene#pbStartScene =
 # games/royal/curry_result.rb: read_on_open("ResultadosCurryPuntos_Scene") do |scr|
 # games/royal_common/iconos_leyenda.rb: read_on_open("IconosLeyenda_Scene") { |_s| PokeAccess::I18n.t(:royal_icon_legend) }
 # games/royal_common/selectors.rb: after(cls, meth.to_sym) { |_s, _r, _a| PokeAccess::RoyalSelectors.say(option) }
+# plugins/bes_battle.rb: PokeAccess::Hooks.after_hook("FightMenuDisplay", setter.to_sym, :optional => true) do |disp, _r, args|
 # plugins/better_region_map.rb: PokeAccess::Hooks.after_hook("BetterRegionMap", m.to_sym, :optional => true) { |scene, _r, _a| PokeAccess::BetterMap.read(scene) }
 # plugins/secret_bases.rb: PokeAccess::Hooks.after_hook(cname, :pbEndScene, :optional => true) { |_s, _r, _a| PokeAccess::Info.clear_text }
 # plugins/video_poker.rb: PokeAccess::Hooks.after_hook("VideoPoker::Scene", meth.to_sym, :optional => true) do |scene, _r, _a|

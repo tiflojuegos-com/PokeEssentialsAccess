@@ -43,15 +43,8 @@ module PokeAccess
       @typing_ttl = 4
     end
 
-    # Call each frame a game's own screen answers a mod key itself: that key then does nothing for a few frames.
-    def self.yield_key!(name)
-      (@yielded ||= {})[name] = 4
-    end
-
-    # Whether a game's screen has claimed this key of the mod's (see yield_key!).
-    def self.yielded?(name)
-      (@yielded ||= {})[name].to_i > 0
-    end
+    # Whether a text field is active (see typing!).
+    def self.typing?; @typing_ttl > 0; end
 
     # Call while a game menu with its own raw-key input is active: the config key is ignored for a few frames,
     # while the info keys keep working.
@@ -64,7 +57,7 @@ module PokeAccess
     def self.key(name)
       code = PokeAccess::Config.keys[name]
       return false unless code
-      hit = PokeAccess::Keyboard.pressed?(code) && focused?
+      hit = PokeAccess::Remap.code_pressed?(code) && focused?
       (PokeAccess::Recorder.note_key(name) rescue nil) if hit
       hit
     end
@@ -98,13 +91,12 @@ module PokeAccess
       end
       menu_locked = (@menu_lock_ttl ||= 0) > 0
       @menu_lock_ttl -= 1 if menu_locked
-      (@yielded ||= {}).each_key { |k| @yielded[k] -= 1 if @yielded[k] > 0 }
       return if PokeAccess::ConfigMenu.active?
       if !menu_locked && key(:config)
         PokeAccess::ConfigMenu.open
         return
       end
-      if key(:info) && !yielded?(:info)
+      if key(:info)
         PokeAccess::Speech.as(:info) { info_key }
       elsif key(:hp)
         PokeAccess::Speech.as(:info) { PokeAccess::Battle.announce_hp(shift_down?) }

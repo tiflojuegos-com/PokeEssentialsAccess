@@ -62,7 +62,7 @@ Each pass loads core, every [plugin reader](../reference/glossary.md) and one
 [harness profile](../reference/glossary.md), as the boot loads them ([Loading](../architecture/loading.md)):
 
 - The gen-6 pass loads `pokemon_z`, with the shared profile it imports, `lostie_common`.
-- The GameData pass loads `anil`, with `skyflyer_common`.
+- The GameData pass loads `anil`.
 
 A rule or override that either profile installs applies to every test of its pass. Every plugin reader is loaded,
 declared by the profile or not, since plugin hooks are optional. Before each test, `Reset.before_test` puts the
@@ -86,7 +86,9 @@ its runtime files to a temporary folder of its own, `POKEACCESS_DATA_DIR`, and r
    with `eval(Harness.source(path), TOPLEVEL_BINDING, path)` and restore what it replaces, as
    `test/behavior/battle/rejuvenation_inspect_test.rb` does. A hook binds once per class name: a class created again
    under the same name stays unhooked, and a file evaluated twice adds its hook bodies twice. Load a shared profile
-   with `Harness.load_common(name)`.
+   with `Harness.load_common(name)`. A profile whose overrides would reach other tests, or one tested whole, runs in a
+   process of its own: subclass `ProfileProcessTest` (`test/support/profile_process.rb`) and give `profile` the folder,
+   a world of classes shaped as the game's and a play of probes, as `test/behavior/core/edas_profile_test.rb` does.
 7. Assert what the mod says. `assert_spoken(pattern)`, `assert_spoken_once`, `refute_spoken` and
    `assert_nothing_spoken` match the lines spoken since the last `SpeakCapture.clear`. `SpeakCapture.log` gives
    `[text, interrupt]` pairs, where `false` means queued. Write the expected text in Spanish.

@@ -118,11 +118,55 @@ class FieldStatesTest < PokeAccessTest
     end
   end
 
+  test "a lens kept by its flag goes on unsaid across a map change, and is said as the player lowers it" do
+    on = true
+    scene = Scene_Map.new
+    scene.define_singleton_method(:eye_of_truth) { on }
+    with_scene(scene) do
+      FS.reset
+      SpeakCapture.clear
+      FS.lens_poll
+      FS.reset
+      FS.lens_poll
+      assert_nothing_spoken "the map changed, the lens did not"
+      on = false
+      FS.lens_poll
+      assert_equal [[T.t(:fs_lens_off), true]], SpeakCapture.log
+    end
+  end
+
   test "announces the lens wearing off, cutting in" do
     with_lens_scene do |lens|
       lens.call(560)
       lens.call(0)
       assert_equal [[T.t(:fs_lens_off), true]], SpeakCapture.log
+    end
+  end
+
+  test "follows a copy with no timer by its flag, on the map only" do
+    on = false
+    scene = Scene_Map.new
+    scene.define_singleton_method(:eye_of_truth) { on }
+    with_scene(scene) do
+      FS.reset
+      SpeakCapture.clear
+      FS.lens_poll
+      assert_nothing_spoken "the flag down"
+      on = true
+      FS.lens_poll
+      assert_equal [[T.t(:fs_lens_on), true]], SpeakCapture.log
+      SpeakCapture.clear
+      on = false
+      FS.lens_poll
+      assert_equal [[T.t(:fs_lens_off), true]], SpeakCapture.log
+    end
+    away = Object.new
+    away.define_singleton_method(:eye_of_truth) { true }
+    with_scene(away) do
+      FS.reset
+      SpeakCapture.clear
+      FS.lens_poll
+      assert_nothing_spoken "another scene than the map"
     end
   end
 

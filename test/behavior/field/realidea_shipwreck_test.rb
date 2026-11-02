@@ -104,6 +104,18 @@ class RealideaShipwreckTest < PokeAccessTest
     assert_equal [["#{t(:rea_morse_keys)}. #{t(:rea_morse_arrows)}", false]], SpeakCapture.log
   end
 
+  test "the guide's keys are said where the player has its M" do
+    was = PokeAccess::Config.key_hint_letters
+    PokeAccess::Config.key_hint_letters = { "M" => :rea_m }
+    PokeAccess::Config.rebinds = { :rea_m => 0x4E }
+    begin
+      assert_equal [t(:rea_morse_guide_key).sub("M", "N"), t(:rea_morse_guide_close).sub("M", "N")],
+                   [Ship.hint(:rea_morse_guide_key), Ship.hint(:rea_morse_guide_close)]
+    ensure
+      PokeAccess::Config.key_hint_letters = was
+    end
+  end
+
   test "its opening line adds the guide's key once the guide is owned and, with the assist, the answer's length" do
     keys = t(:rea_morse_keys)
     guide_key = t(:rea_morse_guide_key)

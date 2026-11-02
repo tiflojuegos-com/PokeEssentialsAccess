@@ -295,11 +295,8 @@ PokeAccess::Hooks.around_hook("TiltLabyrinth::Scene", :start, :optional => true)
   PokeAccess::FLTilt.opened(scene)
   r
 end
-PokeAccess::Hooks.around_hook("TiltLabyrinth::Scene", :draw_text, :optional => true) do |scene, nxt, _a|
-  r = nil
-  rows = PokeAccess::PaintCapture.sample { r = nxt.call }
+PokeAccess::Hooks.on_paint("TiltLabyrinth::Scene", :draw_text, :optional => true) do |scene, rows, _a|
   PokeAccess::FLTilt.painted(scene, rows)
-  r
 end
 PokeAccess::Hooks.around_hook("TiltLabyrinth::Scene", :main, :optional => true) do |scene, nxt, _a|
   r = PokeAccess::FLTilt.playing(scene) { nxt.call }

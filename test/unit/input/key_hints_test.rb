@@ -16,6 +16,15 @@ class InputKeyHintsTest < PokeAccessTest
     assert_equal "[A] Curar", KeyHints.localize("[A] Curar", RGSS)
   end
 
+  test "an action its profile ships on a key is said on it, until the player binds it another" do
+    PokeAccess::Remap.ship(:test_alt => "Alt+J")
+    assert_equal "#{PokeAccess::I18n.t(:key_alt)} J", KeyHints.bound_name(:test_alt)
+    PokeAccess::Config.rebinds = { :test_alt => K }
+    assert_equal "K", KeyHints.bound_name(:test_alt)
+  ensure
+    PokeAccess::Remap.defaults.delete(:test_alt)
+  end
+
   test "only the key token of a rebound button changes" do
     PokeAccess::Config.rebinds = { :x => J, :c => K }
     [["[A] Curar", "[J] Curar", "a bracketed key"],

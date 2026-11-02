@@ -25,11 +25,6 @@ class BattlerBoxGdTest < PokeAccessTest
     end
   end
 
-  # An Awakening boss, given lives (variable 189): its box draws an icon for each one past the current bar.
-  class Boss < Battler
-    attr_accessor :lives
-  end
-
   # A v19+ battler, which tells whether it opposes another slot's side.
   class SidedBattler < Battler
     def opposes?(other = 0); (index & 1) != (other & 1); end
@@ -50,11 +45,6 @@ class BattlerBoxGdTest < PokeAccessTest
   # Reminiscencia's game options, whose porcentaje 1 shows HP as a percentage.
   GameSystem = Struct.new(:porcentaje)
 
-  # Awakening's scene, whose bar breaks as a boss loses a life; the hook binds to it by name.
-  class BreakScene
-    def pbBreakBar(_battler); :flashed; end
-  end
-
   class << self
     # The seams as they stand, by [module, name].
     def seam_methods
@@ -67,14 +57,11 @@ class BattlerBoxGdTest < PokeAccessTest
     end
 
     # The seams a profile's box file overrides, as it overrides them: the file is evaluated once, over the seams as
-    # they stand then (and with Awakening's scene under its name, for the boss box's bar-break hook), which are put
-    # back after.
+    # they stand then, which are put back after.
     def profile_overrides(path)
       @profiles ||= {}
       return @profiles[path] if @profiles.key?(path)
       before = seam_methods
-      scene = !Object.const_defined?(:PokeBattle_Scene)
-      Object.const_set(:PokeBattle_Scene, BreakScene) if scene
       file = File.join(Harness::ROOT, "games", path)
       verbose = $VERBOSE
       begin
@@ -84,7 +71,6 @@ class BattlerBoxGdTest < PokeAccessTest
       ensure
         $VERBOSE = verbose
         put_back(before)
-        Object.send(:remove_const, :PokeBattle_Scene) if scene && Object.const_defined?(:PokeBattle_Scene)
       end
     end
   end
@@ -179,34 +165,6 @@ class BattlerBoxGdTest < PokeAccessTest
       $game_switches[200] = true
       unplaced = Unplaced.new("Zorua", 30, 50, 100, 0, :NONE, true)
       assert_equal state("Zorua", 30, hp(false)), PokeAccess::Battle.battler_state(unplaced, false)
-    end
-  end
-
-  test "an Awakening boss's HP says its spare life icons, none on its last life" do
-    with_profile("awakening/boss_box.rb") do
-      $game_switches[200] = true
-      boss = Boss.new(1, 0, 0, battle_with({}))
-      { 3 => "#{hp(true)}, #{t(:awk_lives, :n => 2)}", 2 => "#{hp(true)}, #{t(:awk_lives, :n => 1)}", 1 => hp(true),
-        nil => hp(true) }.each do |lives, line|
-        boss.lives = lives
-        assert_equal bare("Zorua", line), PokeAccess::Battle.battler_state(boss, true), "with #{lives.inspect} lives"
-      end
-    end
-  end
-
-  test "an Awakening boss's bar breaking says the life lost and the icons left, or that it is the last" do
-    with_profile("awakening/boss_box.rb") do
-      boss = Boss.new(1, 0, 0, battle_with({}))
-      boss.lives = 2
-      SpeakCapture.clear
-      assert_equal :flashed, BreakScene.new.pbBreakBar(boss), "the scene's own break runs"
-      assert_equal [[t(:awk_life_lost, :name => "Zorua", :rest => t(:awk_lives_left, :n => 1)), false]], SpeakCapture.log,
-                   "one icon left"
-      boss.lives = 1
-      SpeakCapture.clear
-      BreakScene.new.pbBreakBar(boss)
-      assert_equal [[t(:awk_life_lost, :name => "Zorua", :rest => t(:awk_lives_last)), false]], SpeakCapture.log,
-                   "the last life"
     end
   end
 

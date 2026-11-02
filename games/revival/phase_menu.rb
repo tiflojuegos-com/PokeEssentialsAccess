@@ -49,7 +49,7 @@ PokeAccess::Game.define("revival") do
   after("MenuFases", :show_image) { |menu, _r, args| PokeAccess::RevivalPhaseMenu.shown(menu, "MenuFases", args[0]) }
   after("MenuFases2", :show_image) { |menu, _r, args| PokeAccess::RevivalPhaseMenu.shown(menu, "MenuFases2", args[0]) }
   after("MenuFases3", :show_image) { |menu, _r, args| PokeAccess::RevivalPhaseMenu.shown(menu, "MenuFases3", args[0]) }
-  before("MenuFases", :close_menu) { |_menu, _a| PokeAccess::Info.clear_text }
-  before("MenuFases2", :close_menu) { |_menu, _a| PokeAccess::Info.clear_text }
-  before("MenuFases3", :close_menu) { |_menu, _a| PokeAccess::Info.clear_text }
+  clear_info_on("MenuFases", :close_menu)
+  clear_info_on("MenuFases2", :close_menu)
+  clear_info_on("MenuFases3", :close_menu)
 end

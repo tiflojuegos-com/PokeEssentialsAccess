@@ -11,7 +11,7 @@ class PluginsSmokeTest < PokeAccessTest
   PLUGINS = File.join(Harness::ROOT, "plugins")
 
   # The registration calls of a hook-carrying plugin file, as its source writes them.
-  HOOK_CALL = /(after_hook|before_hook|around_hook|SceneWatcher\.(reader|wire)|MenuReturn\.bare|read_on_open)\s*\(\s*"/
+  HOOK_CALL = /(after_hook|before_hook|around_hook|on_paint|SceneWatcher\.(reader|wire)|MenuReturn\.bare|read_on_open)\s*\(\s*"/
 
   # Module#name, which a plugin module may shadow with a function of its own (SkyBag.name).
   MODULE_NAME = Module.instance_method(:name)

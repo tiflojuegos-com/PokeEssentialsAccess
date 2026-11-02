@@ -284,3 +284,4 @@ end
 PokeAccess::Hooks.wrap_kernel("pbDrawTextPositions", "plugin_contest_hall_results", :before) do |args, _r|
   PokeAccess::ContestShow.results_paint(args[0], args[1]) if PokeAccess::ContestShow.results?
 end
+PokeAccess::Hooks.clear_info_on("ContestHall::Show", :dispose)

@@ -113,11 +113,8 @@ PokeAccess::Hooks.around_hook("Game_Mouse", :inAreaLeft?, :optional => true) do 
 end
 # The card is painted hidden, for the trainer's slide to reveal: kept as painted, said once writeTrainerData runs
 # (each frame the scene then waits for the key).
-PokeAccess::Hooks.around_hook("HallOfFameScene", :createTrainerBattler, :optional => true) do |s, nxt, _a|
-  r = nil
-  rows = PokeAccess::PaintCapture.sample { r = nxt.call }
+PokeAccess::Hooks.on_paint("HallOfFameScene", :createTrainerBattler, :optional => true) do |s, rows, _a|
   s.instance_variable_set(:@access_hof_card, PokeAccess::PaintCapture.laid_out(rows))
-  r
 end
 PokeAccess::Hooks.after_hook("HallOfFameScene", :writeTrainerData, :optional => true,
                              :hook_container => true) do |s, _r, _a|

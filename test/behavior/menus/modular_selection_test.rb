@@ -22,7 +22,7 @@ class ModularSelection_Scene
 end
 
 MODULAR_SELECTION_HOOK = Harness.source(File.join(Harness::ROOT, "plugins", "modular_pokemon_selection.rb"))
-                                .scan(/^PokeAccess::Hooks\.around_hook\("ModularSelection_Scene".*?^end\n/m)
+                                .scan(/^PokeAccess::Hooks\.(?:around_hook|on_paint)\("ModularSelection_Scene".*?^end\n/m)
 MODULAR_SELECTION_HOOK.each { |hook| eval(hook, TOPLEVEL_BINDING, "plugins/modular_pokemon_selection.rb") }
 
 class ModularSelectionTest < PokeAccessTest

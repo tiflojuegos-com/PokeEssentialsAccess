@@ -73,7 +73,9 @@ end
 | `names(table, map)` | table name; id => i18n key or literal | Adds the game's ids to a core name table |
 | `trainer_part(key)` | part name; block | Defines or replaces a part of the trainer line |
 | `trainer_order(keys)` | part names | Sets the parts of the trainer line and their order |
-| `remap_extra(sym, default_vk, label)` | action, virtual-key code, i18n key | A raw-key action on the remap screen |
+| `remap_extra(sym, key, label, opts = {})` | action, the raw key the game reads, i18n key; `:button` | A raw-key action on the remap screen |
+| `key_defaults(map)` | action => key | Ships actions on other keys in this game |
+| `field_key_defaults(map)` | action => key | The same, out of battle alone |
 
 - `config` assigns the value directly, without the `:config_changed` event. For a menu setting it is the game's
   default: the boot applies `settings.ini` afterwards, and a value stored there replaces it. Two keys outside the
@@ -90,7 +92,12 @@ end
   trainer card say them joined, each part that answers.
 - `trainer_order` leaves out of the line every part it does not list.
 - `remap_extra` registering a symbol again replaces its row. The remap screen lists the extras after the game's
-  buttons ([Keys](keys.md)).
+  buttons. `key` is the virtual-key the game reads, or mkxp-z's name for its letter (`:M`) when the game reads it by
+  name. With `:button`, the game also reads it as that constant of its own `Input`, and the entry moves both reads.
+- `key_defaults` takes any action of the remap screen: a game button, an extra or a mod key. A key is `"N"`, `"F6"`,
+  `"Alt+M"`, `"Alt"`, or `"None"` for no key at all. It reads as if the player had bound it: the remap screen says it and
+  restores it, and nothing is saved.
+  `test/static/key_defaults_test.rb` refuses two actions on one key and a key no entry can take ([Keys](keys.md)).
 
 ## Hooks
 
@@ -99,6 +106,8 @@ end
 | `after(cname, meth, opts = {})` | `Hooks.after_hook` | instance, result, args |
 | `before(cname, meth, opts = {})` | `Hooks.before_hook` | instance, args |
 | `around(cname, meth, opts = {})` | `Hooks.around_hook` | instance, the next call, args |
+| `on_paint(cname, meth, opts = {})` | `Hooks.on_paint` | instance, the rows the method painted, args |
+| `clear_info_on(cname, meth = :pbEndScene)` | `Hooks.clear_info_on` | none |
 | `read_on_open(cname, meth = :pbStartScene, opts = {})` | `Hooks.read_on_open` | the scene; answers the text |
 | `override(target, meth)` | `Hooks.override`, tagged `game_<name>` | receiver, original, args |
 | `kernel(fname, timing = :before)` | `Hooks.wrap_kernel` | args and result; args and the next call for `:around` |
@@ -106,6 +115,9 @@ end
 The options, timings and failure behavior of each registrar are in the [hooks API reference](hooks-api.md).
 
 - `around` bodies call the next call to run the game's method.
+- `on_paint` is for reading what a method paints: it runs the method, hands the block the rows and gives the game the
+  method's value.
+- `clear_info_on` forgets the line a screen published for the info key when that method closes it.
 - `read_on_open` says the text queued; nil or an empty text says nothing.
 - `override` through the DSL takes no options, so a target that does not resolve goes to `Hooks.missing`.
 - `kernel` takes `:before`, `:after` or `:around`. A function found nowhere goes to `Hooks.fn_absent`.
@@ -125,7 +137,8 @@ The options, timings and failure behavior of each registrar are in the [hooks AP
   belongs to, the most derived wins, the first registered on a tie. A block that raises is logged once to the
   marker file, and the generic read takes over.
 - `focus_reader` says the focused entry of a screen whose cursor is an index, each time the index moves. The first
-  read is queued and later ones interrupt; a nil line says nothing. Its options are those of `FocusReader.define`
+  read is queued and later ones interrupt; a nil line says nothing. With `:close`, the method that closes the screen,
+  each line also stays on the info key until then. Its options are those of `FocusReader.define`
   ([Command windows and focus readers](reading-apis.md#command-windows-and-focus-readers)).
 - `info_window` watches an [information window](glossary.md), a `@sprites` entry repainted with `text=`, and reads it
   when its text changes while the scene runs. `slot` is the window's dedup symbol, distinct per window of one scene.
@@ -194,7 +207,8 @@ the build's language (`GameLang`), never the player's ([Speech and languages](..
 - `held_key_ground(owner = nil)`: tiles where the direction key has to stay held. The block gets x and y and answers
   true on such a tile.
 - `terrain_exit(owner = nil)`: terrain the player leaves by a move of its own. The block gets x, y and the direction
-  and answers the `[x, y]` the press lands on, false when it fails, or nil off its terrain.
+  and answers the `[x, y]` the press lands on, `[x, y, presses]` for a move walked rather than hopped (a side stair),
+  false when it fails, or nil off its terrain.
 - `assisted_step(owner = nil)`: an action that gets the player past what stops a walk, for the assisted route. The
   block gets x, y, the direction and the bridge level and answers a `Routes::Moves::Step` with its gate, or nil.
 - `plain_passability`: the game's player passability reads nothing an event's end can change besides the map's tiles,

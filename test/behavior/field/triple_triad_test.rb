@@ -283,6 +283,24 @@ class TripleTriadTest < PokeAccessTest
                  [inside, tt.deck_row(rows, 0)], "the row inside the chooser, then once it returns"
   end
 
+  test "the card list an event opens reads its rows as the deck chooser's, whether the game keeps the cards in a storage or an array" do
+    rows = deck_window(["Bulbasaur x3", "SALIR"])
+    [OwnedCards.new([[1, 3]]), [[1, 3]]].each do |kept|
+      inside = nil
+      with_owned_cards(kept) { pbTriadList { inside = [tt.deck_row(rows, 0), tt.deck_row(rows, 1)] } }
+      sides = t(:triad_sides, :n => 2, :e => 5, :s => 7, :w => 9)
+      assert_equal ["Bulbasaur x3, #{t(:mv_type, :t => PBTypes.getName(1))}, #{sides}", "SALIR"], inside, kept.class.to_s
+      assert_equal "Bulbasaur x3", tt.deck_row(rows, 0), "once the list closes"
+    end
+  end
+
+  test "the card list of a game that keeps no cards reads as the list writes it" do
+    rows = deck_window(["Bulbasaur x3"])
+    inside = nil
+    with_owned_cards(nil) { pbTriadList { inside = tt.deck_row(rows, 0) } }
+    assert_equal "Bulbasaur x3", inside
+  end
+
   test "in the deck chooser, a row whose card the game cannot build reads as the list writes it" do
     rows = deck_window(["Bulbasaur x3", "Unown x1"])
     inside = nil
@@ -382,5 +400,18 @@ class TripleTriadTest < PokeAccessTest
     win = Object.new
     win.instance_variable_set(:@commands, rows)
     win
+  end
+
+  # The game's card storage, which keeps its [species, count] pairs in @items.
+  class OwnedCards
+    def initialize(items); @items = items; end
+  end
+
+  # Runs the block with the cards the player owns as the game keeps them, the global put back afterwards.
+  def with_owned_cards(kept)
+    $PokemonGlobal.define_singleton_method(:triads) { kept }
+    yield
+  ensure
+    class << $PokemonGlobal; remove_method(:triads); end
   end
 end

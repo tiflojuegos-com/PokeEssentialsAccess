@@ -1,13 +1,14 @@
 /*
   PA3D (Steam Audio / phonon build) - positional audio backend for the PokeAccess mod.
   Tiny integer/string ABI so the Ruby side stays unchanged. HRTF spatialization is done per
-  source with Steam Audio's binaural effect; device output and mixing use miniaudio. With PA3D_Hrtf off, a
-  source pans between left and right instead, and its pitch tells ahead from behind.
+  source with Steam Audio's binaural effect; device output and mixing use miniaudio. PA3D_Output swaps it for a
+  speaker layout: a source pans between its speakers, and with none behind (mono, stereo) its pitch tells ahead from
+  behind.
   Coordinates are tile units times 100; the listener faces north (-z), map x->x, map y->z.
   Distance attenuation is linear, clamped between the reference distance (1 tile) and the distance at which a
   source falls silent (PA3D_Range, 14 tiles until set).
   Each channel has a playback rate in percent (PA3D_Pitch): the mixer already resamples to the device
-  rate with linear interpolation, so a tone, like the stereo tilt, is one more factor on that step and costs
+  rate with linear interpolation, so a tone, like the pitch tilt, is one more factor on that step and costs
   nothing extra.
 */
 #include <windows.h>
@@ -25,11 +26,14 @@
 #include "phonon.h"
 
 #define MAXCH 32
+#define MAXSPK 8
 #define FRAME 256
 #define RATE  44100
 #define REF_DIST 1.0f
-#define STEREO_TILT 0.2f  /* in plain stereo, how much faster a source straight ahead plays, and slower one behind */
+#define PITCH_TILT 0.2f  /* with no speakers behind, how much faster a source straight ahead plays, and slower one behind */
 #define EXPORT __declspec(dllexport)
+
+enum { OUT_BINAURAL, OUT_MONO, OUT_STEREO, OUT_QUAD, OUT_51, OUT_71, OUT_COUNT };
 
 typedef struct {
     int    used;
@@ -46,9 +50,38 @@ typedef struct {
     volatile int   occ100;
     IPLBinauralEffect effect;
     IPLDirectEffect   direct;
-    float  pan_l;      /* plain-stereo weights of the last block, where the next block's ramp starts */
-    float  pan_r;
+    float  pan[MAXSPK];  /* speaker weights of the last block, where the next block's ramp starts */
 } Channel;
+
+/* a speaker: its channel on the device and its azimuth in degrees, turning left from straight ahead. */
+typedef struct {
+    int   channel;
+    float azimuth;
+} Speaker;
+
+/* an output: the channels it opens on the device and, for a layout that surrounds the listener, its speakers by azimuth
+   and what each channel is. */
+typedef struct {
+    int channels;
+    int speakers;
+    const Speaker* ring;
+    const ma_channel* map;
+} Layout;
+
+/* Steam Audio's layouts, in its channel order; the low-frequency channel stays silent. */
+static const Speaker k_quad[] = { {0, 45.0f}, {2, 135.0f}, {3, 225.0f}, {1, 315.0f} };
+static const Speaker k_51[] = { {2, 0.0f}, {0, 45.0f}, {4, 135.0f}, {5, 225.0f}, {1, 315.0f} };
+static const Speaker k_71[] = { {2, 0.0f}, {0, 45.0f}, {6, 90.0f}, {4, 135.0f}, {5, 225.0f}, {7, 270.0f}, {1, 315.0f} };
+static const ma_channel k_map_quad[] = { MA_CHANNEL_FRONT_LEFT, MA_CHANNEL_FRONT_RIGHT, MA_CHANNEL_BACK_LEFT,
+                                         MA_CHANNEL_BACK_RIGHT };
+static const ma_channel k_map_51[] = { MA_CHANNEL_FRONT_LEFT, MA_CHANNEL_FRONT_RIGHT, MA_CHANNEL_FRONT_CENTER, MA_CHANNEL_LFE,
+                                       MA_CHANNEL_BACK_LEFT, MA_CHANNEL_BACK_RIGHT };
+static const ma_channel k_map_71[] = { MA_CHANNEL_FRONT_LEFT, MA_CHANNEL_FRONT_RIGHT, MA_CHANNEL_FRONT_CENTER, MA_CHANNEL_LFE,
+                                       MA_CHANNEL_BACK_LEFT, MA_CHANNEL_BACK_RIGHT, MA_CHANNEL_SIDE_LEFT, MA_CHANNEL_SIDE_RIGHT };
+static const Layout k_layouts[OUT_COUNT] = {
+    {2, 0, NULL, NULL}, {1, 0, NULL, NULL}, {2, 0, NULL, NULL},
+    {4, 4, k_quad, k_map_quad}, {6, 5, k_51, k_map_51}, {8, 7, k_71, k_map_71}
+};
 
 static int g_ready = 0;
 static IPLContext g_ctx = NULL;
@@ -57,6 +90,7 @@ static IPLAudioSettings g_audio;
 static IPLAudioBuffer g_in;   /* 1 x FRAME */
 static IPLAudioBuffer g_out;  /* 2 x FRAME */
 static ma_device g_device;
+static int g_devopen = 0;
 static int g_devstarted = 0;
 static int g_rate = RATE;       /* actual device sample rate (native), set at init */
 static int g_latency_ms = 0;    /* output buffer latency in ms (period size x periods / rate) */
@@ -65,13 +99,12 @@ static volatile int g_lx100 = 0;
 static volatile int g_ly100 = 0;
 static volatile int g_master100 = 100;
 static volatile int g_air = 0;       /* global air-absorption toggle (distant sources lose treble) */
-static volatile int g_use_hrtf = 1;  /* 1 spatializes through the HRTF, 0 in plain stereo (PA3D_Hrtf) */
+static volatile int g_output = OUT_BINAURAL;  /* how sources reach the speakers (PA3D_Output) */
 static volatile float g_max_dist = 14.0f;  /* tiles at which a source falls silent (PA3D_Range) */
 /* what a wall lets through of a fully occluded source, by band (low, mid, high): the lows pass and the highs are cut,
    so a source behind a wall sounds muffled but stays audible. PA3D_Occl's amount blends from clear toward these. */
 static const float k_wall_transmission[IPL_NUM_BANDS] = { 0.6f, 0.2f, 0.05f };
-static float g_mixL[FRAME];     /* one processed FRAME-block, drained across device callbacks */
-static float g_mixR[FRAME];
+static float g_mix[MAXSPK][FRAME];  /* one processed FRAME-block per speaker, drained across device callbacks */
 static int g_fifo_read = FRAME;  /* read cursor into the block; == FRAME means "refill next" */
 
 /* loads a 16-bit mono PCM wav as float samples; returns malloc'd array (caller frees) or NULL. */
@@ -138,35 +171,64 @@ static void pull_samples(Channel* c, float* dst, double tilt) {
     if (!playing) c->playing = 0;
 }
 
-/* constant-power stereo panning by the source's left-right component, Steam Audio's stereo formula, ramped across
-   the block from the last block's weights so a moving source does not click. */
-static void pan_channel(Channel* c, float x, float gain) {
-    float q = (x + 1.0f) * 0.78539816f;
-    float l = (float)cos((double)q), r = (float)sin((double)q);
-    int k;
-    for (k = 0; k < FRAME; k++) {
-        float t = (float)k / FRAME;
-        float s = g_in.data[0][k] * gain;
-        g_mixL[k] += s * (c->pan_l + (l - c->pan_l) * t);
-        g_mixR[k] += s * (c->pan_r + (r - c->pan_r) * t);
+/* each speaker's weight for a direction, at constant power: mono's one speaker at stereo's centre level, stereo by the
+   left-right component and a ring by the two speakers either side of the azimuth, both as Steam Audio does. */
+static void speaker_weights(int output, const IPLVector3* dir, float* w) {
+    const Layout* layout = &k_layouts[output];
+    float phi;
+    int i;
+    memset(w, 0, sizeof(float) * MAXSPK);
+    if (!layout->ring) {
+        double q = (dir->x + 1.0) * 0.78539816339745;
+        if (layout->channels == 1) { w[0] = 0.70710678f; return; }
+        w[0] = (float)cos(q);
+        w[1] = (float)sin(q);
+        return;
     }
-    c->pan_l = l;
-    c->pan_r = r;
+    phi = (float)(atan2(-(double)dir->x, -(double)dir->z) * 180.0 / 3.14159265358979);
+    if (phi < 0.0f) phi += 360.0f;
+    if (phi < layout->ring[0].azimuth) phi += 360.0f;
+    for (i = 0; i < layout->speakers; i++) {
+        int last = i + 1 == layout->speakers;
+        const Speaker* from = &layout->ring[i];
+        const Speaker* to = &layout->ring[last ? 0 : i + 1];
+        float next = last ? to->azimuth + 360.0f : to->azimuth;
+        if (phi < next || last) {
+            double t = (phi - from->azimuth) / (next - from->azimuth) * 1.5707963267949;
+            w[from->channel] = (float)cos(t);
+            w[to->channel] = (float)sin(t);
+            return;
+        }
+    }
 }
 
-/* renders one channel's block into the mix: through the HRTF, or in plain stereo panned by the left-right component
-   of its direction and pitched by the ahead-behind one; a source on the listener keeps its pitch. */
+/* mixes a channel's block into its speakers, each ramped across the block from the last block's weight so a moving
+   source does not click. */
+static void pan_channel(Channel* c, int output, const IPLVector3* dir, float gain) {
+    float w[MAXSPK];
+    int i, k, channels = k_layouts[output].channels;
+    speaker_weights(output, dir, w);
+    for (i = 0; i < channels; i++) {
+        float from = c->pan[i], step = (w[i] - from) / FRAME;
+        for (k = 0; k < FRAME; k++) g_mix[i][k] += g_in.data[0][k] * gain * (from + step * k);
+        c->pan[i] = w[i];
+    }
+}
+
+/* renders one channel's block into the mix: through the HRTF, or panned between the layout's speakers. With no speakers
+   behind, the ahead-behind component of its direction pitches it; a source on the listener keeps its pitch. */
 static void mix_channel(Channel* c) {
     IPLBinauralEffectParams params;
     IPLVector3 dir;
     float gx, gz, dist, gain;
-    int k, stereo = !g_use_hrtf;
+    int k, output = g_output;
+    int tilted = output != OUT_BINAURAL && !k_layouts[output].ring;
     gx = (c->x100 - g_lx100) / 100.0f;
     gz = (c->y100 - g_ly100) / 100.0f;
     dist = (float)sqrt((double)(gx * gx + gz * gz));
     if (dist < 1e-4f) { dir.x = 0.0f; dir.y = 0.0f; dir.z = -1.0f; }
     else { dir.x = gx / dist; dir.y = 0.0f; dir.z = gz / dist; }
-    pull_samples(c, g_in.data[0], (stereo && dist >= 1e-4f) ? 1.0 - STEREO_TILT * dir.z : 1.0);
+    pull_samples(c, g_in.data[0], (tilted && dist >= 1e-4f) ? 1.0 - PITCH_TILT * dir.z : 1.0);
     gain = (c->vol100 / 100.0f) * (g_master100 / 100.0f) * dist_gain(dist);
     if (gain <= 1e-4f) return;
     if (c->direct && (c->occ100 > 0 || g_air)) {
@@ -187,8 +249,8 @@ static void mix_channel(Channel* c) {
         }
         if (dp.flags) iplDirectEffectApply(c->direct, &dp, &g_in, &g_in);
     }
-    if (stereo) {
-        pan_channel(c, dir.x, gain);
+    if (output != OUT_BINAURAL) {
+        pan_channel(c, output, &dir, gain);
         return;
     }
     params.direction = dir;
@@ -198,8 +260,8 @@ static void mix_channel(Channel* c) {
     params.peakDelays = NULL;
     iplBinauralEffectApply(c->effect, &params, &g_in, &g_out);
     for (k = 0; k < FRAME; k++) {
-        g_mixL[k] += g_out.data[0][k] * gain;
-        g_mixR[k] += g_out.data[1][k] * gain;
+        g_mix[0][k] += g_out.data[0][k] * gain;
+        g_mix[1][k] += g_out.data[1][k] * gain;
     }
 }
 
@@ -207,8 +269,7 @@ static void mix_channel(Channel* c) {
    each block is processed once, no matter how the device chunks its reads. */
 static void process_block(void) {
     int i;
-    memset(g_mixL, 0, sizeof(g_mixL));
-    memset(g_mixR, 0, sizeof(g_mixR));
+    memset(g_mix, 0, sizeof(g_mix));
     if (g_ready) {
         for (i = 0; i < MAXCH; i++) if (g_ch[i].used && g_ch[i].playing) mix_channel(&g_ch[i]);
     }
@@ -220,45 +281,112 @@ static void process_block(void) {
 static void data_callback(ma_device* dev, void* output, const void* input, ma_uint32 frameCount) {
     float* out = (float*)output;
     ma_uint32 n;
-    (void)dev; (void)input;
+    int i, channels = (int)dev->playback.channels;
+    (void)input;
     for (n = 0; n < frameCount; n++) {
-        float l, r;
         if (g_fifo_read >= FRAME) { process_block(); g_fifo_read = 0; }
-        l = g_mixL[g_fifo_read]; r = g_mixR[g_fifo_read]; g_fifo_read++;
-        if (l > 1.0f) l = 1.0f; else if (l < -1.0f) l = -1.0f;
-        if (r > 1.0f) r = 1.0f; else if (r < -1.0f) r = -1.0f;
-        out[n * 2] = l;
-        out[n * 2 + 1] = r;
+        for (i = 0; i < channels; i++) {
+            float s = g_mix[i][g_fifo_read];
+            if (s > 1.0f) s = 1.0f; else if (s < -1.0f) s = -1.0f;
+            *out++ = s;
+        }
+        g_fifo_read++;
     }
+}
+
+/* whether a channel map has a channel. */
+static int has_channel(const ma_channel* map, int channels, ma_channel channel) {
+    int i;
+    for (i = 0; i < channels; i++) if (map[i] == channel) return 1;
+    return 0;
+}
+
+/* whether a layout's rear pair belongs on a device's side speakers: it has those and none at the back, and the layout
+   has no side speakers of its own. */
+static int rear_on_sides(const Layout* layout, const ma_channel* device, int device_channels) {
+    return layout->map && !has_channel(layout->map, layout->channels, MA_CHANNEL_SIDE_LEFT) &&
+           has_channel(layout->map, layout->channels, MA_CHANNEL_BACK_LEFT) &&
+           has_channel(device, device_channels, MA_CHANNEL_SIDE_LEFT) &&
+           !has_channel(device, device_channels, MA_CHANNEL_BACK_LEFT);
+}
+
+/* opens the device for an output at a rate (0 for its own). A device whose surround pair is at the sides is reopened
+   with the layout's rear pair there, so nothing blends across speakers. */
+static int open_device(int output, int rate) {
+    const Layout* layout = &k_layouts[output];
+    ma_device_config cfg;
+    ma_channel map[MA_MAX_CHANNELS];
+    unsigned int frames;
+    int i;
+    cfg = ma_device_config_init(ma_device_type_playback);
+    cfg.playback.format = ma_format_f32;
+    cfg.playback.channels = (ma_uint32)layout->channels;
+    cfg.sampleRate = (ma_uint32)rate;
+    cfg.dataCallback = data_callback;
+    cfg.performanceProfile = ma_performance_profile_low_latency;
+    cfg.periodSizeInMilliseconds = 10;
+    cfg.periods = 2;
+    if (layout->map) {
+        memcpy(map, layout->map, sizeof(ma_channel) * layout->channels);
+        cfg.playback.pChannelMap = map;
+    }
+    if (ma_device_init(NULL, &cfg, &g_device) != MA_SUCCESS) return 0;
+    if (rear_on_sides(layout, g_device.playback.internalChannelMap, (int)g_device.playback.internalChannels)) {
+        for (i = 0; i < layout->channels; i++) {
+            if (map[i] == MA_CHANNEL_BACK_LEFT) map[i] = MA_CHANNEL_SIDE_LEFT;
+            if (map[i] == MA_CHANNEL_BACK_RIGHT) map[i] = MA_CHANNEL_SIDE_RIGHT;
+        }
+        ma_device_uninit(&g_device);
+        if (ma_device_init(NULL, &cfg, &g_device) != MA_SUCCESS) return 0;
+    }
+    g_devopen = 1;
+    g_rate = (g_device.sampleRate > 0) ? (int)g_device.sampleRate : RATE;
+    frames = g_device.playback.internalPeriodSizeInFrames * g_device.playback.internalPeriods;
+    g_latency_ms = (g_rate > 0) ? (int)((frames * 1000) / (unsigned int)g_rate) : 0;
+    return 1;
+}
+
+/* stops and closes the device, if open. */
+static void close_device(void) {
+    if (g_devstarted) { ma_device_stop(&g_device); g_devstarted = 0; }
+    if (g_devopen) { ma_device_uninit(&g_device); g_devopen = 0; }
+}
+
+/* the output a device of that many channels plays instead of mixing its speakers down: the one asked for if they fit,
+   else the largest layout that does. */
+static int fitting_output(int output, int channels) {
+    if (k_layouts[output].channels <= channels) return output;
+    if (channels >= 6) return OUT_51;
+    if (channels >= 4) return OUT_QUAD;
+    return channels >= 2 ? OUT_STEREO : OUT_MONO;
+}
+
+/* opens the device for an output, or the one that fits it; the output left open, -1 if none. */
+static int open_fitting(int output, int rate) {
+    int fit;
+    if (!open_device(output, rate)) return -1;
+    fit = fitting_output(output, (int)g_device.playback.internalChannels);
+    if (fit == output) return output;
+    close_device();
+    return open_device(fit, rate) ? fit : -1;
 }
 
 EXPORT int PA3D_Init(void) {
     IPLContextSettings cs;
     IPLHRTFSettings hs;
-    ma_device_config cfg;
+    int fit;
     if (g_ready) return 1;
     memset(g_ch, 0, sizeof(g_ch));
     g_fifo_read = FRAME;
 
-    cfg = ma_device_config_init(ma_device_type_playback);
-    cfg.playback.format = ma_format_f32;
-    cfg.playback.channels = 2;
-    cfg.sampleRate = 0;
-    cfg.dataCallback = data_callback;
-    cfg.performanceProfile = ma_performance_profile_low_latency;
-    cfg.periodSizeInMilliseconds = 10;
-    cfg.periods = 2;
-    if (ma_device_init(NULL, &cfg, &g_device) != MA_SUCCESS) return 0;
-    g_rate = (g_device.sampleRate > 0) ? (int)g_device.sampleRate : RATE;
-    {
-        unsigned int frames = g_device.playback.internalPeriodSizeInFrames * g_device.playback.internalPeriods;
-        g_latency_ms = (g_rate > 0) ? (int)((frames * 1000) / (unsigned int)g_rate) : 0;
-    }
+    fit = open_fitting(g_output, 0);
+    if (fit < 0) return 0;
+    g_output = fit;
 
     memset(&cs, 0, sizeof(cs));
     cs.version = STEAMAUDIO_VERSION;
     if (iplContextCreate(&cs, &g_ctx) != IPL_STATUS_SUCCESS || !g_ctx) {
-        ma_device_uninit(&g_device); return 0;
+        close_device(); return 0;
     }
 
     g_audio.samplingRate = g_rate;
@@ -269,12 +397,12 @@ EXPORT int PA3D_Init(void) {
     hs.volume = 1.0f;
     hs.normType = IPL_HRTFNORMTYPE_NONE;
     if (iplHRTFCreate(g_ctx, &g_audio, &hs, &g_hrtf) != IPL_STATUS_SUCCESS || !g_hrtf) {
-        iplContextRelease(&g_ctx); ma_device_uninit(&g_device); return 0;
+        iplContextRelease(&g_ctx); close_device(); return 0;
     }
 
     if (iplAudioBufferAllocate(g_ctx, 1, FRAME, &g_in) != IPL_STATUS_SUCCESS ||
         iplAudioBufferAllocate(g_ctx, 2, FRAME, &g_out) != IPL_STATUS_SUCCESS) {
-        iplHRTFRelease(&g_hrtf); iplContextRelease(&g_ctx); ma_device_uninit(&g_device); return 0;
+        iplHRTFRelease(&g_hrtf); iplContextRelease(&g_ctx); close_device(); return 0;
     }
 
     g_ready = 1;
@@ -366,10 +494,42 @@ EXPORT void PA3D_Air(int on) {
     g_air = on ? 1 : 0;
 }
 
-/* global spatialization switch: 1 renders every channel through the HRTF (the default), 0 in plain stereo, panned
-   between left and right and pitched up ahead and down behind. */
-EXPORT void PA3D_Hrtf(int on) {
-    g_use_hrtf = on ? 1 : 0;
+/* how sources reach the speakers: 0 binaural through the HRTF (the default), 1 mono, 2 stereo, 3 quadraphonic, 4 5.1,
+   5 7.1. Before init it is only noted. On a device with too few channels the largest layout that fits plays instead.
+   Another channel count reopens the device at the same rate; if that fails binaural is tried. The output now playing,
+   -1 if none: the device is left closed, and the next call tries again. */
+EXPORT int PA3D_Output(int output) {
+    int i, fit;
+    if (output < 0 || output >= OUT_COUNT) return -1;
+    if (!g_ready) {
+        g_output = output;
+        return output;
+    }
+    if (g_devstarted) {
+        fit = fitting_output(output, (int)g_device.playback.internalChannels);
+        if (k_layouts[fit].channels == k_layouts[g_output].channels) {
+            g_output = fit;
+            return fit;
+        }
+    }
+    close_device();
+    for (i = 0; i < MAXCH; i++) memset(g_ch[i].pan, 0, sizeof(g_ch[i].pan));
+    g_fifo_read = FRAME;
+    fit = open_fitting(output, g_rate);
+    if (fit < 0) fit = open_fitting(OUT_BINAURAL, g_rate);
+    if (fit < 0) return -1;
+    g_output = fit;
+    if (ma_device_start(&g_device) != MA_SUCCESS) {
+        close_device();
+        return -1;
+    }
+    g_devstarted = 1;
+    return fit;
+}
+
+/* how many channels the device really has, whatever the output asks of it. 0 if down. */
+EXPORT int PA3D_DeviceChannels(void) {
+    return g_devopen ? (int)g_device.playback.internalChannels : 0;
 }
 
 /* the distance in tiles at which a source falls silent, 2 at least (the caller's sonar range plus a margin). */
@@ -391,8 +551,7 @@ EXPORT void PA3D_Shutdown(void) {
     int i;
     if (!g_ready) return;
     g_ready = 0;
-    if (g_devstarted) { ma_device_stop(&g_device); g_devstarted = 0; }
-    ma_device_uninit(&g_device);
+    close_device();
     for (i = 0; i < MAXCH; i++) if (g_ch[i].used) {
         if (g_ch[i].effect) iplBinauralEffectRelease(&g_ch[i].effect);
         if (g_ch[i].direct) iplDirectEffectRelease(&g_ch[i].direct);

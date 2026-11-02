@@ -1,6 +1,6 @@
 # World Frontier's cap on Sky's damage numbers (Scripts menores, 010_Damage_numbers_tope_ps): the number a hit paints
 # never passes the hit points the battler had, and a hit its substitute takes paints what the doll lost;
-# skyflyer_common's SkyDamageNumbers says what this answers.
+# plugins/sky_damage_numbers.rb says what this answers.
 module PokeAccess
   module WFDamageCap
     # What a hit on battler from old_hp paints past the hit points taken, or nil: the damage the move computed, no
@@ -17,11 +17,7 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("worldfrontier") do
-  override("PokeAccess::SkyDamageNumbers", :painted) do |_mod, original, args|
-    if args[0] && PokeAccess::SkyDamageNumbers.shown?
-      (PokeAccess::WFDamageCap.painted(args[0], args[1]) rescue nil)
-    else
-      original.call
-    end
+  override("PokeAccess::SkyDamageNumbers", :past_taken) do |_mod, _original, args|
+    (PokeAccess::WFDamageCap.painted(args[0], args[1]) rescue nil)
   end
 end

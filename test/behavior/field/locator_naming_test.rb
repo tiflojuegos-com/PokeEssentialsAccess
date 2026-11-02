@@ -29,6 +29,16 @@ class LocatorNamingTest < PokeAccessTest
     super
   end
 
+  test "an event's name is said without the flags of the darkness script and of its shadow" do
+    named = { "glowswitch(A)/glowsize(200)" => "", "glowalways" => "", "glowstatic" => "", "glowswitchreverse" => "",
+              "noShadow" => "", "flashlight(2)" => "", "flashlight" => "", "Trainer(3)/glowswitch(A)/glowsize(120)" => "Trainer",
+              "Guard glowsize(40)" => "Guard", "Guard glowswitch(12) glowstatic" => "Guard", "Glowworm" => "Glowworm",
+              "Flashlights" => "Flashlights", "noShadows" => "noShadows" }
+    named.each do |name, said|
+      assert_equal said, locator.own_name(TestGameEvent.new(:id => 1, :name => name)), name
+    end
+  end
+
   test "a two-pose event worked by hand, its second pose behind a switch, is a lever in the pose it shows" do
     off = World.event(:kind => :lever, :id => 1)
     on = World.event(:kind => :lever, :id => 2, :x => 6, :active => 1)

@@ -65,6 +65,7 @@ end
 
 if PokeAccess::Engine.has?("UI::PokemonSummaryVisuals")
   # Switching Pokemon: the page led by the new Pokemon's glance; the guard skips the refresh nested inside.
+  PokeAccess::Hooks.clear_info_on("UI::PokemonSummaryVisuals", :dispose)
   PokeAccess::Hooks.after_hook("UI::PokemonSummaryVisuals", :set_party_index) do |vis, _ret, _args|
     PokeAccess::SummaryV22.speak(vis, true)
   end

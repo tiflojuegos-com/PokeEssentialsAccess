@@ -144,12 +144,9 @@ module PokeAccess
       end
       PokeAccess::Hooks.override("PokeAccess::Summary", :ot_sex, :tag => "rv_summary") { |_mod, _original, _args| nil }
       PokeAccess::Hooks.before_hook(scene, :drawPageFour) { |_s, _a| PokeAccess::PaintCapture.arm(:summary_eviv_rv) }
-      PokeAccess::Hooks.around_hook(scene, :drawAbilPage, :optional => true) do |s, nxt, args|
-        r = nil
-        pairs = PokeAccess::PaintCapture.sample { r = nxt.call }
+      PokeAccess::Hooks.on_paint(scene, :drawAbilPage, :optional => true) do |s, pairs, args|
         pk = args[0] || PokeAccess.ivar(s, :@pokemon)
         PokeAccess::Summary.speak_page(s, pk, :ability, PokeAccess::SummaryRV.ability_text(pairs))
-        r
       end
       PokeAccess::Hooks.around_hook(scene, :drawZMovePage, :optional => true) do |s, nxt, args|
         r = nil

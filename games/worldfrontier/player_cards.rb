@@ -20,9 +20,26 @@ module PokeAccess
       if opening
         keys = [:USE, :BACK].map { |k| (scene.key_name(k) rescue "?") }
         hint = _INTL("Izq./Der.: Elegir        [{1}]: Entrar        [{2}]: Salir", *keys)
-        line = PokeAccess::WfHint.after(PokeAccess.sentences([_INTL("DATOS DEL JUEGO"), line]), hint)
+        line = PokeAccess::WfHint.after(PokeAccess.sentences([_INTL("DATOS DEL JUEGO"), line, symbols]), hint)
       end
       PokeAccess.speak_clean(line, !opening)
+    end
+
+    # The symbols the hub and the load panel draw as icons: each one won, by its building and its tier; nil where the
+    # game's version has none.
+    # param tiers the tiers by symbol as a save holds them, or nil for the game under way's
+    def self.symbols(tiers = nil)
+      return nil unless defined?(::WF_Logros) && ::WF_Logros.respond_to?(:simbolos_estado)
+      tiers ||= ::WF_Logros.simbolos_estado($PokemonGlobal)
+      won = ::WF_Logros::SIMBOLOS.zip(tiers).select { |_key, tier| tier }
+      list = won.map do |key, tier|
+        word = tier.to_s == "oro" ? :wf_symbol_gold : :wf_symbol_silver
+        PokeAccess::I18n.t(word, :name => ::WFPlayerCardStats.building_label(key))
+      end
+      "#{_INTL('Símbolos obtenidos:')} #{list.empty? ? PokeAccess::I18n.t(:sum_none) : list.join(', ')}"
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
     end
 
     # The card's text as painted (rows of [text, source, x, y] in paint order: the title, each label and its value,
@@ -85,14 +102,19 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("worldfrontier") do
+  # The load panel's icons, of the save on offer, which the panel keeps on its class.
+  override("PokeAccess::LoadPanel", :extras) do |_mod, original, _args|
+    tiers = (::PokemonLoadPanel.wf_simbolos_flags rescue nil)
+    tiers ? original.call + [PokeAccess::WfCards.symbols(tiers)] : original.call
+  end
   after("TarjetasHub_Scene", :refresh) { |scene, _r, _a| PokeAccess::WfCards.hub(scene) }
   # Back from a panel the hub repaints: the focused panel is said again.
   after("TarjetasHub_Scene", :show_after_child) { |scene, _r, _a| PokeAccess::Cursor.reset(scene, :wf_hub) }
-  around("TarjetasPlayerCard_Scene", :refresh) do |scene, nxt, _a|
-    ret = nil
-    rows = PokeAccess::PaintCapture.sample { ret = nxt.call }
+  on_paint("TarjetasPlayerCard_Scene", :refresh) do |scene, rows, _a|
     PokeAccess::WfCards.card(scene, rows)
-    ret
   end
   after("TarjetasPlayerStats_Scene", :refresh) { |scene, _r, _a| PokeAccess::WfCards.stats(scene) }
+  clear_info_on("TarjetasHub_Scene", :dispose)
+  clear_info_on("TarjetasPlayerCard_Scene", :dispose)
+  clear_info_on("TarjetasPlayerStats_Scene", :dispose)
 end

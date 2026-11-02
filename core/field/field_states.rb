@@ -32,11 +32,15 @@ module PokeAccess
       nil
     end
 
-    # Lens of Truth (Drimer's plugin): announces when it takes effect and when it wears off
-    # (Scene_Map#eye_of_truth_time counts the frames left); what it reveals is left to the locator.
+    # Whether a copy of the lens with no timer has it on: its eye_of_truth flag, up until the player lowers it.
+    def self.lens_flag?
+      $scene.is_a?(Scene_Map) && $scene.respond_to?(:eye_of_truth) && $scene.eye_of_truth == true
+    end
+
+    # Lens of Truth (Drimer's plugin): announces when it takes effect and when it wears off (Scene_Map#eye_of_truth_time
+    # counts the frames left; the copies with no timer keep only the flag); what it reveals is left to the locator.
     def self.lens_poll
-      t = ($scene.is_a?(Scene_Map) ? ($scene.eye_of_truth_time rescue 0) : 0).to_i
-      on = t > 0
+      on = ($scene.is_a?(Scene_Map) && $scene.respond_to?(:eye_of_truth_time) && $scene.eye_of_truth_time.to_i > 0) || lens_flag?
       return if on == @lens_on
       @lens_on = on
       PokeAccess.speak(PokeAccess::I18n.t(on ? :fs_lens_on : :fs_lens_off), true)
@@ -45,11 +49,11 @@ module PokeAccess
       nil
     end
 
-    # Clears both flags on a map change; the lens goes to false, not nil, so a fresh map does not announce it
-    # wearing off.
+    # Clears both flags on a map change. A lens on a timer goes to false, not nil, so a fresh map says it again while it
+    # runs and does not announce it wearing off; a flag the player keeps up goes on unsaid from door to door.
     def self.reset
       @spin_last = nil
-      @lens_on = false
+      @lens_on = lens_flag?
     end
   end
 end

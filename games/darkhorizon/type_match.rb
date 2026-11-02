@@ -110,6 +110,6 @@ PokeAccess::Game.define("darkhorizon") do
 
   # What the info key kept goes with the screen.
   %w[TypeMatch_Scene SpeciesTypeMatch_Scene].each do |cname|
-    before(cname, :pbEndScene) { |_scene, _a| PokeAccess::Info.clear_text }
+    clear_info_on(cname, :pbEndScene)
   end
 end

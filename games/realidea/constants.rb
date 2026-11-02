@@ -15,6 +15,12 @@ PokeAccess::Game.define("realidea") do
   # field move.
   push_script(/pbPushThisBoulder/) { $game_switches[379] ? true : false }
 
+  # M is the mod's coordinates key. The game reads it by code on the map (clearing fog, 0056_Scene_Map; resetting a room,
+  # by event), in the Mankey duel (repeating the line) and in the telegraph (its guide), and names it in messages. In
+  # battle, where the coordinates say nothing, it stays the game's and shows the information (0087_PokeBattle_Scene).
+  remap_extra(:rea_m, 0x4D, :rea_key_m, :button => :M)
+  field_key_defaults(:rea_m => "Alt+M")
+
   # Key hints for the default letters, but not Q and W, which also fire the game's own pause-menu teleport.
-  key_hints "Z" => :a, "X" => :b, "C" => :c, "A" => :x, "S" => :y, "D" => :z
+  key_hints "Z" => :a, "X" => :b, "C" => :c, "A" => :x, "S" => :y, "D" => :z, "M" => :rea_m
 end

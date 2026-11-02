@@ -14,6 +14,8 @@ module PokeAccess
       parts = [[PokeAccess.clean(nm.to_s), :brief]]
       parts.push([PokeAccess::I18n.t(:quest_story), :medium]) if (q.story rescue false)
       parts.push([PokeAccess::I18n.t(:quest_new), :medium]) if new_badge?(q)
+      mark = color_mark(q)
+      parts.push([mark, :medium]) if mark
       PokeAccess::Verbosity.info_line(:quest, parts)
     rescue StandardError => e
       PokeAccess.swallowed(e)
@@ -24,6 +26,12 @@ module PokeAccess
     # draws it on fewer rows narrows this from its profile.
     def self.new_badge?(q)
       (q.new rescue false) ? true : false
+    end
+
+    # The word for the colour a quest's name is painted in, or nil; a game that tells quests apart by it says so from its
+    # profile.
+    def self.color_mark(_quest)
+      nil
     end
 
     # Speaks a detail page on its draw. Every $quest_data getter takes the quest id, never the Quest object,
@@ -124,12 +132,9 @@ PokeAccess::Menus.def_extractor("Window_Quest") { |win, i| PokeAccess::QuestUI.t
 
 # A tab change: the category as its heading paints it, then its first quest, the list's slot cleared as the cursor
 # goes back to 0.
-PokeAccess::Hooks.around_hook("QuestList_Scene", :swapQuestType, :optional => true) do |scene, nxt, _a|
-  r = nil
-  pairs = PokeAccess::PaintCapture.sample { r = nxt.call }
+PokeAccess::Hooks.on_paint("QuestList_Scene", :swapQuestType, :optional => true) do |scene, pairs, _a|
   PokeAccess::QuestUI.category(scene, pairs)
   PokeAccess::Cursor.reset(PokeAccess.sprite(scene, "itemlist"), :cmd_focus)
-  r
 end
 
 # pbStartScene paints the category itself; swapQuestType only runs after a LEFT or RIGHT. Before and after, not
@@ -160,3 +165,4 @@ PokeAccess::Hooks.around_hook("QuestList_Scene", :pbQuest, :optional => true) do
 end
 
 PokeAccess::Verbosity.define_reading(:quest, :vb_quest, :vbh_quest, :game)
+PokeAccess::Hooks.clear_info_on("QuestList_Scene", :pbEndScene)

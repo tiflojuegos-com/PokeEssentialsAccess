@@ -21,6 +21,7 @@ module PokeAccess
         next unless k =~ /\Akey_(\w+)\z/ && free_code?(v)
         sym = $1.to_sym
         next unless PokeAccess::Config::KEY_DEFAULTS.key?(sym)
+        next if PokeAccess::Remap::PLAIN_KEYS.include?(sym) && PokeAccess::Keyboard.alt_code?(v.to_i)
         PokeAccess::Config.keys[sym] = v.to_i
         set[sym] = true
       end
@@ -30,9 +31,10 @@ module PokeAccess
       PokeAccess.write_marker("settings apply: #{e.message}\n")
     end
 
-    # True for a saved key code a binding may take: a positive number no engine key or fixed gesture reserves.
+    # True for a saved key code a binding may take: a key that no engine answer or fixed gesture reserves.
     def self.free_code?(value)
-      value.to_i > 0 && !PokeAccess::Remap::RESERVED.key?(value.to_i)
+      key = PokeAccess::Keyboard.key_of(value.to_i)
+      value.to_i > 0 && key > 0 && !PokeAccess::Remap::RESERVED.key?(key)
     end
 
     # Unbinds each mod key still on its default that a saved binding already uses (a default new in this version on
@@ -62,12 +64,12 @@ module PokeAccess
             "# volumenes 0-100; sound_nav off/basic/full; hide_unreachable off/unreachable/room; " \
             "route_limit effort/time/none; language auto o es/en/fr/pt/de/pl\n"
       PokeAccess::Config.settings.each { |s| out << "#{s.key}=#{PokeAccess::Config.send(s.key)}\n" }
-      out << "# remap de controles (accion=codigo de tecla virtual de Windows)\n"
+      out << "# remap de controles (accion=codigo de tecla virtual de Windows, mas 4608 si es con Alt)\n"
       rebinds = PokeAccess::Config.rebinds || {}
       rebinds.keys.sort_by { |sym| sym.to_s }.each { |sym| out << "bind_#{sym}=#{rebinds[sym]}\n" }
       keys = PokeAccess::Config.keys || {}
       keys.keys.sort_by { |sym| sym.to_s }.each do |sym|
-        out << "key_#{sym}=#{keys[sym]}\n" if PokeAccess::Config::KEY_DEFAULTS[sym] != keys[sym]
+        out << "key_#{sym}=#{keys[sym]}\n" if PokeAccess::Config.key_defaults[sym] != keys[sym]
       end
       out
     end

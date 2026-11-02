@@ -22,23 +22,23 @@ class WorldfrontierDamageCapGdTest < PokeAccessTest
   # A damage state as the cap reads it: the damage computed, whether a substitute took the hit, what the doll lost.
   State = Struct.new(:calcDamage, :substitute, :hpLost)
 
-  # Evaluates the profile file once, as boot does, and answers the reading it puts on the common's indicator; the
-  # common's is put back, with the lists of profiles and overrides, so the other tests of the process keep it.
+  # Evaluates the profile file once, as boot does, and answers the reading it puts on the plugin's indicator; the
+  # plugin's is put back, with the lists of profiles and overrides, so the other tests of the process keep it.
   def self.load_profile
-    common = META.instance_method(:painted)
+    common = META.instance_method(:past_taken)
     profiles = PokeAccess::Game.profiles.dup
     overrides = PokeAccess::Hooks.overrides.length
     path = File.join(Harness::ROOT, "games", "worldfrontier", "damage_cap.rb")
     begin
       eval(Harness.source(path), TOPLEVEL_BINDING, path)
-      META.instance_method(:painted)
+      META.instance_method(:past_taken)
     ensure
-      META.send(:define_method, :painted, common)
+      META.send(:define_method, :past_taken, common)
       PokeAccess::Game.profiles.replace(profiles)
       PokeAccess::Hooks.overrides.slice!(overrides..-1)
     end
   end
-  WF_PAINTED = load_profile
+  WF_PAST_TAKEN = load_profile
 
   test "a knockout paints no more than the hit points the foe had, which its hp line says: no number" do
     said { NUMBERS.say([[knocked_out(State.new(250, false, 0)), 20, 0]]) }
@@ -88,11 +88,11 @@ class WorldfrontierDamageCapGdTest < PokeAccessTest
     T.t(:zdmg_number, :n => n)
   end
 
-  # Runs the block with the profile's reading in place of the common's, the indicator on and its option at value; all
+  # Runs the block with the profile's reading in place of the plugin's, the indicator on and its option at value; all
   # put back after.
   def said(value = 0)
-    was = META.instance_method(:painted)
-    META.send(:define_method, :painted, WF_PAINTED)
+    was = META.instance_method(:past_taken)
+    META.send(:define_method, :past_taken, WF_PAST_TAKEN)
     made = !Object.const_defined?(:DamageNumberSettings)
     Object.const_set(:DamageNumberSettings, Settings) if made
     options = $PokemonSystem
@@ -101,6 +101,6 @@ class WorldfrontierDamageCapGdTest < PokeAccessTest
   ensure
     $PokemonSystem = options
     Object.send(:remove_const, :DamageNumberSettings) if made && Object.const_defined?(:DamageNumberSettings)
-    META.send(:define_method, :painted, was)
+    META.send(:define_method, :past_taken, was)
   end
 end

@@ -10,8 +10,8 @@ module PokeAccess
     # for a key, since a synthesizer reads a lone E, U or Y as a word.
     KEYS = [0x51, 0x57, 0x45, 0x52, 0x54, 0x59, 0x55, 0x49]
 
-    # The anthem keys Opalo reads through a standard button (Input::R, Input::Y), which follow a rebind of it.
-    KEY_BUTTONS = { 0x52 => :r, 0x59 => :y }
+    # The anthem keys Opalo reads through a button that moves: the standard Input::R and Input::Y, and the profile's T and I.
+    KEY_BUTTONS = { 0x52 => :r, 0x54 => :op_anthem_t, 0x59 => :y, 0x49 => :op_anthem_i }
 
     # The name of the key that plays an anthem now.
     def self.anthem_key(vk)

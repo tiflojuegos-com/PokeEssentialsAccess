@@ -28,11 +28,13 @@ class ReminRawKeysTest < PokeAccessTest
     end
   end
 
-  test "T is refused as the mod's info key while that sits on T, and as the game's fast travel once it moves" do
+  test "T is the mod's info key, the game's T ships on Alt + T, and with the info key moved T is free" do
     with_profile_extras do
       assert_equal :info, Remap.conflict(0x54, :c), "the mod's own key comes first"
+      assert_equal PokeAccess::Keyboard.with_alt(0x54), Remap.bound_code(:fast_travel)
+      assert_equal :fast_travel, Remap.conflict(PokeAccess::Keyboard.with_alt(0x54), :c)
       PokeAccess::Config.keys = PokeAccess::Config.keys.merge(:info => 0x55)
-      assert_equal :fast_travel, Remap.conflict(0x54, :c), "then the game's T"
+      assert_nil Remap.conflict(0x54, :c), "the game's T is elsewhere"
     end
   end
 
@@ -60,6 +62,7 @@ class ReminRawKeysTest < PokeAccessTest
     yield
   ensure
     Remap.extras.replace(extras)
+    Remap.defaults.clear
     PokeAccess::Game.profiles.replace(profiles)
   end
 

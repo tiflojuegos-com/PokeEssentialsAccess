@@ -93,4 +93,5 @@ PokeAccess::Game.define("soulstones2") do
   end
 
   poll_each_frame { PokeAccess::SS2EncounterTypes.poll }
+  clear_info_on("EncounterList_Scene", :pbEndScene)
 end

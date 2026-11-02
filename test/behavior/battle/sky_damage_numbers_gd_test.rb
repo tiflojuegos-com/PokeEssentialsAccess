@@ -1,4 +1,4 @@
-# Sky's Damage Number Indicator (games/skyflyer_common/damage_numbers.rb), shown while DamageNumberSettings::ACTIVE
+# Sky's Damage Number Indicator (plugins/sky_damage_numbers.rb), shown while DamageNumberSettings::ACTIVE
 # and the "Indicador Daño" option is 0: a foe's change of hit points is then said in hit points, as painted, and a
 # hit that paints more damage than the hit points it took (a knockout) says the damage painted too.
 class SkyDamageNumbersGdTest < PokeAccessTest

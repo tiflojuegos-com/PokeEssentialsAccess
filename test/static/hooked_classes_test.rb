@@ -6,12 +6,12 @@ require File.expand_path("reference_names", File.dirname(__FILE__))
 class HookedClassesTest < PokeAccessTest
   ROOT = File.expand_path("../..", File.dirname(__FILE__))
   DIR = File.dirname(__FILE__)
-  SOURCES = 28
+  SOURCES = 31
   CENSUSES = %w[ivar_census.txt fangame_classes.txt plugin_census.txt all_classes.txt loop_census.txt
                 arity_census.txt].freeze
   # The registration shapes that take a class name as a literal string; scene_classes takes several at once.
   FORMS = [
-    /\b(?:after|before|around)(?:_hook)?\(\s*"([A-Z][A-Za-z0-9_:]*)"/,
+    /\b(?:after|before|around|on_paint|clear_info_on)(?:_hook)?\(\s*"([A-Z][A-Za-z0-9_:]*)"/,
     /\bdef_extractor\(\s*"([A-Z][A-Za-z0-9_:]*)"/,
     /\b(?:reader|wire|screen_reader|override)\(\s*"([A-Z][A-Za-z0-9_:]*)"/
   ].freeze
@@ -37,14 +37,27 @@ class HookedClassesTest < PokeAccessTest
   test "reads the class of every registration shape, all of scene_classes' and none in a comment" do
     src = ['after("A1", :x)', 'before_hook("A2", :x)', 'around_hook("A3", :x)', 'def_extractor("A4", :x)',
            'reader("A5")', 'wire("A6", :x)', 'screen_reader("A7")', 'override("A8", :x)',
-           'PokeAccess::Engine.scene_classes("A9", "A10")', '  # after("Commented", :x)', 'after(cname, :x)']
-    assert_equal %w[A1 A10 A2 A3 A4 A5 A6 A7 A8 A9], hooked_names([["core/a.rb", src.join("\n")]]).keys.sort
+           'PokeAccess::Engine.scene_classes("A9", "A10")', 'on_paint("A11", :x)', 'clear_info_on("A12")',
+           '  # after("Commented", :x)', 'after(cname, :x)']
+    assert_equal %w[A1 A10 A11 A12 A2 A3 A4 A5 A6 A7 A8 A9], hooked_names([["core/a.rb", src.join("\n")]]).keys.sort
   end
 
-  test "takes a class some game defines by its last name segment, and a reference copy's class" do
-    tree = [["core/a.rb", "after(\"Battle::Scene\", :pbStartBattle)\nafter(\"ActionData\", :refresh)\n"]]
-    assert ReferenceNames.class?("ActionData"), "a class of a reference copy"
+  test "takes a class some game defines by its last name segment, and one its own reference copy defines" do
+    tree = [["core/a.rb", "after(\"Battle::Scene\", :pbStartBattle)\n"],
+            ["plugins/bes_move_info.rb", "after(\"BattleInfoScene\", :main)\n"]]
     assert_equal [], ghosts(hooked_names(tree), {}, { "Scene" => 12 })
+  end
+
+  test "reports a class its own reference copy defines when another plugin, from another copy, hooks it too" do
+    tree = [["plugins/bes_move_info.rb", "after(\"BattleInfoScene\", :main)\n"],
+            ["plugins/fl_tetra.rb", "after(\"BattleInfoScene\", :main)\n"]]
+    assert_equal ["BattleInfoScene (plugins/bes_move_info.rb)"], ghosts(hooked_names(tree), {}, {})
+  end
+
+  test "reports a class only another plugin's reference copy defines, and one a file outside plugins/ hooks" do
+    tree = [["plugins/fl_tetra.rb", "after(\"BattleInfoScene\", :main)\n"], ["core/a.rb", "after(\"MoveInfoScene\", :main)\n"]]
+    assert_equal ["BattleInfoScene (plugins/fl_tetra.rb)", "MoveInfoScene (core/a.rb)"],
+                 ghosts(hooked_names(tree), {}, {})
   end
 
   test "takes a PokeAccess class the mod defines, and reports one it does not" do
@@ -53,7 +66,7 @@ class HookedClassesTest < PokeAccessTest
     assert_equal ["PokeAccess::PlantedNoPanel (core/a.rb)"], ghosts(hooked_names(tree), own_modules(tree), {})
   end
 
-  test "every census was built from all twenty-eight sources" do
+  test "every census was built from all thirty-one sources" do
     counts = CENSUSES.map { |f| [f, surveyed(File.read(File.join(DIR, f)))] }
     assert_equal [], counts.reject { |_f, n| n == SOURCES.to_s }.map { |f, n| "#{f}: #{n}" }
   end
@@ -96,13 +109,13 @@ class HookedClassesTest < PokeAccessTest
   end
 
   # "Class (first path)" for each hooked name nothing defines: a PokeAccess:: name the loaded mod or its own modules
-  # answer to, any other the census (by its last segment) or a reference copy.
+  # answer to, any other the census (by its last segment) or the reference copies of every plugin that hooks it.
   def ghosts(seen, own, census)
     missing = seen.keys.sort.reject do |c|
       if c.index("PokeAccess::") == 0
         PokeAccess.const_at(c) || own[c.split("::").last]
       else
-        census[c.split("::").last] || ReferenceNames.class?(c)
+        census[c.split("::").last] || seen[c].all? { |path| ReferenceNames.class_of?(path, c) }
       end
     end
     missing.map { |c| "#{c} (#{seen[c].uniq.first})" }
