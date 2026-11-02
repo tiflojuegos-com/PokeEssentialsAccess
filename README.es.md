@@ -189,13 +189,13 @@ Cada juego tiene su perfil en `games/`. La lista con la que el launcher reconoce
 [`games/catalog.json`](games/catalog.json).
 
 - **Era gen-6** (Essentials v16 y v17): Pokémon Z, Pokémon Ópalo, Pokémon Reminiscencia, Pokémon Armonía, Pokémon
-  Realidea, Pokémon Africanus, Pokémon Awakening, Pokémon Soulstones y Pokémon HGSS: Sevii Islands, además de los que
-  se convierten al instalar: Pokémon Insurgence y Pokémon Uranium.
+  Realidea, Pokémon Africanus, Pokémon Awakening, Pokémon Soulstones, Pokémon HGSS: Sevii Islands, Pokémon Edas, Pokémon
+  Perseida y Pokémon GS Vitro, además de los que se convierten al instalar: Pokémon Insurgence y Pokémon Uranium.
 - **Motor de Reborn** (basado en Essentials v16, con Ruby 3): Pokémon Reborn, Pokémon Rejuvenation y Pokémon
   Desolation.
 - **Era GameData** (Essentials v18 en adelante): Pokémon Añil, Pokémon Royal, Pokémon Relict, Pokémon Eternal
-  Emerald, Pokémon Grueling Gold, Pokémon Infinite Fusion, Pokémon Infinite Fusion 2 Hoenn, Pokémon Fire Ash y
-  Pokémon Soulstones 2.
+  Emerald, Pokémon Grueling Gold, Pokémon Infinite Fusion, Pokémon Infinite Fusion 2 Hoenn, Pokémon Fire Ash, Pokémon
+  Soulstones 2, Pokémon Revival, Pokémon Dark Horizon, Pokémon World Frontier y Pokémon Golden Crown.
 
 Para cualquier otro fangame de Essentials hay un **perfil genérico**. Da toda la accesibilidad común (menús,
 diálogos, combate, navegación y rutas), pero sin los lectores hechos para un juego concreto.
