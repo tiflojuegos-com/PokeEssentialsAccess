@@ -133,7 +133,8 @@ jobs:
       - name: Download release artifacts
         uses: actions/download-artifact@v8
         with:
-          path: release-artifacts
+          name: pokeessentialsaccess-mod
+          path: release-artifacts/pokeessentialsaccess-mod
 
       # The release notes are the annotated tag's message, read through the API (this job has no checkout); a
       # lightweight tag has none and publishes empty notes.
