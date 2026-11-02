@@ -204,6 +204,20 @@ class WorldfrontierScreensGdTest < PokeAccessTest
   # The player as far as the shop's header goes.
   Player = Struct.new(:battle_points)
 
+  test "the trainer line says the Battle Points as the pause menu paints them, with no money or badges" do
+    saved = [PokeAccess::Config.trainer_parts.dup, PokeAccess::Info::TRAINER_PARTS.dup]
+    begin
+      path = File.join(Harness::ROOT, "games", "worldfrontier", "trainer_line.rb")
+      eval(Harness.source(path), TOPLEVEL_BINDING, path)
+      assert_equal [:name, :pb, :pokedex, :playtime], PokeAccess::Config.trainer_parts
+      assert_equal "120 PB", PokeAccess::Info.trainer_part(:pb, Player.new(120))
+      assert_nil PokeAccess::Info.trainer_part(:pb, Struct.new(:name).new("Rojo"))
+    ensure
+      PokeAccess::Config.trainer_parts = saved[0]
+      PokeAccess::Info::TRAINER_PARTS.replace(saved[1])
+    end
+  end
+
   test "names its own transcription of the controls picture" do
     assert_equal :wf_controls, WF_CONTROLS_KEY
   end

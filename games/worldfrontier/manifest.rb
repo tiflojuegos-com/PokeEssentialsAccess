@@ -5,6 +5,7 @@
   :imports => %w[royal_common],
   :modules => %w[
     constants
+    trainer_line
     passability
     pause_menu
     album
