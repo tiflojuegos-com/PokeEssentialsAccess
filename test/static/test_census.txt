@@ -131,6 +131,7 @@ behavior/field/ifh_hall_of_fame_gd_test.rb
 behavior/field/ifh_secret_base_gd_test.rb
 behavior/field/ifh_weather_gd_test.rb
 behavior/field/incubator_steps_test.rb
+behavior/field/infinitefusion_mart_entrances_gd_test.rb
 behavior/field/insurgence_hm7_test.rb
 behavior/field/insurgence_lasers_test.rb
 behavior/field/insurgence_soaring_test.rb
@@ -334,6 +335,7 @@ behavior/menus/option_help_test.rb
 behavior/menus/party_showcase_gd_test.rb
 behavior/menus/pause_info_gd_test.rb
 behavior/menus/pause_info_test.rb
+behavior/menus/pause_menu_opening_gd_test.rb
 behavior/menus/pause_panels_test.rb
 behavior/menus/pausemenu_v22_gd_test.rb
 behavior/menus/photo_album_test.rb

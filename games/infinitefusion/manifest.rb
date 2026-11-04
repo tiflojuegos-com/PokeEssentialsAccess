@@ -2,6 +2,6 @@
 # (GameData, but still $Trainer and PokeBattle_Scene). What it shares with Hoenn comes from infinitefusion_common.
 {
   :imports => %w[infinitefusion_common],
-  :modules => %w[quest_branches],
+  :modules => %w[quest_branches mart_entrances],
   :plugins => %w[easy_questing multi_save better_region_map luka_title]
 }
