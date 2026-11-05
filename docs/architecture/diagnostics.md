@@ -28,7 +28,7 @@ for the game (`System.data_directory`).
 ## The diagnostic dump
 
 Ctrl+Alt+F9 appends a dump of the mod's state to `diag.txt`, and so does the row Full diagnostics (`dbg_diag_full`)
-of the Debugging screen in the configuration menu. The mod says only whether the file was written (`diag_saved` or
+of the Diagnostics screen, under Debugging in the configuration menu. The mod says only whether the file was written (`diag_saved` or
 `diag_not_saved`). The three Ctrl+Alt gestures are polled on every [pulse](loading.md) before the mod checks whether
 it is switched on and whether the game window has the focus, so a dump also works with the mod switched off by
 Ctrl+Alt+F8.
@@ -39,7 +39,7 @@ the sections in the order of `Keys::DIAG_ALL` and guards each one: a section tha
 prints as `ERR(<class>)` when reading it raises. `Keys.cut` shortens a long field and marks the cut with
 `...[cortado]`.
 
-The other dump rows of the Debugging screen copy one group of sections to the clipboard, short enough to paste into
+The other dump rows of that screen copy one group of sections to the clipboard, short enough to paste into
 a message (`Keys::DIAG_SECTIONS`):
 
 | Row | Group | Sections |
@@ -226,7 +226,7 @@ The preload script runs before `PokeAccess::Paths` exists, so it writes to the l
 ## The session recorder
 
 The session recorder writes a transcript of what the mod saw and said, for a problem that lies in a sequence of
-events rather than in one moment. The row Record session (`dbg_rec_start`) of the Debugging screen starts it and says
+events rather than in one moment. The row Record session (`dbg_rec_start`) of the Diagnostics screen starts it and says
 the file's name. The same row, labelled `dbg_rec_stop` while it runs, stops it and says how many events it saved.
 
 `Recorder.start` opens `recordings/rec-<YYYYMMDD>-<HHMMSS>.txt` in the data folder. Its first line is

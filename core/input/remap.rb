@@ -279,6 +279,7 @@ module PokeAccess
       return false unless kb.raw_down?(vk)
       alt = kb.alt_held?
       return alt && (running || pressed) if kb.alt_code?(code)
+      return false if kb.window_switch?(vk)
       !alt_bound?(vk) || (!alt && (running || pressed))
     end
 
@@ -288,6 +289,7 @@ module PokeAccess
       kb = PokeAccess::Keyboard
       return false unless kb.code_pressed?(code)
       return @alt_used = true if kb.alt_code?(code)
+      return false if kb.window_switch?(code)
       !(kb.alt_held? && alt_bound?(code))
     end
 

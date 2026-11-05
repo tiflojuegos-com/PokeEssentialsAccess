@@ -202,5 +202,13 @@ end
 
 PokeAccess::World::Epoch.on(:reset) { PokeAccess::Pathfinder.forget_water_moves }
 
+# With near_events changed everything is asked again, the maps kept too: it is there to rule out how the game was asked.
+PokeAccess::Events.on(:config_changed) do |key|
+  if key == :near_events
+    PokeAccess::World::Visits.forget
+    PokeAccess::Pathfinder.invalidate_cache(true)
+  end
+end
+
 # Drops the route caches on a map change, bypassing the invalidation throttle.
 PokeAccess::Caches.register(:pathfinder) { PokeAccess::Pathfinder.invalidate_cache(true) }

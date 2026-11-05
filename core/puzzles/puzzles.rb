@@ -10,7 +10,8 @@ module PokeAccess
     # The tiles beside the player as [dx, dy, the side's key], in the order an obstacle's sides are said.
     SIDES = [[-1, 0, :side_left], [1, 0, :side_right], [0, -1, :side_up], [0, 1, :side_down]]
 
-    # One map frame: the mechanic's changes, said; the queue is emptied even when the frame fails.
+    # One map frame: the mechanics' changes, said, the queue emptied even when the frame fails; then what the map says
+    # by itself.
     def self.tick
       mech = PokeAccess::World::Mechanics
       changes = []
@@ -19,8 +20,8 @@ module PokeAccess
       ensure
         changes = mech.drain
       end
-      inst = mech.instance
-      changes.each { |c| say(inst.spec, c) } if inst
+      changes.each { |spec, c| say(spec, c) }
+      Auto.tick
     end
 
     # Says one change.
@@ -29,24 +30,44 @@ module PokeAccess
       when :solved   then PokeAccess.speak(label_of(c[1]), false)
       when :target   then announce_target(spec, c[1], c[2])
       when :tone     then tone(spec, c[1])
-      when :cell     then PokeAccess.speak(cell_phrase(c[1], c[2]), true)
-      when :watch    then PokeAccess.speak(watch_phrase(spec[:watch][c[1]], c[2]), false)
+      when :cell     then PokeAccess.speak(cell_phrase(spec, c[1], c[2]), true)
+      when :watch    then say_watch(spec, c[1], c[2])
+      when :use      then say_use(c[1])
       when :facing   then PokeAccess.speak(facing_phrase(spec, c[1], c[2]), true)
       when :near     then PokeAccess.speak(near_phrase(spec, c[1]), false)
-      when :arrival_hint
-        PokeAccess.speak(label_of(spec[:arrival_hint]), false) if PokeAccess::Verbosity.descriptions?
+      when :arrival_hint then say_arrival(spec)
       else say_phase(c)
       end
     end
 
-    # True while the current puzzle answers the info key.
+    # What on_use says of an event just used, read as it was used: its page changes what it reads. Nothing for an empty line.
+    def self.say_use(use)
+      line = label_of(use[:label])
+      PokeAccess.speak(line, false) if !line.empty? && (!use[:assist] || assist?)
+    end
+
+    # A room's rule on arriving, when descriptions are on; with :once just the first time this session, as a room may reload
+    # with each try.
+    def self.say_arrival(spec)
+      return unless PokeAccess::Verbosity.descriptions?
+      key = [$game_map.map_id, spec[:arrival_hint]]
+      @told ||= {}
+      return if spec[:arrival_once] && @told[key]
+      @told[key] = true
+      PokeAccess.speak(label_of(spec[:arrival_hint]), false)
+    end
+
+    # True while a puzzle of the current map answers the info key.
     def self.active?
-      inst = PokeAccess::World::Mechanics.instance
-      return false unless inst
+      PokeAccess::World::Mechanics.instances.any? { |inst| answers?(inst) }
+    end
+
+    # True while a mechanic answers the info key.
+    def self.answers?(inst)
       spec = inst.spec
       case inst.kind
-      when :grid then PokeAccess::World::Mechanics.truth(spec[:active])
-      when :facing then !PokeAccess::World::Mechanics.pieces(:statue).empty?
+      when :grid then PokeAccess::World::Mechanics::Grid.live?(spec)
+      when :facing then !PokeAccess::World::Mechanics.pieces_in(inst, :statue).empty?
       else state_active?(spec)
       end
     end
@@ -56,20 +77,24 @@ module PokeAccess
     def self.state_active?(spec)
       return PokeAccess::World::Mechanics.truth(spec[:active]) if spec[:active]
       return phases_active?(spec) if spec[:phases]
-      return false if (spec[:watch] || []).empty? && !spec[:info]
+      return false if (spec[:watch] || []).reject { |w| w[:quiet] }.empty? && !spec[:info] && !spec[:counts]
       !PokeAccess::World::Mechanics.truth(spec[:solved])
     end
 
-    # The info key's line on the map while the current puzzle answers it, else nil: only with the map in control and
-    # the locator keys free, since a puzzle with no solved state stays active all session.
+    # The info key's line on the map while a puzzle answers it, else nil: only with the map in control and the locator
+    # keys free, since a puzzle with no solved state stays active all session.
     def self.info_line
-      return nil unless PokeAccess::Control.keys? && PokeAccess::Control.scene_map? && active?
-      inst = PokeAccess::World::Mechanics.instance
-      spec = inst.spec
+      return nil unless PokeAccess::Control.keys? && PokeAccess::Control.scene_map?
+      lines = PokeAccess::World::Mechanics.instances.select { |inst| answers?(inst) }.map { |inst| line_of(inst) }.compact
+      lines.length > 1 ? PokeAccess.sentences(lines) : lines[0]
+    end
+
+    # A mechanic's line for the info key.
+    def self.line_of(inst)
       case inst.kind
-      when :grid then grid_line(spec)
-      when :facing then facing_line(spec)
-      else state_line(spec)
+      when :grid then grid_line(inst.spec)
+      when :facing then facing_line(inst)
+      else state_line(inst.spec)
       end
     end
 
@@ -81,10 +106,10 @@ module PokeAccess
       line && rule ? PokeAccess.sentences([line, label_of(rule)]) : line
     end
 
-    # A :state puzzle without phases: its info line, or every watched flag's label and state, and with assist the hint
-    # and what each control would do to the walls after it.
+    # A :state puzzle without phases: its info line, or every watched flag's label and state, its counts, and with assist
+    # the hint and what each control would do to the walls after it.
     def self.flags_line(spec)
-      parts = spec[:info] ? [label_of(spec[:info])] : flag_phrases(spec)
+      parts = (spec[:info] ? [label_of(spec[:info])] : flag_phrases(spec)).concat(count_phrases(spec))
       if assist?
         parts.push(label_of(spec[:hint])) if spec[:hint]
         parts.concat(control_hints(spec))
@@ -107,17 +132,66 @@ module PokeAccess
       !category_targets.empty?
     end
 
-    # The locator's puzzles category: a grid's cells, the statues, or a :state's spots, its phase's targets, its
-    # controls and its walls clustered (movers are left out; they still sound).
+    # The locator's puzzles category: what each mechanic of the map lists, then what the map holds by itself (Auto.targets)
+    # that they do not list already.
     def self.category_targets
-      inst = PokeAccess::World::Mechanics.instance
-      return [] unless inst
+      own = PokeAccess::World::Mechanics.instances.map { |inst| targets_of(inst) }.flatten
+      refs = own.map { |t| t.is_a?(PokeAccess::Locator::SurfaceTarget) ? t.ref : t.id }
+      own + Auto.targets.reject { |t| refs.include?(t.ref) }
+    end
+
+    # What a mechanic lists: a grid's cells, the statues, or a :state's spots, its phase's targets, its controls and its
+    # walls clustered (movers are left out; they still sound); then what it names.
+    def self.targets_of(inst)
       spec = inst.spec
-      case inst.kind
-      when :grid then cell_targets(spec)
-      when :facing then statue_targets(spec)
-      else spot_targets(spec[:spots]) + (spec[:phases] ? phase_targets(spec) : []) + control_targets
+      own = case inst.kind
+            when :grid then cell_targets(spec)
+            when :facing then statue_targets(inst)
+            else spot_targets(spec[:spots]) + (spec[:phases] ? phase_targets(spec) : []) + control_targets(inst)
+            end
+      own + named_targets(inst)
+    end
+
+    # The events a mechanic's names list and no other role does, by that name.
+    def self.named_targets(inst)
+      mech = PokeAccess::World::Mechanics
+      mech.pieces_in(inst, :named).reject { |p| (p.assist && !assist?) || (!p.listed.nil? && !mech.truth(p.listed, p.ev)) }.map do |p|
+        PokeAccess::Locator::SurfaceTarget.new(p.ev.x, p.ev.y, label_of(p.label), :puzzle_control, p.ev.id)
       end
+    end
+
+    # True when a mechanic of the map leaves an event out of the lists (hide).
+    def self.hidden_event?(ev)
+      PokeAccess::World::Mechanics.instances.any? do |inst|
+        (inst.spec[:hides] || []).any? do |h|
+          (!h[:assist] || assist?) && PokeAccess::World::Mechanics.picks?(h[:events], ev)
+        end
+      end
+    end
+
+    # What a mechanic of the map says of a move of the game's (sent_back), or nil: of a kind, :teleport within the map, :map
+    # onto it from another or :forced, the end of a move route; what lands in :to and leaves from :from while the event last
+    # used is among :events.
+    def self.sent_back_line(from, to, kind = :teleport)
+      PokeAccess::World::Mechanics.instances.each do |inst|
+        (inst.spec[:sent_back] || []).each do |b|
+          next unless sent_kind(b) == kind && (kind != :map || b[:maps][from[2]])
+          next unless within?(b[:to], to) && within?(b[:from], from) && Auto.last_used_among?(b[:events])
+          line = label_of(b[:label])
+          return line unless line.empty?
+        end
+      end
+      nil
+    end
+
+    # The kind of move a sent_back speaks of.
+    def self.sent_kind(b); b[:maps] ? :map : (b[:forced] ? :forced : :teleport); end
+
+    # True when a place [x, y, ...] lies in what a sent_back asks: nothing, a tile [x, y] or a box [x0, x1, y0, y1].
+    def self.within?(want, at)
+      return true unless want
+      return want[0] == at[0] && want[1] == at[1] if want.length == 2
+      at[0] >= want[0] && at[0] <= want[1] && at[1] >= want[2] && at[1] <= want[3]
     end
 
     # ---- grids ----
@@ -129,20 +203,51 @@ module PokeAccess
       PokeAccess.speak(msg, false)
     end
 
-    # Plays a cell's locating tone: panned by its column, pitched by its row.
+    # Plays a cell's locating tone: panned by its column, pitched by its row, a grid of any size among the three of each.
     def self.tone(spec, i)
-      PokeAccess::Sound.cell(i % spec[:cols], i / spec[:cols])
+      col, row = PokeAccess::World::Mechanics::Grid.place(spec, i)
+      PokeAccess::Sound.cell(col * 3 / [spec[:cols], 3].max, row * 3 / [spec[:rows], 3].max)
     end
 
-    # A cell's name and lit state.
-    def self.cell_phrase(i, on)
-      "#{PokeAccess::I18n.t(GRID3[i])}, #{PokeAccess::I18n.t(on ? :puzzle_on : :puzzle_off)}"
+    # A cell's name and state: a grid of events by its row and column and its state's word, else by its rune's name.
+    def self.cell_phrase(spec, i, state)
+      return "#{tile_place(spec, i)}: #{tile_word(spec, state)}" if spec[:tiles]
+      "#{PokeAccess::I18n.t(GRID3[i])}, #{PokeAccess::I18n.t(state ? :puzzle_on : :puzzle_off)}"
+    end
+
+    # Where a cell of a grid of events lies, as its row and column from 1.
+    def self.tile_place(spec, i)
+      col, row = PokeAccess::World::Mechanics::Grid.place(spec, i)
+      PokeAccess::I18n.t(:puzzle_tile_at, :r => row + 1, :c => col + 1)
+    end
+
+    # The word for a state of a grid of events: its own in :words, else on or off.
+    def self.tile_word(spec, state)
+      word = spec[:tile_words] && spec[:tile_words][state]
+      word ? label_of(word) : PokeAccess::I18n.t(state ? :puzzle_on : :puzzle_off)
+    end
+
+    # The readout of a grid of events: how many are done, what lies to each side of the player and, with assist, the hint.
+    def self.tiles_line(spec)
+      states = PokeAccess::World::Mechanics::Grid.states(spec)
+      parts = []
+      if spec[:tile_count]
+        done = states.select { |s| s == spec[:tile_done] }.length
+        parts.push(PokeAccess::I18n.t(:puzzle_progress, :label => label_of(spec[:tile_count]), :n => done, :of => states.length))
+      end
+      SIDES.each do |dx, dy, key|
+        i = spec[:cells].index([$game_player.x + dx, $game_player.y + dy])
+        parts.push("#{PokeAccess::I18n.t(key)}: #{tile_word(spec, states[i])}") if i
+      end
+      parts.push(label_of(spec[:hint])) if assist? && spec[:hint]
+      PokeAccess.sentences(parts)
     end
 
     # The readout while active: the letter, the grid row by row and, with assist, the cells still to light or to put
-    # out to match it; nil while inactive.
+    # out to match it, or a grid of events' own; nil while inactive.
     def self.grid_line(spec)
-      return nil unless PokeAccess::World::Mechanics.truth(spec[:active])
+      return nil unless PokeAccess::World::Mechanics::Grid.live?(spec)
+      return tiles_line(spec) if spec[:tiles]
       states = PokeAccess::World::Mechanics::Grid.states(spec)
       tgt = PokeAccess::World::Mechanics::Grid.target(spec)
       parts = []
@@ -180,35 +285,66 @@ module PokeAccess
       idxs.empty? ? PokeAccess::I18n.t(:puzzle_none) : idxs.map { |i| PokeAccess::I18n.t(GRID3[i]) }.join(", ")
     end
 
-    # The cells as targets, by name.
+    # The cells as targets, by name; of a grid of events, those not done.
     def self.cell_targets(spec)
+      return tile_targets(spec) if spec[:tiles]
       (spec[:cells] || []).each_with_index.map do |c, i|
         PokeAccess::Locator::SurfaceTarget.new(c[0], c[1], PokeAccess::I18n.t(GRID3[i]), :puzzle_cell)
       end
     end
 
+    # A grid of events' cells not done yet, by their name and place: stood on when stepping on them works them.
+    def self.tile_targets(spec)
+      states = PokeAccess::World::Mechanics::Grid.states(spec)
+      out = []
+      spec[:cells].each_with_index do |c, i|
+        next if states[i] == spec[:tile_done]
+        ev = ($game_map.events[spec[:cell_events][i]] rescue nil)
+        key = ev && PokeAccess::Routes::Controls.plate?(ev) ? :puzzle_cell : :puzzle_spot
+        name = PokeAccess.sentences([label_of(spec[:tile_label]), tile_place(spec, i)])
+        out.push(PokeAccess::Locator::SurfaceTarget.new(c[0], c[1], name, key, spec[:cell_events][i]))
+      end
+      out
+    end
+
     # ---- watched flags ----
 
-    # One watched flag's label and state.
-    def self.flag_phrase(w, on)
-      "#{label_of(w[:label])}: #{label_of(on ? w[:on] : w[:off])}"
+    # One watched flag's label and what it holds: a :say's line alone, a word or a number, or its on or off word.
+    def self.flag_phrase(w, value)
+      return (value && value != 0 ? label_of(w[:say]) : "") if w[:say]
+      "#{label_of(w[:label])}: #{flag_word(w, value)}"
     end
 
-    # Every watched flag's label and state.
+    # What a watched flag's value is said as.
+    def self.flag_word(w, value)
+      return label_of(w[:words][value] || value.to_s) if w[:words]
+      return value if w[:number]
+      label_of(value ? w[:on] : w[:off])
+    end
+
+    # Every watched flag's label and state, but those that only say a line as they change.
     def self.flag_phrases(spec)
-      (spec[:watch] || []).map { |w| flag_phrase(w, PokeAccess::World::Mechanics::State.flag(w)) }
+      (spec[:watch] || []).reject { |w| w[:say] || w[:quiet] }.map do |w|
+        flag_phrase(w, PokeAccess::World::Mechanics::State.value(w))
+      end
     end
 
-    # A watched flag that flipped, then what the flip did to the walls, as the screen shows it.
-    def self.watch_phrase(w, on)
-      inst = PokeAccess::World::Mechanics.instance
-      PokeAccess.sentences([flag_phrase(w, on)].concat(inst ? wall_phrases(inst, w, true) : []))
+    # Says a watched flag that changed, if it has something to say now.
+    def self.say_watch(spec, i, value)
+      line = watch_phrase(spec, spec[:watch][i], value)
+      PokeAccess.speak(line, false) unless line.empty?
+    end
+
+    # A watched flag that changed, then what the change did to the walls, as the screen shows it.
+    def self.watch_phrase(spec, w, value)
+      inst = PokeAccess::World::Mechanics.instance_of(spec)
+      PokeAccess.sentences([flag_phrase(w, value)].concat(inst ? wall_phrases(inst, w, true) : []))
     end
 
     # What each control of the map would do to the walls if flipped now, in watch order, one line a control that
     # changes any.
     def self.control_hints(spec)
-      inst = PokeAccess::World::Mechanics.instance
+      inst = PokeAccess::World::Mechanics.instance_of(spec)
       return [] unless inst && spec[:obstacles]
       ctrls = inst.controls.values
       (spec[:watch] || []).map do |w|
@@ -247,9 +383,10 @@ module PokeAccess
     def self.near_phrase(spec, pieces)
       px = $game_player.x
       py = $game_player.y
-      groups = spec[:obstacles].map { |o| [o[:label], o[:kind] == :mover] }.uniq
+      mech = PokeAccess::World::Mechanics
+      groups = (spec[:obstacles].map { |o| [o[:label], o[:kind] == :mover] } + pieces.map { |p| mech.group_of(p) }).uniq
       lines = groups.map do |label, moving|
-        mine = pieces.select { |p| p.label == label && p.moving == moving }
+        mine = pieces.select { |p| mech.group_of(p) == [label, moving] }
         sides = SIDES.select { |dx, dy, _key| mine.any? { |p| p.ev.x == px + dx && p.ev.y == py + dy } }
         next nil if sides.empty?
         words = sides.map { |s| PokeAccess::I18n.t(s[2]) }
@@ -264,19 +401,20 @@ module PokeAccess
       label ? label_of(label) : PokeAccess::I18n.t(:obstacle_near)
     end
 
-    # The name a mechanic's declaration gives a wall event, or nil.
-    def self.wall_name(ev)
+    # The name a mechanic's declaration gives an event, a wall or one it names, or nil.
+    def self.piece_name(ev)
       piece = PokeAccess::World::Mechanics.piece_of(ev)
-      piece && piece.role == :obstacle && piece.label ? label_of(piece.label) : nil
+      return nil unless piece && piece.label && (piece.role == :obstacle || piece.named)
+      piece.assist && !assist? ? nil : label_of(piece.label)
     end
 
-    # The controls as targets, by their watch label, then the walls clustered.
-    def self.control_targets
+    # A mechanic's controls as targets, by their watch label or name, then its walls clustered.
+    def self.control_targets(inst)
       mech = PokeAccess::World::Mechanics
-      ctrls = mech.pieces(:control).map do |p|
+      ctrls = mech.pieces_in(inst, :control).select { |p| p.listed.nil? || mech.truth(p.listed, p.ev) }.map do |p|
         PokeAccess::Locator::SurfaceTarget.new(p.ev.x, p.ev.y, label_of(p.label), :puzzle_control, p.ev.id)
       end
-      ctrls + cluster_walls(mech.pieces(:obstacle).reject { |p| p.moving }.map { |p| p.ev })
+      ctrls + cluster_walls(mech.pieces_in(inst, :obstacle).reject { |p| p.moving }.map { |p| p.ev })
     end
 
     # Merges touching same-graphic walls into one target each (Sound::Scene.cluster), else the list as it is.
@@ -308,8 +446,9 @@ module PokeAccess
 
     # The statue in front, else every one, nearest first with where it stands from the player: its facing and, with
     # assist, its goal; nil with none.
-    def self.facing_line(spec)
-      sts = PokeAccess::World::Mechanics.pieces(:statue).map { |p| p.ev }
+    def self.facing_line(inst)
+      spec = inst.spec
+      sts = PokeAccess::World::Mechanics.pieces_in(inst, :statue).map { |p| p.ev }
       return nil if sts.empty?
       fx, fy = PokeAccess::Control.front_tile
       front = sts.find { |ev| ev.x == fx && ev.y == fy }
@@ -333,10 +472,10 @@ module PokeAccess
       s
     end
 
-    # The statues as targets.
-    def self.statue_targets(spec)
-      PokeAccess::World::Mechanics.pieces(:statue).map do |p|
-        PokeAccess::Locator::SurfaceTarget.new(p.ev.x, p.ev.y, label_of(spec[:label]), :statue, p.ev.id)
+    # A mechanic's statues as targets.
+    def self.statue_targets(inst)
+      PokeAccess::World::Mechanics.pieces_in(inst, :statue).map do |p|
+        PokeAccess::Locator::SurfaceTarget.new(p.ev.x, p.ev.y, label_of(inst.spec[:label]), :statue, p.ev.id)
       end
     end
 

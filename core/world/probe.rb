@@ -2,8 +2,9 @@ module PokeAccess
   module World
     # The one place the world asks the engine whether the player can take a step, answers kept per mode until the map,
     # its tiles, a changed event's tiles or an event's end (unless plain!); never off the map (the neighbouring map's to
-    # answer), touching a tile lent through or while unstable. An engine error is kept: closed for a route, open for
-    # the sonar. A step into the player's own tile, which every engine refuses, is asked with the player on its origin.
+    # answer, see Neighbours), touching a tile lent through or while unstable. An engine error is kept: closed for a
+    # route, open for the sonar. A step into the player's own tile, which every engine refuses, is asked with the player
+    # on its origin.
     module Probe
       CLOSED = 0
       OPEN = 1
@@ -24,6 +25,8 @@ module PokeAccess
       @loose_pushes = false
       @placers = []
       @readers = []
+      @before_lending = []
+      @all_events = false
 
       # Declares that the game's passability reads nothing an event's end can change besides the tiles, the events and
       # the mode: its answers then outlive an event's end.
@@ -51,6 +54,7 @@ module PokeAccess
       # the answers were dropped.
       def self.refresh
         @stable = stable_now?
+        @stair_end = stair_end_now?
         sig = signature
         return if sig == @sig && @memo
         @sig = sig
@@ -116,7 +120,8 @@ module PokeAccess
       # True when the engine lets a jump from (x,y) facing d land on (lx,ly): its passable?(lx, ly, 0), the check a jump
       # makes, asked with the player placed on the jump's origin as the game has them. Asked of the engine every time.
       def self.lands?(x, y, d, lx, ly)
-        engine(lx, ly, 0, [x, y, d]) == OPEN
+        ask = lambda { engine(lx, ly, 0, [x, y, d]) }
+        (Terrain.outside?(lx, ly) ? Neighbours.lending(lx, ly, &ask) : ask.call) == OPEN
       end
 
       # The tile (x, y) if the player could stand on it (some step out of it is open), else nil.
@@ -189,11 +194,16 @@ module PokeAccess
         place(pl, s[2], s[3], pl.direction)
       end
 
+      # Registers what to read before events are lent through: nothing read meanwhile is kept, so each question of a walk
+      # would read it afresh.
+      def self.before_lending(&blk); @before_lending.push(blk); end
+
       # Runs the block with events lent through to the engine (obstacles set aside, boulders walked into), their
       # tiles kept out of the memo meanwhile; every event is put back whatever happens, one listed twice too.
       def self.lend_through(events)
         return yield if events.empty?
         outer = @lent
+        @before_lending.each { |blk| blk.call } if outer.nil?
         saved = []
         begin
           tiles = outer ? outer.dup : {}
@@ -281,10 +291,12 @@ module PokeAccess
         return with_surf(false) { answer(x, y, d) } if ashore?(x, y)
         memo = @memo
         dd = PokeAccess::DIR_DELTA[d]
-        return engine(x, y, d) if dd.nil? || !@stable
+        return engine(x, y, d) if dd.nil?
         nx = x + dd[0]
         ny = y + dd[1]
-        return clear(x, y, d, nx, ny) if Terrain.outside?(nx, ny) || (@lent && (@lent[key(x, y)] || @lent[key(nx, ny)]))
+        return all_events { Neighbours.lending(nx, ny) { clear(x, y, d, nx, ny) } } if Terrain.outside?(nx, ny)
+        return all_events { engine(x, y, d) } unless @stable
+        return clear(x, y, d, nx, ny) if @lent && (@lent[key(x, y)] || @lent[key(nx, ny)])
         k = memo_key(x, y, d, height_bit(x, y, nx, ny))
         v = memo[k]
         v.nil? ? fill(k, x, y, d, nx, ny) : v
@@ -312,8 +324,9 @@ module PokeAccess
         v == CLOSED && into_player?(nx, ny) ? engine(x, y, d, [x, y, d]) : v
       end
 
-      # The engine's answer for a step, with the player's through lent off and, where the game asks for it, the
-      # player placed on the step's origin; an error is ERROR. Whatever is lent is put back, whatever fails.
+      # The engine's answer for a step, with the player's through lent off, at a stair's end its stair too, and, where the
+      # game asks for it, the player placed on the step's origin; an error is ERROR. Whatever is lent is put back, whatever
+      # fails.
       # param at [x, y, facing] to place the player on whatever the game asks for (a jump's origin)
       def self.engine(x, y, d, at = nil)
         pl = $game_player
@@ -321,6 +334,7 @@ module PokeAccess
         @asking += 1
         through = false
         spot = nil
+        stair = nil
         begin
           through = (pl.through rescue false)
           at ||= [x, y, d] if placing?
@@ -329,8 +343,13 @@ module PokeAccess
             place(pl, at[0], at[1], at[2])
           end
           pl.through = false if through
-          pl.passable?(x, y, d) ? OPEN : CLOSED
+          if @stair_end
+            stair = pl.instance_variable_get(:@stair_begin_offset)
+            pl.instance_variable_set(:@stair_begin_offset, nil)
+          end
+          ask_near(pl, x, y, d) ? OPEN : CLOSED
         ensure
+          pl.instance_variable_set(:@stair_begin_offset, stair) if stair
           pl.through = through if through
           place(pl, spot[0], spot[1], spot[2]) if spot
           @asking -= 1
@@ -338,6 +357,34 @@ module PokeAccess
       rescue StandardError => e
         PokeAccess.swallowed(e)
         ERROR
+      end
+
+      # The game's own answer for a step, shown only the events around it (Events.near_step), far fewer to go over: not for
+      # one with no direction, off the map or with the answers unstable (all_events), or with near_events off. The list is
+      # put back whatever happens.
+      def self.ask_near(pl, x, y, d)
+        dd = PokeAccess::DIR_DELTA[d]
+        map = $game_map
+        all = map && dd && !@all_events && (PokeAccess::Config.near_events rescue false) ? map.instance_variable_get(:@events) : nil
+        shown = all && Events.near_step(all, x, y, x + dd[0], y + dd[1])
+        return pl.passable?(x, y, d) unless shown
+        map.instance_variable_set(:@events, shown)
+        begin
+          pl.passable?(x, y, d)
+        ensure
+          map.instance_variable_set(:@events, all)
+        end
+      end
+
+      # Runs the block with the game shown all its events whatever the step.
+      def self.all_events
+        was = @all_events
+        @all_events = true
+        begin
+          yield
+        ensure
+          @all_events = was
+        end
       end
 
       # True while a game's block asks for the player to be placed on each step's origin.
@@ -383,6 +430,17 @@ module PokeAccess
       rescue StandardError => e
         PokeAccess.swallowed(e)
         true
+      end
+
+      # True at a stair's end in a game that looks for events by the stair too (is_event_at_target?): from there it sees
+      # none outside the stair's columns, so engine asks as from off the stair.
+      def self.stair_end_now?
+        pl = $game_player
+        return false unless pl.respond_to?(:is_event_at_target?) && pl.on_stair?
+        !pl.on_middle_of_stair?
+      rescue StandardError => e
+        PokeAccess.swallowed(e)
+        false
       end
 
       # The bridge bit of a step's key: 1 while the bridge height can change it, a bridge tile at either end.

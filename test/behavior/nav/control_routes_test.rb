@@ -275,6 +275,53 @@ class ControlRoutesTest < PokeAccessTest
     assert_nil press_route(6, 1)
   end
 
+  test "plans the levers that add to a count a door waits for, each once, and knows when they cannot reach it" do
+    counting_room(0, 2)
+    PokeAccess::Config.puzzle_assist = true
+    way = press_route(7, 1)
+    assert_equal [:gym3_red, :gym3_red], way[1][:presses]
+    assert_equal [[1, 2], [3, 2]].include?([way[1][:x], way[1][:y]]), true
+    counting_room(1, 2)
+    assert_equal 1, press_route(7, 1)[1][:presses].length, "one is worked already"
+    counting_room(2, 2)
+    assert_nil press_route(7, 1), "the door stands open"
+    counting_room(0, 3)
+    assert_nil press_route(7, 1), "two levers do not reach three"
+  ensure
+    $game_variables[150] = 0
+  end
+
+  test "plans a boulder that stands in the way and goes when worked, filling the hole past it" do
+    lay(["#########", "#@......#", "#########"])
+    push = TestPage.new(:trigger => 0, :sprite => "boulder", :list => [TestCmd.new(121, [142, 142, 0])])
+    moved = TestPage.new(:trigger => 0, :sprite => "", :condition => { :switch1_valid => true, :switch1_id => 142 })
+    rock = TestGameEvent.new(:id => 43, :x => 3, :y => 1, :pages => [push, moved])
+    rock.blocking = true
+    $game_map.events[43] = rock
+    rays(20, 5, 1)
+    declare
+    PokeAccess::Config.puzzle_assist = true
+    assert_equal [[6], [3, 1]], way_shape(press_route(7, 1))
+    inst = Mech.instances[0]
+    walls = Mech::Links.walls(inst).dup
+    Mech::Links.standing(inst)
+    assert_equal walls, Mech::Links.walls(inst), "what stands in the way adds nothing to the walls kept"
+    assert_includes Mech::Links.standing(inst), rock
+  end
+
+  test "a variable set or taken away is read by its value, and a page that may do either flips it" do
+    mech = PokeAccess::World::Mechanics
+    w = { :var => 150 }
+    page = lambda { |*writes| TestPage.new(:trigger => 0, :list => writes.map { |pr| TestCmd.new(122, [150, 150] + pr) }) }
+    assert_equal 7, mech.var_after(page.call([0, 0, 7]), w, 2), "set"
+    assert_equal 9, mech.var_after(page.call([1, 0, 7]), w, 2), "added"
+    assert_equal 1, mech.var_after(page.call([2, 0, 1]), w, 2), "taken away"
+    assert_equal 2, mech.var_after(page.call, w, 2), "not written"
+    assert_equal 0, mech.var_after(page.call([0, 0, 1], [0, 0, 0]), w, 2), "either way, on goes off"
+    assert_equal 1, mech.var_after(page.call([0, 0, 1], [0, 0, 0]), w, 0), "either way, off goes on"
+    assert_equal 0, mech.var_after(page.call([0, 1, 40]), w, 2), "from another variable"
+  end
+
   private
 
   # A text of the mod's.
@@ -349,6 +396,26 @@ class ControlRoutesTest < PokeAccessTest
     control(43, 1, 2, [[0, nil]])
     rays(20, 4, 1)
     declare
+  end
+
+  # The PAIRED room with rays gone from a count of variable 150, as it stands, and two levers below the corridor that each add
+  # one and then rest (their self switch A).
+  def counting_room(count, needed)
+    lay(PAIRED)
+    $game_variables[150] = count
+    [[41, 1, 2], [43, 3, 2]].each do |id, x, y|
+      add = TestPage.new(:trigger => 0, :sprite => "lever", :list => [TestCmd.new(122, [150, 150, 1, 0, 1]), TestCmd.new(123, ["A", 0])])
+      rest = TestPage.new(:trigger => 0, :sprite => "lever", :list => [TestCmd.new(0, [])],
+                          :condition => { :self_switch_valid => true, :self_switch_ch => "A" })
+      ev = TestGameEvent.new(:id => id, :x => x, :y => y, :pages => [add, rest])
+      ev.blocking = true
+      $game_map.events[id] = ev
+    end
+    gone = TestPage.new(:trigger => 0, :sprite => "", :condition => { :variable_valid => true, :variable_id => 150, :variable_value => needed })
+    wall = TestGameEvent.new(:id => 20, :x => 5, :y => 1, :pages => [TestPage.new(:trigger => 0, :sprite => "rayosR"), gone])
+    wall.blocking = count < needed
+    $game_map.events[20] = wall
+    declare([{ :var => 150, :label => :gym3_red, :quiet => true }])
   end
 
   # The room with a lever below the start, worked with the action button, in the plate's place.

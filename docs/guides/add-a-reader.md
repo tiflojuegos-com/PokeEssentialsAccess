@@ -104,7 +104,7 @@ class ResultadosCurry_Scene
   def initialize(curry); @tipo_de_curry = curry; end
   def pbStartScene; :dish; end
 end
-%w[currydex curry_select creador tarjetas_liga curry_result].each do |name|
+%w[currydex creador tarjetas_liga curry_result].each do |name|
   path = File.join(Harness::ROOT, "games", "royal", "#{name}.rb")
   eval(Harness.source(path), TOPLEVEL_BINDING, path)
 end

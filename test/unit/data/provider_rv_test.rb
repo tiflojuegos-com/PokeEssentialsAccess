@@ -253,6 +253,13 @@ class ProviderRvTest < PokeAccessTest
     off_engine { assert_nil RV.map_position(1), "off the engine" }
   end
 
+  test "the connections between maps are those on the engine's $cache, none where it leaves them to its map helper" do
+    rows = [[1, 0, 9, 2, 0, 0]]
+    with_cache(Struct.new(:pkmn, :moves, :abil, :connections).new({}, {}, {}, rows)) { assert_equal rows, RV.map_connections }
+    bare_engine { assert_nil RV.map_connections, "an engine keeping none there" }
+    with_cache(Struct.new(:connections).new(rows)) { assert_nil RV.map_connections, "off the engine, whatever it keeps" }
+  end
+
   test "a map's metadata is its map data's by the GameData names, a map kept with none has none, nothing off the engine" do
     in_reborn_maps do
       assert_equal({ :outdoor_map => true, :teleport_destination => nil, :dive_map_id => 7 }, RV.map_metadata(1))

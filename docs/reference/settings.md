@@ -39,6 +39,8 @@ takes and its effect, by the screen that lists it. To declare a new setting, fol
 | `:desk` | 0 to 3 | 1 | `tiles_unit` |
 | `:msgs` | 100 to 2000 | 100 | `msgs_unit` |
 | `:hpacl` | 6 to 20 | 2 | `tiles_unit` |
+| `:nmaps` | 8 to 64 | 8 | `maps_unit` |
+| `:slice` | 1 to 20 | 1 | `ms_unit` |
 
 A list kind (`Config::LISTS`) steps through its values in order and wraps at both ends; a value the list does not hold
 steps on from the default. Left and right step the focused row, confirm steps it as right does, the info key says its
@@ -150,13 +152,16 @@ from, as `full`. The verbosity key, unbound by default, steps through the same v
 | `route_style` | `shortest` | `shortest`, `balanced`, `straightest` | Which route is chosen among several |
 | `route_reach` | `128` | `:reach` | The farthest target, in Manhattan tiles, that a route is searched for |
 | `route_limit` | `effort` | `effort`, `time`, `none` | When a search gives up |
-| `astar_max` | `2500` | `:astar` | Tiles a search may examine |
+| `astar_max` | `2500` | `:astar` | Tiles a search may examine; four times that for the one that moves boulders |
 | `route_budget_ms` | `12` | `:ms` | Milliseconds a route operation may take |
 | `path_algorithm` | `regions` | See below | The search algorithm |
 | `astar_weight` | `w150` | `w125`, `w150`, `w200`, `w300` | The heuristic's weight in weighted A* |
 | `hpa_cluster` | `10` | `:hpacl` | The side of an HPA* cluster, in tiles |
 | `edge_relax` | `false` | Flag | Lets a route reach exits and floors on the map's border that read as walls |
 | `regions_background` | `true` | Flag | Explores the map a little on every map frame, so routes answer at once |
+| `regions_slice_ms` | `8` | `:slice` | Milliseconds each map frame may explore once the player has stood still for a moment; 2 at most till then; shown with `regions_background` on |
+| `neighbour_cache` | `true` | Flag | Keeps a copy of each neighbouring map for the steps off the map, instead of the engine building one per question |
+| `neighbours_background` | `false` | Flag | Builds those copies ahead, one at a time, while the player stands still; shown with `neighbour_cache` on |
 
 - `route_style`: `shortest` takes the fewest presses, then the fewest turns; `balanced` counts a turn as a press;
   `straightest` takes the fewest turns while the route stays within 5/4 of the shortest plus 4 presses, and the
@@ -297,11 +302,16 @@ when the next step goes left or right. Up and down, the guide plays from the cen
 
 ## Debugging
 
+The Debugging screen leads to two more. Diagnostics (`debug_diag`) holds the dump rows, the session recorder and the
+self-check, described in [Diagnostics](../architecture/diagnostics.md). Navigation (`debug_nav`) holds these settings:
+
 | Key | Default | Values | Effect |
 |---|---|---|---|
 | `transfer_active_page_only` | `true` | Flag | An exit is a tile whose event's active page transfers the player |
 | `route_stats` | `false` | Flag | Adds the algorithm, the tiles examined and the time to each route said |
 | `revert_surf_sound` | `false` | Flag | Leaves out the shore cue while the player surfs |
+| `neighbour_cache_size` | `16` | `:nmaps` | How many neighbouring maps `neighbour_cache` keeps; shown with it on |
+| `near_events` | `true` | Flag | Shows the game only the events around a step when asking about it ([Passability probe](../architecture/world-and-routes.md#passability-probe)); changing it asks everything again |
 
 `transfer_active_page_only` off counts every page of the event, so a character whose cutscene changes maps reads as
-an exit. The rest of the Debugging screen is described in [Diagnostics](../architecture/diagnostics.md).
+an exit.

@@ -168,7 +168,8 @@ number:
    - `:feedback` plays the sounds of the player's own moves, and `:surfaces` says the ground underfoot and the water
      ahead.
    - `:guide` runs the two guides, `:puzzles` follows the map's puzzle and `:keys` polls the locator's keys.
-   - `:regions` and `:hpa` run a slice of the route searches' background work, the region walk and the HPA* graph
+   - `:regions` and `:hpa` run a slice of the route searches' background work, the region walk and the HPA* graph,
+     and `:neighbours` builds a neighbouring map ahead where the option asks for it
      ([World and routes](world-and-routes.md)).
 
    The listener, the cues, the guides and the background work wait while something holds the player

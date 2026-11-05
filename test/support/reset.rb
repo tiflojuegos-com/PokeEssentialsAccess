@@ -17,6 +17,7 @@ module Reset
     (reset_field_rules rescue nil)
     (PokeAccess::Caches.reset_all rescue nil)
     (PokeAccess::World::Visits.forget rescue nil)
+    (PokeAccess::World::Neighbours.forget rescue nil)
     (PokeAccess::Info.set_info(nil, nil) rescue nil)
     (PokeAccess::Info.note_item_desc(nil, nil) rescue nil)
     (PokeAccess::Battle.clear_battle rescue nil)

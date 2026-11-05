@@ -257,6 +257,9 @@ with its M. Awakening, Insurgence, Ópalo and Reminiscencia ship as GS Vitro doe
 
 A key can also be `"Alt"`, for what a game reads on Shift, the mod's modifier (Sevii, Soulstones), or `"None"`, for an
 action the game also has on another key (Desolation's M, Uranium's O): it answers nothing, and the remap screen says it
-is unassigned. The README's table lists what each game ships, and `test/static/key_defaults_test.rb` keeps the list.
+is unassigned. A key alone takes an action off the mod's modifiers when the game also has it on that key: Ashen Frost's
+text skip stays on F7 and its speed on Q (`games/ashenfrost/constants.rb`). `"Tab"` is the key to hold in place of Ctrl:
+Decades ships what it reads on Ctrl there (`games/decades/constants.rb`). The README's table lists what each game
+ships, and `test/static/key_defaults_test.rb` keeps the list.
 
 The methods are described in the [profile DSL reference](profile-dsl.md).

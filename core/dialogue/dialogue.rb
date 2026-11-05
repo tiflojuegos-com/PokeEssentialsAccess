@@ -75,6 +75,11 @@ module PokeAccess
     @tail = text
   end
 
+  # The same, keeping what is promised already: two lines a puzzle has for one message.
+  def self.also_after_next_line(text)
+    @tail = @tail ? sentences([@tail, text]) : text
+  end
+
   # The line promised for after the next dialogue line, handed over once.
   def self.take_tail
     t = @tail

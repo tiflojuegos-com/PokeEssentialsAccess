@@ -605,10 +605,12 @@ class OpaloScreensTest < PokeAccessTest
   # the profile overrides put back after.
   def on_map(id)
     was = $game_map.map_id
-    with_profile("puzzles.rb", [[PokeAccess::Puzzles, :control_targets]]) do
-      $game_map.map_id = id
-      PokeAccess::Caches.reset_all
-      yield
+    with_profile("puzzles/machine_gym.rb", [[PokeAccess::Puzzles, :control_targets]]) do
+      with_profile("puzzles/psychic_gym.rb") do
+        $game_map.map_id = id
+        PokeAccess::Caches.reset_all
+        yield
+      end
     end
   ensure
     $game_map.map_id = was

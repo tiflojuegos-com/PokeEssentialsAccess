@@ -8,10 +8,10 @@ class MtsMutatorGuardTest < PokeAccessTest
 
   # Path fragments that load only under the modern engine (Ruby 3.x, no MTS), out of scope; kept equal to
   # check187.py's, check187_real.rb's and the catalog's.
-  MODERN = ["games/anil/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
+  MODERN = ["games/anil/", "games/ashenfrost/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
             "games/infinitefusion_hoenn/", "games/infinitefusion/", "games/infinitefusion_common/",
             "games/emerald/", "games/gruelinggold/", "games/goldencrown/",
-            "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/"]
+            "games/decades/", "games/herolegacy/", "games/keishou/", "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/"]
 
   # An uppercase constant of 3+ chars: the array constants that get corrupted (BUTTONS, TEXT_CODES, NUMERIC).
   CONST = '[A-Z][A-Z0-9_]{2,}'
@@ -33,6 +33,9 @@ class MtsMutatorGuardTest < PokeAccessTest
   MINUS_RE = Regexp.new('(@[a-z_]\w*|\b' + CONST + '\b|\.(?:keys|values|dup|uniq|to_a)\b)\s*-\s*(\[|' + CONST +
                         '\b|@[a-z_]\w*|[a-z_]\w*)')
 
+  # Risk shape 3, a method that returns walls kept for the map, plus or minus something.
+  KEPT_RE = /\bwalls\([^)]*\)\s*[-+]/
+
   # Bare methods that return a memoized array, watched by name since a lowercase identifier minus something is
   # scalar math to a regex; never add a scalar getter.
   CACHE_ACCESSORS = %w[available_languages]
@@ -41,7 +44,7 @@ class MtsMutatorGuardTest < PokeAccessTest
   WATCH_MINUS_RE = Regexp.new('(?<!\.)(?<!def )\b(?:' + CACHE_ACCESSORS.join('|') + ')\b\s*-\s*(\[|' + CONST +
                               '\b|@[a-z_]\w*|[a-z_]\w*)')
 
-  RISKS = [PLUS_RE, INDEXED_PLUS_RE, IVAR_PLUS_RE, MINUS_RE, WATCH_MINUS_RE]
+  RISKS = [PLUS_RE, INDEXED_PLUS_RE, IVAR_PLUS_RE, MINUS_RE, WATCH_MINUS_RE, KEPT_RE]
 
   # A numeric coercion right after a match (`(a - b).abs`, `.to_i`...) marks it as arithmetic, and drops it.
   NUMERIC_WRAP = /\A\s*\)?\.(abs|max|min|to_i|to_f|floor|ceil|round)\b/
@@ -86,7 +89,8 @@ class MtsMutatorGuardTest < PokeAccessTest
       "rows = GRID[y][x] + [z]" => ["GRID[y][x] + ["],
       "loose = (@arrival_rules + @leave_rules).any?" => ["@arrival_rules + @leave_rules"],
       "@seen + [x]" => ["@seen + ["],
-      "rest = available_languages - [cur]" => ["available_languages - ["]
+      "rest = available_languages - [cur]" => ["available_languages - ["],
+      "all = walls(inst) + ctrls" => ["walls(inst) +"]
     }.each { |line, want| assert_equal want, flagged(line), "for #{line}" }
   end
 
@@ -136,7 +140,7 @@ class MtsMutatorGuardTest < PokeAccessTest
       "games/anil/menus.rb" => true,
       "games\\soulstones2\\raid_den.rb" => true,
       "games/infinitefusion_common/fusion.rb" => true,
-      "games/pokemon_z/puzzles.rb" => false,
+      "games/pokemon_z/puzzles/ship.rb" => false,
       "core/foundation/config.rb" => false,
       "plugins/dbk_battle.rb" => false
     }.each { |path, want| assert_equal want, modern?(path), "for #{path}" }

@@ -119,7 +119,7 @@ class TextCleanTest < PokeAccessTest
 
   test "drops the bare codes of the money and points windows, keeping the sentence whole" do
     { '\ptSi.' => "Si.", '\hsOh.' => "Oh.", '\ptAsi que si.' => "Asi que si.", '\qp5 puntos.' => "5 puntos.",
-      '\apwHola.' => "Hola.", '\pkszHola.' => "Hola.", '\wshsHola.' => "Hola." }.each do |raw, want|
+      '\apwHola.' => "Hola.", '\pkszHola.' => "Hola.", '\wshsHola.' => "Hola.", '\DPHola.' => "Hola." }.each do |raw, want|
       assert_equal want, PokeAccess.clean(raw), raw
     end
   end

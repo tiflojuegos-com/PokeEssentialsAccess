@@ -2,13 +2,16 @@
 # opens, and each cursor move says the character's name from its graphic file and its place in the list.
 module PokeAccess
   module FLCharacterSelection
-    # A character's name from a graphic file name: no folder or extension, no leading trainer-style stem, underscores as
-    # spaces; nil when under two letters are left (a bare number or initial).
+    # A character's name from a graphic file name: no folder or extension, no leading trainer-style stems, underscores as
+    # spaces, a capitals tag before the name (the game it comes from) said after it; nil when under two letters are left
+    # (a bare number or initial).
     def self.file_name(file)
       base = file.to_s.split(/[\\\/]/).last.to_s.sub(/\.[A-Za-z0-9]+\z/, "")
-      base = base.sub(/\A(?:trainer|trchar|trback|char|character|player|npc)(?:[_\-]+|(?=\d))/i, "")
+      base = base.sub(/\A(?:(?:trainer|trchar|trback|char|character|player|pokemontrainer|npc)(?:[_\-]+|(?=\d)))+/i, "")
+      tagged = base.match(/\A([A-Z][A-Z0-9]+)[_\-](.*[a-z].*)\z/)
+      base = "#{tagged[2]}, #{tagged[1]}" if tagged
       text = base.gsub(/[_\-]+/, " ").strip
-      text.gsub(/[\d\s.]/, "").length >= 2 ? text : nil
+      text.gsub(/[\d\s.,]/, "").length >= 2 ? text : nil
     end
 
     # The name of the character at index: its battle graphic's, else its overworld one's; nil when neither says one.
@@ -52,11 +55,16 @@ PokeAccess::Hooks.around_hook("CharacterSelection::Scene", :start, :optional => 
 end
 
 # The cursor is polled in the loop that waits for the keys; the first character is queued behind the title.
-PokeAccess::SceneWatcher.reader("CharacterSelection::Scene", :main_loop, :charsel_cursor, :optional => true) do |scene|
+PokeAccess::FLCharacterSelection::CURSOR = PokeAccess::SceneWatcher.reader("CharacterSelection::Scene", :main_loop,
+                                                                           :charsel_cursor, :optional => true) do |scene|
   [PokeAccess.ivar(scene, :@index), lambda { PokeAccess::FLCharacterSelection.entry(scene) }]
 end
 
 # The confirmation's question is written on the title window; its Yes and No window is the one the mod already reads.
-PokeAccess::Hooks.before_hook("CharacterSelection::Scene", :display_confirm, :optional => true) do |_scene, args|
+# After a No the cursor is where it was, and its character is said again.
+PokeAccess::Hooks.around_hook("CharacterSelection::Scene", :display_confirm, :optional => true) do |_scene, nxt, args|
   PokeAccess.say_screen_message(args)
+  yes = nxt.call
+  PokeAccess::Cursor.reset(PokeAccess::FLCharacterSelection::CURSOR, :charsel_cursor) unless yes
+  yes
 end

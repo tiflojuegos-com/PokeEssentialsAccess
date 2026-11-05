@@ -1,4 +1,4 @@
-# Realidea's beam rooms (games/realidea/lasers.rb) on boards transcribed from Map020 and Map191-193: the model against
+# Realidea's beam rooms (games/realidea/puzzles/lasers.rb) on boards transcribed from Map020 and Map191-193: the model against
 # launchLaser's; what a turn, a shot, the info key, the assist and Bronzor say; how the locator names and files pieces.
 
 # The game's laser system (0213 Sistema Laser), down to what the mod reads: rotateEvent turns an event a quarter, and
@@ -30,7 +30,7 @@ def launchLaser(id, laser_beam, receptor, events, steps)
   nil
 end
 
-lasers = File.join(Harness::ROOT, "games", "realidea", "lasers.rb")
+lasers = File.join(Harness::ROOT, "games", "realidea", "puzzles", "lasers.rb")
 eval(Harness.source(lasers), TOPLEVEL_BINDING, lasers)
 
 class RealideaLasersTest < PokeAccessTest
@@ -65,7 +65,7 @@ class RealideaLasersTest < PokeAccessTest
   # The words for each shape.
   SHAPE_WORD = { :asc => :rea_laser_asc, :desc => :rea_laser_desc }
   # Each room's puzzle as the profile declared it on its map, kept before the first test clears the declarations.
-  DECLARED = BOARDS.keys.map { |mid| [mid, PokeAccess::World::Mechanics.declared(mid)] }.to_h
+  DECLARED = BOARDS.keys.map { |mid| [mid, Harness.declared(mid)] }.to_h
 
   test "a mirror falls facing up or down and rises facing left or right" do
     SHAPE_OF.each { |dir, shape| assert_equal shape, Lasers.shape(dir), "facing #{dir}" }

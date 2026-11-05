@@ -90,15 +90,15 @@ module PokeAccess
     # The field-move obstacle or pickup key for an event, by its name less the editor's "/noShadow/" flags, or nil;
     # never for one the engine left with no page (a felled tree, a smashed rock), nor for one that shows text unless
     # its live page clears it with a field move (a character named "Rock" matches the gen-6 bare names). A boulder
-    # that rolls by itself when walked into needs no Strength: a pushable object (Routes::Effects.self_pushed?),
-    # whatever it says on the way. An event with no name of its own ("EV012") is read by what its script clears it
-    # with (Routes::Effects.scripted_gate_label).
+    # pushed with no Strength needs none: a pushable object (Routes::Effects.free_push?), whatever it says on the way.
+    # An event with no name of its own ("EV012") is read by what its script clears it with
+    # (Routes::Effects.scripted_gate_label).
     def self.fieldmove_label(ev)
       return nil if pageless?(ev)
       n = (ev.name.to_s rescue "").sub(/\/.*$/, "")
       return PokeAccess::Routes::Effects.scripted_gate_label(ev) if n.empty? || n =~ /\AEV\d+\z/i
       hit = FIELDMOVES.find { |re, _k| n =~ re }
-      return :loc_pushable if hit && hit[1] == :loc_strength_boulder && PokeAccess::Routes::Effects.self_pushed?(ev)
+      return :loc_pushable if hit && hit[1] == :loc_strength_boulder && PokeAccess::Routes::Effects.free_push?(ev)
       return nil if hit && (shows_text?(ev) rescue false) && PokeAccess::Routes::Effects.scripted_gate_label(ev).nil?
       hit ? hit[1] : nil
     rescue StandardError => e
@@ -126,7 +126,7 @@ module PokeAccess
       cn = (ev.character_name.to_s rescue "")
       return false if cn.empty?
       return false unless TELEPORTERS.any? { |re| cn =~ re }
-      !transfer_command_dest(ev).nil? || !transfer_script_dest(ev).nil?
+      transfers?(ev)
     rescue StandardError => e
       PokeAccess.swallowed(e)
       false
@@ -212,14 +212,22 @@ module PokeAccess
       out
     end
 
-    # Script calls that transfer the player, each capturing the destination map id; a game whose doors call its own
-    # function registers it from its profile (register_transfer_script).
-    TRANSFER_SCRIPTS = [/\bpbTransfer\w*\(\s*(\d+)/, /player_new_map_id\s*=\s*(\d+)/]
+    # Script calls that transfer the player, each a pattern and the block that answers where the match leads, if any: a
+    # map id or [map, x, y]. With no block, a first group of digits is the map id. A call that names no map still
+    # transfers, somewhere only the game knows as it runs. A game whose doors call its own function registers it from
+    # its profile (register_transfer_script).
+    TRANSFER_SCRIPTS = [[/\bpbTransfer\w*\(\s*(\d+)/, nil], [/player_new_map_id\s*=\s*(\d+)/, nil]]
 
-    # Registers an extra script-transfer pattern, which must capture the destination map id in its first group.
-    def self.register_transfer_script(re); TRANSFER_SCRIPTS.push(re); end
+    # Registers an extra script-transfer pattern (see TRANSFER_SCRIPTS).
+    def self.register_transfer_script(re, &dest); TRANSFER_SCRIPTS.push([re, dest]); end
 
-    # The destination map id of a script transfer (TRANSFER_SCRIPTS), or nil.
+    # True if an event transfers the player: by a Transfer Player command, or by a script call, named map or not.
+    def self.transfers?(ev)
+      return true unless transfer_command_dest(ev).nil?
+      verdict(ev, :tscript_any) { !script_call_find(ev, transfer_command_lists(ev)) { |s| script_transfer_dest(s) }.nil? }
+    end
+
+    # The destination map id of a script transfer (TRANSFER_SCRIPTS), or nil, as for one that names no map.
     def self.transfer_script_dest(ev)
       verdict(ev, :tscript) { transfer_script_dest_uncached(ev) }
     end
@@ -232,25 +240,40 @@ module PokeAccess
       nil
     end
 
-    # The map id a script call transfers the player to, by a TRANSFER_SCRIPTS group that captured digits, or nil.
+    # The map id a script call names (see script_transfer_dest), or nil.
     def self.script_transfer_map(s)
-      TRANSFER_SCRIPTS.each do |re|
-        m = re.match(s.to_s)
-        return m[1].to_i if m && m[1] && m[1].to_s =~ /\A\d+\z/
-      end
-      nil
+      dest = script_transfer_dest(s)
+      dest ? dest[0] : nil
     end
 
-    # Where one script call transfers the player as [map, x, y]: coordinates from pbTransfer*(map, x, y) or
-    # player_new_x/y, else nil x and y.
+    # Where one script call transfers the player as [map, x, y], nil for what it does not name, the first pattern that
+    # names a map winning; nil for a call that transfers no one.
     def self.script_transfer_dest(s)
-      map = script_transfer_map(s)
-      return nil if map.nil?
-      m = s.to_s.match(/\bpbTransfer\w*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
-      return [map, m[2].to_i, m[3].to_i] if m && m[1].to_i == map
+      unnamed = nil
+      TRANSFER_SCRIPTS.each do |re, dest|
+        m = re.match(s.to_s)
+        next unless m
+        found = matched_transfer(s, m, dest)
+        return found if found[0]
+        unnamed = found
+      end
+      unnamed
+    end
+
+    # The [map, x, y] of a pattern's match: its block's answer, else its group of digits with the coordinates of
+    # pbTransfer*(map, x, y) or player_new_x/y.
+    def self.matched_transfer(s, m, dest)
+      return Array(dest.call(m)).values_at(0, 1, 2) if dest
+      return [nil, nil, nil] unless m[1].to_s =~ /\A\d+\z/
+      map = m[1].to_i
+      c = s.to_s.match(/\bpbTransfer\w*\(\s*(\d+)\s*,\s*(\d+)\s*,\s*(\d+)/)
+      return [map, c[2].to_i, c[3].to_i] if c && c[1].to_i == map
       x = s.to_s[/player_new_x\s*=\s*(\d+)/, 1]
       y = s.to_s[/player_new_y\s*=\s*(\d+)/, 1]
       (x && y) ? [map, x.to_i, y.to_i] : [map, nil, nil]
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      [nil, nil, nil]
     end
 
     # The destination map id of an editor Transfer Player command (201), or nil (see transfer_command_dest_xy).
@@ -328,7 +351,7 @@ module PokeAccess
     def self.sign_event_uncached?(ev)
       return false unless ev.character_name.to_s.empty?
       return false unless examinable?(ev)
-      return false unless transfer_command_dest(ev).nil? && transfer_script_dest(ev).nil?
+      return false if transfers?(ev)
       return false if gives_item?(PokeAccess.ivar(ev, :@list))
       shows_text?(ev)
     rescue StandardError => e
@@ -352,7 +375,7 @@ module PokeAccess
       name = ev.name.to_s
       char = ev.character_name.to_s
       return true if "#{name} #{char}" =~ EXIT_NAME_RE && (char.empty? || doorway_sprite?(char)) && has_commands?(ev)
-      return false unless !transfer_command_dest(ev).nil? || !transfer_script_dest(ev).nil?
+      return false unless transfers?(ev)
       return true if char.empty? || doorway_sprite?(char) || teleporter_sprite?(char)
       (trig == 1 || trig == 2) && !transfer_person?(ev)
     rescue StandardError => e
@@ -374,7 +397,7 @@ module PokeAccess
       char = ev.character_name.to_s
       return false unless trig == 2 || (trig == 1 && char =~ CHARACTER_SHEET_RE)
       return false if char.empty? || doorway_sprite?(char) || teleporter_sprite?(char) || !live_talks?(ev)
-      return false if transfer_command_dest(ev).nil? && transfer_script_dest(ev).nil?
+      return false unless transfers?(ev)
       sprite_seen?(ev)
     rescue StandardError => e
       PokeAccess.swallowed(e)
@@ -838,12 +861,12 @@ module PokeAccess
       "#{name}, #{same_place?(d) ? same_place_taken(dmap, d) : PokeAccess::I18n.t(:loc_takes_to, :map => d)}"
     end
 
-    # The name an event's own data gives it: the one the map's mechanic declares for a wall (Puzzles.wall_name), a
-    # wild Pokemon's, a hazard's or obstacle's, its editor name, a trainer's, a door's by where it leads, a lever's or
+    # The name an event's own data gives it: the one the map's mechanic declares for it (Puzzles.piece_name), a wild
+    # Pokemon's, a hazard's or obstacle's, its editor name, a trainer's, a door's by where it leads, a lever's or
     # container's, a sign's, an item's, else its sprite's.
     def self.event_name(ev)
-      wall = PokeAccess::Puzzles.wall_name(ev)
-      return wall if wall
+      declared = PokeAccess::Puzzles.piece_name(ev)
+      return declared if declared
       w = wild_pokemon_name(ev)
       return w if w
       hz = hazard_label(ev)
@@ -921,7 +944,7 @@ module PokeAccess
 
     # Script calls that open a shop: every mart the engine or a game defines (pbPokemonMart and its variants, the
     # battle-point and secret-base shops, a clothes or hat shop), never pbStoreItem, which is an item on the floor.
-    SHOP_CALL = /\b(?:pb\w*Mart\w*|\w*[Ss]hop|tm_mart|enter_pokemart)\s*\(/
+    SHOP_CALL = /\b(?:pb\w*Mart\w*|\w*[Ss]hop|tm_mart)\s*\(/
 
     # True if the event opens a shop: an unnamed shop attendant is called one, not by its sprite's file name.
     def self.shop_event?(ev)
@@ -1085,7 +1108,7 @@ module PokeAccess
     # The kind of thing a sign's text tells it is (SIGN_KINDS over its opening, the game's text codes taken out), or
     # nil, as for a text that describes nothing (NOT_DESCRIBED_RE).
     def self.sign_kind_of(text)
-      head = text.to_s.gsub(/\\[A-Za-z]+\[[^\]]*\]|\\[A-Za-z]+|<[^>]*>/, " ").strip[0, SIGN_REACH]
+      head = PokeAccess::Util.utf8(text).gsub(/\\[A-Za-z]+\[[^\]]*\]|\\[A-Za-z]+|<[^>]*>/, " ").strip[0, SIGN_REACH]
       return nil if head =~ NOT_DESCRIBED_RE
       hit = SIGN_KINDS.find { |re, _k| head =~ re }
       hit && hit[1]

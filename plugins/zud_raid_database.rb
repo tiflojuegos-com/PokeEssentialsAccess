@@ -3,8 +3,9 @@ module PokeAccess
   # grid, species pages. Its values live in locals, so the text painted on its overlays is noted by position.
   module ZudRaidDatabase
     # The painted values of the filter rows, by the height each is drawn at, and the line under them.
-    VALUE_ROWS = { 143 => 1, 175 => 2, 207 => 3, 239 => 4 }
-    FOOT_Y = 340
+    VALUE_ROWS = { 143 => 1, 175 => 2, 207 => 3, 239 => 4, 149 => 1, 181 => 2, 213 => 3, 245 => 4 }
+    # The line under them: the release for 19 at one height, the one for 20 the count and the species at two.
+    FOOT_YS = [340, 346, 352]
 
     # The species page's move lists as [heading key, column x, in the lower row], the lower row from MOVES_BOTTOM.
     MOVE_LISTS = [[:zud_raid_primary, 92, false], [:zud_raid_secondary, 270, false],
@@ -49,7 +50,7 @@ module PokeAccess
       if bitmap.equal?(PokeAccess.ivar(@scene, :@pagetext))
         @page = t if t =~ /\d+\s*\/\s*\d+/
       elsif bitmap.equal?(PokeAccess.ivar(@scene, :@overlay))
-        if y.to_i == FOOT_Y
+        if FOOT_YS.include?(y.to_i)
           @selecting ? species(t) : count(t)
         elsif VALUE_ROWS[y.to_i]
           @values[VALUE_ROWS[y.to_i]] = t.sub(/\A\[/, "").sub(/\]\z/, "")
@@ -124,21 +125,22 @@ module PokeAccess
     # sprite, as the place of this one among them; the G-Max Factor mark above the form's name, for a species that
     # has one; and the types under it.
     def self.pictures(sp)
-      return [] unless sp.respond_to?(:type1)
+      return [] unless sp.respond_to?(:type1) || sp.respond_to?(:types)
       out = []
       form = form_text(sp)
       out.push([form, :positions, 432, 92]) if form
       out.push([PokeAccess::I18n.t(:dmax_factor), :positions, 472, 124]) if (sp.hasGmax? rescue false)
-      types = [sp.type1, sp.type2].uniq.map { |t| (::GameData::Type.get(t).name rescue t.to_s) }
+      types = (sp.respond_to?(:types) ? sp.types : [sp.type1, sp.type2]).uniq.map { |t| (::GameData::Type.get(t).name rescue t.to_s) }
       out.push([PokeAccess::I18n.t(:zud_raid_types, :list => types.join(", ")), :positions, 367, 194])
       out
     end
 
     # The page's form among the species' raid forms, which left and right step through, as a position; nil for a
-    # species with one, or where positions go unsaid. From the plugin's own list: the arrows are set after the page.
+    # species with one, or where positions go unsaid. From the plugin's own list, by the name of each release: the arrows
+    # are set after the page.
     def self.form_text(sp)
       return nil unless PokeAccess::Verbosity.keep?(:positions, :medium)
-      forms = (pbGetAvailableRaidForms(sp.species) rescue nil)
+      forms = (sp.get_raid_forms rescue nil) || (pbGetAvailableRaidForms(sp.species) rescue nil)
       return nil unless forms.is_a?(Array) && forms.length > 1
       i = forms.index((sp.id rescue nil))
       i ? PokeAccess::I18n.t(:zud_raid_form, :n => i + 1, :tot => forms.length) : nil
@@ -194,7 +196,11 @@ end
 PokeAccess::Hooks.around_hook("RaidDataScene", :pbSetSpeciesData, :optional => true) do |scene, nxt, args|
   PokeAccess::ZudRaidDatabase.species_page(scene, args[0]) { nxt.call }
 end
+# The species page's loop: pbRaidDataBase in the release for 19, pbRaidDataPage in the one for 20.
 PokeAccess::Hooks.around_hook("RaidDataScene", :pbRaidDataBase, :optional => true) do |_scene, nxt, _a|
+  begin; nxt.call; ensure; PokeAccess::ZudRaidDatabase.back_on_grid; end
+end
+PokeAccess::Hooks.around_hook("RaidDataScene", :pbRaidDataPage, :optional => true) do |_scene, nxt, _a|
   begin; nxt.call; ensure; PokeAccess::ZudRaidDatabase.back_on_grid; end
 end
 # Every text the game paints goes through these two; they look at it only while the database is open.

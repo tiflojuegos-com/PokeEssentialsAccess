@@ -56,7 +56,7 @@ module PokeAccess
           elsif unreachable?(goal)
             SearchResult.new(:exhausted, nil, 0, :regions)
           else
-            r = searched_off(goal, !onto && !doorways(tx, ty))
+            r = searched_off(goal, !onto && !doorways(tx, ty) && !answering_sides(tx, ty))
             r.status == :found ? r : unfound(goal, r)
           end
         end
@@ -78,8 +78,15 @@ module PokeAccess
       # What a route to (tx,ty) ends on: the tiles a one-sided doorway is walked into from, the spot itself with onto,
       # else the tiles it is acted on from.
       def self.goal_for(tx, ty, onto)
-        doors = onto ? nil : doorways(tx, ty)
-        doors ? Goal.new(doors, tx, ty) : (onto ? Goal.onto(tx, ty) : Goal.near(tx, ty))
+        sides = onto ? nil : (doorways(tx, ty) || answering_sides(tx, ty))
+        sides ? Goal.new(sides, tx, ty) : (onto ? Goal.onto(tx, ty) : Goal.near(tx, ty))
+      end
+
+      # The tiles an event that answers from some sides alone answers from, unless the player cannot get to any of them: the
+      # way to it then ends beside it, wherever that is (nil).
+      def self.answering_sides(tx, ty)
+        tiles = Effects.act_sides(tx, ty)
+        tiles && reach(Goal.new(tiles, tx, ty))[0] == :no ? nil : tiles
       end
 
       # Whether the player can get to goal on foot, the one answer the list hides by and the routes give up by: the
@@ -252,7 +259,8 @@ module PokeAccess
       end
 
       # Keeps a plan, the oldest dropped past SIZE. Never a cut whose search on foot was left unsettled, as the next
-      # question goes on where the regions and the flood stopped, nor one under a deadline, which the clock decided.
+      # question goes on where the regions and the flood stopped, nor one under a time limit, which the clock decided.
+      # What Limits#wider's clock cut is kept: asking again from that tile would hold the game as long for the same answer.
       def self.keep(key, made)
         if made.kind == :cut
           return if made.stats && made.stats[:unsettled]

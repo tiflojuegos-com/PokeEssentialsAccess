@@ -99,6 +99,9 @@ page that explains it.
   ([Readers](../architecture/readers.md#message-history)).
 - **mod key**: a key of the mod's own, such as the info key or the locator's keys, listed in `Config.keys`
   ([Keys](keys.md#mod-keys)).
+- **neighbouring map**: a map across a connection; `World::Neighbours` keeps a copy of it and lends it to the engine's
+  map factory for a question about a step off the map
+  ([World and routes](../architecture/world-and-routes.md#neighbouring-maps)).
 - **override**: a replacement of a mod module's method or a game class's method, installed with `Hooks.override` and
   listed in `Hooks.overrides` ([Hooks](../architecture/hooks.md#functions-module-methods-and-overrides)).
 - **painted text**: the text a screen draws, captured by the mod as drawn
@@ -159,7 +162,7 @@ page that explains it.
   reader ([Speech and languages](../architecture/speech-and-languages.md#the-screen-reader-bridge)).
 - **script dump**: a game's scripts written out as `.rb` files by `tools/dump_scripts.rb`; the census builders read
   the script dumps under `../../decompiled Scripts` ([Static checks](static-checks.md#census-sources)).
-- **self-check**: the Engine self-check row of the Debugging screen, which tests in the running game what the suite
+- **self-check**: the Engine self-check row of the Diagnostics screen, which tests in the running game what the suite
   only stubs ([Diagnostics](../architecture/diagnostics.md#the-self-check)).
 - **session recorder**: the recorder of `core/util/recorder.rb`, which writes a transcript of what the mod saw and
   said ([Diagnostics](../architecture/diagnostics.md#the-session-recorder)).

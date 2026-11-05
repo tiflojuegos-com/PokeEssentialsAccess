@@ -146,6 +146,20 @@ module Harness
     PokeAccess::Data.instance_variable_set(:@active_entry, nil)
   end
 
+  # Declares a profile's puzzles again, through source so a mutant of one is the one tested, for a test whose reset dropped them.
+  def self.load_puzzles(game)
+    manifest_of("games/#{game}")[:modules].select { |entry| entry =~ %r{\Apuzzles/} }.each do |entry|
+      path = File.join(ROOT, "games", game, "#{entry}.rb")
+      eval(source(path), TOPLEVEL_BINDING, path)
+    end
+  end
+
+  # The first declaration of a map's mechanics, or nil.
+  def self.declared(map_id)
+    list = PokeAccess::World::Mechanics.instance_variable_get(:@defs)[map_id]
+    list && !list.empty? ? list[0][1] : nil
+  end
+
   # Loads core and, if given, a game profile, each via its manifest.
   def self.load_all(game = nil)
     load_dir("core")

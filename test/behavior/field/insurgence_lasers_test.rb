@@ -1,4 +1,4 @@
-# The Erebus Gym mirror rooms (games/insurgence/lasers.rb): each mirror by its number in reading order, the sides its
+# The Erebus Gym mirror rooms (games/insurgence/puzzles/lasers.rb): each mirror by its number in reading order, the sides its
 # turn joins (variable 144) and whether the beam passes it (variable 145), the room's count after a turn, the beam's
 # tiles kept out of the lists, and with the puzzle assist the beam's path, the turns that light every receiver and the
 # next mirror to set. The profile file loads once here, after the game's mirror turn it hooks.
@@ -8,7 +8,7 @@ def pbChangeMirror(id)
   $game_variables[144][id] = ($game_variables[144][id] + 1) % 4
 end
 
-lasers_path = File.join(Harness::ROOT, "games", "insurgence", "lasers.rb")
+lasers_path = File.join(Harness::ROOT, "games", "insurgence", "puzzles", "lasers.rb")
 eval(Harness.source(lasers_path), TOPLEVEL_BINDING, lasers_path)
 
 class InsurgenceLasersTest < PokeAccessTest

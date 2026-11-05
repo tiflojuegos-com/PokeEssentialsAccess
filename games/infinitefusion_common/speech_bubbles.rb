@@ -11,12 +11,23 @@ module PokeAccess
       nil
     end
 
-    # Who a bubble on this event marks: the player's tag for it, if any, and where it stands from the player. The
-    # event's own name is left out: an editor's name can give a puzzle away (Berry Forest's impostor is "fake kid").
+    # Who a bubble on this event marks: the player's tag for it, if any, and where it stands from the player, said as a
+    # place so as not to sound like a route. The event's own name is left out: an editor's name can give a puzzle away
+    # (Berry Forest's impostor is "fake kid").
     def self.speaker(ev)
-      where = PokeAccess::Locator.dir_phrase(ev.x - $game_player.x, ev.y - $game_player.y)
+      where = place(ev.x - $game_player.x, ev.y - $game_player.y)
       tag = (PokeAccess::Tags.get($game_map.map_id, ev.id) rescue nil)
-      (tag.nil? || tag.to_s.empty?) ? where : "#{tag}, #{where}"
+      return PokeAccess::I18n.t(:if_bubble_from, :where => where) if tag.nil? || tag.to_s.empty?
+      PokeAccess::I18n.t(:if_bubble_tag_from, :tag => tag, :where => where)
+    end
+
+    # How far (dx, dy) tiles lie from the player: "5 to the right and 1 up".
+    def self.place(dx, dy)
+      text = PokeAccess::Routes::Text
+      parts = []
+      parts.push(PokeAccess::I18n.t(text::MOVED_KEYS[dx < 0 ? 4 : 6], :n => dx.abs)) if dx != 0
+      parts.push(PokeAccess::I18n.t(text::MOVED_KEYS[dy < 0 ? 8 : 2], :n => dy.abs)) if dy != 0
+      parts.empty? ? PokeAccess::I18n.t(:loc_here) : text.and_list(parts)
     end
 
     # As a message window opens under a bubble on an event other than the running one, has its line led by it.

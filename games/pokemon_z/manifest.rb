@@ -4,7 +4,25 @@
   :imports => %w[lostie_common],
   :modules => %w[
     constants
-    puzzles
+    puzzles/sanctuary
+    puzzles/ship
+    puzzles/gym3
+    puzzles/palace
+    puzzles/riddle_island
+    puzzles/hidden_spa
+    puzzles/kitchen
+    puzzles/wandering_forest
+    puzzles/refulgent_cave
+    puzzles/chateau_lanto
+    puzzles/fort_leviathan
+    puzzles/dark_tower
+    puzzles/romantis
+    puzzles/ultimate_weapon
+    puzzles/dark_tangle
+    puzzles/fractal_bastion
+    puzzles/talasia_cave
+    puzzles/pokeball_factory
+    puzzles/ancient_forge
     battle_bag
     pokedex
     picture_cues

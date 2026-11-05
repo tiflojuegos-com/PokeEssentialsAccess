@@ -9,9 +9,12 @@ module PokeAccess
     # something that stays (a switch, a variable, an item); waits: it waited for the move to end; unknown: the walk
     # stopped at something it could not answer; maybe_transfer: a transfer lies past that point; battle: it started
     # one; through: a step was taken with Through on; held: it went that way only because a direction key is held, as
-    # a script condition asks; pressed: a button branch it took asks for that key held down (Insurgence's stairs).
+    # a script condition asks; pressed: a button branch it took asks for that key held down (Insurgence's stairs);
+    # sent: net [dx, dy] of the first route the event runs on itself with Through on (through_net); sets: the switch ids
+    # and self switch letters it turned on; stops: the steps of path on which the engine asks for a touch event (route);
+    # own: the routes the event runs on itself.
     Outcome = Struct.new(:move, :path, :transfer, :bridge, :jump, :talks, :changes, :waits, :unknown, :maybe_transfer,
-                         :battle, :through, :held, :pressed)
+                         :battle, :through, :held, :pressed, :sent, :sets, :stops, :own)
 
     DIAGONAL = { 5 => [-1, 1], 6 => [1, 1], 7 => [-1, -1], 8 => [1, -1] }
     TURN_RIGHT = { 2 => 4, 4 => 8, 6 => 2, 8 => 6 }
@@ -82,7 +85,7 @@ module PokeAccess
 
     # Walks the command list of event ev for facing d as the interpreter would run it.
     def self.walk(list, d, ev, at = nil, act = false)
-      o = Outcome.new(nil, [], nil, nil, false, false, false, false, false, false, false, false, false, false)
+      o = blank
       st = { :x => 0, :y => 0, :face => d, :fix => false, :moved => false, :steps => 0, :at => at,
              :act => act, :vars => {}, :chosen => {}, :through => false, :held => false, :pressed => false }
       run(list, o, st, ev, 0)
@@ -93,6 +96,11 @@ module PokeAccess
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
+    end
+
+    # An outcome with nothing found yet.
+    def self.blank
+      Outcome.new(nil, [], nil, nil, false, false, false, false, false, false, false, false, false, false, nil, [], [], [])
     end
 
     # Runs a list on paper against the walk's state. Returns :stop when the walk is over (a transfer, the end
@@ -138,6 +146,7 @@ module PokeAccess
           o.battle = true if code == BATTLE
         elsif CHANGE.include?(code)
           o.changes = true
+          o.sets.concat(turned_on(code, pars))
         elsif code == COMMON_EVENT
           sub = common_list(pars[0])
           return stuck(o, list, i) if sub.nil? || depth >= COMMON_DEPTH
@@ -149,6 +158,9 @@ module PokeAccess
         elsif code == MOVE_ROUTE && pars[0].to_i == -1
           return stuck(o, list, i) unless route(pars[1], o, st)
           st[:moved] = true
+        elsif code == MOVE_ROUTE && [0, (ev.id rescue nil)].include?(pars[0].to_i)
+          o.sent ||= through_net(pars[1])
+          o.own.push(pars[1])
         elsif code == WAIT_MOVES
           o.waits = true if st[:moved]
         elsif code == SCRIPT
@@ -170,6 +182,23 @@ module PokeAccess
         i += 1
       end
       nil
+    end
+
+    # What a Control Switches or Control Self Switch command turns on, as switch ids or self switch letters.
+    def self.turned_on(code, pars)
+      if code == 121 && pars[2].to_i == 0 then (pars[0].to_i..pars[1].to_i).to_a
+      elsif code == 123 && pars[1].to_i == 0 then [pars[0].to_s]
+      else []
+      end
+    end
+
+    # Where a route takes the event running it, read like the player's (route): its net [dx, dy], or nil for one that
+    # is not more than one step with Through on or ends where it began.
+    def self.through_net(mr)
+      o = blank
+      st = { :x => 0, :y => 0, :face => nil, :fix => false, :through => false }
+      return nil unless route(mr, o, st) && o.through && o.path.length > 1
+      st[:x] == 0 && st[:y] == 0 ? nil : [st[:x], st[:y]]
     end
 
     # The command list of common event id, or nil: from the common events an engine's data provider keeps
@@ -313,10 +342,12 @@ module PokeAccess
       dir.nil? ? nil : dir == pars[2]
     end
 
-    # Runs a move route on paper against the walk's state, recording where each step leaves the player. False
-    # for a route whose end cannot be known (a random step, a step toward someone, a script that moves).
+    # Runs a move route on paper against the walk's state, recording where each step leaves the player and which of
+    # those steps ask for a touch event. False for a route whose end cannot be known (a random step, a step toward
+    # someone, a script that moves).
     def self.route(mr, o, st)
-      ((mr.list rescue nil) || []).each do |mc|
+      list = (mr.list rescue nil) || []
+      list.each_with_index do |mc, i|
         code = (mc.code rescue 0)
         pars = (mc.parameters rescue nil) || []
         case code
@@ -356,11 +387,26 @@ module PokeAccess
         when 45
           return false if pars[0].to_s =~ MOVING_SCRIPT
         end
+        o.stops.push(o.path.last) if World::Events::STEP_CODES.include?(code) && (every_step_fires? || rests_after?(list, i))
       end
       true
     rescue StandardError => e
       PokeAccess.swallowed(e)
       false
+    end
+
+    # True when the engine asks for a touch event after every step of a forced route: from Essentials 19 on, where
+    # Game_Character#update_command takes the route's next command a frame after the player arrives. Before it, the next
+    # step starts the frame they arrive, so they never stand still on the tiles in between (rests_after?).
+    def self.every_step_fires?
+      PokeAccess::Engine.has?("Game_Character#update_command")
+    end
+
+    # True when a forced route leaves the player standing after its command i: the next command to take a frame is no
+    # step (move_type_custom passes over those from 27 on in the same frame).
+    def self.rests_after?(list, i)
+      nxt = list[(i + 1)..-1].find { |m| (m.code rescue 0) < 27 }
+      nxt.nil? || !World::Events::STEP_CODES.include?(nxt.code)
     end
 
     # One step of a route: the position moves and the path records where it left the player.

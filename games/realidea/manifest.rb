@@ -6,12 +6,22 @@
     system_scene
     album
     minigames
-    shipwreck
+    puzzles/shipwreck
     porygon_ray
     mouse_minigames
     story_minigames
-    lasers
-    jade_screens
+    puzzles/lasers
+    puzzles/jade_screens
+    puzzles/quartz_gym
+    puzzles/agate_gym
+    puzzles/berilo_basement
+    puzzles/metis_labs
+    puzzles/decidueye_hideout
+    puzzles/abandoned_mansion
+    puzzles/route17_lab
+    puzzles/power_plant
+    puzzles/electruby_cave
+    puzzles/anatasa_gym
     scenes
     hall_of_fame
     pause_overlay

@@ -1,7 +1,7 @@
 # What stands on Vitro's maps, which core would say by the event's editor name or file under people, each checked on the maps.
 # A Torbellino, on the water, is one page with nothing to run and no script or event clears it: a wall three tiles wide
 # (sizeC, which the passability probe asks the engine). An Agujero is a walk-on transfer to the floor below, which core would
-# call an exit. A Holed boulder shows where a boulder fell from above (rock_holes.rb). A torch with glowswitch(A) in its name is
+# call an exit. A Holed boulder shows where a boulder fell from above (puzzles/rock_holes.rb). A torch with glowswitch(A) in its name is
 # lit by common event 31, which turns its self switch A on through pbUseEmber (0318_MO Mejoradas), and nothing but its light
 # depends on it (0338_Dark Maps). A CaveMon is a dust cloud that fights when touched, turned into a Pokemon as the scene starts
 # (wild_map.rb). A Poke 0 or Poke 1, in the Day Care and its yard, wears the sprite of the Pokemon left there (pbDaycareGraphic in

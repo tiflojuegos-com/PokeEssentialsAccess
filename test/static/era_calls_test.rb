@@ -4,7 +4,7 @@ require "tmpdir"
 
 class EraCallsTest < PokeAccessTest
   CENSUS = File.join(File.dirname(__FILE__), "era_census.txt")
-  SOURCES = 31
+  SOURCES = 35
   KNOWN = {
     # Ladders: the gen-6 spelling is tried and the modern one follows (or the other way round).
     "pbIsImportantItem?" => "gen-6 bag predicate; GameData::Item#is_important? follows (menus.rb bag_hides_qty?)",
@@ -35,6 +35,7 @@ class EraCallsTest < PokeAccessTest
     "pbDisplayAchievementPointsWindow" => "money-window variant wrapped where it exists (money_window.rb)",
     "pbDisplayBankWindow" => "money-window variant wrapped where it exists (money_window.rb)",
     "pbFreeText" => "the message box's text field, wrapped by name (text_entry.rb); Golden Crown dropped it with pbMessageFreeText",
+    "pbMessageFreeText" => "the same field's opener, wrapped by name for the answer the puzzle assist says (puzzles/auto.rb)",
     # In every fangame but not the stock v21.1 tree, which reworked those screens and no surveyed game runs.
     "pbGetHealingSpot" => "all fifteen games; the stock tree dropped the name (town_map.rb healing_spot)",
     "pbGetMapDetails" => "all fifteen games; the stock tree dropped the name (region_map.rb)",
@@ -52,6 +53,7 @@ class EraCallsTest < PokeAccessTest
     "pbCallBub" => "script-text pattern for a page that talks (event_pages.rb TALK_SCRIPT)",
     "pbHasItem" => "script-text pattern for a bag condition an event page asks, as $PokemonBag.pbHasItem? (event_pages.rb)",
     "pbMoverEstatuas" => "script-text pattern for a statue an event pushes (routes/effects.rb PUSH_SCRIPTS)",
+    "pbPushThis" => "the head of a script-text pattern for what an event pushes with no field move (routes/effects.rb PUSH_SCRIPTS)",
     "pbBridgeOn" => "script-text pattern for the height a bridge ramp's page sets (event_pages.rb ramp)",
     "pbBridgeOff" => "script-text pattern for a bridge ramp's page that lowers it (event_pages.rb ramp)",
     # Absent from Desolation, Reborn and Rejuvenation, which have no Bug Catching Contest and no Triple Triad.

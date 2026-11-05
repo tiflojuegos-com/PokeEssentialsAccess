@@ -718,7 +718,17 @@ class PokemonPauseMenu_Scene
   attr_reader :info
   def pbStartScene; end
   def pbShowInfo(text); @info = text; end
-  def pbShowCommands(_commands); 0; end
+
+  # The command loop, in the game's order: a frame updates the window, then pulses; @frames lists a row per frame.
+  def pbShowCommands(_commands)
+    win = @sprites ? @sprites["cmdwindow"] : nil
+    (@frames || []).each do |row|
+      win.index = row if win
+      win.update if win
+      PokeAccess::Frame.run_pollers
+    end
+    0
+  end
 end
 
 # The save screen's scene, reduced to the summary panel its pbStartScreen builds and pbEndScreen disposes.

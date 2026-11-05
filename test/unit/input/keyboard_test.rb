@@ -18,7 +18,7 @@ class KeyboardTest < PokeAccessTest
 
   test "reads a key named as a profile names it" do
     { "M" => 0x4D, "5" => 0x35, "F6" => 0x75, "F12" => 0x7B, "Alt+M" => Keyboard.with_alt(0x4D),
-      "Alt+F6" => Keyboard.with_alt(0x75), 0x4E => 0x4E }.each do |spec, want|
+      "Alt+F6" => Keyboard.with_alt(0x75), "Tab" => 0x09, 0x4E => 0x4E }.each do |spec, want|
       assert_equal want, Keyboard.code_for(spec), spec.inspect
     end
     assert_nil Keyboard.code_for(nil)

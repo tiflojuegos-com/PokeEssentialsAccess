@@ -288,11 +288,63 @@ class ProbeTest < PokeAccessTest
     end
   end
 
+  test "asks from a stair's end as from off the stair where the game looks for events by the stair, and keeps the answer" do
+    pl = $game_player
+    on_it = lambda { !pl.instance_variable_get(:@stair_begin_offset).nil? }
+    seen = []
+    PokeAccess::World.reset!
+    with_player_methods(:on_stair? => on_it, :on_middle_of_stair? => lambda { false }, :is_event_at_target? => lambda { false }) do
+      pl.instance_variable_set(:@stair_begin_offset, 0)
+      Probe.refresh
+      assert Probe.stable?, "the guide and the walk go on from there"
+      answer = lambda { |_x, _y, _d| seen.push(pl.on_stair?); true }
+      with_engine(answer) do |asked|
+        2.times { Probe.step?(1, 1, 6) }
+        assert_equal 1, asked.length, "the answer is kept"
+      end
+      assert_equal [false], seen
+      assert_equal 0, pl.instance_variable_get(:@stair_begin_offset)
+      with_engine(lambda { |*_a| raise "the game failed" }) { Probe.step?(2, 1, 6) }
+      assert_equal 0, pl.instance_variable_get(:@stair_begin_offset), "back whatever fails"
+    end
+  ensure
+    pl.remove_instance_variable(:@stair_begin_offset)
+    PokeAccess::World.reset!
+  end
+
+  test "leaves the stair alone partway up it, off it and where the game does not look for events by it" do
+    pl = $game_player
+    on_it = lambda { !pl.instance_variable_get(:@stair_begin_offset).nil? }
+    by_stair = { :on_stair? => on_it, :on_middle_of_stair? => lambda { false }, :is_event_at_target? => lambda { false } }
+    { "partway up it" => [by_stair.merge(:on_middle_of_stair? => lambda { true }), 0, true],
+      "a plain side stair" => [{ :on_stair? => on_it, :on_middle_of_stair? => lambda { false } }, 0, true],
+      "off it" => [by_stair, nil, false] }.each do |where, (methods, offset, on_stair)|
+      PokeAccess::World.reset!
+      with_player_methods(methods) do
+        pl.instance_variable_set(:@stair_begin_offset, offset)
+        Probe.refresh
+        seen = []
+        with_engine(lambda { |_x, _y, _d| seen.push(pl.on_stair?); true }) { Probe.step?(1, 1, 6) }
+        assert_equal [on_stair], seen, where
+        assert offset == pl.instance_variable_get(:@stair_begin_offset), where
+      end
+    end
+    with_player_methods(:on_stair? => lambda { raise "unreadable" }, :is_event_at_target? => lambda { false }, :on_middle_of_stair? => lambda { false }) do
+      assert_equal false, Probe.stair_end_now?, "one that cannot tell"
+    end
+    assert_equal false, Probe.stair_end_now?, "a game with no such stair"
+  ensure
+    pl.remove_instance_variable(:@stair_begin_offset) if pl.instance_variable_defined?(:@stair_begin_offset)
+    PokeAccess::World.reset!
+  end
+
   test "keeps no answer partway up a stair, and keeps them off it or when the stair cannot tell" do
     { "partway up a side stair" => [{ :on_middle_of_stair? => lambda { true } }, 2],
       "off the side stair" => [{ :on_middle_of_stair? => lambda { false } }, 1],
       "a side stair that cannot tell" => [{ :on_middle_of_stair? => lambda { raise "unreadable" } }, 1],
       "on an older plugin's stair" => [{ :on_stair? => lambda { true } }, 2],
+      "partway up a stair the game looks for events by" =>
+        [{ :on_middle_of_stair? => lambda { true }, :on_stair? => lambda { true }, :is_event_at_target? => lambda { false } }, 2],
       "off the side stair, whatever an older plugin's says" =>
         [{ :on_middle_of_stair? => lambda { false }, :on_stair? => lambda { true } }, 1] }.each do |where, (methods, want)|
       PokeAccess::World.reset!

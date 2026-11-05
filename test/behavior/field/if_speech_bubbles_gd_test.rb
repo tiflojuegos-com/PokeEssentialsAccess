@@ -1,6 +1,6 @@
 # Infinite Fusion's speech bubbles (games/infinitefusion_common/speech_bubbles.rb): after pbCallBub the next message
 # window floats over (1) or points with an arrow at (2) an event; a line whose bubble marks an event other than the one
-# running is led by where that event stands and the player's tag for it, never its editor's name. The game's window
+# running is led by where that event stands, said as a place, and the player's tag for it, never its editor's name. The game's window
 # functions and map interpreter, reduced to what the reader asks of them, come before the profile file binds to them.
 
 # The map interpreter as the reader asks it: which event it runs, and whether it is running.
@@ -19,12 +19,13 @@ eval(Harness.source(bubbles_path), TOPLEVEL_BINDING, bubbles_path)
 class IfSpeechBubblesGdTest < PokeAccessTest
   test "a line under an arrow bubble on another event is led by where it stands, its editor's name unsaid" do
     in_room { bubble(2, 14, "¡Uno!") }
-    assert_equal [["2 #{t(:dir_left)}, 1 #{t(:dir_up)}: ¡Uno!", false]], SpeakCapture.log
+    assert_equal [["#{from(t(:moved_left, :n => 2), t(:moved_up, :n => 1))}: ¡Uno!", false]], SpeakCapture.log
   end
 
   test "a floating bubble on a tagged event is led by the player's tag and where it stands" do
     in_room { bubble(1, 15, "¡Dos!") }
-    assert_equal [["hermana, 4 #{t(:dir_left)}: ¡Dos!", false]], SpeakCapture.log
+    tagged = t(:if_bubble_tag_from, :tag => "hermana", :where => t(:moved_left, :n => 4))
+    assert_equal [["#{tagged}: ¡Dos!", false]], SpeakCapture.log
   end
 
   test "a bubble on the event being talked to leads nothing" do
@@ -53,7 +54,7 @@ class IfSpeechBubblesGdTest < PokeAccessTest
       World.event(:id => 1, :x => 20, :y => 18, :name => "EV001")
       bubble(2, 1, "¡Once!")
     end
-    assert_equal ["2 #{t(:dir_right)}: ¡Once!"], SpeakCapture.lines
+    assert_equal ["#{from(t(:moved_right, :n => 2))}: ¡Once!"], SpeakCapture.lines
   end
 
   test "a window closed with no line drops the head it was to carry" do
@@ -69,7 +70,7 @@ class IfSpeechBubblesGdTest < PokeAccessTest
       $if_spec_interpreter = nil
       bubble(2, 29, "¡Nueve!")
     end
-    assert_equal ["1 #{t(:dir_down)}: ¡Nueve!"], SpeakCapture.lines
+    assert_equal ["#{from(t(:moved_down, :n => 1))}: ¡Nueve!"], SpeakCapture.lines
   end
 
   test "an interpreter that has stopped counts as none running" do
@@ -77,13 +78,22 @@ class IfSpeechBubblesGdTest < PokeAccessTest
       $if_spec_interpreter = IFSpecInterpreter.new(29, false)
       bubble(2, 29, "¡Diez!")
     end
-    assert_equal ["1 #{t(:dir_down)}: ¡Diez!"], SpeakCapture.lines
+    assert_equal ["#{from(t(:moved_down, :n => 1))}: ¡Diez!"], SpeakCapture.lines
+  end
+
+  test "a speaker on the player's own tile is said as being right there" do
+    assert_equal t(:loc_here), PokeAccess::IFSpeechBubbles.place(0, 0)
   end
 
   private
 
   def t(key, vars = {})
     PokeAccess::I18n.t(key, vars)
+  end
+
+  # The head of a line whose speaker lies so far from the player, each way already in words.
+  def from(*ways)
+    t(:if_bubble_from, :where => PokeAccess::Routes::Text.and_list(ways))
   end
 
   # Runs the block where the lines are said: the player at (18,18), a kid the editor names "fake kid" at (16,17), a girl

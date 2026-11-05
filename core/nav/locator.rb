@@ -8,6 +8,7 @@ module PokeAccess
     @surface_cache = nil; @surface_cache_pos = nil
     @interp_running = false
     @teleport_causes = []
+    @move_causes = []
 
     # The categories whose targets are made by the locator itself, not events: never hidden by reach, nor grouped by
     # room.
@@ -746,10 +747,19 @@ module PokeAccess
       @teleport_causes.push([name, blk])
     end
 
-    # The line the newest cause that knows a teleport gives (teleport_cause), or nil; a failing cause gives none.
-    def self.cause_line(from, to)
-      @teleport_causes.reverse_each do |_name, blk|
-        line = blk.call(from, to)
+    # Registers a cause for a move of the game's other than a teleport within the map, under a name: the block gets the place
+    # left, the place reached and the kind of move, :map for a transfer from another map or :forced for the end of a move
+    # route, and gives the line said, or nil for a move not its own.
+    def self.move_cause(name, &blk)
+      @move_causes.reject! { |n, _b| n == name }
+      @move_causes.push([name, blk])
+    end
+
+    # The line the newest cause that knows a move gives, of a teleport (teleport_cause) or of a kind (move_cause), or nil; a
+    # failing cause gives none.
+    def self.cause_line(from, to, kind = nil)
+      (kind ? @move_causes : @teleport_causes).reverse_each do |_name, blk|
+        line = kind ? blk.call(from, to, kind) : blk.call(from, to)
         return line if line
       end
       nil
@@ -758,9 +768,9 @@ module PokeAccess
       nil
     end
 
-    # Announces a teleport within the map (over one tile in a frame) by its cause's profile line (cause_line), else
-    # teleport_line, and has the list rebuilt when next used; a ledge hop, a forced move route or a walk the drawn
-    # player has yet to make (drawn_walk?) does not count.
+    # Announces a teleport within the map (over one tile in a frame) by its cause's profile line (cause_line), else that
+    # it landed where the player came onto the map, else teleport_line, and has the list rebuilt when next used; a ledge
+    # hop, a forced move route or a walk the drawn player has yet to make (drawn_walk?) does not count.
     def self.announce_internal_teleport
       x = ($game_player.x rescue nil); y = ($game_player.y rescue nil); mid = ($game_map.map_id rescue nil)
       return if x.nil? || y.nil? || mid.nil?
@@ -768,16 +778,27 @@ module PokeAccess
       drawn = @last_drawn
       @last_pos = [x, y, mid]
       @last_drawn = drawn_at
-      return if prev.nil? || prev[2] != mid
+      if prev.nil? || prev[2] != mid
+        @came_in = prev && [x, y]
+        line = prev && cause_line(prev, @last_pos, :map)
+        PokeAccess.speak(line, false) if line
+        return
+      end
       jump = (prev[0] - x).abs + (prev[1] - y).abs
       return if jump <= 1
       return if player_jumping? || drawn_walk?(drawn, @last_drawn)
       return if ($game_player.move_route_forcing rescue false)
       @targets_stale = true
-      PokeAccess.speak(cause_line(prev, @last_pos) || teleport_line(x - prev[0], y - prev[1], x, y), false)
+      PokeAccess.speak(cause_line(prev, @last_pos) || back_line(x, y) || teleport_line(x - prev[0], y - prev[1], x, y), false)
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
+    end
+
+    # The line for a teleport onto the tile the player came onto the map by, past the brief level; nil for any other.
+    def self.back_line(x, y)
+      return nil unless @came_in == [x, y] && PokeAccess::Verbosity.keep?(:teleport, :medium)
+      PokeAccess::I18n.t(:loc_teleport_back)
     end
 
     # A teleport of (dx, dy) tiles onto (x, y) at the teleport reading's level: that the player moved (brief), how far

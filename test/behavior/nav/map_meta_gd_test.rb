@@ -90,28 +90,29 @@ class MapMetaGdTest < PokeAccessTest
     end
   end
 
-  test "asking about a third map builds it in place of the one kept" do
+  test "asking about a third map holds it in place of the one held, whose copy World::Neighbours keeps" do
     with_factory(:getMapNoAdd) do |built|
       MapMeta.terrain_on(5, 1, 2)
       MapMeta.terrain_on(6, 1, 2)
-      MapMeta.terrain_on(5, 1, 2)
-      assert_equal [5, 6, 5], built.map { |mid, _add| mid }
+      assert_equal 12, MapMeta.terrain_on(5, 1, 2)
+      assert_equal [5, 6], built.map { |mid, _add| mid }
     end
   end
 
-  test "a map change forgets the other map built" do
+  test "a map change lets the other map go, and World::Neighbours lends its copy again" do
     with_factory(:getMapNoAdd) do |built|
       MapMeta.terrain_on(5, 1, 2)
       PokeAccess::Caches.reset_all
-      MapMeta.terrain_on(5, 1, 2)
-      assert_equal [5, 5], built.map { |mid, _add| mid }
+      assert_nil MapMeta.instance_variable_get(:@foreign)
+      assert_equal 12, MapMeta.terrain_on(5, 1, 2)
+      assert_equal [5], built.map { |mid, _add| mid }
     end
   end
 
-  test "a factory without getMapNoAdd is asked with getMap, not to add the map" do
+  test "a factory without getMapNoAdd builds no map apart, so another map's terrain is unknown" do
     with_factory(:getMap) do |built|
-      assert_equal 12, MapMeta.terrain_on(5, 1, 2)
-      assert_equal [[5, false]], built
+      assert_nil MapMeta.terrain_on(5, 1, 2)
+      assert_equal [], built
     end
   end
 
@@ -179,6 +180,7 @@ class MapMetaGdTest < PokeAccessTest
     factory = nil
     if meth == :getMapNoAdd
       factory = Object.new
+      factory.instance_variable_set(:@maps, [])
       factory.define_singleton_method(:getMapNoAdd) { |mid| built.push([mid, nil]); OtherMap.new(mid) }
     elsif meth == :getMap
       factory = Object.new

@@ -24,6 +24,7 @@ class DedupTest < PokeAccessTest
     book_page hofbw6_slide party_help enc_cursor cc_timer pbk_cond ss2_adv_overlay ss2_adv_hearts ss2_adv_keys
     ss2_adv_floor hof_text ev_value adv_dex bdx_header zud_raid_row gacha_counts rem_limits
     zlair_here zlair_list_open zlair_party zlair_prize zlair_rental_state zlair_row zlair_speed zlair_tutor
+    zlair_tutor_title charm_count
     ura_bag_list ura_dex rj_achievement rj_luckswap rv_tw_frame deso_quest_page ss2_hof_view if_hof_page zball_hint
     if_hat if_hat_pos rem_pokocho ura_bmart_berries ura_ctrl ura_opt_help ura_dex_search
     ura_pod_info move_list_title relearn_pokemon charcreate_name rea_baile_demo rea_baile_turn rea_baile_grade rea_ppt_start
@@ -37,6 +38,7 @@ class DedupTest < PokeAccessTest
     vitro_controls vitro_encounters vitro_language
     vitro_ct_order vitro_ct_applause vitro_bb_button vitro_bb_slots vitro_bb_cell vitro_radio_tune vitro_radio_station
     vitro_radio_line vitro_radio_info vitro_walker_text vitro_walker_option vitro_trade_panel vitro_ev
+    ashen_case_tabs rc_step bdx_multi_chosen result_details result_panel tamas_dexnav tamas_dexnav_grid
   ].freeze
   # The tree and its findings, read once per run: neither changes during one.
   SCANS = {}

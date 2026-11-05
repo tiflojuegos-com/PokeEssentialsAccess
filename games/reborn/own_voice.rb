@@ -3,7 +3,8 @@
 # and anywhere the Blindstep coordinates and the lines map events say only through tts (the lit crystals, the ticket).
 PokeAccess::OwnVoiceRV.install([["PokemonNestMapScene", :pbStartScene], ["Scene_PulseDex_Info", :main],
                                 ["Scene_PulseDex_Battle", :pbStartScene], ["DefaultKeyboardControlsScene", :pbRender],
-                                ["DefaultGamepadControlsScene", :pbRender], ["Scene_Trade", :main]],
+                                ["DefaultGamepadControlsScene", :pbRender], ["Scene_Trade", :main],
+                                ["PokeBattle_Scene", :pbDrawMoveDetails]],
                                [/\AX -?\d+, Y -?\d+, map \d+, /, /\A\d+ yellow crystals lit up, /,
                                 /\A(?:Train|Seat|Destination|Adult): /])
 PokeAccess::OwnVoiceRV.leave_nest_to_game

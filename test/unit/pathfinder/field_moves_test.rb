@@ -92,6 +92,39 @@ class FieldMovesTest < PokeAccessTest
     assert_equal [:CUTITEM, :CUTITEM], asked
   end
 
+  test "an Advanced Items item that took the move over is the one way: a Pokemon that knows the move does not help" do
+    [{ :active => true }, { :item => true, :move => false }].each do |rule|
+      with_advanced_items(:SURF_CONFIG => { :internal_name => :SURFITEM }.merge(rule)) do
+        with_finder(:pk) do
+          with_private_method(:pbCanUseItem, lambda { |_cfg| false }) { assert_equal false, FM.can?(:SURF), rule.inspect }
+          with_private_method(:pbCanUseItem, lambda { |_cfg| true }) { assert_equal true, FM.can?(:SURF), rule.inspect }
+        end
+      end
+    end
+  end
+
+  test "a copy that keeps the move on leaves it to the party, and names the move" do
+    [{ :active => false }, { :item => true, :move => true }].each do |rule|
+      with_advanced_items(:SURF_CONFIG => { :internal_name => :SURFITEM }.merge(rule)) do
+        with_finder(:pk) do
+          with_private_method(:pbCanUseItem, lambda { |_cfg| false }) do
+            assert_equal true, FM.can?(:SURF), rule.inspect
+            assert_equal FM.name(:SURF), FM.clearer(:move => :SURF), rule.inspect
+          end
+        end
+      end
+    end
+  end
+
+  test "an obstacle whose move went to an item is cleared by that item's name" do
+    with_advanced_items(:CUT_CONFIG => { :internal_name => :CUTITEM, :active => true }) do
+      with_private_method(:pbCanUseItem, lambda { |_cfg| true }) do
+        assert_equal FM.item_name(:CUTITEM), FM.clearer(:move => :CUT)
+      end
+    end
+    assert_equal FM.name(:CUT), FM.clearer(:move => :CUT), "without the plugin, the move"
+  end
+
   test "an Advanced Items predicate that fails is no stand-in" do
     with_advanced_items(:CUT_CONFIG => { :internal_name => :CUTITEM, :item => true }) do
       with_finder(nil) do

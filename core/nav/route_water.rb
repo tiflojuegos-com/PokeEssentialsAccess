@@ -7,6 +7,8 @@ module PokeAccess
     SURF_AROUND = [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]]
     # How many launches are kept.
     LAUNCHES = 16
+    # How long, in seconds, a plan may spend telling whether the map has water; the map frames go on from where it stops.
+    WATER_READ = 0.025
 
     @launches = []
     @surf_company = nil
@@ -18,6 +20,7 @@ module PokeAccess
       return nil if ($PokemonGlobal.surfing rescue false)
       return nil if PokeAccess::FieldMoves.can?(:SURF) == false
       return nil if PokeAccess::MapMeta.always_bicycle?(($game_map.map_id rescue 0))
+      return nil if World::Terrain.water_on_map?(PokeAccess.clock + WATER_READ) == false
       tiles = SURF_AROUND.map { |dx, dy| [tx + dx, ty + dy] }
       return nil if Routes::Regions.water.status(tiles)[0] == :no
       foot = Routes::Regions.foot

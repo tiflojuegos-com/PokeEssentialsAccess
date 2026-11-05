@@ -38,6 +38,9 @@ module PokeAccess
 
       # Tile ids below this share their kind of tile's tag; a higher one, past any tileset's, is asked on its own.
       ID_SPAN = 8192
+      # What RPG Maker XP itself keeps in a map file (see extra_fields?).
+      MAP_FIELDS = %w[@tileset_id @width @height @autoplay_bgm @bgm @autoplay_bgs @bgs @encounter_list @encounter_step
+                      @data @events].freeze
 
       @label_rules = []
       @surf_rules = []
@@ -53,8 +56,38 @@ module PokeAccess
       # True when a game registered a surf rule.
       def self.ruled?; !@surf_rules.empty?; end
 
+      # Whether the map has any surfable tile, read row by row up to deadline: nil where that comes first, to go on from
+      # there; kept until the map or its tiles change. A surf can only cross such tiles (Moves.surf_water?). Up on a bridge,
+      # which hides the water below from the engine, any bridge tile counts.
+      def self.water_on_map?(deadline = nil)
+        Epoch.settle
+        return @wet unless @wet.nil?
+        d = $game_map.data
+        w = $game_map.width
+        h = $game_map.height
+        up = Engine.bridge_height > 0
+        y = @wet_row || 0
+        while y < h
+          x = 0
+          while x < w
+            return @wet = true if up ? (cell(x, y) & SURF) != 0 || bridge_at?(x, y) : wet_kind?(d, x, y)
+            x += 1
+          end
+          y += 1
+          next unless deadline && y < h && PokeAccess.clock > deadline
+          @wet_row = y
+          return nil
+        end
+        @wet = false
+      rescue StandardError => e
+        PokeAccess.swallowed(e)
+        true
+      end
+
       # Drops the tiles read (on a map or tiles change), keeping the classes of the tags seen.
       def self.forget
+        @wet = nil
+        @wet_row = nil
         @rows = {}
         @alike = {}
         @bridges = {}
@@ -62,6 +95,15 @@ module PokeAccess
         @w = nil
         @h = nil
         @layers = nil
+        @extra_fields = nil
+      end
+
+      # True when the map's file holds more than RPG Maker XP's own fields, as an editor's extra layers: its three tile ids
+      # may not tell what is on a tile then, and only the game's own terrain_tag knows how to read the rest.
+      def self.extra_fields?
+        return @extra_fields unless @extra_fields.nil?
+        raw = PokeAccess.ivar($game_map, :@map)
+        @extra_fields = raw && !(raw.instance_variables.map { |v| v.to_s } - MAP_FIELDS).empty? ? true : false
       end
 
       # How many tile layers the engine reads: Game_Map::LAYERS_COUNT where the game sets one (Essentials after 21.1
@@ -85,14 +127,25 @@ module PokeAccess
         @named = nil
       end
 
+      # True when (x,y) is water with the player off any bridge: each kind of tile is asked once, as read_class shares it.
+      def self.wet_kind?(d, x, y)
+        memo = @alike[d[x, y, 0].to_i]
+        b = d[x, y, 1].to_i
+        c = d[x, y, 2].to_i
+        i = memo && b < ID_SPAN && c < ID_SPAN ? memo[(c + b * ID_SPAN) * 4] : nil
+        (@bits[i || index(x, y, false)] & SURF) != 0
+      end
+
       # What was read of the map's tiles, with the classes it points to, for Visits to keep with the map left.
       def self.saved
-        [@rows, @alike, @bridges, @water, @classes, @values, @bits, @numbers, @kinds, @flags, @named, @bridge_tags]
+        [@rows, @alike, @bridges, @water, @classes, @values, @bits, @numbers, @kinds, @flags, @named, @bridge_tags, @wet]
       end
 
       # Puts back what saved gave; the map's size is read afresh.
       def self.restore(s)
-        @rows, @alike, @bridges, @water, @classes, @values, @bits, @numbers, @kinds, @flags, @named, @bridge_tags = s
+        @rows, @alike, @bridges, @water, @classes, @values, @bits, @numbers, @kinds, @flags, @named, @bridge_tags, @wet = s
+        @wet_row = nil
+        @extra_fields = nil
         @w = nil
         @h = nil
       end
@@ -172,13 +225,14 @@ module PokeAccess
       end
 
       # The class index of (x,y) in variant v (count_bridge and the bridge height, see index): the engine's tag for the
-      # first tile with its three tile ids, shared by the rest; a map read past three layers asks every tile.
+      # first tile with its three tile ids, shared by the rest; a map read past three layers, or holding more than they
+      # tell (extra_fields?), asks every tile.
       def self.read_class(x, y, count_bridge, v)
         d = $game_map.data
         a = d[x, y, 0].to_i
         b = d[x, y, 1].to_i
         c = d[x, y, 2].to_i
-        return class_of(Engine.terrain_tag(x, y, count_bridge)) if b >= ID_SPAN || c >= ID_SPAN || layers > 3
+        return class_of(Engine.terrain_tag(x, y, count_bridge)) if b >= ID_SPAN || c >= ID_SPAN || layers > 3 || extra_fields?
         memo = (@alike[a] ||= {})
         k = (c + b * ID_SPAN) * 4 + v
         i = memo[k]
@@ -212,7 +266,7 @@ module PokeAccess
         (0...layers).any? do |i|
           id = data[x, y, i].to_i
           id > 0 && bridge_tag?(tags[id])
-        end
+        end || (extra_fields? && bridge_tag?(Engine.terrain_tag(x, y, true)))
       rescue StandardError => e
         PokeAccess.swallowed(e)
         true

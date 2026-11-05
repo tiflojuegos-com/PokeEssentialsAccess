@@ -40,7 +40,8 @@ module PokeAccess
       :general => :cat_general_help, :pathfinder => :cat_pathfinder_help, :pathfinder_adv => :cat_nav_adv_help,
       :audio => :cat_audio_help, :audio3d_on => :cat_sounds_on_help, :audio3d_vol => :cat_pos_vol_help,
       :audio3d_freq => :cat_pos_freq_help, :audio3d_tone => :cat_pos_tone_help, :audio3d_walls => :cat_pos_walls_help,
-      :audio3d_adv => :cat_positional_adv_help, :debug => :cat_debug_help, :sounds => :cat_sounds_help,
+      :audio3d_adv => :cat_positional_adv_help, :debug => :cat_debug_help, :debug_diag => :cat_debug_diag_help,
+      :debug_nav => :cat_debug_nav_help, :sounds => :cat_sounds_help,
       :personal => :cat_personal_help, :remap => :cat_remap_help
     }
 
@@ -67,20 +68,26 @@ module PokeAccess
       rows
     end
 
-    # The debug screen: the diagnostic dumps, the recorder toggle and the self-check, then its settings.
+    # The debug screen: its diagnostics and the groups of settings that hang from it with something to show.
     def self.debug_rows
-      rows = [{ :kind => :action, :action => :diag_audio,  :label => :dbg_diag_audio },
-              { :kind => :action, :action => :diag_events, :label => :dbg_diag_events },
-              { :kind => :action, :action => :diag_perf,   :label => :dbg_diag_perf },
-              { :kind => :action, :action => :diag_map,    :label => :dbg_diag_map },
-              { :kind => :action, :action => :diag_scene,  :label => :dbg_diag_scene },
-              { :kind => :action, :action => :diag_full,   :label => :dbg_diag_full },
-              { :kind => :action, :action => :rec_toggle,
-                :label => (PokeAccess::Recorder.recording? ? :dbg_rec_stop : :dbg_rec_start) },
-              { :kind => :action, :action => :selfcheck, :label => :dbg_selfcheck }]
-      rows.concat(setting_rows(:debug))
+      rows = [screen_row(:debug_diag, :cat_debug_diag)]
+      shown_groups(:debug).each { |g| rows.push(screen_row(g.id, g.label)) }
       rows.push({ :kind => :back, :label => :back })
       rows
+    end
+
+    # The diagnostics screen: the diagnostic dumps, the recorder toggle and the self-check.
+    def self.debug_diag_rows
+      [{ :kind => :action, :action => :diag_audio,  :label => :dbg_diag_audio },
+       { :kind => :action, :action => :diag_events, :label => :dbg_diag_events },
+       { :kind => :action, :action => :diag_perf,   :label => :dbg_diag_perf },
+       { :kind => :action, :action => :diag_map,    :label => :dbg_diag_map },
+       { :kind => :action, :action => :diag_scene,  :label => :dbg_diag_scene },
+       { :kind => :action, :action => :diag_full,   :label => :dbg_diag_full },
+       { :kind => :action, :action => :rec_toggle,
+         :label => (PokeAccess::Recorder.recording? ? :dbg_rec_stop : :dbg_rec_start) },
+       { :kind => :action, :action => :selfcheck, :label => :dbg_selfcheck },
+       { :kind => :back, :label => :back }]
     end
 
     # The cane guide's row among the sound switches: whether Shift+I has the cane on, switched as the key switches it

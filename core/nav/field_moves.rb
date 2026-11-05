@@ -27,6 +27,7 @@ module PokeAccess
       hm = hm_items_item(move)
       return bag_has?(hm) unless hm.nil?
       return true if item_ready?(move)
+      return false if plugin_item(move)
       tool = tool_ready?(move)
       k = tool ? true : (tools_only?(move) ? tool : knows?(move))
       return k unless k
@@ -64,9 +65,10 @@ module PokeAccess
       gate[:item] ? bag_has?(gate[:item]) : can?(gate[:move])
     end
 
-    # What clears a gate's obstacle, as the game spells it: its item, else its move.
+    # What clears a gate's obstacle, as the game spells it: its item, the item its move was handed to, else its move.
     def self.clearer(gate)
-      gate[:item] ? item_name(gate[:item]) : name(gate[:move])
+      item = gate[:item] || plugin_item(gate[:move])
+      item ? item_name(item) : name(gate[:move])
     end
 
     # The spelling Marin's HM Items script gives a move in its constants, where it differs from ours.
@@ -93,6 +95,13 @@ module PokeAccess
     rescue StandardError => e
       PokeAccess.swallowed(e)
       false
+    end
+
+    # The item the Advanced Items plugin has handed a move to, or nil: :active in its older copies, :move off in the
+    # current one. The game's own checks then take no Pokemon for the move, so item_ready? is the whole rule.
+    def self.plugin_item(move)
+      cfg = advanced_items_config(move)
+      cfg && (cfg[:active] == true || cfg[:move] == false) ? cfg[:internal_name] : nil
     end
 
     # The Advanced Items plugin's configuration for a move (its <MOVE>_CONFIG), or nil without the plugin.

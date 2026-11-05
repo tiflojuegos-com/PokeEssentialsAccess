@@ -81,15 +81,12 @@ module PokeAccess
       {}
     end
 
-    # The raw terrain at (x,y) of another map, through the engine's map factory (the map it builds is kept
-    # while the player stays on this one).
+    # The raw terrain at (x,y) of another map, as the engine reads it (World::Neighbours); the map is held while the
+    # player stays on this one.
     def self.terrain_on(mid, x, y)
-      if @foreign.nil? || @foreign[0] != mid
-        f = (defined?($map_factory) && $map_factory) || (defined?($MapFactory) && $MapFactory)
-        m = f.respond_to?(:getMapNoAdd) ? f.getMapNoAdd(mid) : f.getMap(mid, false)
-        @foreign = [mid, m]
-      end
-      @foreign[1].terrain_tag(x, y)
+      @foreign = [mid, PokeAccess::World::Neighbours.map(mid)] if @foreign.nil? || @foreign[0] != mid
+      map = @foreign[1]
+      map && map.terrain_tag(x, y)
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil

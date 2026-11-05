@@ -29,6 +29,29 @@ class KeepOffPlatesTest < PokeAccessTest
     end
   end
 
+  test "a walk keeps off what a mechanic asks to avoid, while another way exists, and goes when it ends on it" do
+    $game_map.load_grid(OPEN)
+    plate = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(121, [3300, 3300, 0])])
+    $game_map.events[40] = TestGameEvent.new(:id => 40, :x => 3, :y => 1, :pages => [plate])
+    declare(:kind => :state, :avoids => [{ 40 => true }])
+    settle
+    assert_equal [2, 2, 6, 6, 6, 6, 6, 6, 8, 8], walk(7, 1).route.to_a, "round by the south, not over the plate"
+    assert_equal [6, 6], walk(3, 1).route.to_a, "onto it, when it is where the walk ends"
+  ensure
+    tidy
+  end
+
+  test "with no way round, a walk crosses what a mechanic asks to avoid" do
+    $game_map.load_grid(["#########", "#@......#", "#########"])
+    plate = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(121, [3300, 3300, 0])])
+    $game_map.events[40] = TestGameEvent.new(:id => 40, :x => 3, :y => 1, :pages => [plate])
+    declare(:kind => :state, :avoids => [{ 40 => true }])
+    settle
+    assert_equal [6, 6, 6, 6, 6, 6], walk(7, 1).route.to_a
+  ensure
+    tidy
+  end
+
   test "a walk keeps off a floor grid's cells only while a letter is formed on it" do
     active = false
     grid(lambda { active }) do

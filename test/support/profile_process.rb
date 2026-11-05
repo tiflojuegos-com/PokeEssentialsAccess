@@ -64,9 +64,11 @@ class ProfileProcessTest < PokeAccessTest
   RUBY
 
   class << self
-    # Declares the profile's folder under games/, the world loaded before it and the play run after it.
-    def profile(dir, world, play)
+    # Declares the profile's folder under games/, the world loaded before it, the play run after it and the engine it runs
+    # under.
+    def profile(dir, world, play, engine = "gen6")
       @profile = [dir, world, play]
+      @engine = engine
     end
 
     # Every probe's outcome by name, the process run once per test process.
@@ -82,7 +84,7 @@ class ProfileProcessTest < PokeAccessTest
 
     private
 
-    # Runs the world, the load (what the core alone does not bind noted apart) and the play in a gen-6 process, from a
+    # Runs the world, the load (what the core alone does not bind noted apart) and the play in a process of the engine, from a
     # file: a script this long does not reach the child whole through a Windows command line.
     def run_profile(dir, world, play)
       support = File.join(Harness::ROOT, "test", "support")
@@ -96,7 +98,7 @@ class ProfileProcessTest < PokeAccessTest
       begin
         file.write(script)
         file.close
-        @output = IO.popen([{ "PA_ENGINE" => "gen6" }, RbConfig.ruby, file.path], :err => [:child, :out],
+        @output = IO.popen([{ "PA_ENGINE" => @engine }, RbConfig.ruby, file.path], :err => [:child, :out],
                            :chdir => Harness::ROOT) { |io| io.read }.to_s
       ensure
         file.unlink

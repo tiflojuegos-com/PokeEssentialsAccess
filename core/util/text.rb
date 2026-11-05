@@ -1,5 +1,14 @@
 module PokeAccess
   module Util
+    # Text from a map as UTF-8, for a pattern with accents to read it: a Ruby with encodings takes the text of a map
+    # RPG Maker saved for binary. An invalid byte becomes "?".
+    def self.utf8(text)
+      s = text.to_s
+      return s unless s.respond_to?(:encoding) && s.encoding.to_s == "ASCII-8BIT"
+      u = s.dup.send(:force_encoding, "UTF-8")
+      u.valid_encoding? ? u : u.scrub("?")
+    end
+
     # Joins parts into one spoken line (". " by default), dropping nils and blanks.
     def self.join_parts(parts, sep = ". ")
       parts.reject { |s| s.nil? || s.to_s.strip.empty? }.join(sep)

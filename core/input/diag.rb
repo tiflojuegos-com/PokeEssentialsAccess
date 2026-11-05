@@ -227,6 +227,7 @@ module PokeAccess
       pf = PokeAccess::Pathfinder
       fx = PokeAccess::Routes::Effects
       o.push("pathfinder: reach=#{dv { c.route_reach }} limit=#{dv { c.route_limit }} astar=#{dv { c.astar_max }} budget=#{dv { c.route_budget_ms }} algo=#{dv { pf.path_algorithm }} edge_relax=#{dv { c.edge_relax }}")
+      o.push("neighbours: cache=#{dv { c.neighbour_cache }} background=#{dv { c.neighbours_background }} size=#{dv { c.neighbour_cache_size }} kept=#{dv { PokeAccess::World::Neighbours.maps.inspect }}")
       reg = PokeAccess::Routes::Regions.foot
       rs = dv { reg.tiles }
       if rs.is_a?(Array) && !rs.empty?

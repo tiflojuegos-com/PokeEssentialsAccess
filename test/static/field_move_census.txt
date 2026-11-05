@@ -28,6 +28,12 @@ armonia|pbStrength|0102_PField_HiddenMoves.rb:431|||STRENGTH
 armonia|pbSurf|0102_PField_HiddenMoves.rb:491|||SURF
 armonia|pbSurf|0189_follow.rb:2045|||SURF
 armonia|pbWaterfall|0102_PField_HiddenMoves.rb:646|||WATERFALL
+ashenfrost|pbCut|012_Overworld/004_Overworld_FieldMoves.rb:192|||CUT
+ashenfrost|pbDive|012_Overworld/004_Overworld_FieldMoves.rb:300|||DIVE
+ashenfrost|pbRockSmash|012_Overworld/004_Overworld_FieldMoves.rb:634|||ROCKSMASH
+ashenfrost|pbStrength|012_Overworld/004_Overworld_FieldMoves.rb:679|||STRENGTH
+ashenfrost|pbSurf|012_Overworld/004_Overworld_FieldMoves.rb:731|||SURF
+ashenfrost|pbWaterfall|012_Overworld/004_Overworld_FieldMoves.rb:985|||WATERFALL
 awakening|pbCut|0118 PField_FieldMoves.rb:189|||CUT
 awakening|pbDive|0118 PField_FieldMoves.rb:298|||DIVE
 awakening|pbRockSmash|0118 PField_FieldMoves.rb:612|||ROCKSMASH
@@ -44,6 +50,15 @@ darkhorizon|pbSurf|0244_Overworld_FieldMoves.rb:685|||SURF
 darkhorizon|pbSurf|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:6||__followingpkmn__pbSurf|SURF
 darkhorizon|pbWaterfall|0244_Overworld_FieldMoves.rb:926|||WATERFALL
 darkhorizon|pbWaterfall|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:118||__followingpkmn__pbWaterfall|WATERFALL
+decades|pbCut|0244_Overworld_FieldMoves.rb:176|||CUT
+decades|pbDive|0244_Overworld_FieldMoves.rb:278|||DIVE
+decades|pbDive|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:105||__followingpkmn__pbDive|DIVE
+decades|pbRockSmash|0244_Overworld_FieldMoves.rb:595|||ROCKSMASH
+decades|pbStrength|0244_Overworld_FieldMoves.rb:639|||STRENGTH
+decades|pbSurf|0244_Overworld_FieldMoves.rb:690|||SURF
+decades|pbSurf|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:6||__followingpkmn__pbSurf|SURF
+decades|pbWaterfall|0244_Overworld_FieldMoves.rb:933|||WATERFALL
+decades|pbWaterfall|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:172||__followingpkmn__pbWaterfall|WATERFALL
 desolation|pbCut|HiddenMoves.rb:179|||CUT,switch:Cut_Convenience
 desolation|pbDive|HiddenMoves.rb:690|||DIVE
 desolation|pbRockSmash|HiddenMoves.rb:299|||ROCKSMASH,switch:Rock_Smash_Convenience,switch:Stop_Arrows_Shooting,switch:Stop_Icycle_Falling,switch:Wall_Smash
@@ -95,6 +110,12 @@ gruelinggold|pbSurf|_PluginScripts/HM Catalogue/Main_Script.rb:461|||
 gruelinggold|pbWaterfall|012_Overworld/004_Overworld_FieldMoves.rb:994|||WATERFALL
 gruelinggold|pbWaterfall|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:118||__followingpkmn__pbWaterfall|WATERFALL
 gruelinggold|pbWaterfall|_PluginScripts/HM Catalogue/Main_Script.rb:477|||
+herolegacy|pbCut|0244_Overworld_FieldMoves.rb:176|||CUT
+herolegacy|pbDive|0244_Overworld_FieldMoves.rb:277|||DIVE
+herolegacy|pbRockSmash|0244_Overworld_FieldMoves.rb:591|||ROCKSMASH
+herolegacy|pbStrength|0244_Overworld_FieldMoves.rb:634|||STRENGTH
+herolegacy|pbSurf|0244_Overworld_FieldMoves.rb:685|||SURF
+herolegacy|pbWaterfall|0244_Overworld_FieldMoves.rb:926|||WATERFALL
 infinitefusion|pbCut|012_Overworld/004_Overworld_FieldMoves.rb:191|||CUT,MACHETE
 infinitefusion|pbDive|012_Overworld/004_Overworld_FieldMoves.rb:327|||DIVE,SCUBAGEAR
 infinitefusion|pbRockSmash|012_Overworld/004_Overworld_FieldMoves.rb:707|||PICKAXE,ROCKSMASH
@@ -114,6 +135,21 @@ insurgence|pbStrength|088_PokemonHiddenMoves.rb:700|||BARRAGE,BULLDOZE,GIGAIMPAC
 insurgence|pbSurf|088_PokemonHiddenMoves.rb:785|||LAPRAS,SURF,switch:4
 insurgence|pbSurf|166_PokemonFollow.rb:728|||SURF,switch:4
 insurgence|pbWaterfall|088_PokemonHiddenMoves.rb:998|||JETPACK,WATERFALL
+keishou|pbCut|0230_Overworld_FieldMoves.rb:192|||CUT
+keishou|pbCut|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:200|||
+keishou|pbDive|0230_Overworld_FieldMoves.rb:301|||DIVE
+keishou|pbDive|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:949|||
+keishou|pbDive|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:55||__followingpkmn__pbDive|DIVE
+keishou|pbRockSmash|0230_Overworld_FieldMoves.rb:667|||ROCKSMASH
+keishou|pbRockSmash|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:151||pbRockSmashRandomEncounter|
+keishou|pbStrength|0230_Overworld_FieldMoves.rb:712|||STRENGTH
+keishou|pbStrength|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:399|||
+keishou|pbSurf|0230_Overworld_FieldMoves.rb:765|||SURF
+keishou|pbSurf|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:872|||
+keishou|pbSurf|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:6||__followingpkmn__pbSurf|SURF
+keishou|pbWaterfall|0230_Overworld_FieldMoves.rb:1020|||WATERFALL
+keishou|pbWaterfall|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:1117|||
+keishou|pbWaterfall|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:118||__followingpkmn__pbWaterfall|WATERFALL
 opalo|pbCut|102_PField_HiddenMoves.rb:269|||CUT
 opalo|pbDive|102_PField_HiddenMoves.rb:704|||DIVE
 opalo|pbRockSmash|102_PField_HiddenMoves.rb:381|||ROCKSMASH
@@ -135,14 +171,14 @@ realidea|pbStrength|0103_PField_HiddenMoves.rb:412|||STRENGTH
 realidea|pbSurf|0103_PField_HiddenMoves.rb:465|||SURF
 realidea|pbWaterfall|0103_PField_HiddenMoves.rb:621|||WATERFALL
 reborn|pbCut|HiddenMoves.rb:191|||CUT,GOLDENAXE,HM01,switch:Cut_Convenience,switch:NotPlayerCharacter
-reborn|pbDive|HiddenMoves.rb:910|||DIVE,GOLDENSCUBAGEAR,HM06,switch:NotPlayerCharacter
+reborn|pbDive|HiddenMoves.rb:911|||DIVE,GOLDENSCUBAGEAR,HM06,switch:NotPlayerCharacter
 reborn|pbRockSmash|HiddenMoves.rb:317|||GOLDENHAMMER,ROCKSMASH,TM94,switch:NotPlayerCharacter,switch:Rock_Smash_Convenience,switch:Wall_Smash
-reborn|pbRockSmash|Reborn/RebornScripts.rb:2329||__reborn__pbRockSmash|switch:Stop_Arrows_Shooting,switch:Stop_Icycle_Falling
+reborn|pbRockSmash|Reborn/RebornScripts.rb:1932||__reborn__pbRockSmash|switch:Stop_Arrows_Shooting,switch:Stop_Icycle_Falling
 reborn|pbStrength|HiddenMoves.rb:402|||GOLDENGAUNTLET,HM04,STRENGTH,switch:NotPlayerCharacter
-reborn|pbStrength|Reborn/RebornScripts.rb:2338||__reborn__pbStrength|switch:Stop_Icycle_Falling
+reborn|pbStrength|Reborn/RebornScripts.rb:1941||__reborn__pbStrength|switch:Stop_Icycle_Falling
 reborn|pbSurf|HiddenMoves.rb:469|||GOLDENSURFBOARD,HM03,SURF,switch:Cant_Surf,switch:NotPlayerCharacter,switch:Surf_Convenience
-reborn|pbWaterfall|HiddenMoves.rb:835||pbWaterfallDialogue|
-reborn|pbWaterfallDialogue|HiddenMoves.rb:842|||GOLDENJETPACK,HM05,WATERFALL,switch:NotPlayerCharacter,switch:Waterfall_Convenience
+reborn|pbWaterfall|HiddenMoves.rb:836||pbWaterfallDialogue|
+reborn|pbWaterfallDialogue|HiddenMoves.rb:843|||GOLDENJETPACK,HM05,WATERFALL,switch:NotPlayerCharacter,switch:Waterfall_Convenience
 rejuvenation|pbCut|HiddenMoves.rb:207|||CUT,switch:Cut_Convenience,switch:NotPlayerCharacter
 rejuvenation|pbDive|HiddenMoves.rb:829|||DIVE,switch:NotPlayerCharacter
 rejuvenation|pbRockSmash|HiddenMoves.rb:318|||ROCKSMASH,switch:NotPlayerCharacter,switch:Rock_Smash_Convenience,switch:Wall_Smash

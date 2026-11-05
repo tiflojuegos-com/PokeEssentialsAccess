@@ -45,27 +45,44 @@ module PokeAccess
       PokeAccess::Locator.drawn_walk?(@drawn, drawn)
     end
 
-    # Adds the tiles the player moved since the last frame, a direction code each; a teleport (more than a hop, no jump:
-    # a jump lands in the frame it takes off; no run: see run?) or a new map starts the move afresh from here.
+    # Adds the tiles the player moved since the last frame, a direction code each; a teleport (far?; no run: see run?) or
+    # a new map starts the move afresh from here.
     def self.follow(here, run = false)
       prev = @trail || @from
       @trail = here
       return if here == prev
       dx = here[0] - prev[0]
       dy = here[1] - prev[1]
-      far = !run && dx.abs + dy.abs > 2 && !PokeAccess::Control.flag($game_player, :jumping?)
-      if here[2] != prev[2] || far
+      if here[2] != prev[2] || (!run && far?(dx, dy))
         @from = here
         @moves = []
         return
       end
+      add_tiles(dx, dy)
+    end
+
+    # True for what only a teleport moves in a frame: more than a hop and no jump, which lands in the frame it takes off.
+    def self.far?(dx, dy)
+      dx.abs + dy.abs > 2 && !PokeAccess::Control.flag($game_player, :jumping?)
+    end
+
+    # Adds the tiles of a hop of (dx, dy) to the way, a direction code each.
+    def self.add_tiles(dx, dy)
       dx.abs.times { @moves.push(dx < 0 ? 4 : 6) }
       dy.abs.times { @moves.push(dy < 0 ? 8 : 2) }
     end
 
-    # The move has ended at here: says how far from where it began (Routes::Text.moved), unless back on that tile, and
-    # keeps its way for the info key.
+    # Adds to the way the hop made as the move ended, as a climb's last jump; a teleport or a new map stays out of it.
+    def self.last_hop(here)
+      dx = here[0] - @trail[0]
+      dy = here[1] - @trail[1]
+      add_tiles(dx, dy) unless @trail[2] != here[2] || far?(dx, dy)
+    end
+
+    # The move has ended at here: says why (Locator.cause_line) or how far from where it began (Routes::Text.moved), unless
+    # back on that tile, and keeps its way for the info key.
     def self.finish(here)
+      last_hop(here)
       from = @from
       moves = @moves
       slid = @slid
@@ -74,7 +91,7 @@ module PokeAccess
       dx = here[0] - from[0]
       dy = here[1] - from[1]
       return if dx == 0 && dy == 0
-      PokeAccess.speak(PokeAccess::Routes::Text.moved(dx, dy), false)
+      PokeAccess.speak(PokeAccess::Locator.cause_line(from, here, :forced) || PokeAccess::Routes::Text.moved(dx, dy), false)
       @line = PokeAccess::Routes::Text.moved_path(moves, slid)
       @at = here
     end

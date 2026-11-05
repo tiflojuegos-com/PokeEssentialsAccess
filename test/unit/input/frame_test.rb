@@ -12,9 +12,26 @@ class FrameTest < PokeAccessTest
   test "the core's map frame runs the world, control, navigation and sound steps in this order" do
     want = [[:world, [:map_change, :teleport, :forced_move, :event_end, :battle_end, :info]],
             [:control, [:control]],
-            [:nav, [:listener, :feedback, :held_carry, :surfaces, :guide, :puzzles, :keys, :regions, :hpa]],
+            [:nav, [:listener, :feedback, :held_carry, :surfaces, :guide, :puzzles, :keys, :regions, :hpa, :neighbours]],
             [:sound, [:soundscape]]]
     assert_equal want, [:world, :control, :nav, :sound].map { |s| [s, Frame.steps_of(s)] }
+  end
+
+  test "builds neighbouring maps ahead only while the player is free" do
+    step = Frame.instance_variable_get(:@steps)[:nav].find { |s| s[2] == :neighbours }[3]
+    warmed = 0
+    PokeAccess::World::Neighbours.singleton_class.send(:alias_method, :spec_warm, :warm)
+    PokeAccess::World::Neighbours.define_singleton_method(:warm) { warmed += 1 }
+    Control.singleton_class.send(:alias_method, :spec_free?, :free?)
+    Control.define_singleton_method(:free?) { false }
+    step.call
+    assert_equal 0, warmed, "held"
+    Control.define_singleton_method(:free?) { true }
+    step.call
+    assert_equal 1, warmed, "free"
+  ensure
+    PokeAccess::World::Neighbours.singleton_class.send(:alias_method, :warm, :spec_warm)
+    Control.singleton_class.send(:alias_method, :free?, :spec_free?)
   end
 
   test "runs its steps by stage, then by order number, ties in registration order" do

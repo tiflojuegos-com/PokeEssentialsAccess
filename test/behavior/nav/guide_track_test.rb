@@ -505,6 +505,23 @@ class GuideTrackTest < PokeAccessTest
     end
   end
 
+  test "once control is back, a forced move a move cause knows says that in place of how far it went, and keeps its way" do
+    causes = PokeAccess::Locator.instance_variable_get(:@move_causes)
+    kept = causes.dup
+    seen = []
+    with_forced_moves do
+      PokeAccess::Locator.move_cause(:forced_test) { |from, to, kind| seen.push([from, to, kind]); "landed" }
+      map = $game_map.map_id
+      stand(2, 5)
+      carry([[2, 4], [2, 3]])
+      assert_equal [["landed", false]], release
+      assert_equal [[[2, 5, map], [2, 3, map], :forced]], seen
+      assert_equal T.t(:loc_moved_path, :legs => T.t(:moved_up, :n => 2)), FM.line
+    end
+  ensure
+    causes.replace(kept)
+  end
+
   test "a forced move waits for a message holding the player to close" do
     with_forced_moves do
       stand(2, 5)
@@ -589,6 +606,53 @@ class GuideTrackTest < PokeAccessTest
         set.call(true)
         assert_equal true, PokeAccess::Control.carried?, flag.to_s
       end
+    end
+  end
+
+  test "Rock Climb EX carries the player only while the climb has them going through, not with its flag left on" do
+    player = $game_player
+    player.define_singleton_method(:through) { @pa_through }
+    with_global_flag(:rockclimbing) do |set|
+      set.call(true)
+      player.instance_variable_set(:@pa_through, true)
+      assert_equal true, PokeAccess::Control.carried?
+      player.instance_variable_set(:@pa_through, false)
+      assert_equal false, PokeAccess::Control.carried?
+      set.call(false)
+      player.instance_variable_set(:@pa_through, true)
+      assert_equal false, PokeAccess::Control.carried?, "a move route going through, with no climb"
+    end
+  ensure
+    player.singleton_class.send(:remove_method, :through)
+    player.send(:remove_instance_variable, :@pa_through)
+  end
+
+  test "a last hop as the move ends counts in the way the info key keeps, as in what is said" do
+    with_forced_moves do
+      stand(2, 5)
+      carry([[2, 4], [2, 3]])
+      $game_player.y = 2
+      assert_equal [[moved(:moved_up, 3), false]], release
+      assert_equal T.t(:loc_moved_path, :legs => leg(3, :dir_up)), FM.line
+    end
+  end
+
+  test "the way the info key keeps tells a move down from one up" do
+    with_forced_moves do
+      stand(2, 1)
+      carry([[2, 2], [2, 3]])
+      release
+      assert_equal T.t(:loc_moved_path, :legs => leg(2, :dir_down)), FM.line
+    end
+  end
+
+  test "a teleport as the move ends stays out of the way the info key keeps" do
+    with_forced_moves do
+      stand(2, 5)
+      carry([[2, 4], [2, 3]])
+      $game_player.x = 8
+      release
+      assert_equal T.t(:loc_moved_path, :legs => leg(2, :dir_up)), FM.line
     end
   end
 

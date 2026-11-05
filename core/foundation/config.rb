@@ -26,11 +26,13 @@ module PokeAccess
       :sonar => [1, 30, 1, :tiles_unit],
       :astar => [1000, 10000, 500, nil],
       :ms    => [2, 40, 2, :ms_unit],
+      :slice => [1, 20, 1, :ms_unit],
       :gdist => [1, 6, 1, :tiles_unit],
       :reach => [32, 1024, 32, :tiles_unit],
       :desk  => [0, 3, 1, :tiles_unit],
       :msgs  => [100, 2000, 100, :msgs_unit],
-      :hpacl => [6, 20, 2, :tiles_unit]
+      :hpacl => [6, 20, 2, :tiles_unit],
+      :nmaps => [8, 64, 8, :maps_unit]
     }
 
     # List kinds: their values in the order the menu steps through them (a Proc for values listed elsewhere) and how
@@ -210,6 +212,7 @@ module PokeAccess
     group(:audio3d_adv,    :cat_positional_adv, :audio)
     group(:verbosity,      :cat_verbosity)
     group(:debug,          :cat_debug)
+    group(:debug_nav,      :cat_debug_nav,      :debug)
 
     SONAR = { :show_if => [:sound_nav, :full], :needs => :positional }
     NAV_ON = { :show_if => [:sound_nav, [:basic, :full]] }
@@ -250,6 +253,11 @@ module PokeAccess
            :show_if => [:path_algorithm, :hpa])
     define(:edge_relax,           false,  :flag,      :pathfinder_adv, :lbl_edge_relax,       :help_edge_relax)
     define(:regions_background,   true,   :flag,      :pathfinder_adv, :lbl_regions_background, :help_regions_background)
+    define(:regions_slice_ms,     8,      :slice,     :pathfinder_adv, :lbl_regions_slice,    :help_regions_slice,
+           :show_if => [:regions_background, true])
+    define(:neighbour_cache,      true,   :flag,      :pathfinder_adv, :lbl_neighbour_cache,  :help_neighbour_cache)
+    define(:neighbours_background, false, :flag,      :pathfinder_adv, :lbl_neighbours_background,
+           :help_neighbours_background, :show_if => [:neighbour_cache, true])
     define(:sound_nav,            :full,  :navmode,   :audio,          :lbl_sound_nav,        :help_sound_nav)
     define(:sonar_only_locatable, false,  :flag,      :audio,          :lbl_sonar_locatable,  :help_sonar_locatable, SONAR)
     define(:game_bump,            false,  :flag,      :audio,          :lbl_game_bump,        :help_game_bump, NAV_ON)
@@ -270,9 +278,12 @@ module PokeAccess
     define(:audio3d_alt_dist,     5,      :tiles,     :audio3d_adv,    :lbl_alt_dist,         :help_alt_dist, SONAR)
     define(:guide_distance,       3,      :gdist,     :audio3d_adv,    :lbl_guide_distance,   :help_guide_distance,
            NAV_ENGINE)
-    define(:transfer_active_page_only, true, :flag,   :debug,          :lbl_transfer_active_only, :help_transfer_active_only)
-    define(:route_stats,          false,  :flag,      :debug,          :lbl_route_stats,      :help_route_stats)
-    define(:revert_surf_sound,    false,  :flag,      :debug,          :lbl_revert_surf_sound, :help_revert_surf_sound)
+    define(:transfer_active_page_only, true, :flag,   :debug_nav,      :lbl_transfer_active_only, :help_transfer_active_only)
+    define(:route_stats,          false,  :flag,      :debug_nav,      :lbl_route_stats,      :help_route_stats)
+    define(:revert_surf_sound,    false,  :flag,      :debug_nav,      :lbl_revert_surf_sound, :help_revert_surf_sound)
+    define(:neighbour_cache_size, 16,     :nmaps,     :debug_nav,      :lbl_neighbour_cache_size,
+           :help_neighbour_cache_size, :show_if => [:neighbour_cache, true])
+    define(:near_events,          true,   :flag,      :debug_nav,      :lbl_near_events,      :help_near_events)
 
     #--- non-schema defaults ---
 

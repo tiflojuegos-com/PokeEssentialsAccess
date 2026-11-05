@@ -63,7 +63,7 @@ module PokeAccess
     # terrain the game reads to let the player surf across the seam.
     def self.water_ahead?(fx, fy)
       return PokeAccess::Routes::Moves.surf_water?(fx, fy) if ($game_map.valid?(fx, fy) rescue true)
-      far = PokeAccess::Locator.across(fx, fy)
+      far = PokeAccess::World::Engine.across(fx, fy)
       return false unless far
       t = PokeAccess::World::Terrain
       bits = t.tag_bits(PokeAccess::MapMeta.terrain_on(far[0], far[1], far[2]))

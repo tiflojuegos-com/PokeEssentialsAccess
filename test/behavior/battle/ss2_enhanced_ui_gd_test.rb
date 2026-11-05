@@ -1,4 +1,4 @@
-# Soulstones 2's Enhanced UI 1.1.2, old and edited, read from its profile through 1.1.2's signatures: the move panel,
+# Soulstones 2's Enhanced UI 1.1.2, old and edited, read by plugins/enhanced_ui_v1.rb through 1.1.2's signatures: the move panel,
 # the battler panel and the selection grid, each said as the game paints it.
 module Battle
   class Scene
@@ -57,12 +57,15 @@ module Battle
     def pbToggleBattleInfo; nil; end
   end
 end
-eval(Harness.source(File.join(Harness::ROOT, "games/soulstones2/enhanced_ui.rb")), TOPLEVEL_BINDING,
-     File.join(Harness::ROOT, "games/soulstones2/enhanced_ui.rb"))
+# The plugin's panels, cut before its overrides: the suite has evaluated the file once already, and those would stack.
+eui_path = File.join(Harness::ROOT, "plugins", "enhanced_ui_v1.rb")
+eval(Harness.source(eui_path)[/\A.*?(?=^PokeAccess::Hooks\.override)/m], TOPLEVEL_BINDING, eui_path)
+ss2_path = File.join(Harness::ROOT, "games", "soulstones2", "enhanced_ui.rb")
+eval(Harness.source(ss2_path), TOPLEVEL_BINDING, ss2_path)
 
 class Ss2EnhancedUiGdTest < PokeAccessTest
   I18n = PokeAccess::I18n
-  Reader = PokeAccess::SS2EnhancedUI
+  Reader = PokeAccess::EnhancedUIV1
   MALE = "♂"
   FEMALE = "♀"
   DESC = "Un ataque fisico de embestida."
@@ -177,13 +180,13 @@ class Ss2EnhancedUiGdTest < PokeAccessTest
     assert_equal [[panel_line(:verdict => verdict), false]], SpeakCapture.log
   end
 
-  test "says the flag icons it drew in their order, leaving out the frames that name nothing" do
+  test "says the flag icons it drew in their order, leaving out a frame that names nothing" do
     {
       [2, 3, 4, 9] => [I18n.t(:dbk_flag_noprotect, :move => "MovePROTECT"),
                        I18n.t(:dbk_flag_nomirror, :move => "MoveMIRRORMOVE"), I18n.t(:dbk_flag_contact),
                        I18n.t(:dbk_flag_punch)],
       [5, 16] => [I18n.t(:dbk_flag_minimize, :move => "MoveMINIMIZE"), I18n.t(:dbk_flag_wind)],
-      [0, 4, 1, 17] => [I18n.t(:dbk_flag_contact)]
+      [0, 4, 1, 17] => [I18n.t(:dbkf_zmove), I18n.t(:dbk_flag_contact), I18n.t(:dbkf_dynamax)]
     }.each do |frames, words|
       SpeakCapture.clear
       open_panel(tackler, :flag_frames => frames)
@@ -200,7 +203,7 @@ class Ss2EnhancedUiGdTest < PokeAccessTest
       6 => I18n.t(:dbk_flag_highcrit), 7 => I18n.t(:dbk_flag_thaw), 8 => I18n.t(:dbk_flag_sound),
       9 => I18n.t(:dbk_flag_punch), 10 => I18n.t(:dbk_flag_bite), 11 => I18n.t(:dbk_flag_bomb),
       12 => I18n.t(:dbk_flag_pulse), 13 => I18n.t(:dbk_flag_powder), 14 => I18n.t(:dbk_flag_dance),
-      15 => I18n.t(:dbk_flag_slice), 16 => I18n.t(:dbk_flag_wind), 0 => nil, 1 => nil, 17 => nil
+      15 => I18n.t(:dbk_flag_slice), 16 => I18n.t(:dbk_flag_wind), 0 => I18n.t(:dbkf_zmove), 1 => I18n.t(:dbkf_dynamax), 17 => nil
     }.each do |frame, word|
       SpeakCapture.clear
       open_panel(tackler, :flag_frames => [frame])
@@ -451,6 +454,24 @@ class Ss2EnhancedUiGdTest < PokeAccessTest
                                                  :pbTypes => [:WATER] }.merge(fields)))
       assert_equal [[line, true]], SpeakCapture.log, label
     end
+  end
+
+  test "says the Tera Type icon the panel paints with Terastal Phenomenon, a foe under Illusion's as its disguise's" do
+    disguise = answering(:name => "Absol", :types => [:ELECTRIC], :tera_type => :GHOST)
+    foe = { :index => 1, :pbOwnedByPlayer? => false, :opposes? => true, :displayPokemon => disguise, :tera_type => :FIRE }
+    with_terastal do
+      assert_includes Reader.battler_text(answering(foe)), I18n.t(:ss2_adv_tera, :t => "TypeFIRE")
+      assert_includes Reader.battler_text(answering(foe.merge(:effects => { PBEffects::Illusion => disguise }))),
+                      I18n.t(:ss2_adv_tera, :t => "TypeGHOST")
+      own = { :name => "Chispa", :index => 0, :pbOwnedByPlayer? => true, :opposes? => false, :tera_type => :WATER,
+              :effects => { PBEffects::Illusion => disguise } }
+      assert_includes Reader.battler_text(answering(own)), I18n.t(:ss2_adv_tera, :t => "TypeWATER"), "the player's own, as it is"
+    end
+  end
+
+  test "says no Tera Type without Terastal Phenomenon, as Soulstones 2's panel draws none" do
+    line = Reader.battler_text(answering(:name => "Chispa", :index => 0, :pbOwnedByPlayer? => true, :tera_type => :WATER))
+    refute_includes line, I18n.t(:ss2_adv_tera, :t => "TypeWATER")
   end
 
   test "says the ??? types as unknown for a celestial battler or a foe the Pokedex never met, else the real ones" do
@@ -748,6 +769,14 @@ class Ss2EnhancedUiGdTest < PokeAccessTest
   # Records line as the fight menu's last read ([battler index, move index, phrases]), as its reader does.
   def fight_line_said(line)
     PokeAccess::BattleScene.instance_variable_set(:@fight_line, line)
+  end
+
+  # Runs the block with Terastal Phenomenon reported as installed.
+  def with_terastal
+    Object.const_set(:PluginManager, Module.new { def self.installed?(name); name == "Terastal Phenomenon"; end })
+    yield
+  ensure
+    Object.send(:remove_const, :PluginManager)
   end
 
   # The changes wording for list, without the sentence separator its key starts with.

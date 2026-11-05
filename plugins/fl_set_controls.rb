@@ -26,8 +26,10 @@ module PokeAccess
     end
 
     # The scene's text box as a watcher pair: its line, keyed on itself, so each change is said once and blanks stay
-    # quiet.
+    # quiet. While the game waits for a key, the mod's own keys give way.
     def self.box_line(scene)
+      win = PokeAccess.sprite(scene, "controlwindow")
+      PokeAccess::Keys.typing! if win && (win.readingInput rescue false)
       box = PokeAccess.sprite(scene, "textbox")
       t = box ? PokeAccess.clean((box.text rescue "").to_s) : ""
       [t, t]

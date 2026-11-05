@@ -14,6 +14,40 @@ class PushRulesTest < PokeAccessTest
     end
   end
 
+  test "asks a game's rule with the tile the push would leave the boulder on" do
+    fx = PokeAccess::Routes::Effects
+    kept = fx.instance_variable_get(:@push_rules).dup
+    asked = []
+    edge = 7
+    fx.push_script(/pbPushThisBoulder/) { |x, y| asked.push([x, y]); x <= edge }
+    with_boulder do
+      assert_nil push_route, "the boulder stops short of the turn"
+      assert_includes asked, [8, 1]
+      assert_equal [5, 1], asked.first
+      edge = 8
+      PokeAccess::Pathfinder.invalidate_cache(true)
+      route, gate = push_route
+      assert_equal [[6, 6], 4], [route.to_a, gate[:x]]
+    end
+  ensure
+    fx.instance_variable_set(:@push_rules, kept)
+  end
+
+  test "carries a boulder only over the tiles a game's rule lets it onto" do
+    fx = PokeAccess::Routes::Effects
+    kept = fx.instance_variable_get(:@push_rules).dup
+    edge = 5
+    fx.push_script(/pbPushThisBoulder/) { |x, _y| x <= edge }
+    with_boulder do
+      ev = $game_map.events[61]
+      assert_equal :none, PokeAccess::Routes::Planner.carried(ev, [7, 1, 7, 1]).kind
+      edge = 7
+      assert_equal :assisted, PokeAccess::Routes::Planner.carried(ev, [7, 1, 7, 1]).kind
+    end
+  ensure
+    fx.instance_variable_set(:@push_rules, kept)
+  end
+
   test "names no field move for a Strength boulder once Strength is in use on the map" do
     was = $PokemonMap
     $PokemonMap = Struct.new(:strengthUsed).new(false)

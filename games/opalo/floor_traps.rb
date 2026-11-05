@@ -1,6 +1,6 @@
 # Opalo's trap floor: the game sends a player who steps on terrain tag 4 (PBTerrain::Rock) back to the entrance of
 # its psychic gym (map 36; 21,69), whatever the map, with no message, so no route steps on it, it is named as a trap
-# and the move back is said as the trap's. The gym's path lights are a mechanic (puzzles.rb).
+# and the move back is said as the trap's. The gym's path lights are a mechanic (puzzles/psychic_gym.rb).
 module PokeAccess
   module OpaloTraps
     # True where (x,y) is trap floor.

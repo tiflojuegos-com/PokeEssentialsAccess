@@ -462,7 +462,7 @@ end
 # FL's Set the Controls (the v16/v17 script): the rebinding list, and the scene, whose pbMain runs one scripted step
 # per frame (a line for its text box, or a call).
 class Window_PokemonControls < Window_DrawableCommand
-  attr_accessor :index, :defaults
+  attr_accessor :index, :defaults, :readingInput
   def initialize(controls); @controls = controls; @index = 0; end
   def setNewInput(key); @controls[@index].keyName = key; end
   # A frame of the window; with defaults handed in it is the press on Default, which swaps in a fresh list.

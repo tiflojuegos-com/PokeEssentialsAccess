@@ -80,6 +80,7 @@ module PokeAccess
       when :scheme_edit                        then scheme_edit_rows
       when :reading_group                      then reading_group_rows(@reading_group)
       when :debug                              then debug_rows
+      when :debug_diag                         then debug_diag_rows
       else group_rows(@mode)
       end
     end

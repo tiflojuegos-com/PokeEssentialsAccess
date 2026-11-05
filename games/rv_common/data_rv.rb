@@ -223,6 +223,12 @@ module PokeAccess
       PokeAccess.swallowed(e)
       nil
     end
+
+    # The connections between maps where the engine keeps them on $cache instead of behind MapFactoryHelper
+    # (Rejuvenation), flat rows as on gen-6; nil elsewhere.
+    def self.map_connections
+      engine? && $cache.respond_to?(:connections) ? $cache.connections : nil
+    end
   end
 end
 

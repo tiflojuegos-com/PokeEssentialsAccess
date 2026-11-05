@@ -216,6 +216,13 @@ class LocatorNamingTest < PokeAccessTest
     assert_equal texts.values.map { |k| t(k) }, said
   end
 
+  test "a sign's text read as the bytes a map keeps it in is named all the same" do
+    texts = { "La porte est verrouillée.".b => :loc_sign_locked, "\"The key Pokémon shall unlock\"".b => :loc_sign,
+              "Pok\xE9mon sign".b => :loc_sign }
+    said = texts.keys.each_with_index.map { |s, i| locator.target_name(event(90 + i, "", [TestCmd.new(101, [s])])) }
+    assert_equal texts.values.map { |k| t(k) }, said
+  end
+
   test "a sign is named by the text its live page shows, and a sign alone with sign names off" do
     old = TestPage.new(:trigger => 0, :sprite => "", :list => [TestCmd.new(101, ["Aquí solo hay basura."])])
     now = TestPage.new(:trigger => 0, :sprite => "", :list => [TestCmd.new(101, ["Bienvenido a Ciudad Lirio."])],

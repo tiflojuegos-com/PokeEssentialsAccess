@@ -12,6 +12,7 @@
     fusion_marks
     outfits
     shop_actions
+    shared_buildings
     character_creator
     field_moves
     water_current

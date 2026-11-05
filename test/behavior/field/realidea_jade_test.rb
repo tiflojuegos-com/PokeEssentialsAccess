@@ -1,4 +1,4 @@
-# Realidea's Jade screens (games/realidea/jade_screens.rb), through the game's own methods: the theatre's choreography
+# Realidea's Jade screens (games/realidea/puzzles/jade_screens.rb), through the game's own methods: the theatre's choreography
 # sheet and the dance it is checked against, the gym's cry helper, and the rhythm game two of the gym's battles open.
 
 # The event interpreter, down to Set Move Route (command 209): it forces the route @parameters[1] on the character
@@ -57,12 +57,12 @@ class Idol
   end
 end
 
-jade = File.join(Harness::ROOT, "games", "realidea", "jade_screens.rb")
+jade = File.join(Harness::ROOT, "games", "realidea", "puzzles", "jade_screens.rb")
 eval(Harness.source(jade), TOPLEVEL_BINDING, jade)
 
 class RealideaJadeTest < PokeAccessTest
   # The theatre's puzzle as the profile declared it on its map, kept before the first test clears the declarations.
-  DANCE = PokeAccess::World::Mechanics.declared(113)
+  DANCE = Harness.declared(113)
   # The species the cry helper's three sprites show for each value of $game_variables[91], as its constructor sets them
   # (the 035 there is octal: species 29).
   TRIOS = { 1 => [209, 29, 742], 2 => [175, 546, 281], 3 => [703, 183, 755] }

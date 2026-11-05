@@ -190,6 +190,28 @@ class InternalWarpTest < PokeAccessTest
     assert_equal [[["sent back", false]]] * 3, said
   end
 
+  test "a transfer from another map says what a move cause knows of it, queued, and nothing otherwise" do
+    map = $game_map.map_id
+    seen = []
+    with_move_cause(lambda { |from, to, kind| seen.push([from, to, kind]); from[2] == map + 1 ? "wrong exit" : nil }) do
+      stand(21, 5)
+      $game_map.map_id = map + 1
+      SpeakCapture.clear
+      stand(30, 6)
+      assert_equal [], SpeakCapture.log, "a cause that does not know it"
+      $game_map.map_id = map
+      SpeakCapture.clear
+      stand(89, 14)
+      assert_equal [["wrong exit", false]], SpeakCapture.log
+      assert_equal [[[21, 5, map], [30, 6, map + 1], :map], [[30, 6, map + 1], [89, 14, map], :map]], seen
+      SpeakCapture.clear
+      stand(21, 5)
+      assert_equal 2, seen.length, "a teleport within the map is not a move cause's"
+    end
+  ensure
+    $game_map.map_id = map
+  end
+
   test "a teleport whose cause no profile knows, or whose cause fails, keeps the teleport line" do
     causes = { "unknown" => lambda { |_from, _to| nil }, "failing" => lambda { |_from, _to| raise "unreadable" } }
     causes.each do |what, cause|
@@ -274,6 +296,17 @@ class InternalWarpTest < PokeAccessTest
     causes = Loc.instance_variable_get(:@teleport_causes)
     kept = causes.dup
     Loc.teleport_cause(:internal_warp_test, &cause)
+    yield
+  ensure
+    causes.replace(kept)
+  end
+
+  # The block's value with cause registered as a move cause alone, the causes put back after.
+  def with_move_cause(cause)
+    causes = Loc.instance_variable_get(:@move_causes)
+    kept = causes.dup
+    causes.clear
+    Loc.move_cause(:internal_warp_test, &cause)
     yield
   ensure
     causes.replace(kept)

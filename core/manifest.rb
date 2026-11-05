@@ -63,6 +63,7 @@
   world/flags
   world/events
   world/probe
+  world/neighbours
   world/mechanics
   world/mechanics/builder
   world/mechanics/grid
@@ -188,6 +189,8 @@
   nav/region_map
   nav/town_map
   nav/locator
+  puzzles/auto
+  puzzles/reach
   nav/guide
   nav/forced_move
   nav/held_carry

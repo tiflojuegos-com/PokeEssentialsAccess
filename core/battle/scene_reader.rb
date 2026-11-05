@@ -20,6 +20,20 @@ module PokeAccess
                  :throw_ball => :bt_cmd_ball, :throw_ball_contest => :bt_cmd_ball,
                  :throw_bait => :bt_cmd_bait, :throw_rock => :bt_cmd_rock }
 
+    # The fight menu's special-action button set to mode v: says the mechanic on or off, by the name noted for it, then
+    # the renamed focused move again, queued.
+    def self.mechanic_mode(menu, v)
+      return unless defined?(::Battle::Scene::FightMenu) && menu.is_a?(::Battle::Scene::FightMenu)
+      k = PokeAccess::Battle.special_key(menu.instance_variable_get(:@access_mega), v)
+      menu.instance_variable_set(:@access_mega, v) if v.is_a?(Integer)
+      if k.is_a?(Array)
+        PokeAccess.speak(PokeAccess::I18n.t(k[0], :name => PokeAccess::I18n.t(k[1])), true)
+      elsif k
+        PokeAccess.speak(PokeAccess::I18n.t(k), true)
+      end
+      read_menu(menu, false) if k
+    end
+
     # Reads the focused option of a command, fight or target menu, and hands the info key the foe, move or text.
     # param interrupt false on open, so the read does not cut the hp and turn lines
     def self.read_menu(menu, interrupt = true)

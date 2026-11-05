@@ -146,60 +146,6 @@ module PokeAccess
       false
     end
 
-    # The connections involving a map: eachConnectionForMap where it exists, else getMapConnections, a flat list on
-    # gen-6 but indexed by map id in both Infinite Fusion games (probed by indexed?).
-    def self.connections_for(id)
-      if MapFactoryHelper.respond_to?(:eachConnectionForMap)
-        list = []
-        (MapFactoryHelper.eachConnectionForMap(id) { |c| list.push(c) } rescue nil)
-        return list
-      end
-      c = (MapFactoryHelper.getMapConnections rescue nil)
-      return [] unless c.is_a?(Array)
-      indexed?(c) ? (c[id].is_a?(Array) ? c[id] : []) : c
-    rescue StandardError => e
-      PokeAccess.swallowed(e)
-      []
-    end
-
-    # True when the connection table is indexed by map id: its entries are lists of connection rows.
-    def self.indexed?(table)
-      table.any? { |e| e.is_a?(Array) && e[0].is_a?(Array) }
-    rescue StandardError => e
-      PokeAccess.swallowed(e)
-      false
-    end
-
-    # The map reached by stepping onto off-map (ox, oy) via a connection and the tile there, as [map id, x, y], or nil,
-    # by the engine's connection math.
-    def self.connection_tile(conns, id, ox, oy)
-      conns.each do |conn|
-        if conn[0] == id
-          dest = conn[3]
-          nx = (conn[4] - conn[1]) + ox; ny = (conn[5] - conn[2]) + oy
-        elsif conn[3] == id
-          dest = conn[0]
-          nx = (conn[1] - conn[4]) + ox; ny = (conn[2] - conn[5]) + oy
-        else
-          next
-        end
-        dims = (MapFactoryHelper.getMapDims(dest) rescue [0, 0])
-        return [dest, nx, ny] if dims[0] > 0 && nx >= 0 && nx < dims[0] && ny >= 0 && ny < dims[1]
-      end
-      nil
-    end
-
-    # The tile across a connection from off-map (ox, oy) of the current map, as connection_tile; nil on a map with no
-    # connections.
-    def self.across(ox, oy)
-      return nil unless defined?(MapFactoryHelper) && $game_map
-      id = $game_map.map_id
-      connection_tile(connections_for(id), id, ox, oy)
-    rescue StandardError => e
-      PokeAccess.swallowed(e)
-      nil
-    end
-
     # Synthetic exit targets for map-edge connections, one per destination map ("exit to <map>"), cached per map id;
     # none without MapFactoryHelper.
     def self.connection_targets
@@ -221,7 +167,8 @@ module PokeAccess
     # leading there kept by destination, with its way out, for aim_connection and the sonar.
     def self.build_connection_targets(id)
       @conn_edges = {}
-      conns = connections_for(id)
+      engine = PokeAccess::World::Engine
+      conns = engine.connections(id)
       return [] if conns.empty?
       w = ($game_map.width rescue 0); h = ($game_map.height rescue 0)
       return [] if w <= 0 || h <= 0
@@ -229,7 +176,7 @@ module PokeAccess
       best = {}
       edges = {}
       check = lambda do |tx, ty, ox, oy, way|
-        far = (connection_tile(conns, id, ox, oy) rescue nil)
+        far = (engine.connection_tile(conns, id, ox, oy) rescue nil)
         return unless far
         dest = far[0]
         (edges[dest] ||= []).push([tx, ty, way])

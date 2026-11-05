@@ -52,7 +52,8 @@ end
 class MaxLairEventScene
   attr_accessor :script
   [:pbRentalSelect, :pbSwapSelect, :pbItemSelect, :pbTrainingSelect, :pbTutorSelect, :pbPrizeSelect,
-   :pbTreasureScreen, :pbEndlessRecordScreen, :pbDrawItemScreen, :pbDrawStatScreen, :pbDrawTutorScreen].each do |m|
+   :pbTreasureScreen, :pbEndlessRecordScreen, :pbDrawItemScreen, :pbDrawStatScreen, :pbDrawTutorScreen,
+   :pbDrawSwapScreen].each do |m|
     define_method(m) do |*args|
       (@script[m].call(self, *args) if @script && @script[m])
       m
@@ -342,6 +343,35 @@ class ZudMaxLairGdTest < PokeAccessTest
       scene.pbPrizeSelect(prizes)
     end
     assert_equal [[PokeAccess::Verbosity.list_entry("Ditto, #{t(:pk_shiny)}", 2, 2), false]], SpeakCapture.log
+  end
+
+  test "the release for 20 keeps its prizes in the adventure, and hands the newcomer of a swap only to its drawing" do
+    prizes = [mon("Eevee"), mon("Ditto")]
+    newcomer = mon("Eevee", :gender => 2, :ev => {})
+    $Trainer = Trainer.new([mon("Charmander")])
+    scene = MaxLairEventScene.new
+    meta = (class << Lair; self; end)
+    meta.send(:alias_method, :v20_prizes_state, :state)
+    Lair.define_singleton_method(:state) { Struct.new(:prizes).new(prizes) }
+    with_stats do
+      scene.script = {
+        :pbPrizeSelect => lambda do |s|
+          s.instance_variable_set(:@sprites, { "partysprite0" => arrow(true, 60), "partysprite1" => arrow(true, 100),
+                                               "rightarrow" => arrow(true, 65) })
+          Menus.poll
+        end
+      }
+      scene.pbPrizeSelect
+      assert_equal [[PokeAccess::Verbosity.list_entry("Eevee", 1, 2), false]], SpeakCapture.log
+      SpeakCapture.clear
+      scene.pbDrawSwapScreen(nil)
+      assert_equal [], SpeakCapture.log, "repainted with no newcomer"
+      scene.pbDrawSwapScreen(newcomer)
+      assert_includes SpeakCapture.log[0][0], "#{t(:zlair_new)}: Eevee"
+    end
+  ensure
+    meta.send(:alias_method, :state, :v20_prizes_state)
+    meta.send(:remove_method, :v20_prizes_state)
   end
 
   test "the record screen is read whole once painted, its labels joined to their values; other layers ignored" do

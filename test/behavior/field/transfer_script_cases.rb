@@ -46,6 +46,59 @@ module TransferScriptCases
         assert_equal cases, got.to_h
       end
 
+      test "a pattern's block answers where the call leads, a map id or the map with its landing" do
+        { 319 => [319, nil, nil], [319, 7, 9] => [319, 7, 9], [319, 7] => [319, 7, nil] }.each do |answer, dest|
+          with_pattern(/^\s*go_in\(/, lambda { |_m| answer }) do
+            assert_equal dest, loc.script_transfer_dest("go_in(:TOWN)"), answer.inspect
+            assert_equal [319, true, true, true, :door], door_state(script_tile("go_in(:TOWN)")), answer.inspect
+          end
+        end
+      end
+
+      test "a pattern's block gets the match" do
+        with_pattern(/^\s*go_in\(\s*:(\w+)/, lambda { |m| m[1] == "MART" ? 5 : 6 }) do
+          assert_equal [5, 6], ["go_in(:MART)", "go_in(:CENTER)"].map { |s| loc.script_transfer_map(s) }
+        end
+      end
+
+      test "a call that names no map is still a door: said as an exit, and a route ends on it" do
+        [[/^\s*go_back\b/, nil], [/^\s*go_back\b/, lambda { |_m| nil }], [/^\s*go_back\b/, lambda { |_m| raise "no" }],
+         [/^\s*(go_back)\b/, nil]].each do |re, dest|
+          with_pattern(re, dest) do
+            ev = script_tile("go_back")
+            assert_equal [nil, nil, nil], loc.script_transfer_dest("go_back")
+            assert_equal [nil, true, true, true, :door], door_state(ev)
+            assert_equal PokeAccess::I18n.t(:loc_exit), loc.target_name(tile([TestCmd.new(355, ["go_back"])], 1, "EV091"))
+            assert_equal [:exit], touch_effect(ev)
+          end
+        end
+      end
+
+      test "a sign that also calls a door with no named map is a door" do
+        with_pattern(/^\s*go_back\b/) do
+          ev = tile([TestCmd.new(101, ["Hasta luego."]), TestCmd.new(355, ["go_back"])], 0)
+          assert_equal [false, true], [loc.sign_event?(ev), loc.transfer_event?(ev)]
+        end
+      end
+
+      test "of two patterns that match, the one that names a map wins whichever comes first" do
+        with_pattern(/^\s*go_back\b/) do
+          call = "go_back\npbTransferPlayer(42,10,20)"
+          assert_equal [42, 10, 20], loc.script_transfer_dest(call)
+        end
+        with_pattern(/\bpbTransferPlayer\b/) do
+          assert_equal [42, 10, 20], loc.script_transfer_dest("pbTransferPlayer(42,10,20)")
+        end
+      end
+
+      test "a page that is not live or an autorun page is no door, however a pattern matches" do
+        with_pattern(/^\s*go_back\b/) do
+          assert_equal false, loc.transfer_event?(script_tile("go_back", 3))
+          assert_equal false, loc.transfer_event?(script_tile("go_back", 4))
+          assert_equal false, loc.transfer_event?(script_tile("pbMessage(\"go_back\")"))
+        end
+      end
+
       test "a call split across a 355 line and its 655 continuations is read whole" do
         calls = { ["pbTransferWithTransition(", "32,10,1,:DIRECTED)"] => 32,
                   ["pbTransferWithTransition(", "32,10,1,", ":DIRECTED, 8)"] => 32,
@@ -84,7 +137,8 @@ module TransferScriptCases
         calls = { "pbTransferPlayer(42,10,20)" => [42, 10, 20],
                   "#{to17}\n$game_temp.player_new_x = 3\n$game_temp.player_new_y = 4" => [17, 3, 4],
                   "#{to17}\n$game_temp.player_new_x = 3" => [17, nil, nil], "pbTransferPlayer(42)" => [42, nil, nil],
-                  "pbTransferPlayer(1)\npbTransferPlayer(42,10,20)" => [1, nil, nil], "pbMessage(1)" => nil }
+                  "pbTransferPlayer(1)\npbTransferPlayer(42,10,20)" => [1, nil, nil], "pbMessage(1)" => nil,
+                  "pbTransferPlayer(1)\n#{to17}" => [1, nil, nil] }
         assert_equal calls, calls.map { |call, _| [call, loc.script_transfer_dest(call)] }.to_h
       end
 
@@ -114,10 +168,16 @@ module TransferScriptCases
          loc.in_category?(ev, :all), PokeAccess::Sound::Scene.family_of(ev)]
       end
 
-      # The block's value with re registered as a profile registers it; the patterns as they were put back after.
-      def with_pattern(re)
+      # What a route makes of stepping onto a tile from above.
+      def touch_effect(ev)
+        PokeAccess::Routes::Effects.touch_effect_of(PokeAccess::EventPages.outcome(ev, 2), 2, nil, $game_map.map_id)
+      end
+
+      # The block's value with re registered as a profile registers it, dest answering where it leads if given; the
+      # patterns as they were put back after.
+      def with_pattern(re, dest = nil)
         saved = PokeAccess::Locator::TRANSFER_SCRIPTS.dup
-        PokeAccess::Locator.register_transfer_script(re)
+        PokeAccess::Locator.register_transfer_script(re, &dest)
         PokeAccess::Locator.clear_verdicts
         yield
       ensure

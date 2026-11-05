@@ -242,11 +242,17 @@ class InsurgenceRulesTest < PokeAccessTest
     end
   end
 
-  test "is no push when the route steps the player, rolls it two tiles, or the action button fires it" do
+  test "is no push when the route steps the player or rolls it two tiles" do
     { "a route on the player" => rolling(:target => -1), "the player stepping too" => rolling(:player => [1]),
-      "two tiles" => rolling(:steps => 2), "the action button" => rolling(:trigger => 0) }.each do |what, ev|
+      "two tiles" => rolling(:steps => 2) }.each do |what, ev|
       assert_equal false, Effects.self_pushed?(ev), what
     end
+  end
+
+  test "is a push by the action button for an object that says nothing, and none for a person or what talks" do
+    assert_equal true, Effects.self_pushed?(rolling(:trigger => 0)), "an object"
+    assert_equal false, Effects.self_pushed?(rolling(:trigger => 0, :sprite => "NPC 01")), "a person"
+    assert_equal false, Effects.self_pushed?(rolling(:trigger => 0, :say => "It moved.")), "what talks"
   end
 
   test "a boulder its script pushes needs Strength, as one named a boulder alone does" do

@@ -127,6 +127,15 @@ class FlSetControlsTest < PokeAccessTest
     assert_equal ["Fill all fields!", "Fill all fields!"], SpeakCapture.lines
   end
 
+  test "the mod's keys give way while the game waits for a key, and only then" do
+    win = Window_PokemonControls.new([Control.new("Action", "C")])
+    PokemonControlsScene.new(win, TextBox.new(""), ["View/Change your controls"]).pbMain
+    refute PokeAccess::Keys.typing?
+    win.readingInput = true
+    PokemonControlsScene.new(win, TextBox.new(""), ["Press a new key."]).pbMain
+    assert PokeAccess::Keys.typing?
+  end
+
   test "names each sign of a key painted as signs alone, as the remap names them, and keeps lettered names" do
     keys = [";:", "/?", "'\"", "Num Lock"]
     win = Window_PokemonControls.new(keys.each_with_index.map { |k, i| Control.new("Action #{i}", k) })

@@ -272,11 +272,10 @@ class ZRiddleIslandTest < PokeAccessTest
     PokeAccess::I18n.t(key, vars)
   end
 
-  # Declares the shipped Pokemon Z puzzles as the harness loads the profile (games/pokemon_z/puzzles.rb, through
+  # Declares the shipped Pokemon Z puzzles as the harness loads the profile (games/pokemon_z/puzzles/, through
   # Harness.source) and puts the player on the island with the riddle switches in on turned on.
   def on_island(on)
-    path = File.join(Harness::ROOT, "games", "pokemon_z", "puzzles.rb")
-    eval(Harness.source(path), TOPLEVEL_BINDING, path)
+    Harness.load_puzzles("pokemon_z")
     $game_map.map_id = ISLAND
     switches(on)
     World.next_frame

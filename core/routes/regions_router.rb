@@ -2,7 +2,9 @@ module PokeAccess
   module Routes
     # The regions as a router (path_algorithm :regions, the default): once every state is walked, an A* over the moves
     # the walk kept, priced by the route style as the search prices its own, without asking the engine. The same moves
-    # give the fewest presses from the player to any tile (presses_to), which the locator orders by.
+    # give the fewest presses from the player to any tile (presses_to), which the locator orders by, and what the search
+    # that moves boulders starts from: the presses from any tile to its goal (presses_back) and how far boulders that
+    # can move let the player get (past_boulders).
     class Regions
       # The index in DIRS of each direction.
       DIR_INDEX = DIRS.inject({}) { |h, s| h[s[2]] = DIRS.index(s); h }
@@ -95,16 +97,7 @@ module PokeAccess
         return Regions.for(@variant).presses_to(tiles) if @dropped
         best = presses_from_player
         return nil unless best
-        pf = PokeAccess::Pathfinder
-        out = nil
-        tiles.each do |x, y|
-          [0, 1].each do |l|
-            i = @id[pf.skey(x, y, l)]
-            d = i && best[i]
-            out = d if d && (out.nil? || d < out)
-          end
-        end
-        out
+        states_on(tiles).map { |i| best[i] }.compact.min
       end
 
       # The fewest presses from the player's state to each state the walk reached, by state index (nil if unreached),
@@ -116,12 +109,112 @@ module PokeAccess
         return nil unless done?
         key = [@version, src]
         return @dist if @dist_key == key
-        out = moves_out
-        step = @step
-        mask = @mask
+        @dist_key = key
+        @dist = spread(links(false), [src], {}, 0)
+      end
+
+      # The fewest presses from each state the walk reached to any of tiles, by state key, along its moves taken backward;
+      # stepping onto a tile of dear costs price more. A state with no way there is FAR once a whole walk tells so
+      # (sure_no?), else left out. nil while the regions cannot tell.
+      def presses_back(tiles, dear, price)
+        return Regions.for(@variant).presses_back(tiles, dear, price) if @dropped
+        return nil unless root
+        ask unless done?
+        return nil unless done?
+        none = sure_no? ? FAR : nil
+        best = spread(links(true), states_on(tiles), dear, price)
+        out = {}
+        best.each_index do |i|
+          d = best[i] || none
+          out[@keys[i]] = d if d
+        end
+        out
+      end
+
+      # Goes from the player's state along the walk's moves, the boulders of rocks (by tile key) walls but for those in
+      # open: nil once on one of tiles, else the boulders it saw could move, by tile key. The block says whether boulder
+      # rock moves from (x,y) along dir; with grow, one that does joins open and the way goes on past it.
+      def past_boulders(tiles, rocks, open, grow)
+        pf = PokeAccess::Pathfinder
+        goals = {}
+        states_on(tiles).each { |i| goals[i] = true }
+        sides = boulder_sides(rocks)
+        specials = moves_out
+        src = root
+        seen = { src => true }
+        stack = [src]
+        bumped = {}
+        movable = {}
+        until stack.empty?
+          i = stack.pop
+          return nil if goals[i]
+          t = @keys[i] >> 1
+          shut = 0
+          (sides[t] || NONE).each do |rock, way|
+            next if open[rock]
+            shut |= 1 << way
+            (bumped[rock] ||= []).push(i)
+            next if movable[rock] || !block_given?
+            pf.use_level(@levels[i])
+            next unless yield(rock, t / PKEY_STRIDE, t % PKEY_STRIDE, DIRS[way])
+            movable[rock] = true
+            next unless grow
+            open[rock] = true
+            stack.concat(bumped[rock])
+          end
+          b = 0
+          while b < 4
+            if (@mask[i] & (1 << b)) != 0 && (shut & (1 << b)) == 0
+              j = @step[i * 4 + b]
+              unless seen[j]
+                seen[j] = true
+                stack.push(j)
+              end
+            end
+            b += 1
+          end
+          (specials[i] || NONE).each do |to, way, _presses, _warp|
+            next if seen[to] || (shut & (1 << way)) != 0
+            tile = @keys[to] >> 1
+            next if rocks[tile] && !open[tile]
+            seen[to] = true
+            stack.push(to)
+          end
+        end
+        movable
+      end
+
+      # The tile beside each of the boulders of rocks and the way to it from there: tile key => [[boulder's key, index in
+      # DIRS], ...].
+      def boulder_sides(rocks)
+        out = {}
+        rocks.each_key do |rock|
+          x = rock / PKEY_STRIDE
+          y = rock % PKEY_STRIDE
+          DIRS.each_index { |b| (out[Routes.pkey(x - DIRS[b][0], y - DIRS[b][1])] ||= []).push([rock, b]) }
+        end
+        out
+      end
+
+      # The states the walk reached on tiles (on either bridge level), as indices.
+      def states_on(tiles)
+        pf = PokeAccess::Pathfinder
+        out = []
+        tiles.each do |x, y|
+          [0, 1].each do |l|
+            i = @id[pf.skey(x, y, l)]
+            out.push(i) if i
+          end
+        end
+        out
+      end
+
+      # The fewest presses along links from the states of first to each state, by state index (nil if unreached); going
+      # on from a state on a tile of dear costs price more.
+      def spread(links, first, dear, price)
         best = Array.new(@keys.length)
-        best[src] = 0
-        buckets = [[src]]
+        first.each { |i| best[i] = 0 }
+        buckets = [first]
         d = 0
         while d < buckets.length
           list = buckets[d]
@@ -130,20 +223,14 @@ module PokeAccess
             i = list[k]
             k += 1
             next unless best[i] == d
-            m = mask[i]
-            b = 0
-            while b < 4
-              if (m & (1 << b)) != 0
-                j = step[i * 4 + b]
-                if best[j].nil? || d + 1 < best[j]
-                  best[j] = d + 1
-                  (buckets[d + 1] ||= []).push(j)
-                end
-              end
-              b += 1
-            end
-            (out[i] || NONE).each do |j, _b, presses, _warp|
-              nd = d + presses
+            adj = links[i]
+            next unless adj
+            base = dear[@keys[i] >> 1] ? d + price : d
+            e = 0
+            while e < adj.length
+              j = adj[e]
+              nd = base + adj[e + 1]
+              e += 2
               next unless best[j].nil? || nd < best[j]
               best[j] = nd
               (buckets[nd] ||= []).push(j)
@@ -151,8 +238,36 @@ module PokeAccess
           end
           d += 1
         end
-        @dist_key = key
-        @dist = best
+        best
+      end
+
+      # The moves by state index as [state, presses, ...]: those out of each state, or with back those into it; kept
+      # while the walk stands.
+      def links(back)
+        unless @links_version == @version
+          @links_version = @version
+          @links = {}
+        end
+        @links[back] ||= begin
+          out = Array.new(@keys.length)
+          @keys.each_index do |i|
+            b = 0
+            while b < 4
+              if (@mask[i] & (1 << b)) != 0
+                j = @step[i * 4 + b]
+                (out[back ? j : i] ||= []).push(back ? i : j, 1)
+              end
+              b += 1
+            end
+          end
+          m = @moves
+          k = 0
+          while k < m.length
+            (out[back ? m[k + 1] : m[k]] ||= []).push(back ? m[k] : m[k + 1], m[k + 3])
+            k += 5
+          end
+          out
+        end
       end
 
       # The fewest presses from state i to goal the estimate allows (0 with none).

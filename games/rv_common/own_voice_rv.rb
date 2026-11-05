@@ -10,11 +10,17 @@ module PokeAccess
     @always_frame = nil
     @active = false
 
+    # What $tts holds while muted: nil to whatever asks nil?, deaf to whatever is called on it.
+    class Muted
+      def nil?; true; end
+      def method_missing(_name, *_args); nil; end
+    end
+
     # Mutes the game's reader, but only once the mod's own voice is up: without it the game's is all there is.
     def self.mute
       return if $tts.nil?
       return unless PokeAccess.init_speech!
-      $tts = nil
+      $tts = Muted.new
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil

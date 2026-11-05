@@ -13,6 +13,7 @@ module PokeAccess
     MAPVK_VK_TO_CHAR = 2
 
     # Fixed virtual-keys: the modifiers and the global chords' function keys (rebindable ones are in Config.keys).
+    VK_TAB     = 0x09
     VK_SHIFT   = 0x10
     VK_CONTROL = 0x11
     VK_ALT     = 0x12
@@ -43,12 +44,16 @@ module PokeAccess
     # Whether Alt is held for a key with it: AltGr, which holds Ctrl with it, types instead.
     def self.alt_held?; raw_down?(VK_ALT) && !raw_down?(VK_CONTROL); end
 
+    # True for Tab with Alt held, which switches windows whatever the key is bound to.
+    def self.window_switch?(vk); vk == VK_TAB && alt_held?; end
+
     # The key code of a key named as a profile names it: a letter, a digit or an F key, after "Alt+" for one with Alt
-    # held; "Alt" for Alt alone; "None" for no key. A number is a code already, and nil stays nil.
+    # held; "Alt" for Alt alone; "Tab" for that key; "None" for no key. A number is a code already, and nil stays nil.
     def self.code_for(spec)
       return spec unless spec.is_a?(String)
       return NO_KEY if spec == "None"
       return VK_ALT if spec == "Alt"
+      return VK_TAB if spec == "Tab"
       key = spec.sub(/\AAlt\+/, "")
       vk = key =~ /\AF(\d+)\z/ ? 0x6F + $1.to_i : key.unpack("C")[0]
       key == spec ? vk : with_alt(vk)

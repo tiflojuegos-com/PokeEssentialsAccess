@@ -3,6 +3,8 @@
 class IceBridgeTest < PokeAccessTest
   PF = PokeAccess::Pathfinder
   Moves = PokeAccess::Routes::Moves
+  Controls = PokeAccess::Routes::Controls
+  Mech = PokeAccess::World::Mechanics
   RIGHT = [1, 0, 6]
   # The bridge's ramps on row 3 of a TwoLevelMap, event id => [x, script]: on at x 1 and 6, off at x 0 and 7.
   RAMPS = { 1 => [1, "pbBridgeOn"], 2 => [6, "pbBridgeOn"], 3 => [0, "pbBridgeOff"], 4 => [7, "pbBridgeOff"] }
@@ -150,6 +152,60 @@ class IceBridgeTest < PokeAccessTest
     on_bridge_map(0, 3, false) { assert_nil walk_route(7, 3) }
   end
 
+  test "a boulder on the deck is asked about at the level of the state that bumps it, not the player's" do
+    on_bridge_map(0, 3) do
+      rock = World.touch(:id => 61, :name => "Boulder", :x => 4, :y => 3, :trigger => 0, :sprite => "boulder",
+                         :list => [TestCmd.new(355, ["pbPushThisBoulder"])])
+      rock.blocking = true
+      rock.define_singleton_method(:passableStrict?) { |x, y, d| $game_map.passable?(x, y, d) }
+      fit_for_assist
+      PF.invalidate_cache(true)
+      route, gate = PokeAccess::Routes::Pushes.route(PokeAccess::Routes::Goal.onto(5, 3))
+      assert_equal [[6, 6, 6], 4], [route.to_a, gate[:x]]
+    end
+  end
+
+  test "a search that moves boulders estimates each state at its own level" do
+    on_bridge_map(0, 3) do
+      rock = World.touch(:id => 61, :name => "Boulder", :x => 4, :y => 3, :trigger => 0, :sprite => "boulder",
+                         :list => [TestCmd.new(355, ["pbPushThisBoulder"])])
+      rock.blocking = true
+      rock.define_singleton_method(:passableStrict?) { |x, y, d| $game_map.passable?(x, y, d) }
+      fit_for_assist
+      PF.invalidate_cache(true)
+      seen = []
+      goal = Object.new
+      goal.define_singleton_method(:hit?) { |x, y, _moved = nil| [x, y] == [5, 3] }
+      goal.define_singleton_method(:bound) { |x, y, _moved = nil, lvl = nil| seen.push([x, y, lvl]); 0 }
+      assert PokeAccess::Routes::Pushes.route(goal)
+      assert_equal [0, 3, 0], seen.first, "the player's state"
+      assert_includes seen, [2, 3, 2], "a state on the deck"
+    end
+  end
+
+  test "the floor a puzzle's presses are read off crosses the deck at the deck's level" do
+    on_bridge_map(0, 3) do
+      bridge_puzzle([[43, 0, 2, 0, "lever"]], [5, 3])
+      way = PF.searching { Controls.route(PokeAccess::Routes::Goal.onto(6, 3)) }
+      assert_equal [[], [0, 2]], [way[0].to_a, [way[1][:x], way[1][:y]]], "the lever beside the player opens the rays on the deck"
+    end
+  end
+
+  test "the floor is read at each tile's level, whatever level a search left the engine at" do
+    on_bridge_map(3, 1) do
+      floor = PF.searching { PF.use_level(2); Controls.floor_from(3, 1) }
+      assert floor.key?(PokeAccess::Routes.pkey(3, 5)), "the path on under the deck"
+    end
+  end
+
+  test "the way off a plate is read at the player's level, whatever level a search left the engine at" do
+    on_bridge_map(3, 2) do
+      bridge_puzzle([[43, 3, 2, 1, ""], [44, 3, 1, 1, ""]])
+      plate = $game_map.events[43]
+      assert_equal 2, PF.searching { PF.use_level(2); Controls.step_off(plate) }, "down under the deck, not onto the other plate"
+    end
+  end
+
   test "the player's level is put back even when the search raises" do
     on_bridge_map(0, 3) do
       assert_raises(RuntimeError) { PF.with_level_kept { PF.use_level(2); raise "boom" } }
@@ -176,6 +232,34 @@ class IceBridgeTest < PokeAccessTest
   end
 
   private
+
+  # What the searches that work boulders and puzzles read of the player and the map, past what a route on foot does.
+  def fit_for_assist
+    $game_player.define_singleton_method(:direction) { 2 }
+    $game_player.define_singleton_method(:moveto) { |x, y| @x = x; @y = y }
+    $game_map.define_singleton_method(:data) { nil }
+  end
+
+  # A puzzle on the map: controls [id, x, y, trigger, sprite] that write switch 142, and rays gone on it on (x, y) of wall.
+  def bridge_puzzle(controls, wall = nil)
+    controls.each do |id, x, y, trigger, sprite|
+      page = TestPage.new(:trigger => trigger, :sprite => sprite, :list => [TestCmd.new(121, [142, 142, 0])])
+      ev = TestGameEvent.new(:id => id, :x => x, :y => y, :pages => [page])
+      ev.blocking = !sprite.empty?
+      $game_map.events[id] = ev
+    end
+    if wall
+      gone = TestPage.new(:trigger => 0, :sprite => "", :condition => { :switch1_valid => true, :switch1_id => 142 })
+      rays = TestGameEvent.new(:id => 20, :x => wall[0], :y => wall[1], :pages => [TestPage.new(:trigger => 0, :sprite => "rayosR"), gone])
+      rays.blocking = true
+      $game_map.events[20] = rays
+    end
+    fit_for_assist
+    Mech.declare($game_map.map_id, :kind => :state, :controls => true, :obstacles => [{ :match => /rayos/i, :kind => :wall }],
+                 :watch => [{ :switch => 142, :label => :gym3_red, :on => :gym3_on, :off => :gym3_off }])
+    Mech.forget
+    PF.invalidate_cache(true)
+  end
 
   # Loads a map of one walled row (rows: the row, then any rows below it) with ice on the columns of xs.
   def ice_row(row, xs, *below)

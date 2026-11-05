@@ -28,9 +28,8 @@ class PuzzleKindsTest < PokeAccessTest
   # evaluated once, through the harness (so a mutant of it is the one tested), and its declarations kept.
   def self.z_puzzles
     @z_puzzles ||= begin
-      path = File.join(Harness::ROOT, "games", "pokemon_z", "puzzles.rb")
-      eval(Harness.source(path), TOPLEVEL_BINDING, path)
-      ([GRID_MAP, PALACE_MAP, 172] + SHIP_MAPS).map { |m| [m, PokeAccess::World::Mechanics.declared(m)] }
+      Harness.load_puzzles("pokemon_z")
+      ([GRID_MAP, PALACE_MAP, 172] + SHIP_MAPS).map { |m| [m, Harness.declared(m)] }
     end
   end
   private_class_method :z_puzzles

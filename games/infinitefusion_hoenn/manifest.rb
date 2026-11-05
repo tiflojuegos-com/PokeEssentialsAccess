@@ -15,6 +15,7 @@
     acro_rails
     contests
     overworld
+    market
     secret_base
     chair_clock
     cosmetics_money

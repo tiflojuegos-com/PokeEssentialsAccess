@@ -2,6 +2,15 @@
 {
   :modules => %w[
     constants
+    puzzles/ferese_gym
+    puzzles/ordelen_sanctuary
+    puzzles/simfo_jungle
+    puzzles/kalima_gym
+    puzzles/morgan_gym
+    puzzles/nytia_lift
+    puzzles/route8_exam
+    puzzles/route15_trash
+    puzzles/origen_pyramids
     pause_menu
     location_banner
     album

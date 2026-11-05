@@ -297,7 +297,7 @@ class VitroMapTest < ProfileProcessTest
         end
       end
       probe(:rock_map_below) do
-        on_map(78) { [puzzle_frame, PokeAccess::World::Mechanics.declared(78)] }
+        on_map(78) { [puzzle_frame, PokeAccess::World::Mechanics.instances] }
       end
     end
 
@@ -533,7 +533,7 @@ class VitroMapTest < ProfileProcessTest
     assert_equal [[t(:vitro_rocks_gym), false]], arrival
     assert_equal [["#{t(:vitro_rock)}: #{t(:vitro_rock_fell)}", false]], fell
     assert_equal "#{t(:vitro_rocks_fallen, :n => 1, :of => 3)} #{t(:vitro_rocks_gym)}", line
-    assert_equal false, active
+    assert_equal true, active, "it stays until the badge: one boulder is enough to go on"
   end
 
   test "every boulder's switch is watched and counted" do
@@ -543,7 +543,7 @@ class VitroMapTest < ProfileProcessTest
   end
 
   test "the floor below declares nothing" do
-    assert_equal [[], nil], played(:rock_map_below)
+    assert_equal [[], []], played(:rock_map_below)
   end
 
   test "each door goes by its place and each button by its colour, only on its map" do

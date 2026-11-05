@@ -3,8 +3,9 @@
 # carries, and the confirmation's question.
 module CharacterSelection
   class Scene
-    def initialize(moves = [])
+    def initialize(moves = [], answer = nil)
       @moves = moves
+      @answer = answer
     end
 
     def start(overworld, battle)
@@ -21,14 +22,19 @@ module CharacterSelection
         @index = i
         PokeAccess::Frame.run_pollers
       end
+      unless @answer.nil?
+        display_confirm("Are you sure?")
+        PokeAccess::Frame.run_pollers
+      end
       @index
     end
 
     def display_confirm(_text)
-      true
+      @answer.nil? ? true : @answer
     end
   end
 end
+PokeAccess::FLCharacterSelection.send(:remove_const, :CURSOR) if PokeAccess::FLCharacterSelection.const_defined?(:CURSOR)
 character_path = File.join(Harness::ROOT, "plugins", "fl_character_selection.rb")
 eval(Harness.source(character_path), TOPLEVEL_BINDING, character_path)
 
@@ -57,12 +63,12 @@ class FlCharacterSelectionTest < PokeAccessTest
 
   test "says the first character as the loop starts, queued behind the title" do
     play(OVERWORLD, BATTLE)
-    assert_equal [["Choose your character.", false], ["POKEMONTRAINER Red, 1 de 2", false]], SpeakCapture.log
+    assert_equal [["Choose your character.", false], ["Red, 1 de 2", false]], SpeakCapture.log
   end
 
   test "says each character the cursor moves to, cutting in, and none twice in a row" do
     play(OVERWORLD, BATTLE, [1, 1, 0])
-    assert_equal [["POKEMONTRAINER Leaf, 2 de 2", true], ["POKEMONTRAINER Red, 1 de 2", true]], SpeakCapture.log[2..-1]
+    assert_equal [["Leaf, 2 de 2", true], ["Red, 1 de 2", true]], SpeakCapture.log[2..-1]
   end
 
   test "says only the place when the graphic files name nobody readable" do
@@ -81,7 +87,9 @@ class FlCharacterSelectionTest < PokeAccessTest
   end
 
   test "cleans a graphic file name down to the name it carries" do
-    { "trainer_POKEMONTRAINER_Red" => "POKEMONTRAINER Red", "POKEMONTRAINER_Leaf" => "POKEMONTRAINER Leaf",
+    { "trainer_POKEMONTRAINER_Red" => "Red", "POKEMONTRAINER_Leaf" => "Leaf",
+      "trainer_PLAYER_TRAINER_FRLG_Red" => "Red, FRLG", "PLAYER_TRAINER_BW1_Hilda" => "Hilda, BW1",
+      "PLAYER_TRAINER_B2W2_Nate" => "Nate, B2W2", "ACE_TRAINER_M" => "ACE TRAINER M",
       "Graphics/Characters/trainer_Brendan.png" => "Brendan", "Red" => "Red", "player_blue" => "blue",
       "boy-walk" => "boy walk", "Charizard" => "Charizard", "trainer_2nd_Hero" => "2nd Hero",
       "trainer_Jo" => "Jo", "trchar000" => nil, "trainer000" => nil, "player_m" => nil, "trainer_" => nil,
@@ -100,6 +108,12 @@ class FlCharacterSelectionTest < PokeAccessTest
     assert_equal [["Are you sure?", false]], SpeakCapture.log
   end
 
+  test "a No reaches the game as the No it was" do
+    scene = CharacterSelection::Scene.new([], false)
+    scene.start(OVERWORLD, BATTLE)
+    assert_equal false, scene.display_confirm("Are you sure?")
+  end
+
   test "hands back the scene's own values" do
     scene = CharacterSelection::Scene.new([1])
     assert_equal [:started, 1], [scene.start(OVERWORLD, BATTLE), scene.main_loop]
@@ -115,16 +129,26 @@ class FlCharacterSelectionTest < PokeAccessTest
     assert_nothing_spoken
   end
 
+  test "after a No the character under the cursor is said again, cutting in" do
+    play(OVERWORLD, BATTLE, [1], false)
+    assert_equal [["Leaf, 2 de 2", true], ["Are you sure?", false], ["Leaf, 2 de 2", true]], SpeakCapture.log[2..-1]
+  end
+
+  test "after a Yes nothing more is said" do
+    play(OVERWORLD, BATTLE, [1], true)
+    assert_equal [["Leaf, 2 de 2", true], ["Are you sure?", false]], SpeakCapture.log[2..-1]
+  end
+
   test "says the first character again when the screen opens a second time" do
     2.times { play(OVERWORLD, BATTLE) }
-    assert_equal 2, SpeakCapture.lines.count { |l| l == "POKEMONTRAINER Red, 1 de 2" }
+    assert_equal 2, SpeakCapture.lines.count { |l| l == "Red, 1 de 2" }
   end
 
   private
 
   # Opens the screen over the lists and runs its loop through the cursor moves.
-  def play(overworld, battle, moves = [])
-    scene = CharacterSelection::Scene.new(moves)
+  def play(overworld, battle, moves = [], answer = nil)
+    scene = CharacterSelection::Scene.new(moves, answer)
     scene.start(overworld, battle)
     scene.main_loop
   end

@@ -10,10 +10,10 @@ class ArityTest < PokeAccessTest
     # Uranium's load screen draws its other-saves list with (index) on entry and (index, selected) after a move
     # (0137:468 and 0137:493); an absent selected is row 0, where the list opens.
     "PokemonLoadScene#pbDrawSaveCommands" => "selected is optional; absent, the list opens on row 0",
-    # Enhanced UI 1.1.2 (Soulstones 2) takes (battler) and (battler, index) and is served by its profile; the
-    # manifest's probe, Battle::Scene#pbGetFinalModifiers, keeps this reader out of it.
-    "Battle::Scene#pbUpdateBattlerInfo" => "1.1.2 is served by the profile; the probe keeps this one out",
-    "Battle::Scene#pbUpdateMoveInfoWindow" => "1.1.2 is served by the profile; the probe keeps this one out",
+    # Enhanced UI 1.1.2 (Soulstones 2, Keishou, Ashen Frost) takes (battler) and (battler, index) and is served by
+    # enhanced_ui_v1; the manifest's probe, Battle::Scene#pbGetDisplayEffects, keeps this reader out of it.
+    "Battle::Scene#pbUpdateBattlerInfo" => "1.1.2 is served by enhanced_ui_v1; the probes keep them apart",
+    "Battle::Scene#pbUpdateMoveInfoWindow" => "1.1.2 is served by enhanced_ui_v1; the probes keep them apart",
     # Reminiscencia's party menu alone takes a fourth argument, showheart; its reader asks args[3] only there.
     "PokemonScreen_Scene#pbShowCommands" => "Reminiscencia's showheart; a shorter call is its default, true",
     # Insurgence's naming screen takes (helptext, minlength, maxlength, initialText), with no subject or Pokemon: both

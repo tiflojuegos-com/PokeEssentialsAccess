@@ -66,19 +66,9 @@ end
 # The fight menu's special-action toggle on mode= (:optional, v22 uses mega_evolution_state=), then the renamed
 # focused move again, queued. Skipped where the Deluxe Battle Kit's pbToggleSpecialActions names the mechanic.
 unless PokeAccess::Engine.has?("Battle#pbToggleSpecialActions")
-PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :mode=, :optional => true) do |menu, _r, args|
-  if defined?(::Battle::Scene::FightMenu) && menu.is_a?(::Battle::Scene::FightMenu)
-    v = args[0]
-    k = PokeAccess::Battle.special_key(menu.instance_variable_get(:@access_mega), v)
-    menu.instance_variable_set(:@access_mega, v) if v.is_a?(Integer)
-    if k.is_a?(Array)
-      PokeAccess.speak(PokeAccess::I18n.t(k[0], :name => PokeAccess::I18n.t(k[1])), true)
-    elsif k
-      PokeAccess.speak(PokeAccess::I18n.t(k), true)
-    end
-    PokeAccess::BattleScene.read_menu(menu, false) if k
+  PokeAccess::Hooks.after_hook("Battle::Scene::MenuBase", :mode=, :optional => true) do |menu, _r, args|
+    PokeAccess::BattleScene.mechanic_mode(menu, args[0])
   end
-end
 end
 
 # The shift button coming up available (0 to 1); :optional, absent where the engine has no shift.

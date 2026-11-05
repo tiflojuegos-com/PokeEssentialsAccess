@@ -14,8 +14,8 @@ module PokeAccess
 
   # The bare control codes the games' message systems recognise, longest first (\pog before \pg): speaker colours
   # \b \r, gendered colours \pg \pog, window codes \wu \wm \wd \op \cl, money and points windows \G \CN \pt \ft \hs
-  # \qp \apw, anil's \sh, awakening's \pksz \wshs. An unlisted one hits the generic sweep, which eats the next word.
-  BARE_CODES = /\\(?:pksz|wshs|pog|apw|pg|wu|wm|wd|op|cl|cn|sh|pt|ft|hs|qp|b|r|g)/i
+  # \qp \apw, anil's \sh, awakening's \pksz \wshs, ashen frost's \dp. An unlisted one hits the generic sweep, which eats the next word.
+  BARE_CODES = /\\(?:pksz|wshs|pog|apw|pg|wu|wm|wd|op|cl|cn|sh|pt|ft|hs|qp|dp|b|r|g)/i
 
   # The bracketed codes that open a name box above the message: \tg (vanilla), \ta \tb and \js (awakening), \xn \dxn
   # \xna \xnb \xnc (the Mr Gela name windows, Soulstones 2).

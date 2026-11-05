@@ -7,11 +7,11 @@
 #
 #
 # format: Class#method = <profile>, <profile>...
-# surveyed sources (31): africanus, anil, armonia, awakening, darkhorizon, desolation, edas, emerald, fireash, goldencrown, gruelinggold, infinitefusion, infinitefusion_hoenn, insurgence, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier
+# surveyed sources (35): africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier
 # A row marked NO-DUMP is one no surveyed game defines: it was not checked and found clean, it
 # could not be checked at all. The two used to print identically, which made a sixth of the file
 # read as evidence it was not.
-# after-style hook sites: 440 / blocking somewhere: 1 / no dump defines it: 2
+# after-style hook sites: 459 / blocking somewhere: 1 / no dump defines it: 2
 # after-style sites the extractor cannot resolve (computed class or method): 44
 AdvancedPokedexScene#displayPage = 
 AdvancedPokedexScene#pbStartScene = 
@@ -32,6 +32,7 @@ Battle::Scene#pbAddEffectsDisplay =
 Battle::Scene#pbCheckRotationInput = 
 Battle::Scene#pbDrawMoveFlagIcons = 
 Battle::Scene#pbDrawTypeEffectiveness = 
+Battle::Scene#pbFightMenu_BattleMechanic = 
 Battle::Scene#pbShowRotationButton = 
 Battle::Scene#pbUpdateBallSelection = 
 Battle::Scene#pbUpdateBattlerInfo = 
@@ -53,6 +54,7 @@ BerryBlenderScene#pbRefreshButtons =
 BerryBlenderScene#pbRefreshSlots = 
 BerryBlenderScene#pbUpdateCursor = 
 BetterRegionMap#dispose = 
+BlackJack::Play#drawCard = 
 BlessingsOverlay#updateInfoWindow = 
 BlocUnownScene#moveCursor = 
 BookScene#texto = 
@@ -63,7 +65,11 @@ ButtonEventScene#addImage =
 ButtonEventScene#addLabel = 
 ButtonEventScene#addLabelForScreen = 
 ButtonEventScene#set_up_screen = 
+CaseUI_Menu_Scene#switch_menu = 
 CharacterSelectMenuPresenter#updateDisplayedName = 
+CharmCase_Scene#pbRefresh = 
+CharmCase_Scene#pbStartCharmScene = 
+ChooseBerryMultiple_Scene#drawSelectedBerries = 
 ClawMachine#pbDrawText = 
 ClawMachine#pbEndScene = 
 ClawMachine#pbStartScene = 
@@ -131,6 +137,7 @@ FusionQuizAppScene#pbStartScene =
 GachaScene#dispose = 
 GachaScene#refresh = 
 Game_Picture#erase = 
+Game_Picture#move = 
 Game_Picture#show = 
 Game_Screen#aUpdateRadar = 
 Game_Temp#in_battle= = 
@@ -148,6 +155,9 @@ Glosario_Historia_Secciones#dibujar_lista =
 Glosario_Historia_Secciones#mover_cursor = 
 Glosario_Personajes#dibujar_lista = 
 Glosario_Personajes#mover_cursor = 
+HackingGame_Scene::HackingAntivirus#activate = 
+HackingGame_Scene::HackingKey#initialize = 
+HackingGame_Scene::HackingKey#state= = 
 HairMartAdapter#switchVersion = 
 HairMartAdapter#toggleEvent = 
 HallDeLaFama#create_gen5_final_windows = 
@@ -170,6 +180,7 @@ InfoTarjetasLiga_Scene#pbEndScene =
 InstantMessagesMenu_Scene#pbSortConversations = 
 InstantMessages_Scene#pbMoveDown = 
 InstantMessages_Scene#pbMoveUp = 
+Interpreter#setup = 
 IntroEventScene#open_title_screen = 
 IslaDesafioMapScene#pbRefresh = 
 IslaDesafioMapScene#show_loading = 
@@ -265,6 +276,7 @@ PokemonCurrydex_Scene#pbStartScene =
 PokemonEditor_Scene#pbRefresh = 
 PokemonEntryScene2#pbUpdate = 
 PokemonHatView#update = 
+PokemonIntroOption_Scene#pbChangeSelection = 
 PokemonLanguageSelection#updateSelection = 
 PokemonLoadScene#pbChooseAutoSubFile = 
 PokemonLoadScene#pbMoveSaveSel = 
@@ -335,6 +347,7 @@ PokemonSummary_Scene#pbUpdate =
 PokemonTrainerCardSceneGBC#changeIndexParty = 
 PokemonTrainerCardSceneGBC#drawSummaryHeader = 
 PokemonTutorNet_Scene#pbChangeSelection = 
+PokemonTutorNet_Scene#pbEndScene = 
 PokemonTutorNet_Scene#update_indicators = 
 PokemonTypeReel#down = 
 PokemonTypeReel#toggleSelect = 
@@ -342,6 +355,7 @@ PokemonTypeReel#up =
 PokemonTypeSelectionScreen#pbStartScene = 
 Pokemon_Achievements_Scene#update = 
 Pokemonysusgritos#input = 
+Pokepoker#updateselect = 
 PunchBag::Scene#pbDrawStars = 
 PunchBagScene#computeScore = 
 PunchBagScene#pbStartScene = 
@@ -364,6 +378,8 @@ RSESTarterChoice#pbStartScene =
 RSESTarterChoice#pbUpdate = 
 RadioInterface#update_display = 
 RentalChooseScene#refresh_top_slots = 
+ResultPanelScene#pbStartScene = 
+ResultPanelScene#pbUpdateCursor = 
 Scene_Glosario#refresh = 
 Scene_Map#addSprite = 
 Scene_MoveTutor#refreshMoveList = 
@@ -376,9 +392,11 @@ SecretBaseMart_Scene#update =
 SeleccionTipo#pbStartScene = 
 SeleccionTipo#redrawSelector = 
 SelectMoveMenu_Scene#refresh_buttons = 
+SetControls::Window_Controls#controls = 
 SlideDay#initialize = 
 SlotMachineReel#update = 
 SlotMachineScene#update = 
+SpeciesTypeMatch_Scene#pbChooseSpeciesFromList = 
 SpeciesTypeMatch_Scene#pbUpdate = 
 SponsorScene#pbRefreshInfo = 
 SpriteWindow_Selectable#update = 
@@ -406,6 +424,7 @@ TipCardGroups_Scene#pbDrawTip =
 TipCard_Scene#pbDrawTip = 
 TipMenu_Scene#pbRedrawList = 
 TradeUI_Base#refreshOverlay = 
+TypeMatch_Scene#pbChooseTypeFromList = 
 UI::BagVisuals#set_pocket = 
 UI::LoadVisuals#set_index = 
 UI::LoadVisuals#set_slot_index = 

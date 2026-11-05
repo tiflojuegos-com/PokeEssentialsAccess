@@ -19,7 +19,7 @@ class PuzzleSingleUseControlsTest < PokeAccessTest
   private
 
   def target_names
-    PokeAccess::Puzzles.control_targets.map { |t| t.name }
+    PokeAccess::Puzzles.control_targets(PokeAccess::World::Mechanics.instance).map { |t| t.name }
   end
 
   def with_valve(state)

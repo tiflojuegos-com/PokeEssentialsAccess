@@ -41,8 +41,13 @@
     tarot
     wild_map
     map_objects
-    rock_holes
-    door_puzzle
+    puzzles/rock_holes
+    puzzles/door_room
+    puzzles/cianwood_gym
+    puzzles/azalea_gym
+    puzzles/olivine_gym
+    puzzles/mahogany_gym
+    puzzles/blackthorn_gym
     credits
     bug_contest
   ],

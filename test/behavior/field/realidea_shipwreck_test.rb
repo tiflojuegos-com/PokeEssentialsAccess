@@ -1,4 +1,4 @@
-# The sunken ship's puzzles (games/realidea/shipwreck.rb): the telegraph and the wheel, read each frame while their
+# The sunken ship's puzzles (games/realidea/puzzles/shipwreck.rb): the telegraph and the wheel, read each frame while their
 # loops run; the sea chart's route, over the wheel and examined in the bag; and the Chinchou puzzle's three fish on
 # map 278, said once they settle after each arrow.
 
@@ -49,7 +49,7 @@ def gambarriba
   (3...6).each { |i| ev = $game_map.events[i]; ev.y -= 1 if ev.passable?(ev.x, ev.y, 8) }
 end
 
-shipwreck = File.join(Harness::ROOT, "games", "realidea", "shipwreck.rb")
+shipwreck = File.join(Harness::ROOT, "games", "realidea", "puzzles", "shipwreck.rb")
 eval(Harness.source(shipwreck), TOPLEVEL_BINDING, shipwreck)
 
 class RealideaShipwreckTest < PokeAccessTest
@@ -58,7 +58,7 @@ class RealideaShipwreckTest < PokeAccessTest
   CHART_LINE = "Parece el recorrido que tomó el barco antes de hundirse."
   OTHER_LINE = "No tengo mucho que decir sobre ese objeto..."
   # The Chinchou puzzle as the profile declared it on map 278, kept before the first test clears the declarations.
-  FISH_PUZZLE = PokeAccess::World::Mechanics.declared(278)
+  FISH_PUZZLE = Harness.declared(278)
   # The telegraph's answer: twelve symbols.
   ANSWER = %w[punto raya raya punto punto punto punto punto raya punto raya raya]
   # The wheel's answer: six headings, as its log paints them.

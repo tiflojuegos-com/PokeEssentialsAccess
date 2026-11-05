@@ -66,6 +66,11 @@
   :essentials_deluxe => "Battle::Scene#pbUpdateNameWindow",
   :quest_ui          => "Window_Quest",
   :logros            => "Logros_Scene",
+  :mm3_achievements  => "PokemonAchievements_Scene",
+  :result_panel      => "ResultPanelScene",
+  :rock_climb_ex     => "RockClimbSettings",
+  :tamas_dexnav      => "PokemonDexNav_Scene",
+  :type_match        => "TypeMatch_Scene",
   # A method probe: another game defines an unrelated Questlog class; the method the reader hooks tells them apart.
   :easy_questing     => "Questlog#pbMain",
   :tip_cards         => "TipCard_Scene",
@@ -131,6 +136,7 @@
   # The v16/v17 script's scene: the v19+ plugin renames it PokemonControls_Scene, and Soulstones 2 ships only an
   # inert override of that one's window. Z and Reminiscencia keep their copies inside =begin/=end.
   :fl_set_controls   => "PokemonControlsScene",
+  :fl_set_controls_v2 => "SetControls",
   :punch_bag         => "PunchBagScene",
   :quest_marker      => "Quest_Marker",
   # A top-level function probe: the autosave brings no class of its own.
@@ -189,5 +195,18 @@
   # A method probe: the boss lives script reopens the stock battle scene and battler and brings no class of its own.
   :battle_lives      => "PokeBattle_Scene#pbBreakBar",
   # A method probe: the gen-6 copies of the side stairs alias the stock moves under this name; the v19 port does not.
-  :boon_side_stairs  => "Game_Player#move_left_stairs"
+  :boon_side_stairs  => "Game_Player#move_left_stairs",
+  :charm_case        => "CharmCase_Scene",
+  :hacking_minigame  => "HackingGame_Scene",
+  # The script's module, from 1.2 on, holding its scene: PunchBag::Scene would count under its last segment; 1.0 is
+  # punch_bag, by the old class.
+  :punch_bag_v12     => "PunchBag",
+  # A method probe: Lucidious89's release has no class of its own, and Essentials Deluxe and the kit share its other names.
+  :terastal_phenomenon => "Battle::Scene#pbFightMenu_Terastallize",
+  # A method probe: the release before [DBK] Enhanced Battle UI, whose methods keep these names with other arities; it
+  # lacks dbk_enhanced_ui's probe, and the current release this one.
+  :enhanced_ui_v1    => "Battle::Scene#pbFightMenu_EnhancedUI",
+  :ocarina           => "Object#pbCallFlute",
+  :poke_poker        => "Pokepoker",
+  :racecourse        => "RaceGame"
 }

@@ -76,13 +76,13 @@ class ZGym3Test < PokeAccessTest
   test "takes a beam for a wall from the frame it goes up to the frame it goes down" do
     on_map(87)
     ev = beam(1, 12, 15, "")
-    assert_nil PokeAccess::Puzzles.wall_name(ev), "a barrier down is no wall"
+    assert_nil PokeAccess::Puzzles.piece_name(ev), "a barrier down is no wall"
     ev.character_name = "rayosRojosV"
     World.next_frame
-    assert_equal t(:gym3_rays_red_v), PokeAccess::Puzzles.wall_name(ev), "the frame after it goes up, it is one"
+    assert_equal t(:gym3_rays_red_v), PokeAccess::Puzzles.piece_name(ev), "the frame after it goes up, it is one"
     ev.character_name = ""
     World.next_frame
-    assert_nil PokeAccess::Puzzles.wall_name(ev), "and the frame after it goes down, it is not"
+    assert_nil PokeAccess::Puzzles.piece_name(ev), "and the frame after it goes down, it is not"
   end
 
   test "says the beam the player comes beside by its colour and lie and the side it is on, and not again while there" do
@@ -156,11 +156,10 @@ class ZGym3Test < PokeAccessTest
     "#{t(name)}, #{PokeAccess::Routes::Text.and_list(sides.map { |s| t(s) })}"
   end
 
-  # Declares the shipped Pokemon Z puzzles as the harness loads the profile (games/pokemon_z/puzzles.rb, through
+  # Declares the shipped Pokemon Z puzzles as the harness loads the profile (games/pokemon_z/puzzles/, through
   # Harness.source) and puts the player on map map_id.
   def on_map(map_id)
-    path = File.join(Harness::ROOT, "games", "pokemon_z", "puzzles.rb")
-    eval(Harness.source(path), TOPLEVEL_BINDING, path)
+    Harness.load_puzzles("pokemon_z")
     $game_map.map_id = map_id
     World.next_frame
   end

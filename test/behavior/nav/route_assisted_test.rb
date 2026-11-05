@@ -59,6 +59,16 @@ class RouteAssistedTest < PokeAccessTest
                    '#..###',
                    '#..###',
                    '######']
+  DEAD_END_ROWS = ['###################################',
+                   '#@...........................######',
+                   '#............................######',
+                   '#............................######',
+                   '#.................................#',
+                   '#............................######',
+                   '#............................######',
+                   '#............................######',
+                   '###################################']
+
   HALL_ROWS = ['###################################',
                '#@...........................#....#',
                '#............................#....#',
@@ -129,18 +139,18 @@ class RouteAssistedTest < PokeAccessTest
   test "searches for an assisted route only where something could assist" do
     with_still_clock(100.0) do
       with_assist_sources([]) do
-        $game_map.load_grid(['############',
-                             '#@....#....#',
-                             '#.....#....#',
-                             '#.....#....#',
-                             '############'])
+        $game_map.load_grid(['####################',
+                             '#@....#............#',
+                             '#.....#............#',
+                             '#..................#',
+                             '####################'])
         Pathfinder.invalidate_cache(true)
         PokeAccess::Config.route_limit = :time
         PokeAccess::Config.route_budget_ms = -1
-        bare = Pathfinder.searching { |l| [Planner.assisted(9, 2), l.cuts] }
-        assisted_boulder(97, 3, 1)
+        bare = Pathfinder.searching { |l| [Planner.assisted(17, 2), l.cuts] }
+        assisted_boulder(97, 6, 3)
         Pathfinder.invalidate_cache(true)
-        rocky = Pathfinder.searching { |l| [Planner.assisted(9, 2), l.cuts] }
+        rocky = Pathfinder.searching { |l| [Planner.assisted(17, 2), l.cuts] }
         assert_equal [[nil, 0], [nil, 1]], [bare, rocky],
                      "with nothing to assist no search runs; with a boulder, the spent budget stops the one it makes"
       end
@@ -326,14 +336,13 @@ class RouteAssistedTest < PokeAccessTest
   end
 
   test "counts a push search that reaches its cap as stopped short, so the plan is cut rather than none" do
-    $game_map.load_grid(HALL_ROWS)
+    $game_map.load_grid(DEAD_END_ROWS)
     assisted_boulder(102, 10, 4)
     assisted_boulder(103, 29, 4)
-    assisted_boulder(104, 30, 4)
     Pathfinder.invalidate_cache(true)
     assert_equal :exhausted, Planner.walk(33, 4).status, "on foot the target has no way, shown to the end"
-    assert_equal [nil, 1], Pathfinder.searching { |l| [Planner.assisted(33, 4), l.cuts] }, "the push search stopped"
-    assert_equal :cut, Planner.plan(33, 4).kind
+    assert_equal [nil, 1], Pathfinder.searching { |l| [Planner.assisted(33, 4, true), l.cuts] }, "the push search stopped"
+    assert_equal :cut, Planner.plan(33, 4, true).kind
   end
 
   test "gives a target out of every assisted reach no route, with no search stopped short" do

@@ -1,7 +1,8 @@
 module PokeAccess
   # ZUD's Max Raid Den (MaxRaidScene): the entry screen once painted (its title, the boss as its silhouette, type icons,
   # stars and marks show it, the field, the party it takes in, the battle's limits and the keys), the party again after
-  # the party screen, and the rewards screen after the raid. Its labels are captured as painted on the den's overlay.
+  # the party screen, and the rewards screen after the raid. Its labels are captured as painted on the den's overlay. The
+  # release for Essentials 20 keeps the den's data in @rules and @pkmn, paints before pbMaxRaidEntry and 11 pixels lower.
   module ZudRaidDens
     # The field the header's pictures name: the battle weather and terrain by the battle reader's words, the
     # environment by the raid tag its picture shows.
@@ -28,12 +29,17 @@ module PokeAccess
     PARTY = [111, 284]
     # Where the rewards screen paints its rows, [x, y]; the result goes at y 20 wherever its text starts.
     RESULT_Y = 20
+    # The same two rows in the release for 20, once its 11 pixels are taken off: the ability shares its height with Exit.
+    RESULT_V20 = [270, 21]
+    ABILITY_V20 = [20, 284]
     GENDER = [20, 76]
     LEVEL = [38, 77]
     ABILITY_Y = 283
     NONE_Y = 168
     BONUS = [8, 8]
     EXIT = [393, 284]
+    # How much lower the release for 20 paints the same rows.
+    SHIFT_V20 = 11
 
     @scene = nil
     @phase = nil
@@ -42,7 +48,7 @@ module PokeAccess
 
     # Holds the den while its entry screen runs (the block), collecting what it paints from the start.
     def self.entry(scene)
-      watch(scene, :entry)
+      watch(scene, :entry) unless @phase == :entry
       yield
     ensure
       @scene = nil
@@ -72,7 +78,8 @@ module PokeAccess
       return unless @scene && (@phase == :entry || @phase == :rewards)
       return unless bitmap.equal?(PokeAccess.ivar(@scene, :@overlay))
       t = PokeAccess.clean(text.to_s)
-      @rows.push([t, x.to_i, y.to_i]) unless t.empty?
+      lower = @scene.respond_to?(:raid_FieldHash) ? SHIFT_V20 : 0
+      @rows.push([t, x.to_i, y.to_i - lower]) unless t.empty?
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
@@ -115,21 +122,30 @@ module PokeAccess
       PokeAccess.sentences(parts)
     end
 
+    # A den's setting: the scene's own instance variable, or its entry in the release for 20's @rules.
+    def self.rule(scene, ivar, key)
+      v = PokeAccess.ivar(scene, ivar)
+      v.nil? ? ((PokeAccess.ivar(scene, :@rules) || {})[key] rescue nil) : v
+    end
+
     # The boss as the den shows it: a black silhouette, its type icons, its stars and the marks beside them.
     def self.boss_parts(scene)
       parts = [PokeAccess::I18n.t(:zden_boss)]
       types = boss_types(scene)
       parts.push(PokeAccess::I18n.t(:zud_raid_types, :list => types.join(", "))) unless types.empty?
-      rank = PokeAccess.ivar(scene, :@rank)
+      rank = rule(scene, :@rank, :rank)
       parts.push(PokeAccess::I18n.t(:zden_stars, :n => [rank.to_i, STARS_MAX].min)) if rank.to_i > 0
-      parts.push(PokeAccess::I18n.t(:dmax_factor)) if PokeAccess.ivar(scene, :@gmax)
-      parts.push(PokeAccess::I18n.t(:zden_hard)) if PokeAccess.ivar(scene, :@hardmode)
-      parts.push(PokeAccess::I18n.t(:zden_loot)) if PokeAccess.ivar(scene, :@loot)
+      gmax = PokeAccess.ivar(scene, :@gmax) || (PokeAccess.ivar(scene, :@pkmn).gmax? rescue false)
+      parts.push(PokeAccess::I18n.t(:dmax_factor)) if gmax
+      parts.push(PokeAccess::I18n.t(:zden_hard)) if rule(scene, :@hardmode, :hard)
+      parts.push(PokeAccess::I18n.t(:zden_loot)) if rule(scene, :@loot, :loot)
       parts
     end
 
     # The boss species' types, as its form's two icons show them.
     def self.boss_types(scene)
+      pk = PokeAccess.ivar(scene, :@pkmn)
+      return PokeAccess::Data.species_types(pk.species_data.id) if pk
       sp = PokeAccess.ivar(scene, :@bosspoke)
       form = PokeAccess.ivar(scene, :@bossform)
       id = (::GameData::Species.get_species_form(sp, form) rescue sp)
@@ -139,18 +155,18 @@ module PokeAccess
     # The field header: its painted label and the weather, terrain and environment its pictures show.
     def self.field_line(scene, label)
       words = []
-      w = WEATHERS[PokeAccess.ivar(scene, :@weather)]
+      w = WEATHERS[rule(scene, :@weather, :weather)]
       words.push(PokeAccess::I18n.t(w)) if w
-      t = TERRAINS[PokeAccess.ivar(scene, :@terrain)]
+      t = TERRAINS[rule(scene, :@terrain, :terrain)]
       words.push(PokeAccess::I18n.t(t)) if t
-      e = ENVIRONS[PokeAccess.ivar(scene, :@environ)]
+      e = ENVIRONS[rule(scene, :@environ, :environ)]
       words.push(PokeAccess::I18n.t(e)) if e
       "#{label}: #{words.join(', ')}"
     end
 
     # The party the den takes in, as its icons show it: the first able Pokemon, as many as the raid's size.
     def self.party_line(scene)
-      size = PokeAccess.ivar(scene, :@size).to_i
+      size = rule(scene, :@size, :size).to_i
       party = (($Trainer || $player).party rescue []) || []
       able = party.select { |pk| pk && !(pk.egg? rescue false) && !(pk.fainted? rescue false) }
       names = able[0, size].map { |pk| PokeAccess.clean(pk.name.to_s) }
@@ -179,9 +195,9 @@ module PokeAccess
     # The rewards screen: the result, the Pokemon's sex, level and ability ("???" said as unknown), the bonus marks or
     # that none was earned, and the key that leaves; the rewards list is a command window the menu reader says.
     def self.rewards_line(scene, rows)
-      result = at_y(rows, RESULT_Y)
+      result = at_y(rows, RESULT_Y) || at(rows, RESULT_V20)
       info = [at(rows, GENDER), at(rows, LEVEL)].compact.join(" ")
-      parts = [result, unknown(info), unknown(at_y(rows, ABILITY_Y)), at_y(rows, NONE_Y)]
+      parts = [result, unknown(info), unknown(at_y(rows, ABILITY_Y) || at(rows, ABILITY_V20)), at_y(rows, NONE_Y)]
       bonus = bonus_line(scene, at(rows, BONUS))
       parts.push(bonus) if bonus
       parts.concat(hints([[at(rows, EXIT), :b, :key_escape]]))
@@ -204,6 +220,10 @@ end
 
 PokeAccess::Hooks.around_hook("MaxRaidScene", :pbMaxRaidEntry, :optional => true) do |scene, nxt, _a|
   PokeAccess::ZudRaidDens.entry(scene) { nxt.call }
+end
+# The release for 20 paints the entry screen here, and runs pbMaxRaidEntry from it.
+PokeAccess::Hooks.around_hook("MaxRaidScene", :pbStartScene, :optional => true) do |scene, nxt, _a|
+  scene.respond_to?(:raid_FieldHash) ? PokeAccess::ZudRaidDens.entry(scene) { nxt.call } : nxt.call
 end
 PokeAccess::Hooks.around_hook("MaxRaidScene", :pbRaidRewardsScreen, :optional => true) do |scene, nxt, _a|
   PokeAccess::ZudRaidDens.rewards(scene) { nxt.call }

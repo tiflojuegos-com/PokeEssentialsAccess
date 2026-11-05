@@ -8,11 +8,13 @@ class KeyDefaultsTest < PokeAccessTest
   Keyboard = PokeAccess::Keyboard
   DECLARED = /\b(?:field_)?key_defaults[ (]\s*((?::\w+\s*=>\s*(?:"[^"]*"|nil)(?:,\s*)?)+)/
   ROW = /\bremap_extra\(:(\w+)/
-  NAME = /\A(?:None|Alt|(?:Alt\+)?(?:[A-Z0-9]|F\d{1,2}))\z/
+  NAME = /\A(?:None|Alt|Tab|(?:Alt\+)?(?:[A-Z0-9]|F\d{1,2}))\z/
   # What each game ships: the mod keeps its letters, and a game's action on one of them moves to Alt plus it, to Alt when
-  # it is on the mod's Shift, and to no key when the game has it on another too.
+  # it is on the mod's Shift, and to no key, or only that key, when the game has it on another too.
   SHIPPED = {
+    "ashenfrost" => { :ashen_move_info => "Alt+M", :ashen_skip => "F7", :l => "Q" },
     "awakening" => { :awk_map => "Alt+M", :awk_lens => "Alt+J", :awk_info => "Alt+G", :z => "Alt+T" },
+    "decades" => { :decades_type_chart => "Alt+T", :decades_ctrl => "Tab" },
     "desolation" => { :des_speed_m => "None" },
     "insurgence" => { :ins_speed => "Alt+M", :ins_item4 => "Alt+T" },
     "opalo" => { :op_anthem_t => "Alt+T", :op_anthem_i => "Alt+I" },
@@ -26,7 +28,7 @@ class KeyDefaultsTest < PokeAccessTest
   }
   # The names the READMEs' tables give those games.
   README_NAMES = {
-    "awakening" => "Awakening", "desolation" => "Desolation", "insurgence" => "Insurgence", "opalo" => "Ópalo",
+    "ashenfrost" => "Ashen Frost", "awakening" => "Awakening", "decades" => "Decades", "desolation" => "Desolation", "insurgence" => "Insurgence", "opalo" => "Ópalo",
     "perseida" => "Perseida", "realidea" => "Realidea", "reminiscencia" => "Reminiscencia", "sevii" => "Sevii",
     "soulstones1" => "Soulstones", "uranium" => "Uranium", "vitro" => "GS Vitro"
   }

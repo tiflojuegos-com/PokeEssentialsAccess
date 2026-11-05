@@ -15,6 +15,10 @@
     quests
     storage
     idol
+    puzzles/nos_village
+    puzzles/memory_mansion
+    puzzles/carcitoma_crossroads
+    puzzles/azure_lookout
   ],
   :plugins => %w[battle_lives book_scene boon_side_stairs easy_questing fancy_badges luka_title menu2_pausemenu slide_banners text_log]
 }

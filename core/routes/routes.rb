@@ -9,6 +9,9 @@ module PokeAccess
     # Packs a tile coordinate into a single hash key.
     def self.pkey(x, y); x * PKEY_STRIDE + y; end
 
+    # The estimate of a state with no way to the goal: a search leaves it out.
+    FAR = 1 << 30
+
     # The four orthogonal steps as [dx, dy, rpg direction code], in the order the searches and the regions try them,
     # and the same steps by direction code.
     DIRS = [8, 2, 4, 6].map { |d| PokeAccess::DIR_DELTA[d].dup.push(d) }

@@ -25,7 +25,7 @@ Dependencies run one way: the World layer never calls a route, and nothing in `c
 The code runs on the mod's two beats ([Loading](loading.md)). Every pulse and every map frame marks the world
 unsettled (`Epoch.dirty!`). The map frame's `:world` stage notices the end of a running event
 (`Locator.refresh_on_event_end`), and its `:nav` stage runs `Puzzles.tick`, `Routes::Regions.tick` and
-`Pathfinder.hpa_tick` (`core/input/frame.rb`).
+`Pathfinder.hpa_tick` and `World::Neighbours.warm` (`core/input/frame.rb`).
 
 ## The world's memos
 
@@ -57,7 +57,9 @@ classes, the passability answers and the map scan of `Routes::Moves`.
 cell bits (`SURF`, `LEDGE`, `ICE`, `DEEP`, `GRASS`, `FALLING`). The kind comes from the tag's GameData id or
 `PBTerrain` name first, since games renumber the standard tags; lava has no standard number and is found by name only.
 The layer asks the engine for the tag once per kind of tile (the tile ids on the map's layers) and shares it among
-every tile of that kind.
+every tile of that kind. A map whose file holds more than RPG Maker XP's own fields, as the extra layers an editor keeps
+there, is read tile by tile (`Terrain.extra_fields?`): its three layers may not tell what is on a tile, and only the game's
+own `terrain_tag` knows how to read the rest. The same goes for its bridge tiles.
 
 A bridge tile reads as the water below while the player is off the bridge, so it is kept per bridge height.
 `World::Engine` hides where the eras differ: the Reborn engine's `terrain_tag` takes no bridge argument, and copies
@@ -68,6 +70,11 @@ A profile changes the terrain with two rules. `Terrain.label_rule` names a game'
 `Terrain.surf_rule` decides where the player can surf now. `Terrain.flag?` reads the flags a plugin adds to the modern
 tag object, such as a current or a slide.
 
+`Terrain.water_on_map?` tells whether any tile of the map is water, asking about each kind of tile once. With the player up
+on a bridge, which hides the water below from the engine, any bridge tile counts as water. The answer is kept until new
+tiles or a reset, and `World::Visits` keeps it with the map left; a map whose tiles it cannot read counts as having water. Given a deadline, it stops between rows, answers `nil` and goes on from that row on the next
+call.
+
 ### Passability probe
 
 `World::Probe`, the [passability probe](../reference/glossary.md), is the one place that asks the engine whether the
@@ -76,13 +83,16 @@ thousands of times, so it keeps its answers per mode: surfing, diving, the bike,
 with `Probe.mode_reader`, such as a lava surf or a mount. It keeps at most `Probe::MODES_KEPT` modes at once. The memo
 key is the step's origin and direction, and whether the bridge is up when either end is a bridge tile.
 
-It never keeps three kinds of answer: a step off the map, a step touching a tile lent through, and every step while
-the answers are unstable. They are unstable partway up Marin's side stairs, whose plugin answers every question from
-the stair, and while a debug build walks through walls.
+It never keeps three kinds of answer: a step off the map, which it asks with the [neighbouring map](#neighbouring-maps)
+lent to the factory, a step touching a tile lent through, and every step while the answers are unstable. They are
+unstable partway up Marin's side stairs, whose plugin answers every question from the stair, and while a debug build walks
+through walls.
 
 The passability probe asks the way the game would:
 
 - The player's `through` flag is lent off for the question.
+- At a stair's end, a game that looks for events by the stair too (`is_event_at_target?`) sees none outside the stair's
+  columns, so the question is asked with the player's stair lent off (`Probe.stair_end_now?`).
 - A step into the player's own tile, which every engine refuses, is asked again with the player placed on the step's
   origin. `Probe.place_player_when` has every step asked that way while its block holds; Insurgence needs it afloat,
   as its passability answers from where the player stands.
@@ -94,13 +104,69 @@ The passability probe asks the way the game would:
 A search opens one `Probe.session`, which settles the world once for all its questions: the tiles compared, the events
 synced, the mode taken.
 
+The game goes over its events on every `passable?`, which on a large map with many events takes most of what a walk
+costs. So `Probe.ask_near`, with `near_events` on, lends the map a `World::NearEvents` for the question
+(`Events.near_step`): a copy of the map's Hash whose `values` and `each_value`, the two ways the games go over their
+events, give only those within a tile of the step. The tile of margin is what a `sizeC` event needs, which blocks the
+tile to the left of those its record covers. Any other read sees every event, so a game that reads them otherwise gets
+the same answer without the saving. The map has its own list back whatever happens.
+
+Every event stays on show where the step alone does not tell which events matter: a question with no direction; a step
+off the map, as the records only cover this map's events; any question while the answers are unstable (both through
+`Probe.all_events`); a list that is not a plain Hash or not read yet; and, until the next map, once an event stands on a
+stair in a game that looks for events by the stair, or has the game's `at_coordinate?` true on a tile two away from those
+its record covers (`Events.reaches_past?`), as the hitboxes of Events Utilities do. Changing `near_events` drops every answer, the regions and the maps `World::Visits` keeps, since the setting
+is there to rule out how the game was asked.
+
 `Probe.lend_through` makes events passable for the engine while a block runs, keeps their tiles out of the memo
 meanwhile and puts every event back afterwards. Assisted searches lend obstacles and boulders through, and the regions
-lend walkers through. `Probe.event_movable?` asks the engine's strict check, where it has one, whether a boulder can
+lend walkers through. Nothing read meanwhile is kept, so what each step of a walk looks up is read before the outermost
+lend: `Probe.before_lending` registers it, which `Routes::Effects.read_ahead` does for its indexes. `Probe.event_movable?` asks the engine's strict check, where it has one, whether a boulder can
 move, or the plain check where the profile declares `loose_pushes` (the Reborn engine, Sevii, Infinite Fusion).
 
 The answers go with new tiles, a reset and the tiles of any event that changes. At an event's end they all go, unless
 the profile declares `plain_passability`.
+
+### Neighbouring maps
+
+A step off the map is the neighbouring map's to answer, through the engine's map factory. A neighbour in range of the
+screen is loaded, and answers for itself. For one that is not, every engine builds a copy, with its file read and all
+its events created: in the newer engines `isPassableFromEdge?` builds one to find the tile and `isPassable?` another to
+ask it; older ones build one per neighbour and add it to the factory's maps until the next frame takes it out. The locator
+asks about every border tile of every connection on each press, so this took seconds on a connected map.
+
+`World::Neighbours` keeps the last `neighbour_cache_size` copies instead, 16 by default. `Probe.answer` lends the one a step needs to the
+factory for the question (`Neighbours.lending`): the factory looks among its maps before building one, so the engine's
+own code runs and finds the copy, and nothing of the game is hooked. The tile across comes from `Engine.across`, the
+engine's own connection math; where it finds nothing to lend, the engine answers as ever.
+
+A kept copy answers as a fresh one would:
+
+- Its events stand where the map places them, as the game never updates a copy.
+- Its events' pages are taken afresh once a frame, by the game's own `Game_Event#refresh`, the first time the copy is
+  used in that frame. The switches, variables and scripts their conditions read are read as they stand.
+
+Copies are built and refreshed apart from the game (`Neighbours.apart`). `$scene` is nil meanwhile, as a plugin that
+draws from an event's refresh, such as Event Indicators, would otherwise put a copy's events on the screen in the place
+of the map's own. The switches and variables are put back afterwards, as a map's setup may set them as if the player had
+come in: Rejuvenation's sets `AtebitDesire`.
+
+Nothing in a copy hangs on the map left, so the copies outlive a map change and a reset, and go only by age. A copy that
+fails to build or refresh is dropped and the engine answers by itself. `neighbour_cache` turns the lending off. With
+`neighbours_background` on, the `:neighbours` step builds this map's neighbours ahead of any question, one every
+`Neighbours::WARM_GAP` map frames while the player stands still, each tried once per stay on the map.
+`Neighbours.map` gives a map as the engine would read it, the one it has loaded or a copy; `MapMeta.terrain_on` reads a
+surf across a seam from it.
+
+Stock Essentials 20.1 has a bug in `calculate_bush_depth`, which looks behind every event as its map is set up: two
+events on connected maps with their backs to each other rebuild each other's map until the stack runs out. The official
+hotfix fixes this. No surveyed game reaches it: Keishou ships the hotfix, Emerald has the fix in its scripts, and the
+engines up to v19 that make this lookup ask `$map_factory`, which they never assign. For a game that does reach it,
+`Neighbours` catches `SystemStackError`, which `rescue StandardError` lets through from Ruby 1.9 on: the step answers
+`Probe::CLOSED`, and the game goes on.
+
+A game has nothing to declare for this. A copy keeps the tiles its setup left, so a game whose setup rewrites a
+connected map's tiles from the game's state would call `Neighbours.forget` when that state changes.
 
 ### Events and facets
 
@@ -168,6 +234,12 @@ A press resolves in the game's order:
    carry or a warp lands the player elsewhere.
 6. A closed step bumps the event in front, which may carry or warp the player. With `ASSIST`, an assisted step may get
    past it.
+
+A carry can land on another touch event, which takes over (arrow floors), and the steps that ask for one depend on the
+engine. From Essentials 19 on, `Game_Character#update_command` takes a route's next command a frame after the player
+arrives, so every step asks. Before it, the next step starts the frame they arrive, so only a step the route rests after
+asks (`EventPages.every_step_fires?`, `Outcome#stops`): Z's diagonal stairs carry the player over the tile of the event
+that brings them back. A page that waits for its route asks on none of them.
 
 `Moves.trace` replays a route press by press with the same moves, and `Moves.one_way` marks the presses that cannot be
 undone the same way, a jump or a slide. The guide follows a route through `trace`, and route text names those presses.
@@ -272,7 +344,8 @@ from `Pathfinder::ALGORITHMS`:
 
 `Routes::Limits` is one route operation's budget, from `route_limit`:
 
-- `:effort`: at most `astar_max` tiles examined per search.
+- `:effort`: at most `astar_max` tiles examined per search, with more and a clock for the search that moves boulders
+  ([Pushes and pulls](#pushes-and-pulls)).
 - `:time`: one deadline of `route_budget_ms` for the whole operation, checked every `Limits::CHECK` tiles.
 - `:none`: no limit.
 
@@ -302,21 +375,27 @@ Each variant has its own walk, kept per map, mode of the passability probe and w
 - `:water`: with surfing allowed.
 
 `Regions#status` answers `:yes` with the rooms away, `:no` once the walk is whole and reached none of the tiles, or
-`:unknown`. A question walks on only within its allowance. By effort that is the variant's share, then a tenth of it
+`:unknown`, which is also the `:assist` walk's answer for `:no` where a boulder may stop a slide (`sure_no?`,
+[Pushes and pulls](#pushes-and-pulls)). A question walks on only within its allowance. By effort that is the variant's share, then a tenth of it
 each frame; under a time limit, until the frame's deadline; with no limit, all of it. With `regions_background` on,
-each map frame also walks the first variant with states left for `Regions::SLICE_MS`.
+each map frame also walks the first variant with states left: for `regions_slice_ms` once the player has stood still for
+`Regions::STILL_FRAMES` map frames in a row, and no more than `Regions::SLICE_MS` till then, as the frame between two steps
+has the player still too (`Regions.slice_ms`). That time goes first to telling whether the map has water
+(`Terrain.water_on_map?`), and `:water` is passed over on a map with none.
 
 The regions lend walkers through, so a walking character is no wall to them, unless its touch does something or it
 stands where it would stop a slide. A walker that comes, goes or steps keeps the walk; any other change of the events
 drops it.
 
-The regions give three answers the rest of the mod relies on:
+The regions give four answers the rest of the mod relies on:
 
 - `Planner.reach` is the answer by which the target list hides a target (`hide_unreachable`) and the planner gives up
   on one. It is never `:no` with `edge_relax` on, since the walk takes no border steps.
 - `Regions#presses_to` gives the fewest presses to a tile by the walk's moves; `target_order` `:walk` orders the list
   by it.
 - The rooms away feed the room note ([Transfers](#transfers)).
+- `Regions#presses_back` and `Regions#past_boulders` start the search that moves boulders
+  ([Pushes and pulls](#pushes-and-pulls)).
 
 ### The regions router
 
@@ -369,7 +448,8 @@ The planner keeps its last `Planner::SIZE` plans. The key (`Planner.key_for`) ho
 besides the tiles: the map, the vehicle and the events, the player's tile and bridge level, the target, the route
 settings, the puzzle assist, whether Strength is in use and whether the player may surf with company. A cut is not
 kept when asking again would go on where the regions and the flood stopped, nor under a time limit, where the clock
-decided it.
+decided it. What the clock of `Limits#wider` cut is kept: asking again from that tile would hold the game as long for the
+same answer.
 
 ## Assisted steps
 
@@ -401,21 +481,54 @@ an item that stands in (`field_move_item`, `field_move_tool`), the badge. It ans
 
 `Routes::Pushes` searches over the player's tile and where each moved boulder was left, packed into one Integer. A
 boulder moves as the game moves it: one tile per push, on over ice in a game whose pushed boulders slide
-(`Pushes.sliding_rocks!`, the Reborn engine), or onto the player's tile on a pull, the player stepping back. Without
+(`Pushes.sliding_rocks!`, the Reborn engine), onto the player's tile on a pull, the player stepping back, or by a long
+push, once, through whatever lies between, to where its route ends or nowhere once its page stops nobody. Without
 the puzzle assist a route may move only the boulder that cuts the path, as often as it takes; with it, up to
 `Pushes::LIMIT` boulders. The search is an A* priced in presses, each push, pull or other assisted step costing
-`Pathfinder::GATE_COST` more, and it stops as a cut past `Pushes::NODES` states.
+`Pathfinder::GATE_COST` more, and it stops as a cut past `Pushes::NODES` states. By effort it gets `Pushes::WIDER` times
+`astar_max` and `Pushes::SECONDS` at most (`Limits#wider`): a state is cheap on Ruby 3.1 and six to eight times dearer on 1.8.7
+and on some games' 3.0 and 3.1 builds, where the same states would hold the game for seconds.
+
+A route for the player starts from what the assisted regions walked, once they are all walked. `sure_no?` fails with boulders
+about on a walk that meets a tile that moves the player: a boulder may stop a slide wherever a push leaves it, and the walk,
+which lends them through, never takes those slides.
+
+- With `sure_no?`, `Pushes.sealed?` answers with no search when no route can exist. The player goes along the walk's moves with
+  the boulders as walls (`Regions#past_boulders`), and one the game can move, the others aside, stops being one; where a route
+  may move only one, each of them in turn. Not getting to the goal even so is the proof. A boulder that can be pulled rules this
+  out, as a pull lands the player on a tile the walk need not reach.
+- The estimate is the presses left walking with the boulders lent through (`Regions#presses_back`, the walk's moves taken
+  backward). It never overstates, so the plan found first is a cheapest one, and with `sure_no?` a state with no way to the goal
+  is left out.
+- Past `Pushes::EXACT` states a hard room stops looking for the cheapest plan and hurries: the estimate takes each boulder on the
+  way at a push's price and weighs `Pushes::WEIGHT` times the presses already made (`Pushes.reweighed` orders the frontier afresh,
+  nothing walked is lost). A route may then take a few more presses or pushes.
+
+A route for a boulder (`RockGoal`) stays an A* throughout, on its own field of pushes: with a weight, the longest carry of Ashen
+Frost's Well Temple stops reaching its spot within the cap. The field walks back from the box as the game moves the boulder: a
+push or pull of one tile, or all a long push sends it as one push, whatever lies between and however its route turns.
 
 A pushable is found by the script its page runs (a profile's `push_script` first, then `Effects::PUSH_SCRIPTS`), by a
-touch page that steps the event the way the player faces (Insurgence's rolling boulders), or by the locator's name
-for a Strength boulder. `pull_script` marks the scripts that also let the player pull.
+touch page that steps the event the way the player faces (Insurgence's rolling boulders), by a touch page that sends it
+off with Through on depending on the player's facing (`Effects.long_pushes`: the crystals of Z and Realidea, the Staryu of
+Soulstones 1), or by the locator's name for a Strength boulder. `pull_script` marks the scripts that also let the player
+pull. `long_pushes` walks the page as the interpreter would (`EventPages`), so a self switch that has spent the push reads
+as no push, and a page the push opens that stops nobody (`Mechanics::Links.live_page`) reads as the boulder gone. A move of
+the player, a battle or a condition it cannot answer on the way rules it out, and so does a page with no branch on the
+facing, which is someone walking off in a scene.
+
+A long push has to land on the map. One that sets nothing that stays leaves its page live, so a route may make it again from
+where it lands. One that sets anything is the last push a route gives that boulder, whichever came before it: what the page
+it opens does is read when the push has been made, by the next plan. To carry a piece through several pages this way, as the
+ball of Opalo's map 67 goes, a puzzle declares one phase per page, each with its own box.
 
 ## Water and surfing
 
 When the plans before it find no way, `Pathfinder.surf_plan` looks for one across water. It finds nothing while
 the player already surfs, when the party surely cannot use Surf (`FieldMoves.can?(:SURF)` is `false`), on a map that
-keeps the player on the bike (`MapMeta.always_bicycle?`), or when the `:water` regions tell the target cannot be
-reached.
+keeps the player on the bike (`MapMeta.always_bicycle?`), on a map known to have no water (`Terrain.water_on_map?`, which
+a plan reads for `Pathfinder::WATER_READ` at most and the map frames finish), or when the `:water` regions tell the target
+cannot be reached.
 
 `Routes::Launch` runs one search from the player with `SURF_PLAN`, toward the target and the four tiles beside it. On
 that way it takes the last tile walked before the water, with its facing, as the launch. A tile counts as walked when
@@ -473,15 +586,16 @@ the player's own room first, except in the fixed order.
 ## Puzzles
 
 A profile models a map's puzzle with `mechanic(kind, maps)`. The block's verbs (`World::Mechanics::Builder`) declare
-the watched switches and variables, the controls, the obstacles by their graphic, the win, a hint and named points.
-Three types are registered with `Mechanics.register_type`:
+the watched switches and variables, counts, the controls, the obstacles, names, the win, a hint and named points. A map
+may take several, each a part with its own instance. Three types are registered with `Mechanics.register_type`:
 
-- `:state`: watched flags, phases each live while its test holds, an info line and a win.
-- `:grid`: floor cells the game lights, a letter to form, and the cell under the player.
+- `:state`: watched flags, counts, phases each live while its test holds, an info line and a win.
+- `:grid`: floor cells the game lights, a letter to form, and the cell under the player; or the map's own events laid out
+  in rows and columns, each with a state of its own.
 - `:facing`: statues the player turns, each with the facing the game checks.
 
 ```ruby
-# games/pokemon_z/puzzles.rb
+# games/pokemon_z/puzzles/ship.rb
 mechanic(:state, [143, 144, 145]) do
   watch :var => 132, :label => :ship_crank_red, :on => :ship_crank_on, :off => :ship_crank_off
   watch :switch => 312, :label => :ship_valve1, :on => :ship_valve_on, :off => :ship_valve_off
@@ -493,8 +607,9 @@ mechanic(:state, [143, 144, 145]) do
 end
 ```
 
-The model says nothing. On the first look at a declaring map, `Mechanics.instance` finds the pieces: obstacles and
-statues by their graphic, and controls by the pages the player fires that write a watched flag. Each map frame,
+The model says nothing. On the first look at a declaring map, `Mechanics.instances` finds the pieces: obstacles by their
+graphic, tile, id or name, statues by their graphic, and controls by the pages the player fires that write a watched flag.
+Each map frame,
 `Puzzles.tick` runs `Mechanics.update`, which compares the state with the last frame's and queues the changes, and then
 says them. `Puzzles` also answers the [info key](../reference/glossary.md) and lists the locator's puzzles category.
 `World::Mechanics::Links` reads the obstacles' own pages to tell what flipping a control would do to the walls.
@@ -534,7 +649,9 @@ Its functions read the plan and the settings and speak nothing.
 | Memo | Kept under | Dropped by |
 |---|---|---|
 | Terrain classes (`World::Terrain`) | Kind of tile, bridge height | New tiles, a reset |
+| Water on the map (`World::Terrain`) | Map | New tiles, a reset |
 | Passability answers (`World::Probe`) | Mode, step, bridge bit | New tiles, a reset, an event's change or end |
+| Neighbouring maps (`World::Neighbours`) | Map id | The oldest past `neighbour_cache_size`; pages taken afresh once a frame |
 | Event records (`World::Events`) | Event | A new map, a reset |
 | Event facets | Record, the reads noted | A change of the record or of a read |
 | Tile classes (`Routes::Moves`) | Tile | New tiles, a reset, any event change |
@@ -545,3 +662,33 @@ Its functions read the plan and the settings and speak nothing.
 | Plans (`Routes::Planner`) | `Planner.key_for` | New tiles, a reset; the oldest past `Planner::SIZE` |
 
 With `plain_passability`, an event's end keeps the passability answers, the regions and the HPA* graph.
+
+## Puzzles with no declaration
+
+`Puzzles::Auto` serves the maps no mechanic is declared on, reading the events alone:
+
+- The player's use of an event reaches it through `Interpreter#setup`, on the map's interpreter and for a page fired by the
+  action button or a touch. It then watches what `World::Events` reports. Once the interpreter has stood idle for a few
+  frames it says what opened or closed, by groups of touching tiles, at the `:map_changes` reading's level: nothing at
+  brief, what happened at medium, and where the nearest one is in full. What only flickers, the event's own change and
+  what walks about do not count. A person's talk or a scene of several messages starts no watch. A silent control worked
+  by the action button that changed no wall says that it worked.
+- A silent control is an event whose page says nothing and writes a flag another event of the map reads, in a page
+  condition or a branch, worked by the action button, or stepped on when drawn and no person. These go to the locator's
+  puzzles category, by the name the lists give them, or as a mechanism. One with no graphic on a tile the player can walk
+  on is hidden to anyone looking at the screen too, so it is listed with the puzzle assist alone. A declaration can say an
+  event is none (`not_control`).
+
+`Puzzles::Answers`, on every map, says with the assist the answer a number or text entry asks for, when the commands after
+the one that opens it, up to the next entry, compare the variable it keeps what was entered in with a single fixed value. A
+menu says its right option by the rule a declaration gives (`right_choice`). The game takes a menu or a number
+entry right after a Show Text into the same message, in `command_101`, so what they ask goes after that text. A menu held in
+a message's own words (`\ch[...]`) is read from those words, and its branches are the comparisons of its variable that follow.
+
+`Puzzles::Reach` says what a declaration has for a point inside a page (`on_reach`), from `command_402` for a menu's branch and
+`command_101` for a message. `sent_back` is answered by `Locator`: within the map through `teleport_cause`, and through
+`move_cause` for a transfer from another map and, from `ForcedMove`, for the end of a move route.
+
+The routes read two more things from any game's events. An action page whose commands all hang from branches on the
+player's facing is only reached from those sides (`Effects.act_sides`). And what steps away from the player when walked into
+or used, a page's route on its own event as it would run now, is pushed like a boulder (`Effects.self_push_dirs`).

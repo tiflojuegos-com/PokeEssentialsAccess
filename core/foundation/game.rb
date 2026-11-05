@@ -139,8 +139,14 @@ module PokeAccess
       def trainer_order(keys); PokeAccess::Config.trainer_parts = keys.map { |k| k.to_sym }; end
 
       # Declares a puzzle of a kind (:state, :grid or :facing) on a map or several, by a block of verbs (see
-      # World::Mechanics::Builder).
-      def mechanic(kind, maps, &blk); PokeAccess::World::Mechanics.define(kind, maps, &blk); end
+      # World::Mechanics::Builder); a map takes several with :part => name.
+      def mechanic(kind, maps, *opts, &blk); PokeAccess::World::Mechanics.define(kind, maps, *opts, &blk); end
+
+      # A test for a mechanic's phase: the player stands in the box, in map tiles (World::Mechanics.at).
+      def at(x0, x1, y0, y1); PokeAccess::World::Mechanics.at(x0, x1, y0, y1); end
+
+      # What a mechanic's phase lists with the assist alone: the events that go on (World::Mechanics.right_way).
+      def right_way(*events); PokeAccess::World::Mechanics.right_way(*events); end
 
       # Names events before the core does: the block gives a name, or nil to leave it (Locator.register_rule).
       def event_name(&blk); PokeAccess::Locator.register_rule(:name, &blk); end
@@ -161,9 +167,10 @@ module PokeAccess
       # an exit however it is triggered and gets the teleporter cue rather than the door's.
       def teleporter(pattern); PokeAccess::Locator.register_teleporter(pattern); end
 
-      # Registers a script call that transfers the player (doors that skip the Transfer Player command); the
-      # pattern must capture the destination map id.
-      def transfer_script(pattern); PokeAccess::Locator.register_transfer_script(pattern); end
+      # Registers a script call that transfers the player (doors that skip the Transfer Player command). The block gets
+      # the match and answers where it leads, a map id or [map, x, y]; with no block, a first group of digits is the map
+      # id. A call that names no map is still a door, to somewhere only the game knows as it runs.
+      def transfer_script(pattern, &dest); PokeAccess::Locator.register_transfer_script(pattern, &dest); end
 
       # Declares an item this game hands a field move to (a surfboard for Surf), so the route finder and
       # the guide know the player can use the move without a Pokemon that knows it.
@@ -217,7 +224,8 @@ module PokeAccess
       def pull_script(pattern); PokeAccess::Routes::Effects.pull_script(pattern); end
 
       # Declares a script this game moves its pushables with, ahead of the stock ones: the field move it needs (nil for
-      # none) and, with a block, the condition it moves them under (see Routes::Effects.push_script).
+      # none) and, with a block, the condition it moves them under, given the tile a move would leave them on (see
+      # Routes::Effects.push_script).
       def push_script(pattern, move = nil, &ready); PokeAccess::Routes::Effects.push_script(pattern, move, &ready); end
 
       # Maps picture file names to spoken text, for screens that light one picture per option.

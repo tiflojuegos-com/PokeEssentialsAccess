@@ -7,7 +7,7 @@ class RouteTerrainTest < PokeAccessTest
   DIR_OF = PokeAccess::Routes::DIR_OF
   T = PokeAccess::I18n
   # The flags a modern terrain tag carries for the plugins and games that read them.
-  FLAGS = [:slide_up, :slide_right, :slide_down, :slide_left, :waterCurrent, :rockclimb, :acroBike, :can_surf]
+  FLAGS = [:slide_up, :slide_right, :slide_down, :slide_left, :waterCurrent, :rockclimb, :rock_climb_tag, :acroBike, :can_surf]
   # A modern terrain tag stand-in: its number and its flags.
   Tag = Struct.new(:id_number, *FLAGS)
   # The lists of Routes::Moves a profile registers its rules into.
@@ -558,6 +558,85 @@ class RouteTerrainTest < PokeAccessTest
     end
   end
 
+  test "Rock Climb EX's rock is climbed straight along to past its end, up and down" do
+    with_ex_settings(true) do
+      ex_rock_room([[2, 2], [2, 3]])
+      assert_equal [2, 1], PokeAccess::RockClimbEx.climb(2, 4, 8)
+      assert_equal [2, 4], PokeAccess::RockClimbEx.climb(2, 1, 2)
+    end
+  end
+
+  test "Rock Climb EX's rock is climbed however tall it is" do
+    with_ex_settings(true) do
+      rocks = [[2, 2], [2, 3], [2, 4], [2, 5]]
+      rows = ["########", "#......#", "#.#....#", "#.#....#", "#.#....#", "#.#....#", "#......#", "########"]
+      grid(rows, rocks.map { |xy| [xy, tag(23, :rock_climb_tag)] })
+      assert_equal [2, 1], PokeAccess::RockClimbEx.climb(2, 6, 8)
+      assert_equal [2, 6], PokeAccess::RockClimbEx.climb(2, 1, 2)
+    end
+  end
+
+  test "Rock Climb EX moves on from the first hold before it looks ahead: one tile of rock lands two past it" do
+    with_ex_settings(true) do
+      ex_rock_room([[2, 3]])
+      assert_equal [2, 1], PokeAccess::RockClimbEx.climb(2, 4, 8)
+    end
+  end
+
+  test "Rock Climb EX's routes only climb with its rock in front, facing up, or down where the game allows it" do
+    with_ex_settings(false) do
+      ex_rock_room([[2, 2], [2, 3]])
+      assert_equal [2, 1], PokeAccess::RockClimbEx.climb(2, 4, 8), "up"
+      assert_nil PokeAccess::RockClimbEx.climb(2, 1, 2), "the game's setting turns the way down off"
+      assert_nil PokeAccess::RockClimbEx.climb(1, 2, 6), "sideways"
+      assert_nil PokeAccess::RockClimbEx.climb(1, 4, 8), "no rock in front"
+    end
+  end
+
+  test "Rock Climb EX offers no climb that would set the player down where no step leads out" do
+    with_ex_settings(true) do
+      ex_rock_room([[2, 2], [2, 3]], [[1, 1], [3, 1]])
+      assert_nil PokeAccess::RockClimbEx.climb(2, 4, 8)
+    end
+  end
+
+  test "climbing Rock Climb EX's rock is one assisted move gated by Rock Climb on the rock in front" do
+    with_ex_settings(true) do
+      ex_rock_room([[2, 2], [2, 3]])
+      gate = { :kind => :field, :label => :loc_rock_climb, :move => :ROCKCLIMB, :x => 2, :y => 3 }
+      assert_equal [2, 1, 1, :assist, gate], shape(Moves.step(2, 4, 0, DIR_OF[8], Moves::ASSIST))
+    end
+  end
+
+  test "Rock Climb EX's climbing is a mode of its own, whose answers the engine gives afresh" do
+    grid(["#####",
+          "#@..#",
+          "#####"])
+    asked = 0
+    with_global_flags(:rockclimbing) do
+      with_engine(lambda { |_x, _y, _d| asked += 1; true }) do
+        counts = [false, true, false].map do |climbing|
+          $PokemonGlobal.instance_variable_set(:@rockclimbing, climbing)
+          World.next_frame
+          Probe.step?(1, 1, 6)
+          asked
+        end
+        assert_equal [1, 2, 2], counts, "asked on foot and climbing; back on foot the answer is kept"
+      end
+    end
+  end
+
+  test "Rock Climb's badge is read from the plugin's settings where they exist, and the others' from the game's" do
+    assert_nil PokeAccess::FieldMoves.badge_for(:ROCKCLIMB), "without the plugin"
+    Object.const_set(:BADGEFORFLY, 3)
+    with_ex_settings(true) do
+      assert_equal 8, PokeAccess::FieldMoves.badge_for(:ROCKCLIMB)
+      assert_equal 3, PokeAccess::FieldMoves.badge_for(:FLY)
+    end
+  ensure
+    Object.send(:remove_const, :BADGEFORFLY)
+  end
+
   test "IF Hoenn's action button jumps onto a rail only on the bike, facing it from off the rail" do
     with_profile("infinitefusion_hoenn/acro_rails") do
       rail_across
@@ -723,6 +802,24 @@ class RouteTerrainTest < PokeAccessTest
     rows = ROOM.map { |r| r.dup }
     rocks.each { |x, y| rows[y][x, 1] = "#" }
     grid(rows, rocks.map { |xy| [xy, tag(18, :rockclimb)] })
+  end
+
+  # ROOM with Rock Climb EX's rock, a wall, on each tile of rocks, and a plain wall on each tile of walls.
+  def ex_rock_room(rocks, walls = [])
+    rows = ROOM.map { |r| r.dup }
+    (rocks + walls).each { |x, y| rows[y][x, 1] = "#" }
+    grid(rows, rocks.map { |xy| [xy, tag(23, :rock_climb_tag)] })
+  end
+
+  # Runs the block with Rock Climb EX's settings as the game defines them, its way down on or off.
+  def with_ex_settings(descending)
+    settings = Module.new
+    settings.const_set(:ENABLE_DESCENDING, descending)
+    settings.const_set(:BADGE_FOR_ROCKCLIMB, 8)
+    Object.const_set(:RockClimbSettings, settings)
+    yield
+  ensure
+    Object.send(:remove_const, :RockClimbSettings)
   end
 
   # A spot target at (x, y), as the locator lists one.

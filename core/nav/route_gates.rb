@@ -44,17 +44,16 @@ module PokeAccess
     end
 
     # Runs a block as an assisted search: assisted steps allowed and each cuttable or smashable obstacle lent through
-    # (World::Probe.lend_through), put back afterwards whatever happens. The event indexes are read first, from the
-    # world as it stands, since nothing read while events are lent is kept.
+    # (World::Probe.lend_through), put back afterwards whatever happens. The action events are read first, from the
+    # world as it stands, since nothing read while events are lent is kept; a plain walk's indexes read themselves
+    # (Effects.read_ahead).
     def self.with_gates_open
       in_context do |c|
         was = c.assisting
         begin
           c.assisting = true
           fx = Routes::Effects
-          fx.touch_index
           fx.act_index
-          fx.ramp_map?
           PokeAccess::World::Probe.lend_through(fx.gate_index.values.map { |g| g[2] }) { yield }
         ensure
           c.assisting = was

@@ -206,7 +206,66 @@ class RegionsRouterTest < PokeAccessTest
     assert_equal [nil, 3], [old.presses_to([[10, 1]]), old.presses_to([[4, 1]])], "the corridor shut past (5, 1)"
   end
 
+  test "tells the presses left from each tile as the presses to the goal from there, FAR with no way there" do
+    bad = []
+    checked = 0
+    [3, 29, 71].each do |seed|
+      one_way_grid(seed, true)
+      Regions.foot.status([[0, 0]])
+      rooms = brute_rooms(LEDGE).keys.sort
+      target = rooms[rooms.length / 2]
+      left = Regions.foot.presses_back([target], {}, 0)
+      rooms.each do |x, y|
+        want = stand_at(x, y) { Regions.foot.presses_to([target]) } || Routes::FAR
+        checked += 1
+        bad.push([seed, x, y, left[state(x, y)], want]) unless left[state(x, y)] == want
+      end
+    end
+    assert_operator checked, :>, 50, "tiles checked"
+    assert_equal [], bad.first(5)
+  end
+
+  test "tells the presses left by the nearest of the tiles" do
+    corridor
+    left = Regions.foot.presses_back([[9, 1], [4, 1]], {}, 0)
+    assert_equal [3, 0, 2, 0], [left[state(1, 1)], left[state(4, 1)], left[state(6, 1)], left[state(9, 1)]]
+  end
+
+  test "takes a tile it finds dear at its price more to step onto, and the way round where that costs less" do
+    hpa_fresh_grid(["#########",
+                    "#@......#",
+                    "#.#####.#",
+                    "#.......#",
+                    "#########"])
+    dear = { Routes.pkey(4, 1) => true }
+    at = lambda { |left| [[1, 1], [3, 1], [5, 1]].map { |x, y| left[state(x, y)] } }
+    assert_equal [6, 4, 2], at.call(Regions.foot.presses_back([[7, 1]], {}, 0))
+    assert_equal [9, 7, 2], at.call(Regions.foot.presses_back([[7, 1]], dear, 3))
+    assert_equal [10, 12, 2], at.call(Regions.foot.presses_back([[7, 1]], dear, 9))
+  end
+
+  test "tells no presses left without a player, or while the regions are not all walked" do
+    corridor
+    Regions.foot.status([[0, 0]])
+    without_player { assert_nil Regions.foot.presses_back([[4, 1]], {}, 0) }
+    with_share(4) do
+      corridor
+      assert_nil Regions.foot.presses_back([[2, 1]], {}, 0)
+    end
+  end
+
+  test "tells the presses left from a dropped one as the regions walked anew on the map as it is now" do
+    corridor
+    old = Regions.foot
+    old.status([[0, 0]])
+    $game_map.block_step(5, 1, 6)
+    assert_equal Routes::FAR, old.presses_back([[10, 1]], {}, 0)[state(1, 1)], "the corridor shut past (5, 1)"
+  end
+
   private
+
+  # The key of the state on (x, y) below any bridge.
+  def state(x, y); PokeAccess::Pathfinder.skey(x, y, 0); end
 
   # The router's answers in style to every inner tile of the 13 x 10 map loaded that differ from brute force (presses
   # and turns, a route where there is none, or no answer at all): [mismatches, answers checked].

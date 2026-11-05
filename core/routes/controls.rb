@@ -6,7 +6,7 @@ module PokeAccess
     # cross plates only while their presses leave the rest of the route open (open_past?).
     module Controls
       # The most presses a way may take, the most floor tiles read, and the most tiles the presses may walk in all.
-      DEPTH = 6
+      DEPTH = 10
       TILES = 8000
       VISITS = 40000
 
@@ -14,23 +14,32 @@ module PokeAccess
       # the way open already, when no presses within DEPTH open it, when the search is cut (presses, or the
       # route limit's deadline, past before the floor is read or while it is), or when the control cannot be walked to.
       def self.route(goal)
+        PokeAccess::World::Mechanics.instances.each do |inst|
+          way = route_in(inst, goal)
+          return way if way
+        end
+        nil
+      end
+
+      # That way through one mechanic's own controls and walls.
+      def self.route_in(inst, goal)
         mech = PokeAccess::World::Mechanics
-        inst = mech.instance
-        return nil unless inst && inst.spec[:obstacles] && !inst.controls.empty?
+        return nil unless inst.spec[:obstacles] && !inst.controls.empty?
         deps = mech::Links.flags(inst)
-        ctrls = mech.pieces(:control).select { |p| deps[mech::Links.key(inst.controls[p.ev.id])] }
+        ctrls = mech.pieces_in(inst, :control).select { |p| deps[mech::Links.key(inst.controls[p.ev.id])] }
         walls = mech::Links.walls(inst)
         return nil if ctrls.empty? || walls.empty?
         limits = PokeAccess::Pathfinder.limits
         return limits.cut! if limits.time_spent?
-        floor = PokeAccess::World::Probe.lend_through(walls) { floor_from($game_player.x, $game_player.y) }
+        floor = PokeAccess::World::Probe.lend_through(mech::Links.standing(inst)) { floor_from($game_player.x, $game_player.y) }
         return nil unless floor
         seq = presses(inst, ctrls, floor, goal)
         seq ? way_to(seq) : nil
       end
 
       # The tiles walkable from (x, y) with every wall set aside, each with the tiles one step leads to: key =>
-      # [[key, x, y], ...] (nil past TILES); nil once the route limit's deadline passes, the stop counted.
+      # [[key, x, y], ...] (nil past TILES); nil once the route limit's deadline passes, the stop counted. A tile on both
+      # levels of a bridge keeps the moves of the level reached first.
       def self.floor_from(x, y)
         pf = PokeAccess::Pathfinder
         lim = pf.limits
@@ -43,7 +52,7 @@ module PokeAccess
           cx, cy, lvl = queue.shift
           out = []
           DIRS.each do |dir|
-            t = Moves.step(cx, cy, lvl, dir, mode)
+            t = step_at(cx, cy, lvl, dir, mode)
             next unless t
             k = Routes.pkey(t.x, t.y)
             out.push([k, t.x, t.y])
@@ -110,19 +119,25 @@ module PokeAccess
         links = mech::Links
         pg = links.live_page(p.ev, over)
         return nil unless pg && (pg.trigger rescue 5) <= 2
-        w = inst.controls[p.ev.id]
-        k = links.key(w)
-        now = mech::State.flag(w)
-        vals = mech.written(pg, w).uniq
         nxt = over.dup
-        unless vals.empty?
-          on = over.key?(k) ? over[k] : now
-          set_flag(nxt, k, vals.length == 1 && !vals[0].nil? ? vals[0] : !on, now)
-        end
+        take_write(nxt, inst.controls[p.ev.id], pg, over)
         mech.self_written(pg).each do |ch, v|
           set_flag(nxt, [:self, p.ev.id, ch], v, links.self_switch(p.ev.id, ch, {}))
         end
         nxt == over ? nil : nxt
+      end
+
+      # Takes into flags what a page writes to its control's flag: a variable by the value it leaves, a switch on or off, or
+      # flipped where the page may do either.
+      def self.take_write(flags, w, pg, over)
+        mech = PokeAccess::World::Mechanics
+        links = mech::Links
+        k = links.key(w)
+        return set_flag(flags, k, mech.var_after(pg, w, links.variable(w[:var], over)), links.variable(w[:var], {})) if w[:var]
+        vals = mech.written(pg, w).uniq
+        return if vals.empty?
+        now = mech::State.flag(w)
+        set_flag(flags, k, vals.length == 1 ? vals[0] : !(over.key?(k) ? over[k] : now), now)
       end
 
       # Sets flag k to v in flags, dropped where v is its value now.
@@ -156,7 +171,7 @@ module PokeAccess
         return {} unless inst.spec[:obstacles] && inst.controls && !inst.controls.empty?
         deps = mech::Links.flags(inst)
         out = {}
-        mech.pieces(:control).each do |p|
+        mech.pieces_in(inst, :control).each do |p|
           next unless plate?(p.ev) && deps[mech::Links.key(inst.controls[p.ev.id])]
           out[Routes.pkey(p.ev.x, p.ev.y)] = p
         end
@@ -164,24 +179,34 @@ module PokeAccess
       end
 
       # The tiles a walk on foot keeps off, as pkey => true: where a step would change the map's puzzle, the plates
-      # some wall reads and a floor grid's cells while a letter is being formed on it.
+      # some wall reads, what a mechanic asks to avoid while its page can run, and a floor grid's cells while a letter is
+      # being formed on it.
       def self.keep_off
         mech = PokeAccess::World::Mechanics
-        inst = mech.instance
-        return {} unless inst
         off = {}
-        plates(inst).each_key { |k| off[k] = true }
-        spec = inst.spec
-        spec[:cells].each { |x, y| off[Routes.pkey(x, y)] = true } if spec[:cells] && mech.truth(spec[:active])
+        mech.instances.each do |inst|
+          plates(inst).each_key { |k| off[k] = true }
+          spec = inst.spec
+          (spec[:avoids] || []).each do |what|
+            ($game_map.events || {}).each_value do |ev|
+              off[Routes.pkey(ev.x, ev.y)] = true if mech.picks?(what, ev) && mech.acts?(ev)
+            end
+          end
+          spec[:cells].each { |x, y| off[Routes.pkey(x, y)] = true } if spec[:cells] && mech::Grid.live?(spec)
+        end
         off
       end
 
       # Whether a route on foot stays open past the plates it crosses: each press in turn must leave the rest of the
       # route clear of the walls it puts up (Links.blocked).
       def self.open_past?(route)
+        PokeAccess::World::Mechanics.instances.all? { |inst| open_past_in?(inst, route) }
+      end
+
+      # Whether one mechanic's plates leave that route open.
+      def self.open_past_in?(inst, route)
         mech = PokeAccess::World::Mechanics
-        inst = mech.instance
-        on = inst ? plates(inst) : {}
+        on = plates(inst)
         return true if on.empty?
         pf = PokeAccess::Pathfinder
         steps = Moves.trace($game_player.x, $game_player.y, pf.bridge_level, route.to_a, pf.replay_mode)
@@ -228,14 +253,20 @@ module PokeAccess
         PokeAccess::World::Mechanics.pieces(:control).each { |p| ctrls[Routes.pkey(p.ev.x, p.ev.y)] = true }
         found = nil
         DIRS.each do |dir|
-          t = Moves.step(ev.x, ev.y, pf.bridge_level, dir, mode)
+          t = step_at(ev.x, ev.y, pf.bridge_level, dir, mode)
           back = t && DIRS.find { |b| b[0] == -dir[0] && b[1] == -dir[1] }
-          s = back && Moves.step(t.x, t.y, t.level, back, mode)
+          s = back && step_at(t.x, t.y, t.level, back, mode)
           next unless s && s.x == ev.x && s.y == ev.y
           return dir[2] unless ctrls[Routes.pkey(t.x, t.y)]
           found ||= dir[2]
         end
         found
+      end
+
+      # The move from (x,y) at bridge level lvl toward dir, the engine pointed at that level to answer it.
+      def self.step_at(x, y, lvl, dir, mode)
+        PokeAccess::Pathfinder.use_level(lvl)
+        Moves.step(x, y, lvl, dir, mode)
       end
     end
   end

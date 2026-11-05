@@ -117,7 +117,7 @@ Under "Navigation and pathfinder options" you decide how the target list works:
 
 - **Key remapping**: "Remap game controls" changes the game's keys and the mod's, to a single key or to `Alt` plus
   another.
-- **Session recorder**: "Record session", under "Debugging", writes what the mod saw and said to a file, to attach
+- **Session recorder**: "Record session", under "Debugging", "Diagnostics", writes what the mod saw and said to a file, to attach
   when you report a problem.
 
 ## Installing
@@ -191,7 +191,7 @@ Each game has its profile in `games/`. The list the launcher uses to recognise g
   Desolation.
 - **GameData era** (Essentials v18 onwards): Pokémon Añil, Pokémon Royal, Pokémon Relict, Pokémon Eternal Emerald,
   Pokémon Grueling Gold, Pokémon Infinite Fusion, Pokémon Infinite Fusion 2 Hoenn, Pokémon Fire Ash, Pokémon
-  Soulstones 2, Pokémon Revival, Pokémon Dark Horizon, Pokémon World Frontier and Pokémon Golden Crown.
+  Soulstones 2, Pokémon Revival, Pokémon Dark Horizon, Pokémon World Frontier, Pokémon Golden Crown, Pokémon Keishou, Pokémon Ashen Frost, Pokémon Decades and Pokémon Hero Legacy.
 
 Any other Essentials fangame gets a **generic profile**. It gives all the common accessibility (menus, dialogue,
 battle, navigation and pathfinding), without the readers made for one particular game.
@@ -205,10 +205,15 @@ its key and the game's action moves to another:
 
 | Game | Combination | In the game | The old key, in the mod |
 |------|-------------|-------------|-------------------------|
+| Ashen Frost | `Alt` + `M` | Move information, in battle | `Shift`: the mod's modifier |
+| Ashen Frost | `F7` | Skip text; left `Ctrl` no longer does | `Ctrl`: the mod's modifier |
+| Ashen Frost | `Q` | Speed the game up; left `Alt` no longer does | `Alt`: this game's combinations |
 | Awakening | `Alt` + `M` | Region map; fireball where needed | `M`: coordinates |
 | Awakening | `Alt` + `J` | Lens of Truth | `J`: previous target on the list |
 | Awakening | `Alt` + `G` | Battle information; outside battle, message log | `G`: field status |
 | Awakening | `Alt` + `T` | Save | `T`: details of what has focus |
+| Decades | `Alt` + `T` | Type chart, in battle | `T`: details of what has focus |
+| Decades | `Tab` | DexNav search, sure catch and skipping challenge battles; `Ctrl` no longer does | `Ctrl`: the mod's modifier |
 | Realidea | `Alt` + `M` | Clear the fog; in puzzles and minigames, reset, repeat the line or see the guide | `M`: coordinates |
 | Insurgence | `Alt` + `M` | Speed up the game | `M`: coordinates |
 | Insurgence | `Alt` + `T` | Registered item 4 | `T`: details of what has focus |

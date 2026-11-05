@@ -17,13 +17,19 @@ class PluginsTest < PokeAccessTest
   # leaves them out on purpose, and they count as declared.
   OWN_COPIES = { "perseida" => %w[alt_mystery_gift book_scene kyu_autosave simple_encounter_list],
                  "revival" => %w[modular_menu],
+                 "soulstones2" => %w[type_match],
                  "pokemon_z" => %w[advanced_pokedex_v16 sky_animated_pokemon sky_trainer_sensor],
                  "rejuvenation" => %w[advanced_pokedex_v16],
                  "edas" => %w[kyu_autosave],
                  "uranium" => %w[bw_gender_selector],
                  "royal" => %w[bw_gender_selector],
                  "worldfrontier" => %w[bw_gender_selector],
-                 "vitro" => %w[berry_pots bes_region_map encounter_pages kyu_autosave simple_encounter_list teleport_menu] }
+                 "vitro" => %w[berry_pots bes_region_map encounter_pages kyu_autosave simple_encounter_list teleport_menu],
+                 "anil" => %w[punch_bag_v12] }
+
+  # Two releases of one plugin, whose readers claim the same methods with other arities: their probes shut each other out,
+  # so no game loads both.
+  RELEASES = [%w[dbk_enhanced_ui enhanced_ui_v1]]
 
   # The shapes a reader claims a slot ("Class#method") with; a file matching none is a failure, not clean. A claim on
   # the mod's own PokeAccess:: methods counts as registering but claims no slot, since those add up or chain.
@@ -33,6 +39,8 @@ class PluginsTest < PokeAccessTest
     # A hook on a module's own method, as a class may keep its state.
     /wrap_singleton\(\s*"([A-Za-z_:][\w:]*)"\s*,\s*:(\w[\w?!=]*)/,
     /def_extractor\(\s*"([A-Za-z_:][\w:]*)"()/,
+    # A declared reader, which hooks its screen on its own.
+    /FocusReader\.define\(\s*"([A-Za-z_:][\w:]*)"()/,
     # A bag decorator claims its own module, pushed into Menus.bag_decorators.
     /bag_decorators\.push\(\s*([A-Za-z_:][\w:]*)()/,
     # An override of the mod's own method.
@@ -55,6 +63,11 @@ class PluginsTest < PokeAccessTest
   test "a plugin file out of the table, an entry with no file and one with no probe are reported" do
     got = table_gaps(["alpha", "beta", "delta"], { :beta => "Beta", :gamma => "Gamma", :delta => " " })
     assert_equal ["alpha.rb is not in the table", "gamma has no file", "delta names no probe"], got
+  end
+
+  test "no profile declares two releases of one plugin" do
+    both = declared_lists.select { |_profile, plugins| RELEASES.any? { |pair| (pair - plugins.map { |p| p.to_s }).empty? } }
+    assert_equal [], both.keys
   end
 
   test "every plugin a profile names exists in plugins/" do
@@ -399,7 +412,7 @@ class PluginsTest < PokeAccessTest
 
   # The slots two different plugins claim, as "slot <- plugins".
   def shared_slots(claims)
-    shared = claims.select { |_slot, files| files.uniq.length > 1 }
+    shared = claims.select { |_slot, files| files.uniq.length > 1 && !RELEASES.include?(files.uniq.sort) }
     shared.map { |slot, files| "#{slot} <- #{files.uniq.sort.join(', ')}" }.sort
   end
 

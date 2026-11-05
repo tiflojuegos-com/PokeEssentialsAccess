@@ -2,7 +2,7 @@
 # speaks, and what it hands tts on the screens the mod has no reader for, or anywhere for its own lines, said by the mod.
 Harness.load_common("rv_common")
 
-# The game's reader as Messages.rb defines it, which the relay follows.
+# The game's reader, which the relay follows.
 def tts(text, _interrupt = false); text; end
 
 # The intro's character pick, said through tts as the choice moves ($game_variables[358] holds it).
@@ -70,6 +70,23 @@ class RebornVoiceTest < PokeAccessTest
     with_voice(true) do
       keeping_relay_state { V.install([], []) }
       assert_nil $tts
+    end
+  end
+
+  test "a game that calls its muted reader unchecked goes on" do
+    with_voice(true) do
+      V.mute
+      assert_nil $tts.enqueue("Select your player character:", false)
+      assert_nil $tts.clear
+    end
+  end
+
+  test "muting twice leaves the reader muted" do
+    with_voice(true) do
+      V.mute
+      muted = $tts
+      V.mute
+      assert_same muted, $tts
     end
   end
 

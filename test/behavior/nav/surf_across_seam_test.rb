@@ -53,7 +53,8 @@ class SurfAcrossSeamTest < PokeAccessTest
     sea = Object.new
     sea.define_singleton_method(:terrain_tag) { |_x, _y| tag }
     factory = Object.new
-    factory.define_singleton_method(:getMap) { |_id, _add| sea }
+    factory.instance_variable_set(:@maps, [])
+    factory.define_singleton_method(:getMapNoAdd) { |_id| sea }
     factory
   end
 end

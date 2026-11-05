@@ -4,7 +4,20 @@
   :imports => %w[lostie_common],
   :modules => %w[
     constants
-    puzzles
+    puzzles/machine_gym
+    puzzles/psychic_gym
+    puzzles/earth_gym
+    puzzles/water_gym
+    puzzles/ghost_gym
+    puzzles/charjabug_gym
+    puzzles/ice_gym
+    puzzles/voodoo_hall
+    puzzles/maple_mansion
+    puzzles/ancient_workshop
+    puzzles/office_gym
+    puzzles/galerna_house
+    puzzles/route19_farms
+    puzzles/rock_holes
     floor_traps
     picture_cues
     painted_pictures

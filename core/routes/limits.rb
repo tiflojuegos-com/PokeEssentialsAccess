@@ -29,7 +29,7 @@ module PokeAccess
         stop = case @mode
                when :time then (iter & (CHECK - 1)) == 0 && (PokeAccess.clock rescue 0.0) > @deadline
                when :none then false
-               else iter > @nodes
+               else iter > @nodes || ((iter & (CHECK - 1)) == 0 && time_spent?)
                end
         @cuts += 1 if stop
         stop
@@ -45,6 +45,20 @@ module PokeAccess
         @nodes = was
       end
 
+      # Runs the block with times the states a search may take by effort, for a search whose states are worth less than the
+      # tiles of one on foot, for seconds at most however fast the game's Ruby runs; the other modes as they are.
+      def wider(times, seconds)
+        was = @nodes
+        if @mode == :effort
+          @nodes = was * times
+          @deadline = (PokeAccess.clock rescue 0.0) + seconds
+        end
+        yield
+      ensure
+        @nodes = was
+        @deadline = nil if @mode == :effort
+      end
+
       # Counts a search stopped short by a cap of its own or a target beyond reach; nil, for the search to answer with.
       def cut!
         @cuts += 1
@@ -58,7 +72,7 @@ module PokeAccess
       def time_spent?; @deadline ? (PokeAccess.clock rescue 0.0) > @deadline : false; end
 
       # What a search's answer under this budget depends on: the mode and its size. A stopped one also depends on the
-      # clock under a deadline, and by effort on how far the regions and the flood had gone, so the Planner keeps
+      # clock under a time limit, and by effort on how far the regions and the flood had gone, so the Planner keeps
       # neither.
       def key; [@mode, @mode == :time ? @ms : (@mode == :effort ? @nodes : nil)]; end
     end

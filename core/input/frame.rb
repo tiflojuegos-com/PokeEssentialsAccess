@@ -119,6 +119,7 @@ module PokeAccess
     step(:nav, 60, :keys)         { PokeAccess::Locator.poll_keys }
     step(:nav, 70, :regions)      { PokeAccess::Routes::Regions.tick if PokeAccess::Control.free? }
     step(:nav, 75, :hpa)          { PokeAccess::Pathfinder.hpa_tick if PokeAccess::Control.free? }
+    step(:nav, 80, :neighbours)   { PokeAccess::World::Neighbours.warm if PokeAccess::Control.free? }
     step(:sound, 10, :soundscape) { PokeAccess::Sound::Scheduler.tick }
   end
 end

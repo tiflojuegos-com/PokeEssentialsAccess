@@ -15,7 +15,7 @@ when the mod speaks elsewhere in the game and one screen stays quiet.
 4. Keep two more files of the same folder at hand: the [marker file](../reference/glossary.md), `hook_loaded.txt`,
    and the boot log, `loader_error.txt`.
 
-The configuration menu (O by default, [Keys](../reference/keys.md)) has a Debugging screen (`cat_debug`). Its item
+The configuration menu (O by default, [Keys](../reference/keys.md)) has a Debugging screen (`cat_debug`) with a Diagnostics screen (`cat_debug_diag`) in it. Its item
 "Full diagnostics (to file)" (`dbg_diag_full`) writes the same diagnostic dump, and "Diagnostics: scene and runtime
 (to clipboard)" (`dbg_diag_scene`) copies the parts that name the screen. Ctrl+Alt+F10 says a short status instead:
 the scene, the map and position, the last line said and how many hooks are missing.

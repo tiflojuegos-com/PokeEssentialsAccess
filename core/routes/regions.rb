@@ -10,8 +10,11 @@ module PokeAccess
                    :water => [Moves::LEDGE | Moves::SURF_PLAN, 20000] }
       # The variants the map frames walk on, in turn.
       TICKED = [:foot, :water, :assist]
-      # What a map frame may spend walking, in ms, and the map frames it waits once the regions were dropped.
+      # What a map frame may spend walking while the player moves, in ms, the map frames the player must stand before it
+      # may spend more (between two steps there is one with the player still), and those it waits once the regions were
+      # dropped.
       SLICE_MS = 2
+      STILL_FRAMES = 8
       SETTLE_FRAMES = 10
       # How often, in states, a walk under a deadline reads the clock (a power of two: it is used as a mask).
       CLOCK = 8
@@ -22,6 +25,8 @@ module PokeAccess
 
       @sets = {}
       @calm = 0
+      @still = 0
+      @still_at = 0
 
       # Drops every variant, each told it is gone; the map frames wait SETTLE_FRAMES before walking again.
       def self.forget
@@ -30,18 +35,34 @@ module PokeAccess
         @calm = PokeAccess::Frame.serial + SETTLE_FRAMES
       end
 
-      # One map frame's walk with regions_background on: SLICE_MS for the first variant with states left, the assisted
-      # one only where anything could assist; none for SETTLE_FRAMES once the regions were dropped, by this very frame's
-      # reading of the world too.
+      # One map frame's walk with regions_background on: slice_ms for telling whether the map has water, bit by bit, and
+      # then for the first variant with states left, the assisted one only where anything could assist, the one by water
+      # only where the map has it; no walk for SETTLE_FRAMES once the regions were dropped, by this very frame's reading of
+      # the world too.
       def self.tick
         return unless (PokeAccess::Config.regions_background rescue false)
         return if PokeAccess::Frame.serial < @calm || $game_player.nil?
+        ms = slice_ms
+        wet = PokeAccess::World::Terrain.water_on_map?(PokeAccess.clock + ms / 1000.0)
+        return if wet.nil?
         TICKED.each do |v|
           next if v == :assist && !PokeAccess::Pathfinder.assist_possible?
+          next if v == :water && !wet
           r = self.for(v, false)
           return if PokeAccess::Frame.serial < @calm
-          return if r.slice(SLICE_MS) > 0
+          return if r.slice(ms) > 0
         end
+      end
+
+      # What this map frame may spend walking, in ms: regions_slice_ms with the player standing still for a while, no more
+      # than SLICE_MS till then: a step or a jump starts the count over, and so do frames gone by unseen.
+      def self.slice_ms
+        ms = (PokeAccess::Config.regions_slice_ms rescue SLICE_MS).to_i
+        now = PokeAccess::Frame.serial
+        going = ($game_player.moving? rescue true) || ($game_player.jumping? rescue false)
+        @still = going || now - @still_at > 1 ? 0 : @still + 1
+        @still_at = now
+        @still < STILL_FRAMES && ms > SLICE_MS ? SLICE_MS : ms
       end
 
       # The regions of a variant for the vehicle the player is on, the world brought level first (the events synced,
@@ -207,10 +228,13 @@ module PokeAccess
       end
 
       # True when a whole walk that reaches none of the tiles tells they cannot be got to: not in the assisted variant
-      # while a boulder stands on or beside a tile that moves the player by itself (Moves.forcing?), as the walk lends
-      # it through and so never takes the slides that stop at it.
+      # with boulders about and a tile that moves the player by itself on the walk (Moves.forcing?), as it lends them
+      # through and so never takes the slides that stop at one, wherever a push may leave it.
       def sure_no?
-        @variant != :assist || Effects.boulder_index.values.none? { |b| Moves.forcing?(b[0].x, b[0].y) }
+        return true if @variant != :assist || Effects.boulder_index.empty?
+        return @sure if @sure_version == @version
+        @sure_version = @version
+        @sure = @keys.none? { |k| Moves.forcing?((k >> 1) / PKEY_STRIDE, (k >> 1) % PKEY_STRIDE) }
       end
 
       # Walks on within what a question may still spend (allowance); the states walked.
@@ -245,15 +269,12 @@ module PokeAccess
       end
 
       # Walks on from where the walk stopped, up to max states and the deadline (nil: no bound); never while the probe's
-      # answers are unstable. The events' indexes are read first, from the world as it stands, as nothing read while
-      # events are lent is kept. The states walked.
+      # answers are unstable. The states walked.
       def advance(max, deadline)
         return 0 if done? || !PokeAccess::World::Probe.stable?
         pf = PokeAccess::Pathfinder
         probe = PokeAccess::World::Probe
         fx = Effects
-        fx.touch_index
-        fx.ramp_map?
         walkers = Regions.lendable_walkers
         pf.with_level_kept do
           if @variant == :assist

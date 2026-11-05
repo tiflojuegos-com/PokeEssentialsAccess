@@ -2,10 +2,10 @@ import os, re, glob, subprocess, sys
 # Ruby 1.8.7 checks for the code that loads in the 1.8.7 games: all of core/ (its manifest loads every file in
 # both engines), loader/, plugins/ and every game profile except MODERN, whose games run Ruby 3.x (a common only
 # those games import included).
-MODERN = ("games/anil/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
+MODERN = ("games/anil/", "games/ashenfrost/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
           "games/infinitefusion_hoenn/", "games/infinitefusion/", "games/infinitefusion_common/",
           "games/emerald/", "games/gruelinggold/", "games/goldencrown/",
-          "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/")
+          "games/decades/", "games/herolegacy/", "games/keishou/", "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/")
 def is_modern(path):
     p = path.replace("\\", "/")
     return any(m in p for m in MODERN)

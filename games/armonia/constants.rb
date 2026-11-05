@@ -7,4 +7,7 @@ PokeAccess::Game.define("armonia") do
   key_hints PokeAccess::KeyHints::RGSS_LETTERS
   # Carrying AYUDAPADDUIG counts as Surf: the game's autosurf needs nothing else.
   field_move_item(:SURF, :AYUDAPADDUIG)
+
+  # The one bin its mapper named: the others go by the object inside.
+  event_name { |ev| ev.name.to_s == "PAPE" ? PokeAccess::I18n.t(:arm_bin) : nil }
 end

@@ -20,8 +20,22 @@ class RockGoalTest < PokeAccessTest
 
   test "gives no estimate to follow for a boulder stuck in a corner" do
     with_boulder(1, 1) do |goal|
-      assert_equal PokeAccess::Routes::Pushes::RockGoal::FAR, goal.bound(0, 0, [])
+      assert_equal PokeAccess::Routes::FAR, goal.bound(0, 0, [])
     end
+  end
+
+  test "estimates by the straight distance where the field was cut, and never gives up on it" do
+    goal_class = PokeAccess::Routes::Pushes::RockGoal
+    was = goal_class::FIELD_CAP
+    goal_class.send(:remove_const, :FIELD_CAP)
+    goal_class.const_set(:FIELD_CAP, 0)
+    with_boulder(1, 1) do |goal|
+      price = 1 + PokeAccess::Pathfinder::GATE_COST
+      assert_equal goal.manhattan(1, 1) * price, goal.bound(0, 0, [])
+    end
+  ensure
+    goal_class.send(:remove_const, :FIELD_CAP)
+    goal_class.const_set(:FIELD_CAP, was)
   end
 
   private

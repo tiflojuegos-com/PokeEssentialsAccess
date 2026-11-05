@@ -149,7 +149,7 @@ The options, timings and failure behavior of each registrar are in the [hooks AP
 - `poll_each_frame` runs its block on every pulse, after every `Input.update`, in every scene, after the remap and
   the global keys. It serves a menu the game drives from a blocking loop of its own. A block that raises is logged
   once.
-- `diag_section` adds a section to the full diagnostic dump and to one group of the Debugging screen: `:audio`,
+- `diag_section` adds a section to the full diagnostic dump and to one group of the Diagnostics screen: `:audio`,
   `:events`, `:perf`, `:map` or `:scene` ([Diagnostics](../architecture/diagnostics.md)).
 
 ## Pictures
@@ -174,13 +174,19 @@ the build's language (`GameLang`), never the player's ([Speech and languages](..
 | `name_mark` | block given the target; answers words or nil | Words said after the name in the target line |
 | `hazard(pattern, label)` | regexp on the sprite name, i18n key | Names the event, files it as an object, cues it |
 | `teleporter(pattern)` | regexp on the sprite name | A transfer event wearing it is an exit, with the teleporter cue |
-| `transfer_script(pattern)` | regexp whose first group is the map id | A script call that transfers the player |
+| `transfer_script(pattern)` | regexp; optional block given the match, answers a map id or `[map, x, y]` | A script call that transfers the player |
 
 - `event_name` rules run newest first, after the player's own label. `event_category` rules run newest first, and
   the player's own category still wins. `name_mark` words come in registration order, none twice.
+- `PokeAccess::Locator.teleport_cause(name) { |from, to| ... }`, called from a profile, says why a teleport within the
+  map happened in place of the teleport line. The block gets the places left and reached, each `[x, y, map id]`, and
+  answers the line, or nil for a teleport not its own.
 - An `event_category` rule decides between `:people` and `:objects`, for an event with a sprite that does not
   transfer the player. The locator files exits, signs and extras by what the event does (`Locator.in_category?`).
-- `transfer_script` serves doors that transfer the player by a script call instead of the Transfer Player command.
+- `transfer_script` serves doors that transfer the player by a script call instead of the Transfer Player command. The
+  block reads the destination from the game's own constants or tables, and never runs the game's script. Without a
+  block, a first group of digits is the map id. A call that names no map, as a way out that returns where the player
+  came from, is still a door: it is said as an exit, and a route ends on it.
 
 ## Field moves
 
@@ -218,7 +224,8 @@ the build's language (`GameLang`), never the player's ([Speech and languages](..
 - `pull_script(pattern)`: a script the game moves its pushables with that also lets the player pull them, the action
   button facing one.
 - `push_script(pattern, move = nil)`: a script the game moves its pushables with, tried before the stock ones, and the
-  field move it needs. A block, when given, is the condition the game moves them under, asked as a route is searched.
+  field move it needs. A block, when given, is the condition the game moves them under, asked as a route is searched
+  with the tile the move would leave the pushable on.
 
 The `owner` of a terrain rule is a Hash of the tiles the rule answers for. Without one, the rule is asked on every
 tile.
@@ -237,32 +244,98 @@ An unknown key raises `ArgumentError`. State the game's passability reads beyond
 
 ## Puzzles
 
-`mechanic(kind, maps) { ... }` declares a puzzle of kind `:state`, `:grid` or `:facing` on one map id or a list of
-them, the same declaration on each. A `:state` puzzle reads watched flags, phases and an info line, a `:grid` its
-cells, and a `:facing` puzzle its turning statues ([Puzzles](../architecture/world-and-routes.md#puzzles)). The
+A profile keeps each place with a puzzle in its own file under `puzzles/`, listed in its manifest as `puzzles/<place>`. A
+minigame stays out, and so does a screen or a map's objects that only add a line through a mechanic.
+
+`mechanic(kind, maps, opts = {}) { ... }` declares a puzzle of kind `:state`, `:grid` or `:facing` on one map id or a
+list of them, the same declaration on each. A `:state` puzzle reads watched flags, counts, phases and an info line, a
+`:grid` its cells, and a `:facing` puzzle its turning statues ([Puzzles](../architecture/world-and-routes.md#puzzles)). A
+map takes several with `:part => name`, each with its own win, line and pieces; declaring a part again replaces it. A map
+that declares a mechanic speaks for itself, unless it asks otherwise with `auto`: what the core says on its own elsewhere
+stays quiet there
+([Puzzles with no declaration](../architecture/world-and-routes.md#puzzles-with-no-declaration)).
+
+Where a verb takes events, `what` is an id, a range or list of ids, or a pattern on the event's name or graphic. The
 block declares the puzzle with these verbs:
 
-- `watch(opts)`: a watched flag, `:switch` or `:var`, with its `:label` and its `:on` and `:off` words.
-- `controls`: the controls are the events whose page, fired by the player, writes a watched flag.
-- `obstacle(pattern, opts = {})`: the events whose graphic matches block the way. With `:moving => true` the
-  obstacle moves, sounds as a trap and stays out of the list. `:label` names the walls the pattern matches.
+- `watch(opts)`: a watched flag, `:switch`, `:var`, `:self => [event, letter, map]` (a self switch of an event, of this map if it names none) or
+  `:event => id` (on while that event is drawn), with its `:label` and its `:on` and `:off` words. A variable reads on
+  from 1, or from `:from`; with `:words => {value => word}` or `:number => true` it is said by its value. With `:say => line`, that line is
+  all that is said, each time the flag changes to something other than off or 0. With `:quiet => true`, nothing is said and
+  it stays out of the info key: for what only the assisted routes read.
+- `controls`: the controls are the events whose page, fired by the player, writes a watched flag. The assisted plan reads a
+  written variable by its value, so walls waiting for a count (`V >= 3`) and the levers that add to it are planned too.
+- `auto`: keeps what the core says and lists by itself on a map with no declaration. A map keeps it only if all its
+  mechanics ask for it, and what they name is listed only once.
+- `obstacle(pattern, opts = {})`: the events whose graphic matches block the way, a wall while its page is not walked
+  through; or `{:tile => id}`, `{:events => what}` or `{:named => pattern}` for those drawn with a tile, picked by id or by
+  their own name. With `:moving => true` the obstacle moves, sounds as a trap and stays out of the list. `:label` names
+  the walls the entry takes.
+- `name(what, label, opts = {})`: names events in every list, and lists them in the puzzles category while they are drawn
+  or their page can run, with no graphic too. `:numbered => true` adds `:n`, their place in reading order, to the label's
+  interpolations; a lambda with one parameter gives the label of each, asked each time it is read, so it can follow the flags
+  and the assist; `:assist => true`, with the puzzle assist alone; `:when`, a test given the event for while it is listed
+  (`false`: never, a name for the other lists alone).
+- `not_control(what)`: events the core should not take for silent controls, with `auto`: what only starts a scene.
+- `hide(what, opts = {})`: leaves events out of the lists and the sonar; `:assist => true`, with the puzzle assist alone.
+- `avoid(what)`: events a walk keeps off while there is another way: floor that changes the puzzle when stepped on, though no
+  wall reads it. A walk that ends on one still goes.
+- `count(label, opts = {})`: a count said as "label: n of total" as it grows and in the info key's line: of `:value` (a lambda), `:var` (less
+  `:from`), `:flags`, `:switches => ids` or `:selfs => [ids, letter, map]`, out of `:of` (by default, how many flags). As it
+  falls, `:reset` is said with it (a line, or the core's; `false`, nothing). `:announce => false` leaves it to the info
+  key, `:hide_zero` leaves out a count of 0, `:assist` asks for the assist.
+- `sent_back(label, opts = {})`: says why the game moved the player, for a move that lands in `:to` and leaves from
+  `:from` (each `[x, y]` or `[x0, x1, y0, y1]`) while the event last used is among `:events`; what is left out does not
+  matter. A teleport within the map, by default. With `:maps => ids`, a transfer from those maps onto this one: the event used
+  goes with its map, so it takes no `:events`. With `:forced => true`, the end of a move route, in place of how far it went.
+- `on_use(what, label, opts = {})`: a line said as the player uses an event, its page starting: a transcription of what it
+  shows; a lambda with one parameter gets the event. `:assist => true`, with the puzzle assist alone.
+- `on_reach(what, point, label, opts = {})`: a line said as an event's page gets to a point, where `on_use`'s would come too soon:
+  `:choice => option` (its place in the menu, from 0, or a pattern on its words), as its branch starts; `:text => message` (its
+  place among the page's Show Texts, from 0, or a pattern on its words), right after it is read. Takes what `on_use` takes.
+- `answer(what, text)`: the answer an event asks for, said with the assist alone as it is used. For what its page does
+  not compare: a page that compares an entry with a fixed value says it by itself.
+- `right_choice(what, opts)`: the right option of the menus an event asks, a Show Command or a `\ch[...]` in its message, said
+  with the assist alone as each opens, in the game's own words: the one whose branch does what `:takes` says and not what
+  `:avoids` says, each `{:var => id}`, `{:switch => id}`, `{:self => letter}`, `:transfer`, `:battle` or `:item`; or sets a
+  variable to a value, `{:var => id, :value => number or lambda}`, or to the one another event's page takes as right,
+  `{:var => id, :compared_by => event}`: the first it compares it with or, with `:moving => var`, the first whose branch writes
+  that variable. Nothing is said unless just one is left.
 - `solved(say = nil, opts = {})`: the win. The block is its test, and `say` is what the mod says once it holds.
-  `:quiet => true` leaves the win to the info key.
+  `:quiet => true` leaves the win to the info key. While it holds the room's rule says no more and the info key is silent. A
+  phase goes on telling what opens as it opens, for the rooms the game keeps working: its test takes the end in if it should
+  stop. A puzzle the game can start over only holds while it stands solved: a wrong answer after the end brings it back.
 - `hint(label)`: the hint the puzzle assist says.
-- `arrival_hint(label)`: a rule said queued on arriving at the map, when descriptions are on.
-- `spot(opts)`: a named point for the locator, `:at => [x, y]` or `:event => id`, with its `:label`.
+- `arrival_hint(label, opts = {})`: a rule said queued on arriving at the map, when descriptions are on and the puzzle is not
+  solved; a lambda is asked each time. With `:once => true`, just the first time this session, for a room that reloads with
+  each try.
+- `spot(opts)`: a named point for the locator, `:at => [x, y]` or `:event => id`, with its `:label`. `:assist => true`,
+  with the puzzle assist alone; `:when`, a test for while it is listed; `:onto => true`, stood on rather than faced.
 - `info`: the block answers the info key's line.
 - `active`: the block answers whether the puzzle answers the info key.
-- `phase(test, opts = {})`: a phase, live while `test` holds; the first live phase is current. It takes `:title`,
-  `:quiet`, `:hint`, `:progress`, `:values`, `:sum`, `:spots`, `:hidden` and `:track`.
+- `phase(test, opts = {})`: a phase, live while `test` holds; the first live phase is current. Its title is said as it
+  opens, unless `:quiet`, and its hint with the puzzle assist; on arriving at the map, the hint of the phase open then is
+  said queued, with the assist, and of the rest only its title with `:entry_title`. It takes `:title`, `:quiet`,
+  `:entry_title`, `:hint`, `:progress` (as `count` takes it, saying nothing unless it has `:announce` as it grows or a `:reset` as it falls), `:values`,
+  `:sum`, `:spots`, `:hidden` and `:track`. `:values` is a list of
+  `{:var, :label, :event, :words}`: what a variable holds, listed at its event and said as it changes, by its word in
+  `:words` where the puzzle shows a picture rather than a number.
+- `at(x0, x1, y0, y1)`: a test for a phase, true while the player stands in that box of tiles. It also works outside
+  the block, to share a box between phases.
+- `right_way(*events)`: a `:hidden` for a phase, listing the events that go on, under the name the right way, with the
+  puzzle assist alone. It also works outside the block.
 - `cells(cols, list)`: the grid's cells in reading order, `cols` to a row.
 - `lit`: the block answers whether a cell, by its index, is lit.
 - `target`: the block answers the letter asked for now, as `{:name, :pattern}`, or nil.
+- `tiles(what, opts = {})`: a grid of the map's events, in rows and columns as they lie: said as "row, column: state" as the
+  player stands on one, listed while not `:done` (true by default), and counted in the info key's line with what lies to
+  each side. The state is the event's self switch `:self` (a letter), or what the block gives for the event; `:words =>
+  {state => word}`, `:label` names one in the list and `:count` the count. It is live until solved with no `active`.
 - `statues(pattern, label)`: the statues' graphic and name.
 - `goals(map)`: the facing checked for each statue, as `{[x, y] => direction}`.
 
 ```ruby
-# games/opalo/puzzles.rb
+# games/opalo/puzzles/psychic_gym.rb
 mechanic(:state, 36) do
   watch :switch => 313, :label => :op_lights,       :on => :op_lights_on, :off => :op_lights_off
   watch :switch => 314, :label => :op_lights_north, :on => :op_lights_on, :off => :op_lights_off

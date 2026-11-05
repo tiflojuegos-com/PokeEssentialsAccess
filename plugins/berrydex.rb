@@ -1,5 +1,6 @@
-# BerryDex ("TDW Berry Core and Dex"): the list (Window_Berrydex, [berry_id, name, indexNumber] rows) and the
-# detail screen (BerrydexInfo_Scene), whose optional pages are asked by respond_to?.
+# BerryDex ("TDW Berry Core and Dex"): the list (Window_Berrydex, [berry_id, name, indexNumber] rows), the detail screen
+# (BerrydexInfo_Scene), whose optional pages are asked by respond_to?, and the selector of several berries that
+# compost, planters and cooking open (ChooseBerryMultiple_Scene).
 module PokeAccess
   module BerryDex
     # The section names this copy of the plugin can show, in page order.
@@ -107,10 +108,71 @@ module PokeAccess
       PokeAccess.swallowed(e)
       nil
     end
+
+    # The label column of the selector of several berries as it paints it for its @label mode, or nil; the flavour
+    # through the game's _INTL, as a translated build paints it.
+    def self.multi_label(item, label)
+      data = (GameData::BerryData.get(item) rescue nil)
+      return nil unless data
+      case label
+      when :Flavor
+        f = (data.flavor.max_by { |_k, v| v } rescue nil)
+        f ? (_INTL(f[0].to_s) rescue f[0].to_s).to_s : nil
+      when :Firm, :Firmness then (data.firmness.to_s rescue nil)
+      when :Size then (data.size ? "#{data.size} cm" : nil rescue nil)
+      when :Type, :TypeText, :TypeIcon then (GameData::Type.get(pbBerryGetNaturalGift(item)[0]).name rescue nil)
+      else (GameData::BerryColor.get(data.color).name rescue nil)
+      end
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
+    # The selector's focused row (Window_ChooseBerryMultiple, entries in @bag.pockets[5] through @filterlist): the berry
+    # and how many are left, and from medium the label column for its mode and how many are chosen; past the list, close.
+    def self.multi_row(win, i)
+      fl = win.instance_variable_get(:@filterlist)
+      return PokeAccess::Menus.close_row(:mn_close_bag) if !fl.is_a?(Array) || i >= fl.length
+      bag = win.instance_variable_get(:@bag)
+      entry = (bag.pockets[5][fl[i]] rescue nil)
+      return nil unless entry
+      item = entry[0]
+      nm = (GameData::Item.get(item).name rescue nil)
+      return nil if nm.nil? || nm.to_s.empty?
+      scene = win.instance_variable_get(:@scene)
+      qty = entry[1]
+      qty -= (scene.selectedBerries.count(GameData::Item.get(item)) rescue 0) if qty
+      parts = [[qty ? "#{nm}, #{qty}" : nm, :brief]]
+      lbl = multi_label(item, (scene.instance_variable_get(:@label) rescue nil))
+      parts.push([lbl, :medium]) if lbl && !lbl.empty?
+      chosen = (scene.selectedBerries.length rescue nil)
+      max = (scene.instance_variable_get(:@count) rescue nil)
+      parts.push([PokeAccess::I18n.t(:bdx_chosen, :n => chosen, :tot => max), :medium]) if chosen && max
+      PokeAccess::Info.set_info(:item, item, PokeAccess::Verbosity.full_line(parts))
+      PokeAccess::Verbosity.line(:bag_item, parts)
+    end
+
+    # A berry chosen, which the screen shows as an icon in a circle and leaves the list's row as it was: how many are
+    # chosen so far and which, queued; the opening's empty circles are for the row to say.
+    def self.multi_chosen(scene)
+      names = scene.selectedBerries.map { |b| b.name }
+      return unless PokeAccess::Cursor.changed?(scene, :bdx_multi_chosen, names.length)
+      return if names.empty?
+      t = PokeAccess::I18n.t(:bdx_chosen, :n => names.length, :tot => PokeAccess.ivar(scene, :@count))
+      PokeAccess.speak(PokeAccess.sentences([t, names.join(", ")]), false)
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
   end
 end
 
 PokeAccess::Menus.def_extractor("Window_Berrydex") { |win, i| PokeAccess::BerryDex.entry_text(win, i) }
+PokeAccess::Menus.def_extractor("Window_ChooseBerryMultiple") { |win, i| PokeAccess::BerryDex.multi_row(win, i) }
+
+PokeAccess::Hooks.after_hook("ChooseBerryMultiple_Scene", :drawSelectedBerries, :optional => true) do |scene, _r, _a|
+  PokeAccess::BerryDex.multi_chosen(scene)
+end
 
 PokeAccess::Hooks.around_hook("BerrydexInfo_Scene", :drawPage, :optional => true) do |scene, nxt, args|
   PokeAccess::PaintCapture.arm(:bdx_page)

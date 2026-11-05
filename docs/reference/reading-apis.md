@@ -323,7 +323,7 @@ Core declares these readings, each with the name key `vb_<reading>` and the help
 | Group | Readings |
 |---|---|
 | `:general` | `:positions`, `:hints`, `:descriptions` |
-| `:map` | `:room_note`, `:route_transfers`, `:teleport` |
+| `:map` | `:room_note`, `:route_transfers`, `:teleport`, `:map_changes` |
 | `:battle` | `:battle_move`, `:battle_marks` |
 | `:pokemon` | `:party`, `:summary_move`, `:learn_move`, `:ribbon` |
 | `:items` | `:bag_item`, `:shop_item`, `:pc_slot` |

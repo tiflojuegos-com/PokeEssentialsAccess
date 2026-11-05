@@ -57,7 +57,9 @@ checkbox row with its state.
 
 The hook leaves two kinds of window alone. A window with `@ignore_input` set takes no input. A window claimed with
 `PokeAccess.dedicate` belongs to a dedicated reader. The claim is a flag of the mod's own, because setting
-`@ignore_input` would freeze the cursor.
+`@ignore_input` would freeze the cursor. A reader whose first line is queued claims the window before the window's first
+update, in a before-hook on the method that runs the loop. Claimed later, the generic hook reads the row first and the
+row is said twice.
 
 While the `auto_detect` setting is on (the default), a second hook reads a `SpriteWindow_Selectable` that is not a
 command window, from its option list in the same way.
@@ -268,8 +270,8 @@ The origin of a screen decides where its reader goes:
 - A game's own screen, or an older or edited copy of a plugin, goes in that game's profile.
 
 The last rule protects the plugin readers. An older copy of a plugin can keep its method names with other arities, and
-the plugin's reader would bind to them and read the wrong arguments without an error. Soulstones 2 ships an edited
-Enhanced UI 1.1.2, read by `games/soulstones2/enhanced_ui.rb`, and its profile does not declare the plugin reader.
-The probe of `plugins/dbk_enhanced_ui.rb`, `Battle::Scene#pbGetFinalModifiers`, does not match that copy, so the
-generic profile's detection would not load the reader there and the diagnostic dump does not list it as missing.
+the plugin's reader would bind to them and read the wrong arguments without an error. Enhanced UI 1.1.2, which
+Keishou and Ashen Frost ship clean and Soulstones 2 edited, has its own reader, `plugins/enhanced_ui_v1.rb`, and none of
+those profiles declares `plugins/dbk_enhanced_ui.rb`. That reader's probe, `Battle::Scene#pbGetDisplayEffects`, does not match the old
+release, so the generic profile's detection does not load it there and the diagnostic dump does not list it as missing.
 The guide [Choose where a reader goes](../guides/choose-where-a-reader-goes.md) walks through the choice.

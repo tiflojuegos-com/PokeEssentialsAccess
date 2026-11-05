@@ -100,19 +100,21 @@ A game that ships an older version of a plugin, or one it edited, has the reader
 manifest leaves the `plugins/` reader out. The `plugins/` reader binds by class and method name. On a copy whose
 methods take other parameters it binds without an error and reads arguments that mean something else.
 
-`plugins/dbk_enhanced_ui.rb` reads the current [DBK] Enhanced Battle UI, which Añil, Emerald, Relict and Royal ship.
-Soulstones 2 ships Enhanced UI 1.1.2, edited. `games/soulstones2/enhanced_ui.rb` reads it, and
-`games/soulstones2/manifest.rb` leaves `dbk_enhanced_ui` out.
+`plugins/dbk_enhanced_ui.rb` reads the current [DBK] Enhanced Battle UI, which Añil, Emerald, Grueling Gold, Relict,
+Revival, Royal and World Frontier ship. Soulstones 2 ships Enhanced UI 1.1.2, edited, and Keishou and Ashen Frost clean.
+`plugins/enhanced_ui_v1.rb` reads that release, `games/soulstones2/enhanced_ui.rb` adds Soulstones 2's edits, and none of
+those manifests declares `dbk_enhanced_ui`.
 
-| Method of `Battle::Scene` | Current release | Soulstones 2's 1.1.2 |
+| Method of `Battle::Scene` | Current release | 1.1.2 |
 |---|---|---|
 | `pbUpdateMoveInfoWindow` | `(battler, specialAction, cw)` | `(battler, index)` |
 | `pbUpdateBattlerInfo` | `(battler, effects, idxEffect = 0)` | `(battler)` |
 | `pbUpdateBattlerSelection` | `(idxSide, idxPoke, select)` | `(index, select)` |
 
-The probe of `dbk_enhanced_ui` is `Battle::Scene#pbGetFinalModifiers`, a method 1.1.2 lacks. The generic profile
-therefore never loads the reader for 1.1.2, and the census does not count Soulstones 2 among the games that ship the
-current release. `test/static/arity_test.rb` excuses the first two methods of the table for this reason.
+The probe of `dbk_enhanced_ui` is `Battle::Scene#pbGetDisplayEffects`, a method 1.1.2 lacks, and the probe of
+`enhanced_ui_v1` is `Battle::Scene#pbFightMenu_EnhancedUI`, a method the current release lacks. The generic profile
+therefore never loads a reader for the other release. `test/static/arity_test.rb` excuses the first two methods of
+the table for this reason, and `RELEASES` in `test/static/plugins_test.rb` lets the two readers share those slots.
 
 When the same old version appears in a second game, its reader moves to `plugins/` as a file of its own, with a probe
 of its own. `plugins/fl_character_selection_v1.rb` reads the version of FL's Character Selection that predates its

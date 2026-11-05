@@ -27,7 +27,7 @@ module PokeAccess
 
       # The least Manhattan distance from (x,y) to the goal's tiles: one less than to the target when they are the
       # target and tiles beside it, else the nearest of them.
-      def bound(x, y, _moved = nil)
+      def bound(x, y, _moved = nil, _lvl = nil)
         if @ring
           d = (@tx - x).abs + (@ty - y).abs
           return d > @slack ? d - @slack : 0

@@ -584,6 +584,40 @@ class RemapTest < PokeAccessTest
     Remap.instance_variable_set(:@button_extras, nil)
   end
 
+  test "a game button shipped on Tab answers that alone, held while it is down, and Alt+Tab says nothing for it" do
+    Input.const_set(:PA_TEST_BUTTON, 977) unless Input.const_defined?(:PA_TEST_BUTTON)
+    tab = PokeAccess::Keyboard::VK_TAB
+    with_shipped_extra(:pa_test_a => "Tab") do
+      Remap.register_extra(:pa_test_a, LETTER, :btn_x, :PA_TEST_BUTTON)
+      engine_answers(true)
+      key_frame(LETTER)
+      assert_equal false, Input.press?(977), "the key the game read before"
+      engine_answers(false)
+      key_frame(tab)
+      assert_equal [true, true], [Input.trigger?(977), Input.press?(977)]
+      key_frame(tab)
+      assert_equal [false, true], [Input.trigger?(977), Input.press?(977)]
+      key_frame
+      key_frame(ALT, tab)
+      assert_equal [false, false], [Input.trigger?(977), Input.press?(977)], "Alt+Tab switches windows"
+    end
+  ensure
+    Remap.extra_buttons.clear
+    Remap.instance_variable_set(:@button_extras, nil)
+  end
+
+  test "a mod's key on Tab says nothing for Alt+Tab" do
+    tab = PokeAccess::Keyboard::VK_TAB
+    with_shipped_extra do
+      PokeAccess::Config.keys[:hp] = tab
+      key_frame(ALT, tab)
+      assert_equal false, PokeAccess::Keys.key(:hp)
+      key_frame
+      key_frame(tab)
+      assert_equal true, PokeAccess::Keys.key(:hp)
+    end
+  end
+
   test "with an action on Alt plus a key the game's Alt reads one frame as it is let go, and not as it goes down" do
     with_shipped_extra do
       [[[ALT], true, false], [[ALT], true, false], [[], false, true], [[], false, false]].each do |keys, engine, want|

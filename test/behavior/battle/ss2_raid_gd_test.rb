@@ -204,13 +204,10 @@ end
 eval(Harness.source(File.join(Harness::ROOT, "games/soulstones2/raid_den.rb")), TOPLEVEL_BINDING,
      File.join(Harness::ROOT, "games/soulstones2/raid_den.rb"))
 
-# The battle info panel's line (enhanced_ui.rb's module), which ss2_enhanced_ui_gd_test.rb evaluates whole with its
-# hooks; loaded once and without them when that test is not in the run.
+# The battle info panel's line (plugins/enhanced_ui_v1.rb), with Soulstones 2's edit to what it says of a foe.
 unless defined?(PokeAccess::SS2EnhancedUI)
-  enhanced_ui = File.join(Harness::ROOT, "games", "soulstones2", "enhanced_ui.rb")
-  src = Harness.source(enhanced_ui)
-  part = src[/^module PokeAccess\r?\n.*?^end\r?\n/m]
-  eval(part, TOPLEVEL_BINDING, enhanced_ui, src[0, src.index(part)].count("\n") + 1)
+  rel = File.join(Harness::ROOT, "games", "soulstones2", "enhanced_ui.rb")
+  eval(Harness.source(rel), TOPLEVEL_BINDING, rel)
 end
 
 class Ss2RaidGdTest < PokeAccessTest
@@ -374,7 +371,7 @@ class Ss2RaidGdTest < PokeAccessTest
     battle = CounterBattle.new({ :turn_count => 7, :ko_count => 3 }, 3)
     line = ["Jefe", I18n.t(:dbk_turn, :n => 4)].join(", ")
     [true, false].each do |boss|
-      assert_equal line, PokeAccess::SS2EnhancedUI.battler_text(CounterFoe.new("Jefe", boss, battle)), "boss: #{boss}"
+      assert_equal line, PokeAccess::EnhancedUIV1.battler_text(CounterFoe.new("Jefe", boss, battle)), "boss: #{boss}"
     end
   end
 

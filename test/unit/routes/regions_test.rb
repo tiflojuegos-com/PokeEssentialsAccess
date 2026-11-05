@@ -234,6 +234,20 @@ class RegionsTest < PokeAccessTest
     assert_equal [:unknown], Regions.assisted.status([[3, 1]]), "the slide that stops at the boulder is not walked"
   end
 
+  test "tell no tile cannot be got to in the assisted variant with a boulder about and ice on the walk, where a push may stop a slide" do
+    grid = ["###########",
+            "#@......#.#",
+            "###########"]
+    hpa_fresh_grid(grid)
+    page = TestPage.new(:trigger => 0, :sprite => "boulder", :list => [TestCmd.new(355, ["pbPushThisBoulder"])])
+    blocker(50, 2, 1, page).name = "Boulder"
+    World.next_frame
+    assert_equal [:no], Regions.assisted.status([[9, 1]]), "a whole walk with no ice tells"
+    $game_map.set_terrain(6, 1, 12)
+    PokeAccess::Pathfinder.invalidate_cache(true)
+    assert_equal [:unknown], Regions.assisted.status([[9, 1]]), "the boulder stands away from it, for now"
+  end
+
   test "list every tile the player can get to, as brute force does" do
     bad = []
     [3, 29, 71].each do |seed|
@@ -455,12 +469,74 @@ class RegionsTest < PokeAccessTest
     PokeAccess::Config.regions_background = true
     settled_room
     pass_frames(10)
-    assert tick_until { Regions.foot.done? }, "the regions on foot walked to the end"
-    assert_equal [:yes, 0], Regions.foot.known([[30, 10]]), "where they tell the far tile"
-    assert_equal 0, walked(Regions.water), "before any by water"
-    assert tick_until { Regions.water.done? }, "then those by water"
-    assert_equal 0, walked(Regions.assisted), "before the assisted ones"
-    assert tick_until { Regions.assisted.done? }, "then the assisted ones, as a game's assisted step could help"
+    with_water_on_map do
+      assert tick_until { Regions.foot.done? }, "the regions on foot walked to the end"
+      assert_equal [:yes, 0], Regions.foot.known([[30, 10]]), "where they tell the far tile"
+      assert_equal 0, walked(Regions.water), "before any by water"
+      assert tick_until { Regions.water.done? }, "then those by water"
+      assert_equal 0, walked(Regions.assisted), "before the assisted ones"
+      assert tick_until { Regions.assisted.done? }, "then the assisted ones, as a game's assisted step could help"
+    end
+  end
+
+  test "spend the time set in a map frame with the player still, no more than two milliseconds while they move" do
+    pl = $game_player
+    def pl.moving?; @walking; end
+    { 1 => [1, 1], 2 => [2, 2], 3 => [3, 2], 8 => [8, 2], 20 => [20, 2] }.each do |ms, (still, moving)|
+      PokeAccess::Config.regions_slice_ms = ms
+      pl.instance_variable_set(:@walking, false)
+      assert_equal still, slice_after_standing, "#{ms} still"
+      pl.instance_variable_set(:@walking, true)
+      assert_equal moving, Regions.slice_ms, "#{ms} moving"
+    end
+    pl.instance_variable_set(:@walking, false)
+    PokeAccess::Config.regions_slice_ms = 8
+    assert_equal 8, slice_after_standing
+    def pl.moving?; raise "no such thing"; end
+    assert_equal 2, Regions.slice_ms, "a player that cannot tell counts as moving"
+  ensure
+    class << pl; remove_method :moving?; end
+    PokeAccess::Config.regions_slice_ms = PokeAccess::Config.setting(:regions_slice_ms).default
+  end
+
+  test "hold to two milliseconds in the frame between two steps, and until the player has stood a while" do
+    pl = $game_player
+    def pl.moving?; @walking; end
+    PokeAccess::Config.regions_slice_ms = 8
+    pl.instance_variable_set(:@walking, true)
+    Regions.slice_ms
+    pl.instance_variable_set(:@walking, false)
+    (Regions::STILL_FRAMES - 1).times { assert_equal 2, Regions.slice_ms }
+    assert_equal 8, Regions.slice_ms
+    pl.instance_variable_set(:@walking, true)
+    assert_equal 2, Regions.slice_ms
+    pl.instance_variable_set(:@walking, false)
+    assert_equal 2, Regions.slice_ms, "a step does away with what was stood"
+    assert_equal 8, slice_after_standing
+    pl.instance_variable_set(:@jumping, true)
+    assert_equal 2, Regions.slice_ms, "so does a jump, which is no move to the engine"
+    pl.instance_variable_set(:@jumping, false)
+    assert_equal 8, slice_after_standing
+    pass_frames(2)
+    assert_equal 2, Regions.slice_ms, "and so do frames gone by unseen"
+  ensure
+    class << pl; remove_method :moving?; end
+    PokeAccess::Config.regions_slice_ms = PokeAccess::Config.setting(:regions_slice_ms).default
+  end
+
+  test "give a map frame's walk the time this frame may spend" do
+    PokeAccess::Config.regions_background = true
+    PokeAccess::Config.regions_slice_ms = 13
+    settled_room
+    pass_frames(10)
+    got = []
+    foot = Regions.foot
+    was = foot.method(:slice)
+    foot.define_singleton_method(:slice) { |ms| got.push(ms); was.call(ms) }
+    (Regions::STILL_FRAMES + 1).times { Regions.tick }
+    assert_equal 13, got.last
+  ensure
+    PokeAccess::Config.regions_slice_ms = PokeAccess::Config.setting(:regions_slice_ms).default
   end
 
   test "leave the assisted regions to the questions in the map frames where nothing could assist" do
@@ -468,9 +544,11 @@ class RegionsTest < PokeAccessTest
     without_assist_sources do
       settled_room
       pass_frames(10)
-      assert tick_until { Regions.water.done? }, "the map frames walked the regions by water to the end"
-      3.times { Regions.tick }
-      assert_equal 0, walked(Regions.assisted), "the map frames after them walk none of the assisted ones"
+      with_water_on_map do
+        assert tick_until { Regions.water.done? }, "the map frames walked the regions by water to the end"
+        3.times { Regions.tick }
+        assert_equal 0, walked(Regions.assisted), "the map frames after them walk none of the assisted ones"
+      end
     end
   end
 
@@ -534,6 +612,21 @@ class RegionsTest < PokeAccessTest
   def settled_room
     open_room
     Regions.foot
+  end
+
+  # What a map frame may walk once the player has stood for long enough.
+  def slice_after_standing
+    Regions::STILL_FRAMES.times { Regions.slice_ms }
+    Regions.slice_ms
+  end
+
+  # Runs the block on a map taken to have water, whatever its tiles.
+  def with_water_on_map
+    terrain = PokeAccess::World::Terrain
+    terrain.instance_variable_set(:@wet, true)
+    yield
+  ensure
+    terrain.instance_variable_set(:@wet, nil)
   end
 
   # A corridor with one way down, at (7, 2).

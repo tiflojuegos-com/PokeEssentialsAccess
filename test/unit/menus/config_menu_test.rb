@@ -13,7 +13,8 @@ class ConfigMenuTest < PokeAccessTest
                    :audio3d_shore, :audio3d_wind]
   # The pathfinder's advanced settings before and after the row the search limit shows of its own.
   ADV_HEAD = [:route_style, :route_reach, :route_limit]
-  ADV_TAIL = [:path_algorithm, :edge_relax, :regions_background, :back]
+  ADV_TAIL = [:path_algorithm, :edge_relax, :regions_background, :regions_slice_ms, :neighbour_cache,
+              :neighbours_background, :back]
 
   test "lists the setting groups on the top screen, then its own screens and the reset, each by its label" do
     on_screen(:top) do
@@ -39,12 +40,35 @@ class ConfigMenuTest < PokeAccessTest
     end
   end
 
-  test "lists debug's diagnostics, recorder and self-check, then its settings, the route statistics among them" do
+  test "splits debug into its diagnostics and its navigation settings" do
     on_screen(:debug) do
-      assert_equal [[:action, :diag_audio], [:action, :diag_events], [:action, :diag_perf], [:action, :diag_map],
-                    [:action, :diag_scene], [:action, :diag_full], [:action, :rec_toggle], [:action, :selfcheck],
-                    :transfer_active_page_only, :route_stats, :revert_surf_sound, :back], rows(:debug)
+      assert_equal [[:enter, :debug_diag], [:enter, :debug_nav], :back], rows(:debug)
     end
+  end
+
+  test "lists the diagnostics, the recorder and the self-check in their own screen" do
+    on_screen(:debug_diag) do
+      assert_equal [[:action, :diag_audio], [:action, :diag_events], [:action, :diag_perf], [:action, :diag_map],
+                    [:action, :diag_scene], [:action, :diag_full], [:action, :rec_toggle], [:action, :selfcheck], :back],
+                   rows(:debug_diag)
+    end
+  end
+
+  test "lists debug's navigation settings, the route statistics among them and the near events last" do
+    on_screen(:debug_nav) do
+      assert_equal [:transfer_active_page_only, :route_stats, :revert_surf_sound, :neighbour_cache_size, :near_events, :back],
+                   rows(:debug_nav)
+    end
+  end
+
+  test "shows the time per frame only with the walk in the background on, from 1 to 20 milliseconds a step of 1" do
+    on_screen(:pathfinder_adv) do
+      assert_includes rows(:pathfinder_adv), :regions_slice_ms
+      Cfg.regions_background = false
+      refute_includes rows(:pathfinder_adv), :regions_slice_ms
+    end
+    assert_equal [1, 20, 1, :ms_unit], Cfg::KIND_BOUNDS[Cfg.setting(:regions_slice_ms).kind]
+    assert_equal 8, Cfg.setting(:regions_slice_ms).default
   end
 
   test "lists the audio settings and every sound screen with the positional engine up" do
@@ -717,7 +741,7 @@ class ConfigMenuTest < PokeAccessTest
   end
 
   test "has what each screen holds in words for every group the menu lists and each of its own screens" do
-    listed = Cfg.groups.select { |g| g.parent }.map { |g| g.id } + [:debug, :sounds, :personal, :remap]
+    listed = Cfg.groups.select { |g| g.parent }.map { |g| g.id } + [:debug, :debug_diag, :sounds, :personal, :remap]
     unnamed = Menu::SCREEN_HELP.values.select { |key| T.t(key) == key.to_s }
     assert_equal [[], []], [listed - Menu::SCREEN_HELP.keys, unnamed]
   end
@@ -779,7 +803,7 @@ class ConfigMenuTest < PokeAccessTest
   end
 
   test "offers to start a recording on the debug screen, and to stop it once one runs" do
-    on_screen(:debug) do
+    on_screen(:debug_diag) do
       with_recorder("rec-1.txt", 4) do
         label = lambda { Menu.items.find { |r| r[:action] == :rec_toggle }[:label] }
         before = label.call
@@ -791,7 +815,7 @@ class ConfigMenuTest < PokeAccessTest
   end
 
   test "says the file a recording started from the debug screen writes, then how many events it held" do
-    on_screen(:debug) do
+    on_screen(:debug_diag) do
       with_recorder("rec-1.txt", 4) do
         point_at { |row| row[:action] == :rec_toggle }
         2.times { Menu.activate(1) }
@@ -801,7 +825,7 @@ class ConfigMenuTest < PokeAccessTest
   end
 
   test "says a recording that cannot start" do
-    on_screen(:debug) do
+    on_screen(:debug_diag) do
       with_recorder(nil, 0) do
         point_at { |row| row[:action] == :rec_toggle }
         Menu.activate(1)
@@ -816,7 +840,7 @@ class ConfigMenuTest < PokeAccessTest
     replacing(keys, :diag_section_to_clip, lambda { |section| ran.push(section) }) do
       replacing(keys, :diag_dump, lambda { ran.push(:dump) }) do
         replacing(PokeAccess::SelfCheck, :run, lambda { ran.push(:selfcheck) }) do
-          on_screen(:debug) do
+          on_screen(:debug_diag) do
             [:diag_audio, :diag_events, :diag_perf, :diag_map, :diag_scene, :diag_full, :selfcheck].each do |action|
               point_at { |row| row[:action] == action }
               Menu.activate(1)

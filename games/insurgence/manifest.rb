@@ -13,7 +13,7 @@
     routes
     dex_forms
     naming
-    lasers
+    puzzles/lasers
     intro
     picture_cues
     certificate

@@ -1,14 +1,17 @@
 module PokeAccess
   # The phases of a puzzle (its :phases, World::Mechanics::State) as the player hears them: a phase's title as it
-  # opens, its numbers, counter and tracked event as they change, its readout and its targets. A label is an i18n
-  # symbol, a literal string, [symbol, {interpolations}], or a lambda answering one of those.
+  # opens, its hint on coming onto the map with assist, its numbers, counter and tracked event as they change, its
+  # readout and its targets. A label is an i18n symbol, a literal string, [symbol, {interpolations}], or a lambda
+  # answering one of those.
   module Puzzles
     # Says a change within the phases.
     def self.say_phase(c)
       case c[0]
       when :phase    then announce_phase(c[1])
+      when :entered  then announce_entered(c[1])
       when :value    then PokeAccess.speak(value_phrase(c[1], c[2]), false)
       when :progress then PokeAccess.speak(progress_phrase(c[1], c[2]), false) if progress_audible?(c[1], c[2])
+      when :reset    then PokeAccess.speak(reset_phrase(c[1], c[2]), false) if !c[1][:assist] || assist?
       when :track    then say_track(track_phrase(c[1], c[2]))
       end
     end
@@ -38,7 +41,18 @@ module PokeAccess
 
     # A phase's title as it opens, and its hint with assist.
     def self.announce_phase(s)
-      parts = [label_of(s[:title])]
+      speak_phase(s, true)
+    end
+
+    # The phase open as the player comes onto the map: its hint alone, with assist; its title waits for the info key
+    # unless the phase asks for it now (:entry_title).
+    def self.announce_entered(s)
+      speak_phase(s, s[:entry_title])
+    end
+
+    # A phase's title if titled, and its hint with assist, queued.
+    def self.speak_phase(s, titled)
+      parts = titled ? [label_of(s[:title])] : []
       parts.push(label_of(s[:hint])) if assist? && s[:hint]
       t = parts.reject { |x| x.to_s.empty? }.join(". ")
       PokeAccess.speak(t, false) unless t.empty?
@@ -56,9 +70,25 @@ module PokeAccess
       PokeAccess::I18n.t(:puzzle_progress, :label => label_of(p[:label]), :n => value, :of => p[:of])
     end
 
-    # "label: value".
+    # A count that fell: its own line, else that it starts over, and where it stands.
+    def self.reset_phrase(p, value)
+      said = p[:reset] == true ? PokeAccess::I18n.t(:puzzle_reset) : label_of(p[:reset])
+      PokeAccess.sentences([said, progress_phrase(p, value)])
+    end
+
+    # What the info key says of a mechanic's counts.
+    def self.count_phrases(spec)
+      state = PokeAccess::World::Mechanics::State
+      (spec[:counts] || []).map do |c|
+        n = state.count_of(c)
+        progress_audible?(c, n) ? progress_phrase(c, n) : nil
+      end.compact
+    end
+
+    # "label: value", the value said by its word where the puzzle gives it one (:words).
     def self.value_phrase(v, value)
-      PokeAccess::I18n.t(:puzzle_value, :label => label_of(v[:label]), :v => value)
+      word = v[:words] && v[:words][value]
+      PokeAccess::I18n.t(:puzzle_value, :label => label_of(v[:label]), :v => word ? label_of(word) : value)
     end
 
     # The tracked event after a move: with assist how far it still is from its goal, else its offset from the player.
@@ -89,8 +119,8 @@ module PokeAccess
       parts.join(", ")
     end
 
-    # The readout: the phase's title, its counter, its numbers and their sum, the tracked event and, with assist, the
-    # hint; the win once solved.
+    # The readout: the phase's title, its counter, the mechanic's counts, its numbers and their sum, the tracked event and,
+    # with assist, the hint; the win once solved.
     def self.phases_line(spec)
       state = PokeAccess::World::Mechanics::State
       if PokeAccess::World::Mechanics.truth(spec[:solved])
@@ -101,6 +131,7 @@ module PokeAccess
       parts = [label_of(s[:title])]
       pv = state.progress(s)
       parts.push(progress_phrase(s[:progress], pv)) if pv && progress_audible?(s[:progress], pv)
+      parts.concat(count_phrases(spec))
       vals = state.values(s)
       unless vals.empty?
         parts.push((0...vals.length).map { |k| value_phrase(s[:values][k], vals[k]) }.join(", "))
@@ -159,25 +190,28 @@ module PokeAccess
       track_phrase(tr, [ev.x, ev.y])
     end
 
-    # The current phase's tracked piece for its goal target t, as [track, event], with the assist on; nil otherwise.
+    # The tracked piece of the current phase whose goal is target t, as [track, event], with the assist on; nil otherwise.
     def self.carried_piece(t)
       return nil unless assist? && t.is_a?(PokeAccess::Locator::SurfaceTarget) && t.key == :puzzle_goal
-      inst = PokeAccess::World::Mechanics.instance
-      s = inst && PokeAccess::World::Mechanics::State.current_phase(inst.spec)
-      tr = s && s[:track]
-      ev = tr && tr[:goal] && ($game_map.events[tr[:event]] rescue nil)
-      ev ? [tr, ev] : nil
+      PokeAccess::World::Mechanics.instances.each do |inst|
+        s = PokeAccess::World::Mechanics::State.current_phase(inst.spec)
+        tr = s && s[:track]
+        ev = tr && tr[:goal] && ($game_map.events[tr[:event]] rescue nil)
+        return [tr, ev] if ev
+      end
+      nil
     end
 
-    # Named points as targets: a fixed tile, or where an event stands.
+    # Named points as targets, while they are listed: a fixed tile, or where an event stands.
     def self.spot_targets(spots)
       (spots || []).map do |sp|
+        next nil if (sp[:assist] && !assist?) || (sp[:when] && !PokeAccess::World::Mechanics.truth(sp[:when]))
         xy = sp[:at]
         unless xy
           ev = ($game_map.events[sp[:event]] rescue nil)
           xy = ev && [ev.x, ev.y]
         end
-        xy ? PokeAccess::Locator::SurfaceTarget.new(xy[0], xy[1], label_of(sp[:label]), :puzzle_spot) : nil
+        xy ? PokeAccess::Locator::SurfaceTarget.new(xy[0], xy[1], label_of(sp[:label]), sp[:onto] ? :puzzle_cell : :puzzle_spot) : nil
       end.compact
     end
 

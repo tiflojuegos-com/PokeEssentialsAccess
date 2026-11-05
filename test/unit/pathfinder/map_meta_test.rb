@@ -6,6 +6,7 @@ class MapMetaTest < PokeAccessTest
   # A map the factory builds, whose terrain tag tells the map and the tile it was asked for.
   class TerrainOnly
     def initialize(mid); @mid = mid; end
+    def map_id; @mid; end
     def terrain_tag(x, y); @mid * 100 + x * 10 + y; end
   end
 
@@ -125,25 +126,30 @@ class MapMetaTest < PokeAccessTest
 
   test "another map's terrain is read through the map factory, its map kept while asked about" do
     built = []
-    factory = Object.new
-    factory.define_singleton_method(:getMapNoAdd) { |mid| built.push(mid); TerrainOnly.new(mid) }
+    factory = terrain_factory(built)
     with_factory(:$map_factory, factory) do
       assert_equal [51 * 100 + 23, 51 * 100 + 45], [MM.terrain_on(51, 2, 3), MM.terrain_on(51, 4, 5)]
       assert_equal [51], built, "one map built for both"
       assert_equal 52 * 100 + 23, MM.terrain_on(52, 2, 3)
       MM.forget_foreign
       MM.terrain_on(52, 2, 3)
-      assert_equal [51, 52, 52], built, "another map, or the map forgotten, is built anew"
+      assert_equal [51, 52], built, "another map is built, a map forgotten here is still the neighbour kept"
     end
   end
 
-  test "an older map factory builds the other map without adding it" do
-    asked = []
-    factory = Object.new
-    factory.define_singleton_method(:getMap) { |mid, add| asked.push([mid, add]); TerrainOnly.new(mid) }
-    with_factory(:$MapFactory, factory) do
+  test "an older map factory is found under its own name" do
+    built = []
+    with_factory(:$MapFactory, terrain_factory(built)) do
       assert_equal 51 * 100 + 23, MM.terrain_on(51, 2, 3)
-      assert_equal [[51, false]], asked
+      assert_equal [51], built
+    end
+  end
+
+  test "a map the game has loaded is read as it stands, with no copy" do
+    built = []
+    with_factory(:$map_factory, terrain_factory(built, [TerrainOnly.new(51)])) do
+      assert_equal 51 * 100 + 23, MM.terrain_on(51, 2, 3)
+      assert_equal [], built
     end
   end
 
@@ -196,6 +202,14 @@ class MapMetaTest < PokeAccessTest
     yield
   ensure
     MM.instance_variable_set(:@surface_of, was)
+  end
+
+  # A map factory holding these maps, noting each map it builds.
+  def terrain_factory(built, loaded = [])
+    factory = Object.new
+    factory.instance_variable_set(:@maps, loaded)
+    factory.define_singleton_method(:getMapNoAdd) { |mid| built.push(mid); TerrainOnly.new(mid) }
+    factory
   end
 
   # Runs the block with the global map factory (name: :$map_factory or the older :$MapFactory) set to factory and

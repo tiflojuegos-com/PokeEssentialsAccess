@@ -153,7 +153,7 @@ from the game's own helpers, such as `getMoveName`, which go through the game's 
 Core names no constant of `rv_common`, as of any profile (`coupling_test.rb`). The two meet through seams core leaves
 open:
 
-- Data only some providers give. Core asks `Data.optional(:map_infos)`, `Data.optional(:common_events)` and similar,
+- Data only some providers give. Core asks `Data.optional(:map_infos)`, `Data.optional(:map_connections)` and similar,
   and `DataRV` answers them.
 - Replaced methods. A module of `rv_common` replaces a core method with `Hooks.override`, as
   `games/rv_common/time_weather_rv.rb` does with `PokeAccess::Battle.clock_text`. Some core methods hold only the

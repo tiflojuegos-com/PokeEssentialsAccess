@@ -1,5 +1,27 @@
 module PokeAccess
   module World
+    # The map's events as the game is shown them while asked about one step (Probe.engine): the same Hash, but the two ways
+    # every game goes over them to decide a step give only those around it, the rest being ones it would rule out by where
+    # they stand. Any other read sees them all: slower, never wrong.
+    class NearEvents < Hash
+      attr_accessor :near
+      attr_reader :source
+
+      def initialize(source)
+        super()
+        @source = source
+        replace(source)
+      end
+
+      def values; @near; end
+
+      def each_value
+        return super unless block_given?
+        @near.each { |e| yield e }
+        self
+      end
+    end
+
     # The map's events as the world keeps them: one record per event, synced at most once a frame and when a search
     # starts, the tiles each covers in the engine's order (which runs where two share a tile), and facets kept while
     # the record and the flags they read stand. on_change tells the tiles, the record and the kind of each change.
@@ -56,6 +78,8 @@ module PokeAccess
         @cover = {}
         @with_deps = {}
         @summaries = {}
+        @shown = nil
+        @far = false
         @synced = nil
         @gen = (@gen || 0) + 1
         @turns = (@turns || 0) + 1
@@ -84,6 +108,45 @@ module PokeAccess
       def self.at(x, y)
         sync
         @cover[key(x, y)] || NONE
+      end
+
+      # The map's events as the game is to see them while asked about the step from (x,y) to (nx,ny): those within a tile of
+      # it (NearEvents), the tile because an event may stop a step beside where it stands (sizeC); nil to leave it them all,
+      # where they are no plain Hash, are not read yet or one of them reaches past that tile (reaches_past?).
+      def self.near_step(events, x, y, nx, ny)
+        return nil if @far || @synced.nil?
+        shown = @shown
+        unless shown && shown.source.equal?(events)
+          return nil unless events.instance_of?(Hash)
+          shown = @shown = NearEvents.new(events)
+        end
+        shown.near = around(x, y, nx, ny)
+        shown
+      end
+
+      # The engine's events covering the tiles within one of the step from (x,y) to (nx,ny), as last read and in the
+      # engine's order, which runs where two share a tile.
+      def self.around(x, y, nx, ny)
+        cover = @cover
+        col = (x < nx ? x : nx) - 1
+        last = (x > nx ? x : nx) + 1
+        y0 = (y < ny ? y : ny) - 1
+        y1 = (y > ny ? y : ny) + 1
+        out = nil
+        while col <= last
+          k = key(col, y0)
+          stop = key(col, y1)
+          while k <= stop
+            list = cover[k]
+            if list
+              out ||= {}
+              list.each { |r| out[r.order] = r.ev }
+            end
+            k += 1
+          end
+          col += 1
+        end
+        out ? out.keys.sort.map { |o| out[o] } : NONE
       end
 
       # The records standing on (x,y) itself, in the engine's order.
@@ -179,6 +242,7 @@ module PokeAccess
         read(r)
         @records[id] = r
         r.tiles.each { |x, y| (@cover[key(x, y)] ||= []).push(r) }
+        @shown = nil
         changed(r.tiles, routed?(r.trigger), r, :come)
         r
       end
@@ -188,6 +252,7 @@ module PokeAccess
         @records.delete(r.id)
         @with_deps.delete(r.id)
         uncover(r)
+        @shown = nil
         changed(r.tiles, routed?(r.trigger), r, :go)
       end
 
@@ -228,6 +293,27 @@ module PokeAccess
         r.w = PokeAccess.ivar(ev, :@width)
         r.h = PokeAccess.ivar(ev, :@height)
         r.tiles = area(r.x, r.y, r.w, r.h, r.name)
+        @far ||= reaches_past?(r)
+      end
+
+      # True when the game may have the event past what near_step shows: on a stair, where a game that looks for events by
+      # the stair (is_event_at_target?) places it by that and not by its tile, or on a tile two away from those its record
+      # covers (a plugin's hitbox). One with no such question is as its record says, and one that fails it counts.
+      def self.reaches_past?(r)
+        ev = r.ev
+        return true if ev.respond_to?(:is_event_at_target?) && ev.on_stair?
+        return false unless ev.respond_to?(:at_coordinate?)
+        xs = r.tiles.map { |t| t[0] }
+        ys = r.tiles.map { |t| t[1] }
+        x0 = xs.min - 2
+        x1 = xs.max + 2
+        y0 = ys.min - 2
+        y1 = ys.max + 2
+        (x0..x1).any? { |x| ev.at_coordinate?(x, y0) || ev.at_coordinate?(x, y1) } ||
+          (y0..y1).any? { |y| ev.at_coordinate?(x0, y) || ev.at_coordinate?(x1, y) }
+      rescue StandardError => e
+        PokeAccess.swallowed(e)
+        true
       end
 
       # True for the triggers whose pages a route reads: the action button and the two touches.

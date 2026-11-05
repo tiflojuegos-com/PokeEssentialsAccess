@@ -55,7 +55,8 @@ with the script that builds it and its sources. Read it when a static check fail
 - `plugins_test.rb`: the detection table, `plugins/manifest.rb`, and the files of `plugins/` match one to one, each
   entry with a [probe](glossary.md). Every plugin a profile declares exists. Some profile declares every plugin file,
   or the file is a reader only the generic profile loads, whose probe no surveyed game ships and a reference copy
-  defines. Every hook in `plugins/` is `:optional`, and no two readers claim one `Class#method`. Each profile declares
+  defines. Every hook in `plugins/` is `:optional`, and no two readers claim one `Class#method`, save those of two releases of a
+  plugin (`RELEASES`), whose probes shut each other and which no profile declares together. Each profile declares
   the plugins its game ships (`plugin_census.txt`), save one its game ships in a copy the plugin's reader does not fit
   or that never runs, read by the profile, by another plugin or by nobody: those are listed in `OWN_COPIES` (Revival's
   Modular Menu, Vitro's berry pots), which counts as declared. Such a profile does not load the plugin's reader too.

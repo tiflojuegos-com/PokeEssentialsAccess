@@ -3,10 +3,10 @@
 # source files, and 1.8.7 has no ripper, so eval is the syntax checker here.
 # MODERN mirrors check187.py's (mts_mutator_guard_test pins both to the catalog). plugins/ stays out of it: a plugin
 # can be installed in a gen-6 fangame.
-MODERN =["games/anil/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
+MODERN =["games/anil/", "games/ashenfrost/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
           "games/infinitefusion_hoenn/", "games/infinitefusion/", "games/infinitefusion_common/",
           "games/emerald/", "games/gruelinggold/", "games/goldencrown/",
-          "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/"]
+          "games/decades/", "games/herolegacy/", "games/keishou/", "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/"]
 
 root = (ARGV[0] || File.expand_path(File.join(File.dirname(__FILE__), ".."))).gsub("\\", "/")
 files = Dir[File.join(root, "core", "**", "*.rb")] +

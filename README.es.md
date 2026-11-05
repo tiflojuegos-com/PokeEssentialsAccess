@@ -120,7 +120,7 @@ En «Opciones de navegación y del buscador de rutas» decides cómo funciona la
 
 - **Remapeo de teclas**: en «Reasignar los controles del juego» cambias las teclas del juego y las del mod, a una tecla
   sola o a `Alt` más otra.
-- **Grabador de sesiones**: «Grabar sesión», en «Depuración», guarda en un archivo lo que el mod vio y dijo, para
+- **Grabador de sesiones**: «Grabar sesión», en «Depuración», «Diagnóstico», guarda en un archivo lo que el mod vio y dijo, para
   adjuntarlo cuando informes de un fallo.
 
 ## Instalación
@@ -195,7 +195,7 @@ Cada juego tiene su perfil en `games/`. La lista con la que el launcher reconoce
   Desolation.
 - **Era GameData** (Essentials v18 en adelante): Pokémon Añil, Pokémon Royal, Pokémon Relict, Pokémon Eternal
   Emerald, Pokémon Grueling Gold, Pokémon Infinite Fusion, Pokémon Infinite Fusion 2 Hoenn, Pokémon Fire Ash, Pokémon
-  Soulstones 2, Pokémon Revival, Pokémon Dark Horizon, Pokémon World Frontier y Pokémon Golden Crown.
+  Soulstones 2, Pokémon Revival, Pokémon Dark Horizon, Pokémon World Frontier, Pokémon Golden Crown, Pokémon Keishou, Pokémon Ashen Frost, Pokémon Decades y Pokémon Hero Legacy.
 
 Para cualquier otro fangame de Essentials hay un **perfil genérico**. Da toda la accesibilidad común (menús,
 diálogos, combate, navegación y rutas), pero sin los lectores hechos para un juego concreto.
@@ -209,10 +209,15 @@ con la suya y la acción del juego pasa a otra:
 
 | Juego | Combinación | En el juego | La tecla de antes, en el mod |
 |-------|-------------|-------------|------------------------------|
+| Ashen Frost | `Alt` + `M` | Información del movimiento, en combate | `Shift`: modificador del mod |
+| Ashen Frost | `F7` | Saltar texto; el `Ctrl` izquierdo ya no lo hace | `Ctrl`: modificador del mod |
+| Ashen Frost | `Q` | Acelerar el juego; el `Alt` izquierdo ya no lo hace | `Alt`: combinaciones de este juego |
 | Awakening | `Alt` + `M` | Mapa de la región; bola de fuego donde haga falta | `M`: coordenadas |
 | Awakening | `Alt` + `J` | Lente de la Verdad | `J`: objetivo anterior de la lista |
 | Awakening | `Alt` + `G` | Información del combate; fuera de él, historial de mensajes | `G`: estado del campo |
 | Awakening | `Alt` + `T` | Guardar | `T`: detalle de lo enfocado |
+| Decades | `Alt` + `T` | Tabla de tipos, en combate | `T`: detalle de lo enfocado |
+| Decades | `Tab` | Búsqueda del DexNav, captura segura y saltar combates de desafío; el `Ctrl` ya no lo hace | `Ctrl`: modificador del mod |
 | Realidea | `Alt` + `M` | Despejar la niebla; en puzles y minijuegos, reiniciar, repetir la frase o ver la guía | `M`: coordenadas |
 | Insurgence | `Alt` + `M` | Acelerar el juego | `M`: coordenadas |
 | Insurgence | `Alt` + `T` | Objeto registrado n.º 4 | `T`: detalle de lo enfocado |

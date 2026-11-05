@@ -2,7 +2,8 @@ module PokeAccess
   module Routes
     # What the map's events do to a move, read through EventPages and indexed per map from each event's facets:
     #   :carry    a Set Move Route on the player and nothing else (a hop over a hedge), landing them elsewhere:
-    #             [:carry, dx, dy, jump, steps, held], held when it runs only with the arrow still held down;
+    #             [:carry, dx, dy, jump, steps that ask for a touch event, held], held when it runs only with the
+    #             arrow still held down;
     #   :warp     a transfer to another spot of this map;
     #   :exit     a transfer off the map, or to an unnamed spot of it: the end of a route, never a tile to cross;
     #   :barrier  a cutscene that stops the player and shoves them back or aside;
@@ -18,9 +19,9 @@ module PokeAccess
       # The field moves an obstacle's script calls, for one its name does not give away ("Breakable Rock", "EV012"):
       # [pattern, locator label, move].
       SCRIPT_GATES = [[/\bpbCut\b/, :loc_cut_tree, :CUT], [/\bpbRockSmash\b/, :loc_rock_smash, :ROCKSMASH]]
-      # Scripts that push the event they run in, and the move the push needs: Strength boulders, and the carts
+      # Scripts that push the event they run in, and the move the push needs: Strength boulders, and the carts, objects
       # and statues some games let the player shove without it.
-      PUSH_SCRIPTS = [[/pbPushThisBoulder/, :STRENGTH], [/pbPushThisEvent/, nil], [/pbMoverEstatuas/, nil]]
+      PUSH_SCRIPTS = [[/pbPushThisBoulder/, :STRENGTH], [/pbPushThis\w+/, nil], [/pbMoverEstatuas/, nil]]
 
       @touch_sources = []
       @pull_scripts = []
@@ -30,6 +31,15 @@ module PokeAccess
       # Registers a reader of events a plugin gives a meaning of its own: it gets a live event and answers the
       # effect arriving on it has for every facing (a :run), or nil to leave the event to EventPages.
       def self.touch_source(&reader); @touch_sources.push(reader); end
+
+      # Reads the indexes every walk and search looks up at each step, from the world as it stands, before events are lent
+      # through (Probe.before_lending); an assisted one has read the action events too (Pathfinder.with_gates_open).
+      def self.read_ahead
+        touch_index
+        warp_map?
+        ramp_map?
+        gate_index
+      end
 
       # The map's index of what touching its events does: pkey => [fires_on_arrival, { facing => effect }], the first
       # event in the engine's order winning a shared tile; built from each event's :touch facet and kept until an
@@ -154,9 +164,9 @@ module PokeAccess
         ($game_map.passable?(ev.x, ev.y, 0) rescue false) ? true : false
       end
 
-      # One facing's effect from a walk's outcome, or nil when it changes nothing for a route. A carry keeps its steps
-      # when the page does not wait for the move, as each tile's own touch event then fires (arrow floors), and is
-      # marked when it runs only with the arrow still held (a held or pressed walk).
+      # One facing's effect from a walk's outcome, or nil when it changes nothing for a route. A carry keeps the steps
+      # that ask for a touch event (EventPages' stops) when the page does not wait for the move, as those tiles' own events
+      # then fire (arrow floors), and is marked when it runs only with the arrow still held (a held or pressed walk).
       def self.touch_effect_of(o, d, on, mid)
         return nil if o.nil?
         return (o.maybe_transfer ? [:exit] : nil) if o.unknown
@@ -166,7 +176,7 @@ module PokeAccess
         end
         if o.move
           held = (o.held || o.pressed) ? true : nil
-          return [:carry, o.move[0], o.move[1], o.jump, (o.waits ? nil : o.path), held] unless o.talks || o.changes
+          return [:carry, o.move[0], o.move[1], o.jump, (o.waits ? nil : o.stops), held] unless o.talks || o.changes
           return barrier?(o, d, on) ? [:barrier] : nil
         end
         return [:ramp, o.bridge] if on && !o.bridge.nil?
@@ -274,13 +284,15 @@ module PokeAccess
       def self.pull_script(pattern); @pull_scripts.push(pattern); end
 
       # Registers a script a game moves its pushables with, ahead of the stock ones (PUSH_SCRIPTS): the field move it
-      # needs (nil for none) and, with a block, the condition the game moves them under, asked as a route is searched
-      # (a switch the story sets, which no page change tells).
+      # needs (nil for none) and, with a block, the condition the game moves them under, asked as a route is searched with
+      # the tile the move would leave the pushable on (a switch the story sets, which no page change tells; the only floor
+      # it moves onto).
       def self.push_script(pattern, move = nil, &ready); @push_rules.push([pattern, move, ready]); end
 
       # The map's index of what the player can push: pkey of the event's own tile => [event, move it needs or nil, how
       # it is pushed, whether it can be pulled, the ways it can be pushed or nil for any, the condition it moves under
-      # or nil] (see push_facet), the last event in the engine's order winning a tile; kept until an event changes.
+      # or nil, its long pushes or nil] (see push_facet), the last event in the engine's order winning a tile; kept until
+      # an event changes.
       def self.boulder_index
         PokeAccess::World::Events.summary(:boulder) do
           idx = {}
@@ -293,19 +305,36 @@ module PokeAccess
       end
 
       # One event's :push facet: [move needed or nil, :walk or :act (action button), pullable (pull_script), the ways
-      # it goes (self_push_dirs) or nil for any, its push_script condition or nil]; nil when the player cannot push it.
+      # it goes (self_push_dirs) or nil for any, its push_script condition or nil, its long_pushes or nil]; nil when the
+      # player cannot push it.
       def self.push_facet(r)
         m = push_move(r.ev)
         return nil unless m
         dirs = self_push_dirs(r.ev)
+        long = long_pushes(r.ev)
         [m[0], r.trigger == 0 ? :act : :walk, @pull_scripts.any? { |re| script_text(r.ev) =~ re },
-         dirs.empty? ? nil : dirs, push_rule(r.ev) && push_rule(r.ev)[2]]
+         dirs.empty? ? nil : dirs, push_rule(r.ev) && push_rule(r.ev)[2], long.empty? ? nil : long]
       end
 
       # The game's rule an event's pushes go by (push_script), as [pattern, move, condition], or nil.
       def self.push_rule(ev)
         src = script_text(ev)
         @push_rules.find { |re, _m, _r| src =~ re }
+      end
+
+      # True when an event is pushed with no field move: by the game's own function for it, or moving itself.
+      def self.free_push?(ev)
+        rule = push_rule(ev)
+        return rule[1].nil? if rule
+        src = script_text(ev)
+        hit = PUSH_SCRIPTS.find { |re, _m| src =~ re }
+        hit ? hit[1].nil? : self_pushed?(ev)
+      end
+
+      # The words said after the name of a target the player can push, where its name does not tell it; nil otherwise.
+      def self.push_mark(t)
+        return nil if t.is_a?(PokeAccess::Locator::SurfaceTarget) || PokeAccess::Locator.fieldmove_label(t)
+        push_move(t) ? PokeAccess::I18n.t(:loc_push_mark) : nil
       end
 
       # [move] for an event the player can push (nil move: no field move needed), or nil for any other.
@@ -325,13 +354,20 @@ module PokeAccess
       # The move-route code that steps each way (down, left, right, up).
       STEP_MOVES = { 2 => 1, 4 => 2, 6 => 3, 8 => 4 }
 
-      # The directions the player pushes an event that steps itself the way they face when walked into (an Insurgence
-      # rolling boulder), [] for any other: its touch page branches on facing (111 [6, -1, d]), each stepping it.
+      # The directions the player pushes an event that moves itself when walked into or used, [] for any other: one that
+      # steps away from them (flee_dirs), one that steps the way they face (an Insurgence rolling boulder), its page
+      # branching on facing (111 [6, -1, d]), each stepping it, or one that sends itself off (long_pushes). What the action
+      # button moves, or what flees, is no person and says nothing.
       def self.self_push_dirs(ev)
-        return [] unless [1, 2].include?(PokeAccess.ivar(ev, :@trigger))
+        trig = PokeAccess.ivar(ev, :@trigger)
+        return [] unless [0, 1, 2].include?(trig)
         list = PokeAccess.ivar(ev, :@list)
         return [] unless list.is_a?(Array)
-        dirs = []
+        object = !PokeAccess::Puzzles::Auto.loud?(list) && !PokeAccess::Puzzles::Auto.person_sheet?(ev.character_name.to_s)
+        return [] if trig == 0 && !object
+        away = object ? flee_dirs(ev, list) : []
+        return away unless away.empty?
+        dirs = long_pushes(ev).keys
         list.each_with_index do |c, i|
           pr = (c.parameters rescue nil) || []
           next unless (c.code rescue 0) == 111 && pr[0] == 6 && pr[1] == -1 && STEP_MOVES[pr[2]]
@@ -340,8 +376,109 @@ module PokeAccess
         dirs
       end
 
+      # What a walk against an event sends it through whatever lies between, over several tiles, as Z's electric crystals
+      # and Realidea's red ones go: facing => [dx, dy, gone, again], gone when the page the push opens stops nobody, again
+      # when the push sets nothing that stays, so the same page sends it on from where it lands.
+      # Read as the interpreter runs the page (EventPages), so a push its own self switch has spent is none; {} for an
+      # event a script pushes, one with no graphic, one that goes whichever way the player faces (someone walking off in
+      # a scene), or one whose walk moves the player, fights or cannot be told.
+      def self.long_pushes(ev)
+        out = {}
+        return out unless [1, 2].include?(PokeAccess.ivar(ev, :@trigger)) && sends_itself?(ev)
+        return out if ev.character_name.to_s.empty? && (ev.tile_id rescue 0).to_i == 0
+        src = script_text(ev)
+        return out if push_rule(ev) || PUSH_SCRIPTS.any? { |re, _m| src =~ re }
+        [2, 4, 6, 8].each do |d|
+          o = PokeAccess::EventPages.outcome(ev, d)
+          next unless o && o.sent && o.path.empty? && !o.unknown && !o.transfer && !o.battle
+          out[d] = [o.sent[0], o.sent[1], gone_after?(ev, o.sets), !o.changes]
+        end
+        out
+      end
+
+      # True when the event's live page branches on the player's facing and has a Set Move Route with Through on, all that
+      # long_pushes takes the time to walk.
+      def self.sends_itself?(ev)
+        list = PokeAccess.ivar(ev, :@list)
+        return false unless list.is_a?(Array)
+        list.any? { |c| (c.code rescue 0) == 111 && (c.parameters[0, 2] rescue nil) == [6, -1] } && list.any? do |c|
+          (c.code rescue 0) == 209 && ((c.parameters[1].list rescue nil) || []).any? { |m| (m.code rescue 0) == 37 }
+        end
+      end
+
+      # True when what a push turned on (EventPages' sets) leaves the event on a page that stops nobody.
+      def self.gone_after?(ev, sets)
+        over = {}
+        sets.each { |s| over[s.is_a?(String) ? [:self, ev.id, s] : [:switch, s]] = true }
+        links = PokeAccess::World::Mechanics::Links
+        !links.blocks?(links.live_page(ev, over))
+      end
+
       # True for an event the player pushes by walking into it, as self_push_dirs reads it.
       def self.self_pushed?(ev); !self_push_dirs(ev).empty?; end
+
+      # The facings from which a page, run as the interpreter would now (a block may answer only while a switch is on), sends
+      # its own event one step away from the player and moves them nowhere.
+      def self.flee_dirs(ev, list)
+        return [] unless list.any? { |c| (c.code rescue 0) == 209 && away_route?(c.parameters[1]) }
+        [2, 4, 6, 8].select do |d|
+          o = PokeAccess::EventPages.outcome(ev, d)
+          o && !o.unknown && !o.transfer && o.path.empty? && o.own.any? { |mr| away_route?(mr) }
+        end
+      end
+
+      # True for a route that takes one step away from the player: moving away from them, or turning to them and stepping back.
+      def self.away_route?(mr)
+        codes = ((mr.list rescue nil) || []).map { |m| (m.code rescue 0) }
+        steps = codes.select { |k| PokeAccess::World::Events::STEP_CODES.include?(k) }
+        steps == [11] || (steps == [13] && codes.include?(25))
+      end
+
+      # One event's :sides facet: the facings its action-button page answers to, when all it does hangs from branches on
+      # the player's facing (111 [6, -1, d]) with no else that does something; nil for any other, or one that answers to all
+      # four.
+      def self.sides_facet(r)
+        return nil unless r.trigger == 0
+        list = PokeAccess.ivar(r.ev, :@list)
+        return nil unless list.is_a?(Array)
+        body = list.reject { |c| [108, 408].include?((c.code rescue 0)) }
+        first = body.first
+        return nil unless first && facing_branch?(first)
+        dirs = []
+        body.each_with_index do |c, i|
+          next if c.indent != first.indent || c.code == 0 || c.code == 412
+          if c.code == 411
+            return nil unless (body[i + 1].code rescue 0) == 0
+          else
+            return nil unless facing_branch?(c)
+            dirs.push(c.parameters[2])
+          end
+        end
+        dirs = dirs.uniq
+        dirs.length < 4 ? dirs : nil
+      end
+
+      # True for a branch on the player's facing.
+      def self.facing_branch?(c); c.code == 111 && c.parameters[0] == 6 && c.parameters[1] == -1; end
+
+      # The tiles an event on (tx,ty) answers the action button from, when it answers from some sides alone and one of them
+      # is there; nil for any other target.
+      def self.act_sides(tx, ty)
+        r = PokeAccess::World::Events.at(tx, ty).find { |e| PokeAccess::World::Events.facet(e, :sides) }
+        return nil unless r
+        fs = PokeAccess::World::Events.facet(r, :sides)
+        area = PokeAccess::Pathfinder.area_at(tx, ty)
+        tiles = (PokeAccess::Pathfinder.reach_tiles(tx, ty) - area).select do |x, y|
+          area.any? { |ax, ay| fs.include?(facing_to(x, y, ax, ay)) }
+        end
+        tiles.empty? ? nil : tiles
+      end
+
+      # The facing that looks from (x,y) at (tx,ty) along a row or a column, or nil.
+      def self.facing_to(x, y, tx, ty)
+        return (ty < y ? 8 : (ty > y ? 2 : nil)) if x == tx
+        y == ty ? (tx < x ? 4 : 6) : nil
+      end
 
       # True when the branch opened at list[i] moves its own event by just one step, step, in one of its routes, and the
       # player nowhere.
@@ -385,7 +522,9 @@ module PokeAccess
   end
 end
 
+PokeAccess::World::Probe.before_lending { PokeAccess::Routes::Effects.read_ahead }
 PokeAccess::World::Events.facet_provider(:touch) { |r| PokeAccess::Routes::Effects.touch_facet(r) }
 PokeAccess::World::Events.facet_provider(:act) { |r| PokeAccess::Routes::Effects.act_facet(r) }
 PokeAccess::World::Events.facet_provider(:gate) { |r| PokeAccess::Routes::Effects.gate_facet(r) }
 PokeAccess::World::Events.facet_provider(:push) { |r| PokeAccess::Routes::Effects.push_facet(r) }
+PokeAccess::World::Events.facet_provider(:sides) { |r| PokeAccess::Routes::Effects.sides_facet(r) }

@@ -62,7 +62,7 @@ end
 
 class Game_System; def map_interpreter; @i ||= Object.new.tap { |o| def o.running?; false; end }; end; end
 
-class Scene_Map;   def update(*a); end; end
+class Scene_Map;   def update(*a); end; def transfer_player(*a); end; end
 
 # The selectable-window chain the generic net and the command hook bind to, shaped as in every engine: only the base
 # and the leaf own an #update. Specs move a cursor by setting @index and calling update, as the game does.

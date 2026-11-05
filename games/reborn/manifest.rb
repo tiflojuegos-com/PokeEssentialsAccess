@@ -7,6 +7,7 @@
     own_voice
     fight_menu
     blindstep
+    skip_obelisks
     move_tutor
     credits
     battle_box

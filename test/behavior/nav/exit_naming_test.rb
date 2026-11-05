@@ -88,8 +88,8 @@ class ExitNamingTest < PokeAccessTest
   end
 
   test "names an unnamed attendant of any shop a shopkeeper" do
-    ["pbPokemonMart([:POTION, :REPEL])", "pbSecretBaseMart(1)", "pbBattlePointShop([:PPUP])", "tm_mart(2)",
-     "enter_pokemart(:center)"].each_with_index do |script, i|
+    ["pbPokemonMart([:POTION, :REPEL])", "pbSecretBaseMart(1)", "pbBattlePointShop([:PPUP])",
+     "tm_mart(2)"].each_with_index do |script, i|
       assert_equal t(:loc_shopkeeper), Loc.target_name(clerk(95 + i, "EV0#{95 + i}", script)), script
     end
   end
