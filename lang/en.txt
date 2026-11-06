@@ -4340,3 +4340,5 @@ decades_key_t=Game's T key: type chart, in battle
 decades_key_ctrl=Game's Ctrl key: DexNav search, sure catch and skipping challenge battles
 if_bubble_from=From %{where}
 if_bubble_tag_from=%{tag}, from %{where}
+lbl_if_speaker_location=Speaker location before dialogue
+help_if_speaker_location=Add the speaking character's map position before speech-bubble dialogue in Infinite Fusion. Turn this off to omit the position; your own character tags are still spoken.

@@ -100,6 +100,7 @@ Personalization and the remap screen hold no settings.
 | `read_help` | `true` | Flag | Says the description a menu shows for the focused option |
 | `dialogue_pages` | `false` | Flag | Reads the message box page by page instead of whole messages |
 | `history_size` | `300` | `:msgs` | Lines the message history keeps |
+| `if_speaker_location` | `true` | Flag | Infinite Fusion profiles only: adds the speech-bubble speaker's position before dialogue; off keeps dialogue and player tags |
 
 - `language`: `auto` takes the first language with a file among the system's, its shipped neighbour (Catalan to
   Spanish), the game's declared language, English and Spanish
@@ -108,6 +109,9 @@ Personalization and the remap screen hold no settings.
 - `read_help`: the description is said only while the verbosity scheme says descriptions, as the full level does.
 - `dialogue_pages`: each page cuts the previous one; off, each message is read whole and queued.
 - `history_size`: the oldest lines go first; the history lasts the session.
+- `if_speaker_location`: appears when an Infinite Fusion profile loads. Off omits the relative position before
+  another event's speech-bubble dialogue, while retaining player-assigned tags. It does not change the dialogue,
+  normal speaker names or independent route guidance.
 
 ## Verbosity
 

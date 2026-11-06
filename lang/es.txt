@@ -4342,3 +4342,5 @@ decades_key_t=Tecla T del juego: tabla de tipos, en combate
 decades_key_ctrl=Tecla Control del juego: búsqueda del DexNav, captura segura y saltar combates de desafío
 if_bubble_from=Desde %{where}
 if_bubble_tag_from=%{tag}, desde %{where}
+lbl_if_speaker_location=Posición del hablante antes del diálogo
+help_if_speaker_location=Indica la posición del personaje señalado por el bocadillo antes de su diálogo en Infinite Fusion. Al desactivarlo se mantienen el diálogo y tus etiquetas de personajes.

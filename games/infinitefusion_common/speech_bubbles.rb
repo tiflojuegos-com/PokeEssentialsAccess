@@ -15,9 +15,11 @@ module PokeAccess
     # place so as not to sound like a route. The event's own name is left out: an editor's name can give a puzzle away
     # (Berry Forest's impostor is "fake kid").
     def self.speaker(ev)
-      where = place(ev.x - $game_player.x, ev.y - $game_player.y)
       tag = (PokeAccess::Tags.get($game_map.map_id, ev.id) rescue nil)
-      return PokeAccess::I18n.t(:if_bubble_from, :where => where) if tag.nil? || tag.to_s.empty?
+      tagged = !tag.nil? && !tag.to_s.empty?
+      return tagged ? tag.to_s : nil unless PokeAccess::Config.if_speaker_location
+      where = place(ev.x - $game_player.x, ev.y - $game_player.y)
+      return PokeAccess::I18n.t(:if_bubble_from, :where => where) unless tagged
       PokeAccess::I18n.t(:if_bubble_tag_from, :tag => tag, :where => where)
     end
 
@@ -45,6 +47,7 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("infinitefusion_common") do
+  PokeAccess::Config.define(:if_speaker_location, true, :flag, :general, :lbl_if_speaker_location, :help_if_speaker_location)
   kernel("pbCreateMessageWindow", :after) { |_a, _r| PokeAccess::IFSpeechBubbles.opened }
   kernel("pbDisposeMessageWindow", :after) { |_a, _r| PokeAccess.before_next_line(nil) }
 end

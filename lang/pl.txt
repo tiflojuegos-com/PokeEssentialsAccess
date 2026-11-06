@@ -4345,3 +4345,5 @@ decades_key_t=Klawisz T gry: tabela typów, w walce
 decades_key_ctrl=Klawisz Ctrl gry: wyszukiwanie w DexNavie, pewne złapanie i pomijanie walk wyzwania
 if_bubble_from=Z miejsca %{where}
 if_bubble_tag_from=%{tag}, z miejsca %{where}
+lbl_if_speaker_location=Położenie rozmówcy przed dialogiem
+help_if_speaker_location=Podawaj położenie postaci wskazanej dymkiem przed jej wypowiedzią w Infinite Fusion. Po wyłączeniu pozostają dialog i własne etykiety postaci.

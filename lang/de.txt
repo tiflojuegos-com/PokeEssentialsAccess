@@ -4334,3 +4334,5 @@ decades_key_t=T-Taste des Spiels: Typentabelle, im Kampf
 decades_key_ctrl=Strg-Taste des Spiels: DexNav-Suche, sicherer Fang und Herausforderungskämpfe überspringen
 if_bubble_from=Von %{where}
 if_bubble_tag_from=%{tag}, von %{where}
+lbl_if_speaker_location=Sprecherposition vor dem Dialog
+help_if_speaker_location=Nennt vor Sprechblasen-Dialogen in Infinite Fusion die Position der sprechenden Figur. Ausgeschaltet bleiben der Dialog und deine eigenen Figurenmarkierungen hörbar.

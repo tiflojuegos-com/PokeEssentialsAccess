@@ -4356,3 +4356,5 @@ decades_key_t=Tecla T do jogo: tabela de tipos, em batalha
 decades_key_ctrl=Tecla Ctrl do jogo: busca do DexNav, captura garantida e pular batalhas de desafio
 if_bubble_from=De %{where}
 if_bubble_tag_from=%{tag}, de %{where}
+lbl_if_speaker_location=Posição de quem fala antes do diálogo
+help_if_speaker_location=Anuncia a posição da personagem indicada pelo balão antes do diálogo no Infinite Fusion. Ao desativar, o diálogo e as tuas etiquetas de personagens continuam a ser lidos.
