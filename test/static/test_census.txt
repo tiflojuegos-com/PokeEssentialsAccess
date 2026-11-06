@@ -188,6 +188,7 @@ behavior/field/say_dialogue_test.rb
 behavior/field/sevii_cycling_road_test.rb
 behavior/field/sky_trainer_sensor_gd_test.rb
 behavior/field/slide_banners_test.rb
+behavior/field/speaker_location_gd_test.rb
 behavior/field/ss2_hall_of_fame_gd_test.rb
 behavior/field/trade_shiny_test.rb
 behavior/field/trainer_line_gd_test.rb
