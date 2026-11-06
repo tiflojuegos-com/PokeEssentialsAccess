@@ -15,7 +15,8 @@ module PokeAccess
       # emitter the sonar pings, rank its place among them), :loop, :cue (a one-shot its caller places) or :earcon
       # (always flat); place, where a cue or a held loop plays through the engine (:side, guide_distance tiles to the
       # left or right and flat ahead and behind; :heading, to the side or on the player; :front, the tile pushed into;
-      # :player); flat, what plays without the engine, as direction => [file, pitch] (:any for every direction, nil for
+      # :player; :contact, at the collision tile with fixed pitch); flat, what plays without the engine, as
+      # direction => [file, pitch] (:any for every direction, nil for
       # silence); clamp, the [low, high] pitches its tone keeps inside the flat channel's range; glossary, its row
       # there as [name, help, file, pitch] (nil: not listed); side, a wind's [direction, dx, dy].
       Entry = Struct.new(:id, :family, :file, :role, :rank, :place, :flat, :clamp, :glossary, :side)
@@ -24,19 +25,19 @@ module PokeAccess
       GRID_COLUMNS = ["pa_guide_l", "pa_guide_c", "pa_guide_r"]
       GRID_ROWS = [140, 110, 85]
 
-      # The pre-panned flat files of the wall bump, the guide's chime, the jump and the ledge's tick, by direction, with
-      # their pitches: ahead high and behind low.
-      WALL_FLAT = { 4 => ["pa3d_wall_l", 100], 6 => ["pa3d_wall_r", 100], 8 => ["pa3d_wall_c", 120],
-                    2 => ["pa3d_wall_c", 80] }
+      # Contacts retain their left/right samples at one family pitch. Guide, jump and ledge cues still mark
+      # ahead and behind by their directional pitches.
+      WALL_FLAT = { 4 => ["pa3d_wall_l", 100], 6 => ["pa3d_wall_r", 100], 8 => ["pa3d_wall_c", 100],
+                    2 => ["pa3d_wall_c", 100] }
       GUIDE_FLAT = { 4 => ["pa_guide_l", 100], 6 => ["pa_guide_r", 100], 8 => ["pa_guide_c", 140],
                      2 => ["pa_guide_c", 70] }
       JUMP_FLAT = { 4 => ["pa_jump_l", 100], 6 => ["pa_jump_r", 100], 8 => ["pa_jump_c", 140], 2 => ["pa_jump_c", 70] }
       LEDGE_FLAT = { 4 => ["pa_ledge_l", 100], 6 => ["pa_ledge_r", 100], 8 => ["pa_ledge_c", 120],
                      2 => ["pa_ledge_c", 80] }
       # The bump into something to interact with, flat: its own sound (one file, not panned) so it stays apart from the
-      # wall's, pitched by direction as the wall's.
-      INTERACT_FLAT = { 4 => ["pa3d_interact", 100], 6 => ["pa3d_interact", 100], 8 => ["pa3d_interact", 120],
-                        2 => ["pa3d_interact", 80] }
+      # wall's, with its independent family pitch regardless of the direction pushed.
+      INTERACT_FLAT = { 4 => ["pa3d_interact", 100], 6 => ["pa3d_interact", 100], 8 => ["pa3d_interact", 100],
+                        2 => ["pa3d_interact", 100] }
       # The radar's tick (the guide's centre file) at its tone 50: under the guide's chime ahead at any guide tone (100
       # at least) and over the one behind (75 at most), so the two never sound alike.
       RADAR_PITCH = 88
@@ -64,6 +65,29 @@ module PokeAccess
       def self.memo(name)
         return @memo[name] if @memo.key?(name)
         @memo[name] = yield
+      end
+
+      # Directional settings follow the existing catalog, excluding player-centred and non-positional cues.
+      DIRECTION_KEYS = { :north => 8, :east => 6, :south => 2, :west => 4 }
+
+      def self.directional_families
+        memo(:directional_families) do
+          @families.select do |family|
+            @entries.any? do |entry|
+              entry.family == family.id && entry.file &&
+                ([:ping, :loop].include?(entry.role) || [:front, :contact, :side, :heading, :world].include?(entry.place))
+            end
+          end
+        end
+      end
+
+      def self.directional_setting(key)
+        match = /\Aaudio_dir_(.+)_(north|east|south|west)_(pitch|rate)\z/.match(key.to_s)
+        return nil unless match
+        family = family_of(match[1].to_sym)
+        return nil unless family && directional_families.include?(family)
+        return nil if match[3] == "rate" && !family.freq
+        [family, match[2].to_sym, match[3].to_sym]
       end
 
       # Every family, in menu order.
@@ -190,6 +214,9 @@ module PokeAccess
       family(:wall, :on => [:sound_wall, true, :lbl_on_wall], :shown => :nav_on,
              :vol => [:wall_volume, 80, :lbl_wall_vol, :help_wall_vol],
              :tone => [:wall_tone, 50, :lbl_wall_tone, :help_wall_tone])
+      family(:interact, :on => [:sound_interact, true, :lbl_on_interact], :shown => :nav_on,
+             :vol => [:interact_volume, 80, :lbl_interact_vol, :help_interact_vol],
+             :tone => [:interact_tone, 50, :lbl_interact_tone, :help_interact_tone])
       family(:guide,
              :vol => [:event_volume, 70, :lbl_guide_vol, :help_guide_vol],
              :freq => [:guide_freq, 75, :lbl_guide_freq, :help_guide_freq],
@@ -233,7 +260,7 @@ module PokeAccess
             :glossary => [:snd_hazard, :snd_hazard_help, "pa3d_hazard", 100])
       sound(:water, :water, :file => "pa3d_water", :role => :loop,
             :glossary => [:snd_water, :snd_water_help, "pa3d_water", 100])
-      sound(:shore, :shore, :file => "pa_grass", :glossary => [:snd_shore, :snd_shore_help, "pa_grass", 100])
+      sound(:shore, :shore, :file => "pa_grass", :place => :world, :glossary => [:snd_shore, :snd_shore_help, "pa_grass", 100])
       sound(:wind_n, :wind, :file => "pa3d_wind_n", :role => :loop, :side => [8, 0, -1],
             :glossary => [:snd_wind_n, :snd_wind_help, "pa3d_wind_n", 100])
       sound(:wind_e, :wind, :file => "pa3d_wind_e", :role => :loop, :side => [6, 1, 0],
@@ -242,9 +269,9 @@ module PokeAccess
             :glossary => [:snd_wind_s, :snd_wind_help, "pa3d_wind_s", 100])
       sound(:wind_w, :wind, :file => "pa3d_wind_w", :role => :loop, :side => [4, -1, 0],
             :glossary => [:snd_wind_w, :snd_wind_help, "pa3d_wind_w", 100])
-      sound(:wall, :wall, :file => "pa3d_wall", :place => :front, :flat => WALL_FLAT, :clamp => [80, 120],
+      sound(:wall, :wall, :file => "pa3d_wall", :place => :contact, :flat => WALL_FLAT, :clamp => [100, 100],
             :glossary => [:snd_wall, :snd_wall_help, "pa3d_wall", 100])
-      sound(:interact, :wall, :file => "pa3d_interact", :place => :front, :flat => INTERACT_FLAT, :clamp => [80, 120],
+      sound(:interact, :interact, :file => "pa3d_interact", :place => :contact, :flat => INTERACT_FLAT, :clamp => [100, 100],
             :glossary => [:snd_interact, :snd_interact_help, "pa3d_interact", 100])
       sound(:bump, :wall, :glossary => [:snd_bump, :snd_bump_help, "pa3d_wall_c", 100])
       sound(:step, :steps, :file => "pa_step", :place => :player, :flat => { :any => ["pa_step", 100] },

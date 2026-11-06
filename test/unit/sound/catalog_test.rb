@@ -8,6 +8,14 @@ class CatalogTest < PokeAccessTest
   GROUPS = [:audio3d_on, :audio3d_vol, :audio3d_freq, :audio3d_tone]
   # The audio menu's rows, as [key, default, kind, group, label, help, show_if, needs].
   ROWS = [
+    [:direction_pitch_front, 120, :direction_pitch, :audio3d_tone, :lbl_direction_front, :help_direction_pitch,
+     [:audio3d_output, [:stereo, :mono]], [:positional, :directional_pitch]],
+    [:direction_pitch_back, 80, :direction_pitch, :audio3d_tone, :lbl_direction_back, :help_direction_pitch,
+     [:audio3d_output, [:stereo, :mono]], [:positional, :directional_pitch]],
+    [:direction_pitch_left, 100, :direction_pitch, :audio3d_tone, :lbl_direction_left, :help_direction_pitch,
+     [:audio3d_output, [:stereo, :mono]], [:positional, :directional_pitch]],
+    [:direction_pitch_right, 100, :direction_pitch, :audio3d_tone, :lbl_direction_right, :help_direction_pitch,
+     [:audio3d_output, [:stereo, :mono]], [:positional, :directional_pitch]],
     [:sound_people, true, :flag, :audio3d_on, :lbl_on_people, :snd_npc_help, [:sound_nav, :full], [:positional]],
     [:sound_objects, true, :flag, :audio3d_on, :lbl_on_objects, :snd_object_help, [:sound_nav, :full], [:positional]],
     [:sound_hazards, true, :flag, :audio3d_on, :lbl_on_hazards, :snd_hazard_help, [:sound_nav, :full], [:positional]],
@@ -25,6 +33,7 @@ class CatalogTest < PokeAccessTest
     [:sound_wind, true, :flag, :audio3d_on, :lbl_on_wind, :snd_wind_help, [:sound_nav, :full], [:positional]],
     [:sound_steps, true, :flag, :audio3d_on, :lbl_on_steps, :snd_step_help, [:sound_nav, [:basic, :full]], []],
     [:sound_wall, true, :flag, :audio3d_on, :lbl_on_wall, :snd_wall_help, [:sound_nav, [:basic, :full]], []],
+    [:sound_interact, true, :flag, :audio3d_on, :lbl_on_interact, :snd_interact_help, [:sound_nav, [:basic, :full]], []],
     [:sound_jumps, true, :flag, :audio3d_on, :lbl_on_jumps, :snd_jump_help, nil, []],
     [:sound_ledges, true, :flag, :audio3d_on, :lbl_on_ledges, :snd_ledge_help, [:sound_nav, [:basic, :full]], []],
     [:proximity_radar, true, :flag, :audio3d_on, :lbl_on_radar, :snd_radar_help, [:sound_nav, :full], []],
@@ -49,6 +58,7 @@ class CatalogTest < PokeAccessTest
     [:footstep_volume, 80, :vol, :audio3d_vol, :lbl_footstep_vol, :help_footstep_vol, [:sound_nav, [:basic, :full]],
      []],
     [:wall_volume, 80, :vol, :audio3d_vol, :lbl_wall_vol, :help_wall_vol, [:sound_nav, [:basic, :full]], []],
+    [:interact_volume, 80, :vol, :audio3d_vol, :lbl_interact_vol, :help_interact_vol, [:sound_nav, [:basic, :full]], []],
     [:event_volume, 70, :vol, :audio3d_vol, :lbl_guide_vol, :help_guide_vol, nil, []],
     [:jump_volume, 70, :vol, :audio3d_vol, :lbl_jump_vol, :help_jump_vol, nil, []],
     [:radar_volume, 31, :vol, :audio3d_vol, :lbl_radar_vol, :help_radar_vol, [:sound_nav, :full], []],
@@ -107,6 +117,7 @@ class CatalogTest < PokeAccessTest
     [:footstep_tone, 50, :tone, :audio3d_tone, :lbl_footstep_tone, :help_footstep_tone, [:sound_nav, [:basic, :full]],
      []],
     [:wall_tone, 50, :tone, :audio3d_tone, :lbl_wall_tone, :help_wall_tone, [:sound_nav, [:basic, :full]], []],
+    [:interact_tone, 50, :tone, :audio3d_tone, :lbl_interact_tone, :help_interact_tone, [:sound_nav, [:basic, :full]], []],
     [:guide_tone, 50, :tone, :audio3d_tone, :lbl_guide_tone, :help_guide_tone, nil, []],
     [:jump_tone, 50, :tone, :audio3d_tone, :lbl_jump_tone, :help_jump_tone, nil, []],
     [:radar_tone, 50, :tone, :audio3d_tone, :lbl_radar_tone, :help_radar_tone, [:sound_nav, :full], []],
@@ -172,8 +183,11 @@ class CatalogTest < PokeAccessTest
     assert_equal [], directional.reject { |e| e.flat.keys.sort == [2, 4, 6, 8] }.map { |e| e.id }
   end
 
-  test "pitches the stand-ins to either side alike, the one ahead above them and the one behind below" do
-    wrong = directional.reject do |e|
+  test "contacts keep fixed stand-in pitch while directional signals retain their ahead and behind cues" do
+    contacts = directional.select { |entry| entry.place == :contact }
+    assert_equal [:interact, :wall], contacts.map { |entry| entry.id }.sort
+    assert contacts.all? { |entry| entry.flat.values.all? { |row| row[1] == 100 } }
+    wrong = (directional - contacts).reject do |e|
       side = e.flat[4][1]
       e.flat[6][1] == side && e.flat[8][1] > side && e.flat[2][1] < side
     end

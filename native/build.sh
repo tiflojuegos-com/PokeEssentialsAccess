@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Builds the PA3D positional-audio backend (Steam Audio) for x86 and x64 and runs the two standalone checks.
+# Builds the PA3D positional-audio backend (Steam Audio) for x86 and x64 and runs three standalone checks.
 # Needs the llvm-mingw toolchain (i686-/x86_64-w64-mingw32-gcc, gendef, llvm-dlltool) and two checkouts:
 #   STEAMAUDIO_DIR  the steam-audio repo at the tag of the shipped phonon.dll (v4.8.1; headers in unity/include)
 #   MINIAUDIO_DIR   the miniaudio repo (miniaudio.h at its root)
@@ -40,5 +40,7 @@ build_steam x86_64-w64-mingw32-gcc x64 i386:x86-64
 x86_64-w64-mingw32-gcc $CFLAGS "${MAPS[@]}" -o "$out/test_steam.exe" "$here/test_steam.c" -I"$inc" "$out/libphonon_x64.a" -lm
 x86_64-w64-mingw32-gcc $CFLAGS "${MAPS[@]}" -o "$out/test_pitch.exe" "$here/test_pitch.c" -I"$inc" -I"$MINIAUDIO_DIR" \
   "$out/libphonon_x64.a" -lwinmm -lole32
+x86_64-w64-mingw32-gcc $CFLAGS "${MAPS[@]}" -o "$out/test_hrtf.exe" "$here/test_hrtf.c" -I"$inc" -I"$MINIAUDIO_DIR" \
+  "$out/libphonon_x64.a" -lwinmm -lole32
 cp -f "$here/../assets/x64/phonon.dll" "$out/phonon.dll"
-(cd "$out" && ./test_steam.exe && ./test_pitch.exe)
+(cd "$out" && ./test_steam.exe && ./test_pitch.exe && ./test_hrtf.exe)

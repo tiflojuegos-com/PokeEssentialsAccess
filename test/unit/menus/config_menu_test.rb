@@ -74,9 +74,11 @@ class ConfigMenuTest < PokeAccessTest
   test "lists the audio settings and every sound screen with the positional engine up" do
     on_screen(:audio) do
       Reset.with_capability(:positional, true) do
-        assert_equal [:sound_nav, :sonar_only_locatable, :game_bump, :audio3d_output, :audio3d_volume,
-                      [:enter, :audio3d_on], [:enter, :audio3d_vol], [:enter, :audio3d_freq], [:enter, :audio3d_tone],
-                      [:enter, :audio3d_walls], [:enter, :audio3d_adv], :back], rows(:audio)
+        Reset.with_capability(:audio_output, true) do
+          assert_equal [:sound_nav, :sonar_only_locatable, :game_bump, :audio3d_output, :audio3d_volume,
+                        [:enter, :audio3d_on], [:enter, :audio3d_vol], [:enter, :audio3d_freq], [:enter, :audio3d_tone],
+                        [:enter, :audio_directions], [:enter, :audio3d_walls], [:enter, :audio3d_adv], :back], rows(:audio)
+        end
       end
     end
   end
@@ -85,7 +87,7 @@ class ConfigMenuTest < PokeAccessTest
     on_screen(:audio) do
       Reset.with_capability(:positional, false) do
         assert_equal [:sound_nav, :game_bump, [:enter, :audio3d_on], [:enter, :audio3d_vol], [:enter, :audio3d_freq],
-                      [:enter, :audio3d_tone], :back], rows(:audio)
+                      [:enter, :audio3d_tone], [:enter, :audio_directions], :back], rows(:audio)
       end
     end
   end
@@ -93,9 +95,11 @@ class ConfigMenuTest < PokeAccessTest
   test "shows the output while the engine plays, with sound navigation basic or full" do
     { :off => false, :basic => true, :full => true }.each do |nav, shown|
       Reset.with_capability(:positional, true) do
-        on_screen(:audio) do
-          Cfg.sound_nav = nav
-          assert_equal shown, rows(:audio).include?(:audio3d_output), nav.to_s
+        Reset.with_capability(:audio_output, true) do
+          on_screen(:audio) do
+            Cfg.sound_nav = nav
+            assert_equal shown, rows(:audio).include?(:audio3d_output), nav.to_s
+          end
         end
       end
     end
@@ -137,7 +141,7 @@ class ConfigMenuTest < PokeAccessTest
   end
 
   test "adds the sonar's volumes only with the positional engine and the full nav mode" do
-    flat = [:footstep_volume, :wall_volume, :event_volume, :jump_volume]
+    flat = [:footstep_volume, :wall_volume, :interact_volume, :event_volume, :jump_volume]
     {
       [true, :full]  => SONAR_VOLUMES + flat + [:radar_volume, :puzzle_volume, :minigame_volume],
       [false, :full] => flat + [:radar_volume, :puzzle_volume, :minigame_volume],
@@ -178,7 +182,7 @@ class ConfigMenuTest < PokeAccessTest
   test "lists the guide's row among the sound switches, just before the jumps' switch" do
     on_screen(:audio3d_on) do
       Reset.with_capability(:positional, false) do
-        assert_equal [:sound_steps, :sound_wall, :guide, :sound_jumps, :sound_ledges, :proximity_radar, :sound_grid,
+        assert_equal [:sound_steps, :sound_wall, :sound_interact, :guide, :sound_jumps, :sound_ledges, :proximity_radar, :sound_grid,
                       :sound_minigame, :back], rows(:audio3d_on)
       end
     end

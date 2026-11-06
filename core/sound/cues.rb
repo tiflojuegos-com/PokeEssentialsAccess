@@ -43,6 +43,7 @@ module PokeAccess
       case e.place
       when :side then (d == 4 || d == 6) ? [px + dx * guide_distance, py + dy * guide_distance] : nil
       when :front then [px + dx, py + dy]
+      when :contact then Native.has?(:fixed_pitch) ? [px + dx, py + dy] : nil
       when :player then [px, py]
       end
     end
@@ -52,12 +53,14 @@ module PokeAccess
     def self.flat(e, d, vol)
       f = e.flat && (e.flat[d] || e.flat[:any])
       return false unless f
-      base = f[1]
+      base = Mixer.directional_base(e, d, f[1])
       if e.place == :player
         base = @flip ? 90 : 100
         @flip = !@flip
       end
-      Flat.play(f[0], vol, (base * Mixer.flat_factor(e.id)).round)
+      pitch = (base * Mixer.flat_factor(e.id)).round
+      pitch = [[pitch, 50].max, 150].min
+      Flat.play(f[0], vol, pitch)
       true
     end
 
@@ -73,6 +76,7 @@ module PokeAccess
       side = (d == 4 || d == 6) ? guide_distance : 0
       dx, dy = PokeAccess::DIR_DELTA[d] || [0, 0]
       base = (Catalog::GUIDE_FLAT[d] || [nil, 100])[1]
+      base = Mixer.directional_base(Catalog.entry(:guide), d, base) if d == 2 || d == 8
       Pa3d.tone(id, (base * Mixer.flat_factor(:guide)).round)
       Pa3d.hold(id, $game_player.x + dx * side, $game_player.y + dy * side, vol)
     end
@@ -119,13 +123,25 @@ module PokeAccess
     # Plays a sound on the player at a volume and a pitch, the config menu's audition of a volume or tone row, with the
     # listener on the player (a move without control leaves it behind) and no muffle of a ping behind a wall; false
     # when the engine is down or the sound has no channel.
-    def self.preview(id, vol, pitch)
+    def self.preview(id, vol, pitch, direction = nil)
       return false unless $game_player && Pa3d.channel(id)
       follow_player
       Pa3d.master((PokeAccess::Config.audio3d_volume rescue 80).to_i)
-      Pa3d.tone(id, pitch)
+      Pa3d.output(PokeAccess::Config.audio3d_output)
+      Pa3d.directional_pitch(*Mixer.direction_pitches)
+      Pa3d.category_directions(id, Mixer.category_pitches(id))
+      entry = Catalog.entry(id)
+      if direction && entry && entry.role == :cue && entry.place != :world
+        Pa3d.tone(id, Mixer.pitch3d(id)) unless entry.place == :side
+        return cue(id, :dir => direction, :vol => vol) ? true : false
+      end
+      Pa3d.tone(id, direction ? Mixer.pitch3d(id) : pitch)
       Pa3d.occlude(id, 0)
       x = $game_player.x; y = $game_player.y
+      delta = PokeAccess::DIR_DELTA[direction]
+      if delta
+        x += delta[0]; y += delta[1]
+      end
       loop?(id) ? Pa3d.hold(id, x, y, vol) : Pa3d.start(id, x, y, vol)
     end
 
@@ -144,7 +160,7 @@ module PokeAccess
     # play it, its master volume above zero.
     def self.bump_audible?(interact = false)
       return false if Scheduler.nav_off?
-      return false if (Mixer.volume(:wall) || 0) <= 0
+      return false if (Mixer.volume(interact ? :interact : :wall) || 0) <= 0
       return true unless Pa3d.channel(interact ? :interact : :wall)
       (PokeAccess::Config.audio3d_volume rescue 80).to_i > 0
     end

@@ -13,3 +13,8 @@ PA3D_Pitch
 PA3D_Range
 PA3D_Output
 PA3D_DeviceChannels
+PA3D_Hrtf
+PA3D_HRTF
+PA3D_DirectionalPitch
+PA3D_FixedPitch
+PA3D_ChannelDirections

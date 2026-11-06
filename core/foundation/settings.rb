@@ -7,8 +7,16 @@ module PokeAccess
 
     # Loads the ini over Config (creating it when missing) and rewrites it when it is not what Config now holds.
     # key_* lines override only the mod's own hotkeys; an unknown action is ignored.
+    # Preserves explicit legacy headphone settings unless a new output is saved.
+    # Initializes independent object bumps from earlier shared wall preferences.
     def self.apply
       data = read
+      if !data.key?("audio3d_output") && ["true", "false"].include?(data["audio3d_hrtf"])
+        data["audio3d_output"] = data["audio3d_hrtf"] == "true" ? "binaural" : "stereo"
+      end
+      [["interact_volume", "wall_volume"], ["interact_tone", "wall_tone"], ["sound_interact", "sound_wall"]].each do |key, old|
+        data[key] = data[old] if !data.key?(key) && data.key?(old)
+      end
       PokeAccess::Config.settings.each do |s|
         v = data.key?(s.key.to_s) ? (PokeAccess::Config.parse(s, data[s.key.to_s]) rescue nil) : nil
         PokeAccess::Config.send("#{s.key}=", v) unless v.nil?

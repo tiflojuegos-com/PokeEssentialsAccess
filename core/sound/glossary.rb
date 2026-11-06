@@ -16,6 +16,13 @@ module PokeAccess
       # for the master volume); nil for any other row.
       def self.preview_of(key)
         return :npc if key == :audio3d_volume
+        direction = Catalog.directional_setting(key)
+        if direction
+          family, side, _kind = direction
+          choices = entries.select { |entry| entry.family == family.id }
+          sample = choices.find { |entry| entry.side && entry.side[0] == Catalog::DIRECTION_KEYS[side] } || choices.first
+          return sample && sample.id
+        end
         f = Catalog.families.find { |x| [x.vol, x.tone, x.on].any? { |r| r && r[0] == key } }
         e = f && entries.find { |x| x.family == f.id }
         e ? e.id : nil

@@ -269,7 +269,8 @@ class SchedulerTest < PokeAccessTest
       with_frame do |dll, sch|
         Config.audio3d_output = output
         sch.tick
-        assert_equal [[number]], dll.args(:output), output.to_s
+        expected = output == :binaural ? [] : [[number]] # unchanged mode was already sent at boot
+        assert_equal expected, dll.args(:output), output.to_s
       end
     end
   end
@@ -285,7 +286,7 @@ class SchedulerTest < PokeAccessTest
       sch.tick
       Config.audio3d_output = :stereo
       sch.tick
-      assert_equal [[0], [2]], dll.args(:output)
+      assert_equal [[2]], dll.args(:output), "the initial binaural output was sent before the helper cleared its log"
     end
   end
 
