@@ -71,9 +71,10 @@ module PokeAccess
         @active = true
         Pa3d.master((PokeAccess::Config.audio3d_volume rescue 80).to_i)
         Pa3d.reach(reach)
+        Pa3d.output((PokeAccess::Config.audio3d_output rescue :binaural))
         tones
         Pa3d.air((PokeAccess::Config.audio3d_air rescue false) ? true : false)
-        Pa3d.output((PokeAccess::Config.audio3d_output rescue :binaural))
+        Pa3d.directional_pitch(*Mixer.direction_pitches)
         unless nav_full?
           unless @basic_silenced
             silence_emitters
@@ -113,6 +114,7 @@ module PokeAccess
       def self.tones
         Catalog.channels.each do |id, _file, _loops|
           place = Catalog.entry(id).place
+          Pa3d.category_directions(id, Mixer.category_pitches(id))
           Pa3d.tone(id, Mixer.pitch3d(id)) unless place == :side || place == :heading
         end
       end
@@ -159,7 +161,10 @@ module PokeAccess
           next unless list && !list.empty?
           next if (Mixer.volume(e.id) || 0) <= 0
           last = @ptime[e.id]
-          due.push(e.id) if last.nil? || (now - last) >= Mixer.ping_seconds(e.id)
+          position = list[(@ping_idx[e.id] || 0) % list.length]
+          dx = $game_player ? position[0] - $game_player.x : 0
+          dy = $game_player ? position[1] - $game_player.y : 0
+          due.push(e.id) if last.nil? || (now - last) >= Mixer.ping_seconds(e.id, dx, dy)
         end
         return if due.empty?
         ad = alt_dist
@@ -286,6 +291,11 @@ PokeAccess::Caches.register(:sound) { PokeAccess::Sound::Scheduler.reset_map_sta
 
 # The settings that only positional sound plays need it (Config's :needs).
 PokeAccess::Config.capability(:positional) { PokeAccess::Sound::Pa3d.positional? }
+PokeAccess::Config.capability(:audio_output) { PokeAccess::Sound::Native.has?(:output) }
+PokeAccess::Config.capability(:directional_pitch) { PokeAccess::Sound::Native.has?(:directional_pitch) }
+PokeAccess::Config.capability(:category_pitch) do
+  PokeAccess::Sound::Native.has?(:channel_directions) && [:stereo, :mono].include?(PokeAccess::Config.audio3d_output)
+end
 
 # Reads the scene again on the next frame when a mark or a tag override changes.
 PokeAccess::Events.on(:tags_changed) { PokeAccess::Sound::Scheduler.forget_scan }

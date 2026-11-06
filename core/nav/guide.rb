@@ -453,7 +453,7 @@ module PokeAccess
       say_held(held)
       return if hold_tone(held ? d : nil, dist)
       gap = @chime_at ? now - @chime_at : nil
-      return unless gap.nil? || gap >= interval(dist) || (d != @chime_dir && gap >= CHIME_GAP)
+      return unless gap.nil? || gap >= interval(dist, d) || (d != @chime_dir && gap >= CHIME_GAP)
       @chime_at = now
       @chime_dir = d
       cue(d, dist)
@@ -473,8 +473,9 @@ module PokeAccess
 
     # Seconds between chimes, from guide_freq: by distance (guide_rhythm :distance) growing up to twice as long at
     # FALLOFF tiles or beyond, else the same at any distance.
-    def self.interval(dist)
+    def self.interval(dist, direction = nil)
       base = PokeAccess.freq_to_seconds((PokeAccess::Config.guide_freq rescue 75))
+      base /= PokeAccess::Sound::Mixer.direction_factor(:guide, direction, :rate)
       return base unless (PokeAccess::Config.guide_rhythm rescue :distance) == :distance
       f = dist.to_f / FALLOFF
       base * (1.0 + (f > 1.0 ? 1.0 : f))

@@ -481,6 +481,8 @@ behavior/nav/carry_test.rb
 behavior/nav/cluster_exits_test.rb
 behavior/nav/control_routes_test.rb
 behavior/nav/deferred_rebuild_test.rb
+behavior/nav/directional_audio_gd_test.rb
+behavior/nav/directional_audio_test.rb
 behavior/nav/doorway_sprites_test.rb
 behavior/nav/event_memo_test.rb
 behavior/nav/event_rules_test.rb
@@ -496,6 +498,8 @@ behavior/nav/guide_track_test.rb
 behavior/nav/held_carry_test.rb
 behavior/nav/hpa_blocking_target_test.rb
 behavior/nav/hpa_cache_readonly_test.rb
+behavior/nav/hrtf_gd_test.rb
+behavior/nav/hrtf_test.rb
 behavior/nav/ice_guide_test.rb
 behavior/nav/ice_sliding_gd_test.rb
 behavior/nav/if_shared_buildings_gd_test.rb

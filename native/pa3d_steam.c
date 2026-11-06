@@ -45,6 +45,8 @@ typedef struct {
     volatile int   playing;
     volatile int   vol100;
     volatile int   pitch100;   /* playback rate percent: 100 = the recording, 50 an octave down, 200 up */
+    volatile LONG  fixed_pitch; /* contacts ignore shared direction pitch, retaining their category adjustment */
+    volatile LONG  direction_factors; /* four atomic category percentages; zero is neutral */
     volatile int   x100;
     volatile int   y100;
     volatile int   occ100;
@@ -99,7 +101,11 @@ static volatile int g_lx100 = 0;
 static volatile int g_ly100 = 0;
 static volatile int g_master100 = 100;
 static volatile int g_air = 0;       /* global air-absorption toggle (distant sources lose treble) */
-static volatile int g_output = OUT_BINAURAL;  /* how sources reach the speakers (PA3D_Output) */
+static volatile LONG g_output = OUT_BINAURAL;  /* how sources reach the speakers (PA3D_Output) */
+static int g_render_output = OUT_BINAURAL; /* audio-thread block mode */
+/* Four byte-sized percentages are committed together, then read once per block. */
+static volatile LONG g_direction_pitch = (LONG)0x64645078; /* front120/back80/left100/right100 */
+static float g_render_direction_pitch[4] = {1.2f, 0.8f, 1.0f, 1.0f};
 static volatile float g_max_dist = 14.0f;  /* tiles at which a source falls silent (PA3D_Range) */
 /* what a wall lets through of a fully occluded source, by band (low, mid, high): the lows pass and the highs are cut,
    so a source behind a wall sounds muffled but stays audible. PA3D_Occl's amount blends from clear toward these. */
@@ -215,20 +221,43 @@ static void pan_channel(Channel* c, int output, const IPLVector3* dir, float gai
     }
 }
 
+/* Blend only the adjacent choices, retaining the original default front/back curve. */
+static double blend_direction_pitch(const IPLVector3* dir, const float* values) {
+    double horizontal = values[dir->x < 0.0f ? 2 : 3];
+    double vertical = values[dir->z < 0.0f ? 0 : 1];
+    return horizontal + (vertical - horizontal) * fabs((double)dir->z);
+}
+
+static double direction_pitch(const IPLVector3* dir) {
+    return blend_direction_pitch(dir, g_render_direction_pitch);
+}
+
+static double category_direction_pitch(Channel* channel, const IPLVector3* dir) {
+    unsigned int packet = (unsigned int)InterlockedCompareExchange(&channel->direction_factors, 0, 0);
+    double value = InterlockedCompareExchange(&channel->fixed_pitch, 0, 0) ? 1.0 : direction_pitch(dir);
+    if (packet) {
+        float factors[4];
+        int i;
+        for (i = 0; i < 4; i++) factors[i] = ((packet >> (8 * i)) & 255) / 100.0f;
+        value *= blend_direction_pitch(dir, factors);
+    }
+    return value;
+}
+
 /* renders one channel's block into the mix: through the HRTF, or panned between the layout's speakers. With no speakers
    behind, the ahead-behind component of its direction pitches it; a source on the listener keeps its pitch. */
 static void mix_channel(Channel* c) {
     IPLBinauralEffectParams params;
     IPLVector3 dir;
     float gx, gz, dist, gain;
-    int k, output = g_output;
+    int k, output = g_render_output;
     int tilted = output != OUT_BINAURAL && !k_layouts[output].ring;
     gx = (c->x100 - g_lx100) / 100.0f;
     gz = (c->y100 - g_ly100) / 100.0f;
     dist = (float)sqrt((double)(gx * gx + gz * gz));
     if (dist < 1e-4f) { dir.x = 0.0f; dir.y = 0.0f; dir.z = -1.0f; }
     else { dir.x = gx / dist; dir.y = 0.0f; dir.z = gz / dist; }
-    pull_samples(c, g_in.data[0], (tilted && dist >= 1e-4f) ? 1.0 - PITCH_TILT * dir.z : 1.0);
+    pull_samples(c, g_in.data[0], (tilted && dist >= 1e-4f) ? category_direction_pitch(c, &dir) : 1.0);
     gain = (c->vol100 / 100.0f) * (g_master100 / 100.0f) * dist_gain(dist);
     if (gain <= 1e-4f) return;
     if (c->direct && (c->occ100 > 0 || g_air)) {
@@ -269,6 +298,17 @@ static void mix_channel(Channel* c) {
    each block is processed once, no matter how the device chunks its reads. */
 static void process_block(void) {
     int i;
+    int requested = (int)InterlockedCompareExchange(&g_output, 0, 0);
+    unsigned int pitches = (unsigned int)InterlockedCompareExchange(&g_direction_pitch, 0, 0);
+    for (i = 0; i < 4; i++) g_render_direction_pitch[i] = ((pitches >> (i * 8)) & 255) / 100.0f;
+    if (requested != g_render_output) {
+        /* Clear tails and pan ramps at one boundary without resetting playback heads. */
+        for (i = 0; i < MAXCH; i++) {
+            if (g_ch[i].used && g_ch[i].effect) iplBinauralEffectReset(g_ch[i].effect);
+            memset(g_ch[i].pan, 0, sizeof(g_ch[i].pan));
+        }
+        g_render_output = requested;
+    }
     memset(g_mix, 0, sizeof(g_mix));
     if (g_ready) {
         for (i = 0; i < MAXCH; i++) if (g_ch[i].used && g_ch[i].playing) mix_channel(&g_ch[i]);
@@ -381,7 +421,7 @@ EXPORT int PA3D_Init(void) {
 
     fit = open_fitting(g_output, 0);
     if (fit < 0) return 0;
-    g_output = fit;
+    InterlockedExchange(&g_output, (LONG)fit);
 
     memset(&cs, 0, sizeof(cs));
     cs.version = STEAMAUDIO_VERSION;
@@ -473,6 +513,26 @@ EXPORT void PA3D_Master(int vol100) {
 
 /* per-channel playback rate in percent (100 = as recorded), clamped to 25-400 so a bad value can neither
    freeze a channel nor make it skip whole samples. Takes effect from the next block, mid-sound too. */
+/* Publish one coherent category adjustment, preserving global choices and older callers. */
+EXPORT void PA3D_ChannelDirections(int ch, int north, int south, int west, int east) {
+    int values[4] = {north, south, west, east};
+    unsigned int packet = 0;
+    int i;
+    if (ch < 0 || ch >= MAXCH || !g_ch[ch].used) return;
+    for (i = 0; i < 4; i++) {
+        if (values[i] < 50) values[i] = 50;
+        if (values[i] > 200) values[i] = 200;
+        packet |= (unsigned int)values[i] << (8 * i);
+    }
+    InterlockedExchange(&g_ch[ch].direction_factors, (LONG)packet);
+}
+
+/* Contacts can opt out of shared direction pitch while retaining their own category adjustment. */
+EXPORT void PA3D_FixedPitch(int ch, int fixed) {
+    if (ch < 0 || ch >= MAXCH || !g_ch[ch].used) return;
+    InterlockedExchange(&g_ch[ch].fixed_pitch, fixed ? 1 : 0);
+}
+
 EXPORT void PA3D_Pitch(int ch, int pitch100) {
     if (ch < 0 || ch >= MAXCH || !g_ch[ch].used) return;
     if (pitch100 < 25) pitch100 = 25;
@@ -502,13 +562,13 @@ EXPORT int PA3D_Output(int output) {
     int i, fit;
     if (output < 0 || output >= OUT_COUNT) return -1;
     if (!g_ready) {
-        g_output = output;
+        InterlockedExchange(&g_output, (LONG)output);
         return output;
     }
     if (g_devstarted) {
         fit = fitting_output(output, (int)g_device.playback.internalChannels);
         if (k_layouts[fit].channels == k_layouts[g_output].channels) {
-            g_output = fit;
+            InterlockedExchange(&g_output, (LONG)fit);
             return fit;
         }
     }
@@ -518,7 +578,7 @@ EXPORT int PA3D_Output(int output) {
     fit = open_fitting(output, g_rate);
     if (fit < 0) fit = open_fitting(OUT_BINAURAL, g_rate);
     if (fit < 0) return -1;
-    g_output = fit;
+    InterlockedExchange(&g_output, (LONG)fit);
     if (ma_device_start(&g_device) != MA_SUCCESS) {
         close_device();
         return -1;
@@ -526,6 +586,22 @@ EXPORT int PA3D_Output(int output) {
     g_devstarted = 1;
     return fit;
 }
+
+/* Set four directional rates together: percentages of the recording, each clamped to 50-150. */
+EXPORT void PA3D_DirectionalPitch(int front, int back, int left, int right) {
+    int values[4], i; unsigned int packed = 0;
+    values[0] = front; values[1] = back; values[2] = left; values[3] = right;
+    for (i = 0; i < 4; i++) {
+        if (values[i] < 50) values[i] = 50;
+        if (values[i] > 150) values[i] = 150;
+        packed |= ((unsigned int)values[i]) << (i * 8);
+    }
+    InterlockedExchange(&g_direction_pitch, (LONG)packed);
+}
+
+/* Retain the earlier public HRTF entry points for existing integrations. */
+EXPORT void PA3D_Hrtf(int on) { PA3D_Output(on ? OUT_BINAURAL : OUT_STEREO); }
+EXPORT void PA3D_HRTF(int on) { PA3D_Hrtf(on); }
 
 /* how many channels the device really has, whatever the output asks of it. 0 if down. */
 EXPORT int PA3D_DeviceChannels(void) {

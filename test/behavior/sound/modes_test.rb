@@ -273,7 +273,7 @@ class ModesTest < PokeAccessTest
   end
 
   test "bumping into something to interact with plays the interact cue on its tile" do
-    PokeAccess::Config.wall_volume = 64
+    PokeAccess::Config.interact_volume = 64
     with_sound_engine do |dll|
       assert_equal :engine, Sound.cue(:interact, :dir => 4)
       assert_equal [[:interact, 4, 5, 64]], dll.played
@@ -338,14 +338,14 @@ class ModesTest < PokeAccessTest
     end
   end
 
-  test "without the engine, a bump plays its pre-panned file toward the push" do
+  test "without the engine, a bump keeps its pre-panned position and fixed pitch" do
     PokeAccess::Config.wall_volume = 64
     with_sound_engine(false) do
       plays = flat_plays do
         [4, 6, 8, 2].each { |dir| assert_equal :flat, Sound.cue(:wall, :dir => dir), "toward #{dir}" }
       end
       assert_equal [["pa3d_wall_l", 64, 100], ["pa3d_wall_r", 64, 100],
-                    ["pa3d_wall_c", 64, 120], ["pa3d_wall_c", 64, 80]], plays, "west, east, ahead high and behind low"
+                    ["pa3d_wall_c", 64, 100], ["pa3d_wall_c", 64, 100]], plays, "left and right retain panning; every contact uses its family pitch"
     end
   end
 

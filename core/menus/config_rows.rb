@@ -9,6 +9,7 @@ module PokeAccess
     # glossary sample: a family's volume row at the value just set, a tone or master row at the family's own volume,
     # its sound switched on or not; the master row's flat sample scaled by the master just set, silent at 0.
     def self.preview(key, kind, v)
+      direction = PokeAccess::Sound::Catalog.directional_setting(key)
       gl = PokeAccess::Sound::Glossary
       entry = gl.entry(gl.preview_of(key))
       return unless entry
@@ -17,18 +18,39 @@ module PokeAccess
       vol = own ? v : (PokeAccess::Sound::Mixer.level(entry.id) || 100)
       stop_preview
       return if vol <= 0 || (master && v <= 0)
-      played = (PokeAccess::Sound.preview(entry.id, vol, gl.engine_pitch(entry)) rescue false)
+      side = direction && PokeAccess::Sound::Catalog::DIRECTION_KEYS[direction[1]]
+      played = (side ? PokeAccess::Sound.preview(entry.id, vol, gl.engine_pitch(entry), side) :
+                       PokeAccess::Sound.preview(entry.id, vol, gl.engine_pitch(entry)) rescue false)
+      if direction && direction[2] == :rate && played
+        delta = PokeAccess::DIR_DELTA[side]
+        gap = PokeAccess::Sound::Mixer.ping_seconds(entry.id, delta[0], delta[1])
+        @repeat_preview = [entry.id, vol, gl.engine_pitch(entry), side, PokeAccess.clock + gap, gap, PokeAccess.clock + PREVIEW_LOOP_SECONDS, 3]
+      end
       return gl.play(entry, master ? vol * v / 100 : vol) unless played
       @preview = [entry.id, PokeAccess.clock + PREVIEW_LOOP_SECONDS] if PokeAccess::Sound.loop?(entry.id)
     end
 
     # Ends a looping audition whose time is up (called every modal frame).
     def self.expire_preview
-      stop_preview if @preview && PokeAccess.clock >= @preview[1]
+      now = PokeAccess.clock
+      stop_preview if @preview && now >= @preview[1]
+      if @repeat_preview
+        row = @repeat_preview
+        if now >= row[6] || row[7] <= 0
+          stop_preview
+        elsif now >= row[4]
+          PokeAccess::Sound.preview(row[0], row[1], row[2], row[3])
+          row[4] = now + row[5]; row[7] -= 1
+        end
+      end
     end
 
     # Stops the looping audition, if one plays (the menu is closing or its time is up).
     def self.stop_preview
+      if @repeat_preview
+        (PokeAccess::Sound.preview_stop(@repeat_preview[0]) rescue nil)
+        @repeat_preview = nil
+      end
       return unless @preview
       (PokeAccess::Sound.preview_stop(@preview[0]) rescue nil)
       @preview = nil
@@ -46,8 +68,14 @@ module PokeAccess
     }
 
     # The row that opens a screen: its mode, its label and what it holds.
+    PokeAccess::Config.groups.each do |group|
+      SCREEN_HELP[group.id] = :cat_directional_sounds_help if group.id.to_s.index("audio_directions") == 0
+    end
+
     def self.screen_row(mode, label)
-      { :kind => :enter, :group => mode, :label => label, :help => SCREEN_HELP[mode] }
+      help = SCREEN_HELP[mode]
+      help = :cat_directional_sounds_help if mode.to_s.index("audio_directions") == 0
+      { :kind => :enter, :group => mode, :label => label, :help => help }
     end
 
     # The top level: the setting groups that have something to show, then the menu's own screens and the reset.
