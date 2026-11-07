@@ -853,7 +853,9 @@ module PokeAccess
 
     # A name and where its event takes the player ("<name>, leads to <map>"), toward a map named like this one what it
     # leads to (same_place_taken); the name alone toward a map with no name or the one the player is on.
+    # A fighting page keeps the name alone because its transfer may be battle recovery.
     def self.taken_to(ev, name)
+      return name if fights?(PokeAccess.ivar(ev, :@list))
       dmap = (transfer_command_dest(ev) || transfer_script_dest(ev) rescue nil)
       return name if dmap.nil? || dmap == ($game_map.map_id rescue nil)
       d = transfer_dest_name(ev)
@@ -905,10 +907,13 @@ module PokeAccess
       sprite_trainer_class(g) || g
     end
 
-    # True if the event's live page shows text or choices: a person who talks, not an item ball's own message.
+    # True if the live page speaks or starts a battle, by event text or a recognized script call.
+    # A pickup's own pbItemBall message is not a conversation with its giver.
     def self.live_talks?(ev)
       list = PokeAccess.ivar(ev, :@list)
-      list.is_a?(Array) && list.any? { |c| TEXT_CODES.include?((c.code rescue 0)) }
+      return false unless list.is_a?(Array)
+      return true if list.any? { |c| TEXT_CODES.include?((c.code rescue 0)) }
+      !!script_call_find(ev, [list]) { |script| script =~ PokeAccess::EventPages::TALK_SCRIPT }
     end
 
     # True when a door leads from outdoors into an interior: going in there is an entrance.

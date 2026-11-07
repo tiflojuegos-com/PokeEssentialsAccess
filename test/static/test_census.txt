@@ -185,6 +185,8 @@ behavior/field/remin_picker_test.rb
 behavior/field/royal_puzzles_gd_test.rb
 behavior/field/say_dialogue_gd_test.rb
 behavior/field/say_dialogue_test.rb
+behavior/field/scripted_npc_targets_gd_test.rb
+behavior/field/scripted_npc_targets_test.rb
 behavior/field/sevii_cycling_road_test.rb
 behavior/field/sky_trainer_sensor_gd_test.rb
 behavior/field/slide_banners_test.rb

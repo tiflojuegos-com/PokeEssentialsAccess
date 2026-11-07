@@ -42,7 +42,7 @@ module PokeAccess
     # Switches, variables, self switches, money, items and party: what a page sets that stays set.
     CHANGE = [121, 122, 123, 125, 126, 127, 128, 129]
     # Script calls that belong to a cutscene: battles, messages, portraits, speech bubbles, a trainer noticing.
-    TALK_SCRIPT = /pb\w*Battle|TrainerBattle|WildBattle|pbMessage|pbConfirmMessage|pbShowCommands|pbNoticePlayer|pbTrainerEnd|showMug|pbCallBub/
+    TALK_SCRIPT = /pb\w*Battle|TrainerBattle|WildBattle|pbMessage|pbConfirmMessage|pbShowCommands|pbNoticePlayer|pbTrainerEnd|showMug|pbCallBub|\bfbText\b/
     BATTLE_SCRIPT = /pb\w*Battle|TrainerBattle|WildBattle/
     # Script calls that set something that stays: switches, self switches, variables, rewards.
     CHANGE_SCRIPT = /pbSetSelfSwitch|setTempSwitch|\$game_(?:switches|variables)\[[^\]]*\]\s*=(?!=)|pbReceiveItem|pbItemBall|pbAddPokemon/
