@@ -1306,6 +1306,7 @@ loc_beam=Strahl
 loc_object_named=Item, %{name}
 loc_sign=Schild
 loc_sign_locked=Verschlossene Tür
+loc_locked_exit_to=Verschlossene Tür zu %{map}
 loc_sign_bin=Mülleimer
 loc_sign_shelf=Regal
 loc_sign_computer=Computer

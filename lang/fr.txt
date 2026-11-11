@@ -1310,6 +1310,7 @@ loc_beam=Rayon
 loc_object_named=Objet, %{name}
 loc_sign=Panneau
 loc_sign_locked=Porte verrouillée
+loc_locked_exit_to=Porte verrouillée vers %{map}
 loc_sign_bin=Poubelle
 loc_sign_shelf=Étagère
 loc_sign_computer=Ordinateur

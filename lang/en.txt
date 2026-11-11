@@ -1307,6 +1307,7 @@ loc_beam=Beam
 loc_object_named=Item, %{name}
 loc_sign=Sign
 loc_sign_locked=Locked door
+loc_locked_exit_to=Locked door to %{map}
 loc_sign_bin=Bin
 loc_sign_shelf=Shelf
 loc_sign_computer=Computer
