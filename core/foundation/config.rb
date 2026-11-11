@@ -41,7 +41,7 @@ module PokeAccess
       :lang      => [lambda { PokeAccess::I18n.language_choices }, lambda { |v| PokeAccess::I18n.language_name(v) }],
       :verbosity => [lambda { PokeAccess::Verbosity.rotation },
                      lambda { |v| PokeAccess::Verbosity.name_of(PokeAccess::Verbosity.rotation.include?(v) ? v : :full) }],
-      :hide      => [[:off, :unreachable, :room], "hide_"],
+      :hide      => [[:off, :unreachable, :room, :other_rooms], "hide_"],
       :navmode   => [[:off, :basic, :full], "nav_"],
       :output    => [[:binaural, :stereo, :mono, :quad, :surround51, :surround71], "output_"],
       :occ       => [[:hear, :occlude, :hide], "occ_"],
