@@ -1307,6 +1307,7 @@ loc_beam=Promień
 loc_object_named=Obiekt, %{name}
 loc_sign=Tabliczka
 loc_sign_locked=Zamknięte drzwi
+loc_locked_exit_to=Zamknięte drzwi do: %{map}
 loc_sign_bin=Kosz na śmieci
 loc_sign_shelf=Półka
 loc_sign_computer=Komputer

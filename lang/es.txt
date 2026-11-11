@@ -1307,6 +1307,7 @@ loc_beam=Rayo
 loc_object_named=Objeto, %{name}
 loc_sign=Cartel
 loc_sign_locked=Puerta cerrada
+loc_locked_exit_to=Puerta cerrada hacia %{map}
 loc_sign_bin=Papelera
 loc_sign_shelf=Estantería
 loc_sign_computer=Ordenador

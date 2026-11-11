@@ -1312,6 +1312,7 @@ loc_beam=Raio
 loc_object_named=Objeto, %{name}
 loc_sign=Placa
 loc_sign_locked=Porta trancada
+loc_locked_exit_to=Porta trancada para %{map}
 loc_sign_bin=Lixeira
 loc_sign_shelf=Estante
 loc_sign_computer=Computador
