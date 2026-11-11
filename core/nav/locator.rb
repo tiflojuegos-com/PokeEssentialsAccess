@@ -95,7 +95,7 @@ module PokeAccess
       return false unless $game_map
       tiles = $game_map.events.values.select { |ev| lens_tile?(ev) }
       return false if tiles.empty?
-      return true unless hiding?
+      return true unless hiding_unreachable?
       tiles.any? { |ev| reachable?(ev) }
     rescue StandardError => e
       PokeAccess.swallowed(e)
@@ -144,8 +144,8 @@ module PokeAccess
     end
 
     # The targets of all to list in category cat: with hide_noninteractive only interactable ones (but in lens); while
-    # hiding, only those the player can get to, map edges included (all when none can, but in lens); with :room, only
-    # those of the player's own room.
+    # hiding unreachable ones, only those the player can get to, map edges included (all when none can, but in lens).
+    # Both room modes keep the player's own room and unknown rooms, retaining the nonempty-list fallback.
     def self.filtered(all, cat)
       return all if SYNTHETIC.include?(cat)
       list = all
@@ -153,9 +153,11 @@ module PokeAccess
         list = list.select { |t| t.is_a?(SurfaceTarget) || interactable?(t) }
       end
       return list unless hiding?
-      reachable_only = list.select { |t| reachable?(t) }
-      list = reachable_only if cat == :lens || !reachable_only.empty?
-      if (PokeAccess::Config.hide_unreachable rescue nil) == :room
+      if hiding_unreachable?
+        reachable_only = list.select { |t| reachable?(t) }
+        list = reachable_only if cat == :lens || !reachable_only.empty?
+      end
+      if [:room, :other_rooms].include?((PokeAccess::Config.hide_unreachable rescue nil))
         own = list.select { |t| (room_depth(t) || 0) == 0 }
         list = own unless own.empty?
       end
@@ -343,8 +345,13 @@ module PokeAccess
       t.is_a?(SurfaceTarget) && t.key.nil?
     end
 
-    # True while the locator hides targets: hide_unreachable at :unreachable, or at :room, other rooms' too.
+    # True while either reachability or room filtering asks the regions about targets.
     def self.hiding?
+      hiding_unreachable? || (PokeAccess::Config.hide_unreachable rescue :off) == :other_rooms
+    end
+
+    # The original modes also leave unreachable targets out; room-only keeps them.
+    def self.hiding_unreachable?
       m = (PokeAccess::Config.hide_unreachable rescue :off)
       m == :unreachable || m == :room
     end

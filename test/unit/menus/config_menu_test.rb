@@ -193,7 +193,8 @@ class ConfigMenuTest < PokeAccessTest
       [:auto_guide, false]              => T.t(:val_off),
       [:hide_unreachable, :off]         => T.t(:hide_off),
       [:hide_unreachable, :unreachable] => T.t(:hide_unreachable),
-      [:hide_unreachable, :room]        => T.t(:hide_room)
+      [:hide_unreachable, :room]        => T.t(:hide_room),
+      [:hide_unreachable, :other_rooms] => T.t(:hide_other_rooms)
     }.each do |(key, value), said|
       Cfg.send("#{key}=", value)
       assert_equal said, Menu.value_text(Cfg.setting(key)), "#{key} = #{value.inspect}"
@@ -277,17 +278,17 @@ class ConfigMenuTest < PokeAccessTest
     assert_equal :brief, Cfg.next_value(Cfg.setting(:verbosity), 1)
   end
 
-  test "steps the hide setting off, unreachable, room and off again" do
+  test "steps all four hide modes without changing the existing stored meanings" do
     on_screen(:pathfinder) do
       row = Cfg.setting(:hide_unreachable)
-      went = 3.times.map { Menu.adjust_setting(row, 1); Cfg.hide_unreachable }
-      assert_equal [:unreachable, :room, :off], went
+      went = 4.times.map { Menu.adjust_setting(row, 1); Cfg.hide_unreachable }
+      assert_equal [:unreachable, :room, :other_rooms, :off], went
     end
   end
 
   test "Ctrl+M steps the hide setting on as its row does and says the new value" do
     on_screen(:top) do
-      Cfg.hide_unreachable = :room
+      Cfg.hide_unreachable = :other_rooms
       PokeAccess::Locator.toggle_hide_unreachable
       assert_equal [:off, [["#{T.t(:lbl_hide_unreachable)}, #{T.t(:hide_off)}", true]]],
                    [Cfg.hide_unreachable, SpeakCapture.log]
@@ -479,7 +480,7 @@ class ConfigMenuTest < PokeAccessTest
     on_screen(:pathfinder) do
       point_at { |row| row[:row] && row[:row].key == :hide_unreachable }
       went = [Input::LEFT, Input::RIGHT, Input::RIGHT].map { |button| press(button); Cfg.hide_unreachable }
-      assert_equal [:room, :off, :unreachable], went
+      assert_equal [:other_rooms, :off, :unreachable], went
     end
   end
 

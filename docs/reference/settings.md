@@ -125,7 +125,7 @@ from, as `full`. The verbosity key, unbound by default, steps through the same v
 |---|---|---|---|
 | `auto_guide` | `false` | Flag | Starts the [cane](glossary.md) toward a target when it is selected |
 | `auto_steps` | `false` | Flag | Starts the [step guide](glossary.md) toward a target when it is selected |
-| `hide_unreachable` | `off` | `off`, `unreachable`, `room` | Which targets the list leaves out |
+| `hide_unreachable` | `off` | `off`, `unreachable`, `room`, `other_rooms` | Which targets the list leaves out |
 | `hide_noninteractive` | `false` | Flag | Leaves decorative events with no interaction out of the list |
 | `target_order` | `walk` | `near`, `walk`, `fixed` | The order the locator keys go through the targets |
 | `target_numbering` | `dynamic` | `off`, `dynamic`, `static` | The number said with each target |
@@ -136,8 +136,10 @@ from, as `full`. The verbosity key, unbound by default, steps through the same v
 | `surface_cues` | `true` | Flag | Says the terrain under the player when it changes |
 | `puzzle_assist` | `false` | Flag | Gives the hints and routes that solve puzzles |
 
-- `hide_unreachable`: `unreachable` leaves out the targets with no route; `room` also leaves out, on a map with
-  several rooms, those outside the player's room. Ctrl with the coordinates key (Ctrl+M) steps it.
+- `hide_unreachable`: `unreachable` leaves out targets with no route; `room` also leaves out targets in other
+  rooms. `other_rooms` leaves out known other-room targets while keeping local targets with no route. Unknown
+  rooms stay visible, and room filters keep all targets when none can be assigned to the player's room.
+  Ctrl with the coordinates key (Ctrl+M) steps all four choices.
 - `target_order`: by straight distance, by walking distance with the targets without a route last, or an order fixed
   while the player stays on the map.
 - `target_numbering`: `off` says the place in the list; `dynamic` keeps each target's number while the player stays
