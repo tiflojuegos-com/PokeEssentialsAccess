@@ -1,11 +1,15 @@
-# Luka S.J.'s Modern Title Screen (gen-6): the splash images cyclePics shows, by the profile's transcription, then
-# the prompt, queued behind that transcription, as each style comes to wait for a key: from its constructor, or for
-# the second style once its intro is over (one hook per style, for the censuses).
+# Luka S.J.'s Modern Title Screen: splash transcriptions, then a queued prompt when a style waits for a key.
+# The first and second styles can have a separate skippable intro; announce readiness after it returns.
+# Constructor-only first-style forks keep their original opening prompt.
 PokeAccess::Hooks.before_hook("Scene_Intro", :cyclePics, :optional => true) do |s, _args|
   PokeAccess::TitleScreen.splash(PokeAccess.ivar(s, :@pics))
 end
 
-PokeAccess::Hooks.after_hook("GenOneStyle", :initialize, :optional => true) do |_s, _r, _a|
+PokeAccess::Hooks.after_hook("GenOneStyle", :initialize, :optional => true) do |s, _r, _a|
+  PokeAccess.speak(PokeAccess::TitleScreen.prompt, false) unless s.respond_to?(:intro)
+end
+
+PokeAccess::Hooks.after_hook("GenOneStyle", :intro, :optional => true, :hook_container => true) do |_s, _r, _a|
   PokeAccess.speak(PokeAccess::TitleScreen.prompt, false)
 end
 

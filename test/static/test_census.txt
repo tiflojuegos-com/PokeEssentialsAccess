@@ -335,6 +335,7 @@ behavior/menus/item_lists_test.rb
 behavior/menus/keishou_screens_gd_test.rb
 behavior/menus/load_panel_painted_test.rb
 behavior/menus/load_save_v22_gd_test.rb
+behavior/menus/luka_title_ready_test.rb
 behavior/menus/mart_in_bag_gd_test.rb
 behavior/menus/mart_in_bag_test.rb
 behavior/menus/mart_special_rows_test.rb
