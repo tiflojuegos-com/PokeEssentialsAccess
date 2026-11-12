@@ -172,7 +172,11 @@ module PokeAccess
       if mv
         mname = PokeAccess::Data.move_name(mv)
         mdesc = PokeAccess::Data.move_description(mv)
-        parts.push(PokeAccess::I18n.t(:it_teaches, :move => mname) + ". #{mdesc}") if mname
+        if mname
+          teaching = PokeAccess::I18n.t(:it_teaches, :move => mname)
+          same_description = PokeAccess.clean(mdesc) == PokeAccess.clean(desc)
+          parts.push(teaching + (same_description ? "." : ". #{mdesc}"))
+        end
       end
       PokeAccess.sentences(parts)
     end

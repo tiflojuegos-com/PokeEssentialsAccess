@@ -147,6 +147,8 @@ behavior/field/item_radar_test.rb
 behavior/field/key_item_get_gd_test.rb
 behavior/field/locator_naming_gd_test.rb
 behavior/field/locator_naming_test.rb
+behavior/field/machine_description_gd_test.rb
+behavior/field/machine_description_test.rb
 behavior/field/map_change_gd_test.rb
 behavior/field/map_change_test.rb
 behavior/field/mechanic_links_test.rb
