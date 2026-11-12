@@ -140,6 +140,8 @@ behavior/field/ifh_hall_of_fame_gd_test.rb
 behavior/field/ifh_secret_base_gd_test.rb
 behavior/field/ifh_weather_gd_test.rb
 behavior/field/incubator_steps_test.rb
+behavior/field/infinitefusion_sewers_gd_test.rb
+behavior/field/infinitefusion_sewers_test.rb
 behavior/field/insurgence_hm7_test.rb
 behavior/field/insurgence_lasers_test.rb
 behavior/field/insurgence_soaring_test.rb
