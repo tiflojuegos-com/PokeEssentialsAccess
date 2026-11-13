@@ -4,6 +4,7 @@
 {
   :modules => %w[
     constants
+    shift_menu
   ],
   :plugins => :auto
 }

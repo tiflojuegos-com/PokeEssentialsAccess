@@ -71,6 +71,14 @@ What some rows do in full:
 - `:coords` with Ctrl: moves `hide_unreachable` to its next value, saves it and says it
   ([Settings](settings.md#navigation-and-pathfinder-options)).
 
+## Shift and the game menu in generic projects
+
+In native Essentials projects using the generic profile, a menu bound to the same key as the Access Shift modifier
+waits for that key to be released. Using an Access gesture while it is held cancels the pending game menu. The
+alternate menu key still opens it immediately; on the default US keyboard layout this is Z. The effective bindings
+come from the player's Access or F1 settings, or the engine defaults when no F1 file exists. This applies to engines
+whose menu action is the A button.
+
 ## Where the mod keys work
 
 - `:prev`, `:next`, `:where` and `:route` are the locator's keys, polled in the `:keys` step of the

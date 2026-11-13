@@ -302,6 +302,8 @@ behavior/menus/gacha_gd_test.rb
 behavior/menus/gender_numbers_test.rb
 behavior/menus/gender_pictures_gd_test.rb
 behavior/menus/gender_selection_test.rb
+behavior/menus/generic_shift_menu_gd_test.rb
+behavior/menus/generic_shift_menu_test.rb
 behavior/menus/gruelinggold_dexnav_test.rb
 behavior/menus/gruelinggold_egg_relearner_test.rb
 behavior/menus/hacking_minigame_gd_test.rb
