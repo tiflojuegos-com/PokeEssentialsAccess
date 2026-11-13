@@ -1307,6 +1307,7 @@ module PokeAccess
     # too), or a touch event with text, a script or goods.
     def self.interactable?(ev)
       return true if transfer_event?(ev) || examinable?(ev) || container?(ev)
+      return true if PokeAccess::SceneTriggers.event?(ev)
       trig = PokeAccess.ivar_i(ev, :@trigger)
       return false unless trig == 1 || trig == 2
       list = PokeAccess.ivar(ev, :@list)

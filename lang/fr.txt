@@ -2282,6 +2282,12 @@ unhidden=Affiché %{name}
 # énigmes de grille
 lbl_puzzle_assist=Aide dans les énigmes
 help_puzzle_assist=Avec cette option activée, tu reçois plus d'informations et d'indices pour résoudre les énigmes, comme ce que chaque commande ouvrirait ou fermerait et la distance qui sépare une pièce de sa destination. Les chemins peuvent aussi prévoir la poussée de plusieurs rochers de Force et te mener d'abord à la dalle ou au levier qui ouvre le passage, et la catégorie énigmes propose la destination d'une pièce avec le chemin qui l'y pousse. Désactivée, tu n'entends que le minimum : ta position et l'état de chaque élément ; un chemin ne te fait pousser que le rocher qui bloque le passage, et si le passage dépend d'une commande, il n'y a pas de chemin.
+lbl_scene_guidance=Guidage des scènes
+help_scene_guidance=Liste les scènes invisibles actives reconnues et les signale par les sons des commandes. Le choix est enregistré.
+tcat_scenes=Déclencheurs de scènes
+loc_scene_trigger=Déclencheur de scène
+scene_step_onto=Marchez sur ce point pour lancer la scène.
+scene_touch=Touchez ce point pour lancer la scène.
 lbl_auto_detect=Autodétection des menus
 help_auto_detect=Lit automatiquement les menus que le mod ne connaît pas, en lisant le texte interne de la fenêtre (pas l'écran, donc c'est précis). Si un écran se lisait en double ou en trop, désactive cette option.
 lbl_read_help=Lire les aides de menu

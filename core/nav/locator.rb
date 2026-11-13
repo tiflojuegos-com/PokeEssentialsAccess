@@ -18,7 +18,7 @@ module PokeAccess
     TCAT_KEYS = { :all => :tcat_all, :people => :tcat_people, :objects => :tcat_objects,
                   :exits => :tcat_exits, :signs => :tcat_signs, :extras => :tcat_extras,
                   :surfaces => :tcat_surfaces, :puzzles => :tcat_puzzles, :lens => :tcat_lens,
-                  :marks => :tcat_marks }
+                  :marks => :tcat_marks, :scenes => :tcat_scenes }
 
     # The spoken name of a target category.
     def self.cat_name(cat)
@@ -67,7 +67,8 @@ module PokeAccess
       when :signs  then sign_event?(ev)
       when :extras then !named && examinable?(ev) && !sign_event?(ev) && !transfer_event?(ev)
       when :lens   then lens_tile?(ev)
-      when :all    then named || transfer_event?(ev) || examinable?(ev) || lens_tile?(ev)
+      when :scenes then PokeAccess::SceneTriggers.event?(ev)
+      when :all    then named || transfer_event?(ev) || examinable?(ev) || lens_tile?(ev) || PokeAccess::SceneTriggers.event?(ev)
       else              named && !transfer_event?(ev) && event_category(ev) == cat
       end
     end
@@ -75,8 +76,9 @@ module PokeAccess
     # The categories to cycle now: the configured ones, with puzzles, lens (#EOT tiles) and marks only while there is
     # something to locate in them.
     def self.active_categories
-      base = PokeAccess::Config.categories.reject { |c| c == :puzzles || c == :lens || c == :marks }
+      base = PokeAccess::Config.categories.reject { |c| [:puzzles, :lens, :marks, :scenes].include?(c) }
       base += [:puzzles] if (PokeAccess::Puzzles.has_locator_targets? rescue false)
+      base += [:scenes] if PokeAccess::SceneTriggers.any?
       base += [:lens] if any_lens_tile?
       base += [:marks] if marks_here?
       base
@@ -335,7 +337,7 @@ module PokeAccess
     # True for a target stood on rather than acted on: a spot to dive at or come up, a map edge, or a puzzle's floor
     # (Puzzles.onto?).
     def self.onto?(t)
-      dive_key(t) || edge?(t) || PokeAccess::Puzzles.onto?(t) ? true : false
+      dive_key(t) || edge?(t) || PokeAccess::Puzzles.onto?(t) || PokeAccess::SceneTriggers.onto?(t) ? true : false
     end
 
     # True for a map edge's exit, the synthetic target with no surface kind.

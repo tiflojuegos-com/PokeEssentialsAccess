@@ -239,6 +239,7 @@ module PokeAccess
     define(:name_signs,           true,   :flag,      :pathfinder,     :lbl_name_signs,       :help_name_signs)
     define(:surface_cues,         true,   :flag,      :pathfinder,     :lbl_surface_cues,     :help_surface_cues)
     define(:puzzle_assist,        false,  :flag,      :pathfinder,     :lbl_puzzle_assist,    :help_puzzle_assist)
+    define(:scene_guidance,       true,   :flag,      :pathfinder,     :lbl_scene_guidance,   :help_scene_guidance)
     define(:route_style,          :shortest, :rstyle, :pathfinder_adv, :lbl_route_style,      :help_route_style)
     define(:route_reach,          128,    :reach,     :pathfinder_adv, :lbl_reach,            :help_reach)
     define(:route_limit,          :effort, :rlimit,   :pathfinder_adv, :lbl_route_limit,      :help_route_limit)

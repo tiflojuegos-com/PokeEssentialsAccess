@@ -29,7 +29,7 @@ class ConfigMenuTest < PokeAccessTest
     on_screen(:pathfinder) do
       assert_equal [:auto_guide, :auto_steps, :hide_unreachable, :hide_noninteractive, :target_order,
                     :target_numbering, :name_items, :name_trainers, :name_species, :name_signs, :surface_cues,
-                    :puzzle_assist, [:enter, :pathfinder_adv], :back],
+                    :puzzle_assist, :scene_guidance, [:enter, :pathfinder_adv], :back],
                    rows(:pathfinder)
     end
   end

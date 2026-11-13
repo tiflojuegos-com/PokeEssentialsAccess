@@ -135,6 +135,7 @@ from, as `full`. The verbosity key, unbound by default, steps through the same v
 | `name_signs` | `true` | Flag | Names an invisible event with text by what the text says |
 | `surface_cues` | `true` | Flag | Says the terrain under the player when it changes |
 | `puzzle_assist` | `false` | Flag | Gives the hints and routes that solve puzzles |
+| `scene_guidance` | `true` | Flag | Lists recognized active invisible scenes and sounds their existing control cues; advice follows `read_help` |
 
 - `hide_unreachable`: `unreachable` leaves out the targets with no route; `room` also leaves out, on a map with
   several rooms, those outside the player's room. Ctrl with the coordinates key (Ctrl+M) steps it.

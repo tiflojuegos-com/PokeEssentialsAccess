@@ -2275,6 +2275,12 @@ unhidden=%{name} angezeigt
 # Gitterrätsel
 lbl_puzzle_assist=Hilfe bei Rätseln
 help_puzzle_assist=Wenn aktiv, erhältst du mehr Informationen und Hinweise zum Lösen der Rätsel, etwa was jedes Bedienelement öffnen oder schließen würde und wie weit ein Rätselteil noch von seinem Ziel entfernt ist. Routen planen außerdem das Schieben mehrerer Stärke-Felsen und führen dich zuerst zur Bodenplatte oder zum Hebel, der den Weg öffnet, und die Kategorie Rätsel bietet das Ziel eines Rätselteils mit der Route an, die es dorthin schiebt. Deaktiviert hörst du nur das Minimum: deine Position und den Zustand jedes Elements; eine Route lässt dich nur den Felsen schieben, der den Weg versperrt, und hängt der Weg von einem Bedienelement ab, gibt es keine Route.
+lbl_scene_guidance=Szenenhinweise
+help_scene_guidance=Listet erkannte aktive unsichtbare Szenen auf und markiert sie mit Steuerelementtönen. Die Auswahl wird gespeichert.
+tcat_scenes=Szenenauslöser
+loc_scene_trigger=Szenenauslöser
+scene_step_onto=Betritt diesen Punkt, um die Szene zu starten.
+scene_touch=Berühre diesen Punkt, um die Szene zu starten.
 lbl_auto_detect=Automatische Menüerkennung
 help_auto_detect=Liest automatisch Menüs, die der Mod nicht kennt, indem der interne Text des Fensters gelesen wird (nicht der Bildschirm, also präzise). Falls ein Bildschirm doppelt oder zu viel gelesen wird, deaktiviere diese Option.
 lbl_read_help=Menühilfen vorlesen
