@@ -3902,10 +3902,10 @@ vitro_button_red=Czerwony przycisk
 vitro_doors_rule=Sześć sal, trzy na górze i trzy na dole. Przyciski w górnej środkowej sali otwierają i zamykają drzwi.
 
 # Independent directional pitch and usable-object bump controls
-lbl_direction_front=Wysokość na północ
-lbl_direction_back=Wysokość na południe
-lbl_direction_left=Wysokość na zachód
-lbl_direction_right=Wysokość na wschód
+lbl_direction_front=Wspólna wysokość na północ
+lbl_direction_back=Wspólna wysokość na południe
+lbl_direction_left=Wspólna wysokość na zachód
+lbl_direction_right=Wspólna wysokość na wschód
 percent_unit=procent
 lbl_on_interact=Uderzenia w obiekty
 lbl_interact_vol=Głośność uderzenia w obiekt
@@ -3915,6 +3915,7 @@ help_interact_vol=Głośność uderzenia w osobę, znak lub użyteczny obiekt, n
 help_interact_tone=Wysokość uderzenia w osobę, znak lub użyteczny obiekt. 50 zachowuje wysokość nagrania.
 cat_directional_sounds=Ustawienia dźwięków według kierunku
 cat_directional_sounds_help=Wybierz kategorię dźwięku. Ustaw jej wysokość na północ, wschód, południe i zachód; sygnały powtarzane mają też regulację tempa. 100% zachowuje ustawienia wspólne. Uderzenia zachowują własny ton podstawowy, dopóki nie zmienisz ich regulacji.
+lbl_dir_category_setting=%{sound}: %{setting}
 lbl_dir_pitch_north=Regulacja wysokości na północ
 lbl_dir_pitch_east=Regulacja wysokości na wschód
 lbl_dir_pitch_south=Regulacja wysokości na południe

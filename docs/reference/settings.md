@@ -30,6 +30,8 @@ takes and its effect, by the screen that lists it. To declare a new setting, fol
 | `:flag` | `true`, `false` | Flips | On or off (`val_on`, `val_off`) |
 | `:vol` | 0 to 100 | 10 | None |
 | `:tone` | 0 to 100 | 5 | None |
+| `:direction_pitch` | 50 to 150 | 5 | Percent (`percent_unit`) |
+| `:direction_factor` | 50 to 200 | 5 | Percent (`percent_unit`) |
 | `:tiles` | 1 to 20 | 1 | `tiles_unit` |
 | `:sonar` | 1 to 30 | 1 | `tiles_unit` |
 | `:astar` | 1000 to 10000 | 500 | None |
@@ -46,6 +48,16 @@ A list kind (`Config::LISTS`) steps through its values in order and wraps at bot
 steps on from the default. Left and right step the focused row, confirm steps it as right does, the info key says its
 help and Ctrl with the info key says the row and its help together. A volume or pitch row that has a sample plays
 it after each step.
+
+## Directional sound settings
+
+Audio options → Pitch contains the shared directional controls, named Shared north/south/west/east pitch.
+Audio options → Directional sound profiles opens a separate screen for each sound family. Every setting there
+names its family and direction, such as Wind sound: North pitch adjustment or People sound: North repetition rate.
+A family adjustment of 100% is neutral; it keeps the shared choices and that family’s own tone or cadence.
+Changing one family does not change another family’s stored adjustments. Pitch adjustments are available in
+Stereo and Mono with a supporting player. Repetition rows are offered only for repeating families; continuous
+wind and one-shot bump sounds have no artificial repetition control. The chosen values persist between starts.
 
 ## Visibility
 

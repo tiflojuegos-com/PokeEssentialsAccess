@@ -3900,10 +3900,10 @@ vitro_button_red=Botón rojo
 vitro_doors_rule=Seis salas, tres arriba y tres abajo. Los botones de la sala de arriba en el centro abren y cierran puertas.
 
 # Independent directional pitch and usable-object bump controls
-lbl_direction_front=Altura al norte
-lbl_direction_back=Altura al sur
-lbl_direction_left=Altura al oeste
-lbl_direction_right=Altura al este
+lbl_direction_front=Altura compartida al norte
+lbl_direction_back=Altura compartida al sur
+lbl_direction_left=Altura compartida al oeste
+lbl_direction_right=Altura compartida al este
 percent_unit=por ciento
 lbl_on_interact=Golpes contra objetos
 lbl_interact_vol=Volumen del golpe contra objetos
@@ -3913,6 +3913,7 @@ help_interact_vol=Volumen al chocar con una persona, cartel u objeto utilizable,
 help_interact_tone=Tono al chocar con una persona, cartel u objeto utilizable. 50 mantiene el tono original.
 cat_directional_sounds=Ajustes de sonido por dirección
 cat_directional_sounds_help=Elige una categoría de sonido. Ajusta su altura al norte, este, sur y oeste; los sonidos pulsados también tienen ritmo de repetición. 100% conserva los ajustes comunes. Los golpes mantienen su altura base salvo que cambies sus ajustes.
+lbl_dir_category_setting=%{sound}: %{setting}
 lbl_dir_pitch_north=Ajuste de altura al norte
 lbl_dir_pitch_east=Ajuste de altura al este
 lbl_dir_pitch_south=Ajuste de altura al sur

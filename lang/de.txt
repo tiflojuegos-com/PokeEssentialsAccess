@@ -3892,10 +3892,10 @@ vitro_button_red=Roter Schalter
 vitro_doors_rule=Sechs Räume, drei oben und drei unten. Die Schalter im oberen mittleren Raum öffnen und schließen Türen.
 
 # Independent directional pitch and usable-object bump controls
-lbl_direction_front=Tonhöhe Norden
-lbl_direction_back=Tonhöhe Süden
-lbl_direction_left=Tonhöhe Westen
-lbl_direction_right=Tonhöhe Osten
+lbl_direction_front=Gemeinsame Tonhöhe im Norden
+lbl_direction_back=Gemeinsame Tonhöhe im Süden
+lbl_direction_left=Gemeinsame Tonhöhe im Westen
+lbl_direction_right=Gemeinsame Tonhöhe im Osten
 percent_unit=Prozent
 lbl_on_interact=Stöße gegen Objekte
 lbl_interact_vol=Lautstärke bei Objektstößen
@@ -3905,6 +3905,7 @@ help_interact_vol=Lautstärke beim Anstoßen an Personen, Schilder oder nutzbare
 help_interact_tone=Tonhöhe beim Anstoßen an Personen, Schilder oder nutzbare Objekte. 50 behält die ursprüngliche Tonhöhe bei.
 cat_directional_sounds=Klangeinstellungen nach Richtung
 cat_directional_sounds_help=Wähle eine Klangkategorie. Stelle ihre Tonhöhe im Norden, Osten, Süden und Westen ein. Wiederholte Signale haben auch eine Wiederholrate. 100% behält die gemeinsamen Einstellungen bei. Stoßgeräusche behalten ihren Grundton, bis du ihre Werte änderst.
+lbl_dir_category_setting=%{sound}: %{setting}
 lbl_dir_pitch_north=Tonhöhenanpassung Norden
 lbl_dir_pitch_east=Tonhöhenanpassung Osten
 lbl_dir_pitch_south=Tonhöhenanpassung Süden

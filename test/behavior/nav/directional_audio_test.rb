@@ -187,6 +187,52 @@ class DirectionalAudioTest < PokeAccessTest
     end
   end
 
+  test "every directional setting names its sound family and direction in all supported languages" do
+    Cfg.audio3d_output = :stereo
+    with_sound_engine do
+      [:en, :pl, :es, :fr, :de, :pt].each do |language|
+        Cfg.language = language
+        groups = Cfg.groups_in(:audio_directions)
+        refute_empty groups
+        groups.each do |group|
+          family = PokeAccess::I18n.t(group.label)
+          Cfg.settings_in(group.id).each do |row|
+            name = PokeAccess::ConfigMenu.label_of(:kind => :setting, :row => row)
+            assert_includes name, family, row.key.to_s
+            assert_includes name, PokeAccess::I18n.t(row.label), row.key.to_s
+            refute_includes name, "%{", row.key.to_s
+          end
+        end
+      end
+    end
+  end
+
+  test "shared directional pitch labels clearly identify their shared scope" do
+    Cfg.language = :en
+    expected = { :front => "Shared north pitch", :back => "Shared south pitch",
+                 :left => "Shared west pitch", :right => "Shared east pitch" }
+    expected.each do |side, label|
+      row = Cfg.setting(("direction_pitch_" + side.to_s).to_sym)
+      assert_equal label, PokeAccess::ConfigMenu.label_of(:kind => :setting, :row => row)
+    end
+  end
+
+  test "family names are essential labels while ordinary settings and group names retain their labels" do
+    Cfg.language = :en
+    Cfg.read_help = false
+    row = Cfg.setting(:audio_dir_wind_north_pitch)
+    group = Cfg.groups_in(:audio_directions).find { |entry| entry.id == row.group }
+    label = PokeAccess::ConfigMenu.label_of(:kind => :setting, :row => row)
+    assert_includes label, PokeAccess::I18n.t(group.label)
+    assert_equal 100, Cfg.send(row.key)
+    assert_equal [:setting, row.key], PokeAccess::ConfigMenu.row_id(:kind => :setting, :row => row)
+    assert_equal PokeAccess::I18n.t(group.label), PokeAccess::ConfigMenu.label_of(:kind => :enter, :label => group.label)
+    ordinary = Cfg.setting(:read_help)
+    assert_equal PokeAccess::I18n.t(ordinary.label), PokeAccess::ConfigMenu.label_of(:kind => :setting, :row => ordinary)
+    unknown = Cfg::Setting.new(:label_fixture, false, :flag, :unregistered_fixture, ordinary.label)
+    assert_equal PokeAccess::I18n.t(ordinary.label), PokeAccess::ConfigMenu.label_of(:kind => :setting, :row => unknown)
+  end
+
   test "category pitch packets remain independent and update without replaying a source" do
     Cfg.audio3d_output = :stereo
     Cfg.audio_dir_people_north_pitch = 125
