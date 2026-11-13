@@ -27,6 +27,8 @@ module PokeAccess
         @air = nil
         @output = nil
         @playing = nil
+        @directional_pitch = nil
+        @category_directions = {}
         @reach = nil
       end
       forget
@@ -45,11 +47,19 @@ module PokeAccess
           PokeAccess::Sound.log(:boot, "INIT failed (Steam Audio returned != 1)")
           return unavailable
         end
+        @ready = true
+        output(PokeAccess::Config.audio3d_output)
+        directional_pitch(*Mixer.direction_pitches)
         @rate = (Native.call(:rate) rescue nil)
         @rate = nil if @rate && @rate <= 0
         @latency = (Native.call(:latency) rescue nil)
-        Catalog.channels.each { |id, file, loops| @ch[id] = (Native.call(:channel, "#{wav(file)}\0", loops) rescue -1) }
-        @ready = true
+        Catalog.channels.each do |id, file, loops|
+          @ch[id] = (Native.call(:channel, "#{wav(file)}\0", loops) rescue -1)
+          if @ch[id] && @ch[id] >= 0 && Catalog.entry(id).place == :contact && Native.has?(:fixed_pitch)
+            Native.call(:fixed_pitch, @ch[id], 1)
+          end
+        end
+        Catalog.channels.each { |id, _file, _loops| category_directions(id, Mixer.category_pitches(id)) }
         listener($game_player.x, $game_player.y) if $game_player
         true
       rescue StandardError => e
@@ -98,6 +108,19 @@ module PokeAccess
       def self.channel(id)
         n = @ready ? @ch[id] : nil
         n && n >= 0 ? n : nil
+      end
+
+      # Each channel's coherent category adjustment; an older DLL keeps ordinary playback available.
+      def self.category_directions(id, values)
+        number = channel(id)
+        return false unless number && Native.has?(:channel_directions)
+        return true if @category_directions[number] == values
+        Native.call(:channel_directions, number, *values)
+        @category_directions[number] = values.dup
+        true
+      rescue StandardError => e
+        PokeAccess.swallowed(e)
+        false
       end
 
       # Puts the listener on a tile; true once the engine is ready.
@@ -224,6 +247,18 @@ module PokeAccess
         PokeAccess.speak(PokeAccess::I18n.t(:audio3d_output_short, :output => PokeAccess::Config.value_name(s, mode),
                                             :used => PokeAccess::Config.value_name(s, used),
                                             :channels => device_channels), false)
+      rescue StandardError => e
+        PokeAccess.swallowed(e)
+        nil
+      end
+
+      # Send a coherent set of four cardinal pitches, independently of source category tones.
+      def self.directional_pitch(front, back, left, right)
+        return unless @ready && Native.has?(:directional_pitch)
+        values = [front, back, left, right]
+        return if values == @directional_pitch
+        Native.call(:directional_pitch, *values)
+        @directional_pitch = values
       rescue StandardError => e
         PokeAccess.swallowed(e)
         nil

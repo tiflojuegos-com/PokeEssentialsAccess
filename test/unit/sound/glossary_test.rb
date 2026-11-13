@@ -49,7 +49,7 @@ class GlossaryTest < PokeAccessTest
   end
 
   test "auditions a sound with a clamp flat at the pitch the game plays it, the grid's centre cell and the wall" do
-    { :grid => [:grid_tone, 118], :wall => [:wall_tone, 125] }.each do |id, (key, want)|
+    { :grid => [:grid_tone, 118], :wall => [:wall_tone, 150] }.each do |id, (key, want)|
       PokeAccess::Config.send("#{key}=", 100)
       assert_equal want, Sound::Glossary.flat_pitch(Sound::Glossary.entry(id)), "#{id} at its highest tone"
     end

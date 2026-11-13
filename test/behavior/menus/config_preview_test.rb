@@ -8,7 +8,7 @@ class ConfigPreviewTest < PokeAccessTest
   test "lists the sound switches first in the audio screen, the tones after the volumes and frequencies" do
     Reset.with_capability(:positional, true) do
       in_mode(:audio) do
-        assert_equal [:audio3d_on, :audio3d_vol, :audio3d_freq, :audio3d_tone, :audio3d_walls, :audio3d_adv],
+        assert_equal [:audio3d_on, :audio3d_vol, :audio3d_freq, :audio3d_tone, :audio_directions, :audio3d_walls, :audio3d_adv],
                      Menu.items.select { |i| i[:kind] == :enter }.map { |i| i[:group] }
       end
     end

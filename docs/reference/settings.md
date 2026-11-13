@@ -30,6 +30,8 @@ takes and its effect, by the screen that lists it. To declare a new setting, fol
 | `:flag` | `true`, `false` | Flips | On or off (`val_on`, `val_off`) |
 | `:vol` | 0 to 100 | 10 | None |
 | `:tone` | 0 to 100 | 5 | None |
+| `:direction_pitch` | 50 to 150 | 5 | Percent (`percent_unit`) |
+| `:direction_factor` | 50 to 200 | 5 | Percent (`percent_unit`) |
 | `:tiles` | 1 to 20 | 1 | `tiles_unit` |
 | `:sonar` | 1 to 30 | 1 | `tiles_unit` |
 | `:astar` | 1000 to 10000 | 500 | None |
@@ -46,6 +48,16 @@ A list kind (`Config::LISTS`) steps through its values in order and wraps at bot
 steps on from the default. Left and right step the focused row, confirm steps it as right does, the info key says its
 help and Ctrl with the info key says the row and its help together. A volume or pitch row that has a sample plays
 it after each step.
+
+## Directional sound settings
+
+Audio options → Pitch contains the shared directional controls, named Shared north/south/west/east pitch.
+Audio options → Directional sound profiles opens a separate screen for each sound family. Every setting there
+names its family and direction, such as Wind sound: North pitch adjustment or People sound: North repetition rate.
+A family adjustment of 100% is neutral; it keeps the shared choices and that family’s own tone or cadence.
+Changing one family does not change another family’s stored adjustments. Pitch adjustments are available in
+Stereo and Mono with a supporting player. Repetition rows are offered only for repeating families; continuous
+wind and one-shot bump sounds have no artificial repetition control. The chosen values persist between starts.
 
 ## Visibility
 
@@ -82,6 +94,7 @@ Debugging and Reset to defaults.
 | Volumes | `:audio3d_vol` | Audio options |
 | Frequencies | `:audio3d_freq` | Audio options |
 | Pitch | `:audio3d_tone` | Audio options |
+| Directional sound settings | `:audio_directions` and per-family subgroups | Audio options |
 | Walls and occlusion | `:audio3d_walls` | Audio options |
 | Advanced positional audio | `:audio3d_adv` | Audio options |
 | Verbosity | `:verbosity` | Personalization |
@@ -189,8 +202,8 @@ from, as `full`. The verbosity key, unbound by default, steps through the same v
   mode ([Guide and sound](../architecture/guide-and-sound.md)).
 - `game_bump`: off, the game's bump is silent while the mod's wall cue is on.
 - `audio3d_output`: `binaural` goes through the HRTF. The others pan each sound between their speakers. `mono` and
-  `stereo` have none behind, so the pitch rises up to 20 % straight ahead and falls as much straight behind; a sound
-  on the player keeps its pitch. `quad`, `surround51` and `surround71` need those speakers set up in Windows: a device
+  `stereo` have none behind, so the configurable north/south/west/east pitch distinguishes map directions. Defaults
+  retain the previous 120/80/100/100 % curve; a sound on the player keeps its pitch. `quad`, `surround51` and `surround71` need those speakers set up in Windows: a device
   with fewer channels plays the largest layout that fits, and the player is told. Occlusion, air absorption, distance
   and the families' tones apply in every output.
 - `sonar_only_locatable` shows with Sonar, `game_bump` with Navigation on, and `audio3d_output` and `audio3d_volume`
@@ -229,7 +242,8 @@ tables.
 | Shore | None | `audio3d_shore`, 40 | Sonar | While surfing, the nearest land to get off onto |
 | Wind | `sound_wind` | `audio3d_wind`, 55 | Sonar | A wall on each side, as a loop |
 | Steps | `sound_steps` | `footstep_volume`, 80 | Navigation on | The player's footsteps |
-| Wall | `sound_wall` | `wall_volume`, 80 | Navigation on | A bump into a wall or into something to use |
+| Wall | `sound_wall` | `wall_volume`, 80 | Navigation on | A bump into a wall |
+| Usable object bump | `sound_interact` | `interact_volume`, 80 | Navigation on | A bump into something to use |
 | Guide | None | `event_volume`, 70 | Always | The guide toward the target |
 | Jumps | `sound_jumps` | `jump_volume`, 70 | Always | A ledge the route jumps |
 | Ledges | `sound_ledges` | Jumps' | Navigation on | A ledge in front of the player |
@@ -255,6 +269,7 @@ tables.
 | Wind | None | `audio3d_tone_wind` |
 | Steps | None | `footstep_tone` |
 | Wall | None | `wall_tone` |
+| Usable object bump | None | `interact_tone` |
 | Guide | `guide_freq`, 75 | `guide_tone` |
 | Jumps | None | `jump_tone` |
 | Ledges | None | Jumps' (`jump_tone`) |
@@ -272,6 +287,35 @@ With `distance`, the period `guide_freq` sets grows with the target's distance, 
 `Guide::FALLOFF` tiles or more; with `constant`, it stays as set. The Sounds on screen also lists the Guide sound row
 (`lbl_on_guide`) before `sound_jumps`. That row switches the cane as its key does and is not a setting: the
 file does not save it.
+
+## Directional sound settings
+
+The listener faces map north regardless of the player sprite's facing. North/south/west/east therefore mean
+up/down/left/right on the map. Pitch controls appear in mono or stereo only when the loaded DLL supports them.
+Binaural and surround retain their existing spatial rendering; rate controls still apply where meaningful.
+
+| Keys | Default | Range | Effect |
+|---|---|---|---|
+| `direction_pitch_front`, `direction_pitch_back`, `direction_pitch_left`, `direction_pitch_right` | 120, 80, 100, 100 % | 50-150 % | Shared map north/south/west/east pitch, under Pitch |
+| `audio_dir_<family>_<side>_pitch` | 100 % | 50-200 % | Independent category adjustment for `north`, `south`, `west`, `east` |
+| `audio_dir_<family>_<side>_rate` | 100 % | 50-200 % | Repetition multiplier, only for families with a repeating signal |
+
+Directional sound settings lists the catalog's positional families, including people, objects, wind/walls,
+water and the guide. Footsteps, grid cells and other sounds without a meaningful direction have no ineffective
+direction controls. Family tone, shared direction and category adjustment compose; intermediate positions blend
+their two adjacent choices, so an unrelated quadrant cannot change them. A faster repetition rate preserves the
+sonar's source ordering and minimum spacing. Continuous wind/water and one-shot contacts have no repeat-rate row.
+
+Wall and usable-object bumps have independent switches, volumes and tones. Their default pitch stays constant
+across directions while retaining positional panning. Their category adjustments can opt into directional pitch;
+the shared directional tilt does not affect contacts. Missing independent object settings inherit the old wall
+preferences; explicit independent choices win. An explicit old `audio3d_hrtf=false` migrates to stereo only
+when `audio3d_output` is absent. Missing optional native exports keep ordinary audio working and hide unsupported
+pitch controls. Menu previews audition the chosen side and stop when the screen closes.
+
+The low south-wind recording receives one octave of calibration on actual mono/stereo output, including output
+fallback. Its tone and directional factors remain adjustable. This improves that default cue's audibility without
+changing the recording or binaural output; it does not assert that the original sample is inaudible for everyone.
 
 ## Walls and occlusion
 

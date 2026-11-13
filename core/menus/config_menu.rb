@@ -104,8 +104,16 @@ module PokeAccess
       when :entry   then entry_label(item)
       when :scheme  then scheme_label(item[:name])
       when :reading then PokeAccess::Verbosity.reading_name(item[:reading])
-      else t(item[:row] ? item[:row].label : item[:label])
+      else item[:row] ? setting_label(item[:row]) : t(item[:label])
       end
+    end
+
+    # A directional sound row names its family even after the opening screen heading has passed.
+    def self.setting_label(row)
+      label = t(row.label)
+      group = PokeAccess::Config.groups.find { |entry| entry.id == row.group }
+      return label unless group && group.parent == :audio_directions
+      t(:lbl_dir_category_setting, :sound => t(group.label), :setting => label)
     end
 
     # A row as it is said: its name and, for a row that holds a value, the value.

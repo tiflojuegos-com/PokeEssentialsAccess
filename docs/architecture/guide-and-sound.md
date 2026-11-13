@@ -167,13 +167,37 @@ high ahead and low behind (`Catalog::GUIDE_FLAT`).
 - `PA3D_Occl` muffles a channel: the lows pass and the highs are cut, so a source behind a wall stays audible.
 - `PA3D_Air` takes treble off distant sources while `audio3d_air` is on.
 - `PA3D_Output` sets how sources reach the speakers, from `audio3d_output` (`Pa3d::OUTPUTS`). Anything but binaural pans
-  a channel between the layout's speakers. With no speakers behind (mono, stereo) it also plays up to 20 % higher
-  straight ahead and as much lower straight behind, the pitches of the flat wall cue (`Catalog::WALL_FLAT`). A sound
-  on the player keeps its pitch.
+  a channel between the layout's speakers. Mono/stereo use the shared map-direction pitch and each category's
+  independent adjustment. Default shared percentages retain the previous curve; contacts skip that shared tilt.
+  Binaural/surround and a source on the player keep their pitch.
 - A device with too few channels plays the largest layout that fits instead. `Pa3d.output` tells the player, queued,
   once per change, which output plays. If none opens, positional sound stays silent, the player is told, and changing
   the setting tries again.
 - `Pa3d` sends an order only when it changes what the engine holds.
+
+### Directional controls and native compatibility
+
+The catalog generates directional rows for meaningful positional families; repetition rows require an existing
+family frequency. Settings are neutral at 100 % per category. Guide cadence and round-robin sonar cadence scale
+with the selected source's relative direction, preserving existing ordering and global anti-overlap limits.
+
+The optional native calls are `PA3D_DirectionalPitch(front,back,left,right)` (50-150 %),
+`PA3D_ChannelDirections(channel,north,south,west,east)` (50-200 %) and
+`PA3D_FixedPitch(channel,fixed)` for contacts. Shared directions publish one atomic packet read at a block
+boundary; category directions also use one coherent packet. Only adjacent direction factors blend. Contacts retain
+their position, panning and family tone while skipping the shared tilt; their optional category factors still apply.
+Older DLLs can omit these calls. Capability checks hide unsupported rows and retain ordinary audio and flat fallbacks.
+
+Output requests are committed by the audio thread at a block boundary, clearing effect/panning tails without
+resetting source playback positions. Both legacy HRTF export spellings remain aliases. The requested output controls
+paused menu visibility; the actual playing output controls speaker-only south-wind calibration after fallback.
+
+Rebuild matching native DLLs before installing the new bindings. `native/build.sh` builds x86/x64 and runs the
+Steam, pitch and extended HRTF/direction checks. The extended device-free fixture checks production mixing,
+cardinals/diagonals, unrelated quadrants, source-center behavior, contact invariance/panning, category composition,
+binaural preservation, clamping/invalid channels and playback position across output changes. It selects its renderer
+layout directly so a real device callback cannot advance the sample head during a deterministic measurement.
+Those tests are separate from actual game/NVDA validation.
 
 ## The flat channel
 

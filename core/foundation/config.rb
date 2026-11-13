@@ -21,6 +21,8 @@ module PokeAccess
       :vol   => [0, 100, 10, nil],
       # A tone: 50 plays the recording and each step of 5 is a tenth of an octave either way (tone_to_pitch).
       :tone  => [0, 100, 5, nil],
+      :direction_pitch => [50, 150, 5, :percent_unit],
+      :direction_factor => [50, 200, 5, :percent_unit],
       :tiles => [1, 20, 1, :tiles_unit],
       # The sonar's range; its own kind so widening it leaves the wall probe and alternation distance alone.
       :sonar => [1, 30, 1, :tiles_unit],
@@ -208,6 +210,7 @@ module PokeAccess
     group(:audio3d_vol,    :cat_pos_vol,        :audio)
     group(:audio3d_freq,   :cat_pos_freq,       :audio)
     group(:audio3d_tone,   :cat_pos_tone,       :audio)
+    group(:audio_directions, :cat_directional_sounds, :audio)
     group(:audio3d_walls,  :cat_pos_walls,      :audio)
     group(:audio3d_adv,    :cat_positional_adv, :audio)
     group(:verbosity,      :cat_verbosity)
@@ -261,8 +264,17 @@ module PokeAccess
     define(:sound_nav,            :full,  :navmode,   :audio,          :lbl_sound_nav,        :help_sound_nav)
     define(:sonar_only_locatable, false,  :flag,      :audio,          :lbl_sonar_locatable,  :help_sonar_locatable, SONAR)
     define(:game_bump,            false,  :flag,      :audio,          :lbl_game_bump,        :help_game_bump, NAV_ON)
-    define(:audio3d_output,       :binaural, :output, :audio,          :lbl_pos_output,       :help_pos_output, NAV_ENGINE)
+    define(:audio3d_output,       :binaural, :output, :audio,          :lbl_pos_output,       :help_pos_output,
+           :show_if => [:sound_nav, [:basic, :full]], :needs => [:positional, :audio_output])
     define(:audio3d_volume,       80,     :vol,       :audio,          :lbl_pos_master,       :help_pos_master, NAV_ENGINE)
+    define(:direction_pitch_front, 120, :direction_pitch, :audio3d_tone, :lbl_direction_front, :help_direction_pitch,
+           :show_if => [:audio3d_output, [:stereo, :mono]], :needs => [:positional, :directional_pitch])
+    define(:direction_pitch_back, 80, :direction_pitch, :audio3d_tone, :lbl_direction_back, :help_direction_pitch,
+           :show_if => [:audio3d_output, [:stereo, :mono]], :needs => [:positional, :directional_pitch])
+    define(:direction_pitch_left, 100, :direction_pitch, :audio3d_tone, :lbl_direction_left, :help_direction_pitch,
+           :show_if => [:audio3d_output, [:stereo, :mono]], :needs => [:positional, :directional_pitch])
+    define(:direction_pitch_right, 100, :direction_pitch, :audio3d_tone, :lbl_direction_right, :help_direction_pitch,
+           :show_if => [:audio3d_output, [:stereo, :mono]], :needs => [:positional, :directional_pitch])
     [:on, :vol, :freq, :tone].each do |kind|
       Sound::Catalog.rows(kind).each do |key, default, k, group, label, help, shown|
         define(key, default, k, group, label, help, SHOWN[shown] || {})
@@ -278,6 +290,26 @@ module PokeAccess
     define(:audio3d_alt_dist,     5,      :tiles,     :audio3d_adv,    :lbl_alt_dist,         :help_alt_dist, SONAR)
     define(:guide_distance,       3,      :gdist,     :audio3d_adv,    :lbl_guide_distance,   :help_guide_distance,
            NAV_ENGINE)
+    # Neutral per-category adjustments keep the existing shared choices and family tones/rates.
+    Sound::Catalog.directional_families.each do |family|
+      entry = Sound::Catalog.entries.find { |e| e.family == family.id && e.glossary }
+      label = family.on ? family.on[2] : (entry && entry.glossary[0])
+      next unless label
+      category = ("audio_directions_" + family.id.to_s).to_sym
+      group(category, label, :audio_directions)
+      [:pitch, :rate].each do |kind|
+        next if kind == :rate && !family.freq
+        options = (SHOWN[family.shown] || {}).dup
+        options[:needs] = Array(options[:needs]) + [:category_pitch] if kind == :pitch
+        [:north, :east, :south, :west].each do |side|
+          key = ("audio_dir_" + family.id.to_s + "_" + side.to_s + "_" + kind.to_s).to_sym
+          name = ("lbl_dir_" + kind.to_s + "_" + side.to_s).to_sym
+          help = kind == :pitch ? :help_dir_category_pitch : :help_dir_category_rate
+          define(key, 100, :direction_factor, category, name, help, options)
+        end
+      end
+    end
+
     define(:transfer_active_page_only, true, :flag,   :debug_nav,      :lbl_transfer_active_only, :help_transfer_active_only)
     define(:route_stats,          false,  :flag,      :debug_nav,      :lbl_route_stats,      :help_route_stats)
     define(:revert_surf_sound,    false,  :flag,      :debug_nav,      :lbl_revert_surf_sound, :help_revert_surf_sound)
