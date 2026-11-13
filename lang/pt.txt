@@ -2290,6 +2290,12 @@ unhidden=Mostrado %{name}
 # quebra-cabeças de grade
 lbl_puzzle_assist=Ajuda em quebra-cabeças
 help_puzzle_assist=Com esta opção ativada você recebe mais informações e dicas para resolver os quebra-cabeças, como o que cada controle abriria ou fecharia e quanto falta para uma peça chegar ao seu destino. Além disso, as rotas planejam os empurrões de várias rochas de força e levam você antes à placa ou à alavanca que abre a passagem, e a categoria quebra-cabeças oferece o destino de uma peça com a rota que a empurra até lá. Desativada, você ouve só o mínimo: sua posição e o estado de cada elemento; uma rota só faz você empurrar a rocha que bloqueia o caminho, e se a passagem depende de um controle, não há rota.
+lbl_scene_guidance=Orientação de cenas
+help_scene_guidance=Lista cenas invisíveis ativas reconhecidas e assinala-as com sons de controlos. A escolha é guardada.
+tcat_scenes=Ativadores de cenas
+loc_scene_trigger=Ativador de cena
+scene_step_onto=Pise este ponto para iniciar a cena.
+scene_touch=Toque neste ponto para iniciar a cena.
 lbl_auto_detect=Autodetecção de menus
 help_auto_detect=Lê automaticamente menus que o mod não conhece, lendo o texto interno da janela (não a tela, então o resultado é preciso). Se alguma tela for lida em dobro ou a mais, desative esta opção.
 lbl_read_help=Ler ajudas de menu

@@ -199,6 +199,7 @@
   nav/route_search
   nav/route_grid
   nav/event_pages
+  nav/scene_triggers
   nav/route_water
   nav/route_gates
   nav/field_moves

@@ -289,3 +289,8 @@ PokeAccess::Config.capability(:positional) { PokeAccess::Sound::Pa3d.positional?
 
 # Reads the scene again on the next frame when a mark or a tag override changes.
 PokeAccess::Events.on(:tags_changed) { PokeAccess::Sound::Scheduler.forget_scan }
+
+# Scene guidance changes must also refresh a stationary player's cached soundscape.
+PokeAccess::Events.on(:config_changed) do |key|
+  PokeAccess::Sound::Scheduler.forget_scan if key == :scene_guidance
+end

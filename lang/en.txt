@@ -2278,6 +2278,12 @@ unhidden=%{name} shown
 # grid-tile puzzles
 lbl_puzzle_assist=Puzzle assist
 help_puzzle_assist=When on, you get more information and hints to solve puzzles, such as what each control would open or close and how far a piece still is from its goal. Routes can also plan pushing several Strength boulders and take you first to the plate or lever that opens the way, and the puzzles category offers a piece's goal with the route that pushes it there. When off, you only hear the minimum: your position and each element's state; a route only has you push the boulder that blocks the way, and when the way depends on a control, there is no route.
+lbl_scene_guidance=Scene trigger guidance
+help_scene_guidance=Lists recognized active invisible scenes and sounds control cues. Your choice is saved.
+tcat_scenes=Scene triggers
+loc_scene_trigger=Scene trigger
+scene_step_onto=Step onto this point to start the scene.
+scene_touch=Touch this point to start the scene.
 lbl_auto_detect=Auto-detect menus
 help_auto_detect=Automatically reads menus the mod has no dedicated reader for, using the window's internal text (not the screen, so it stays accurate). If a screen is ever read twice or too much, turn this off.
 lbl_read_help=Read menu help

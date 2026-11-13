@@ -2276,6 +2276,12 @@ unhidden=Pokazano: %{name}
 # zagadki siatkowe
 lbl_puzzle_assist=Pomoc w zagadkach
 help_puzzle_assist=Z tą opcją włączoną otrzymujesz więcej informacji i wskazówek do rozwiązywania zagadek, na przykład co otworzyłby lub zamknął każdy element sterujący i jak daleko element jest jeszcze od celu. Trasy planują też przesuwanie kilku głazów, które przesuwa się Siłą, i prowadzą cię najpierw do płyty lub dźwigni, która otwiera przejście, a kategoria zagadki podaje cel elementu z trasą, która go tam przesuwa. Gdy jest wyłączona, słyszysz tylko minimum: swoją pozycję i stan każdego elementu; trasa każe ci przesunąć tylko głaz, który blokuje drogę, a jeśli przejście zależy od elementu sterującego, trasy nie ma.
+lbl_scene_guidance=Naprowadzanie na scenki
+help_scene_guidance=Pokazuje rozpoznane aktywne niewidoczne scenki i oznacza je dźwiękiem kontrolek. Wybór jest zapamiętywany.
+tcat_scenes=Wyzwalacze scenek
+loc_scene_trigger=Wyzwalacz scenki
+scene_step_onto=Wejdź na to pole, aby rozpocząć scenkę.
+scene_touch=Dotknij tego pola, aby rozpocząć scenkę.
 lbl_auto_detect=Autowykrywanie menu
 help_auto_detect=Automatycznie odczytuje menu, których mod nie zna, na podstawie wewnętrznego tekstu okna (nie obrazu ekranu, więc odczyt jest precyzyjny). Jeśli jakiś ekran jest czytany podwójnie lub za dużo, wyłącz tę opcję.
 lbl_read_help=Czytaj opisy opcji w menu

@@ -536,6 +536,8 @@ behavior/nav/route_terrain_test.rb
 behavior/nav/route_water_test.rb
 behavior/nav/rv_conveyors_test.rb
 behavior/nav/rv_passability_test.rb
+behavior/nav/scene_guidance_gd_test.rb
+behavior/nav/scene_guidance_test.rb
 behavior/nav/soulstones1_field_moves_test.rb
 behavior/nav/ss2_naming_gd_test.rb
 behavior/nav/step_guide_test.rb

@@ -2277,6 +2277,12 @@ unhidden=Mostrado %{name}
 # puzles de rejilla
 lbl_puzzle_assist=Ayuda en puzles
 help_puzzle_assist=Con esta opción activada recibes más información y pistas para resolver los puzles, como lo que abriría o cerraría cada control y cuánto le falta a una pieza para llegar a su meta. Además, las rutas pueden encadenar el empuje de varias rocas de Fuerza y llevarte antes a la losa o la palanca que abre el paso, y la categoría puzles ofrece la meta de una pieza con la ruta que la empuja hasta allí. Desactivada, solo oyes lo mínimo: tu posición y el estado de cada elemento; una ruta solo te hace empujar la roca que corta el camino, y si el paso depende de un control, no hay ruta.
+lbl_scene_guidance=Guía de escenas
+help_scene_guidance=Muestra escenas invisibles activas reconocidas y las señala con sonidos de controles. La elección se guarda.
+tcat_scenes=Activadores de escenas
+loc_scene_trigger=Activador de escena
+scene_step_onto=Pisa este punto para iniciar la escena.
+scene_touch=Toca este punto para iniciar la escena.
 lbl_auto_detect=Autodetección de menús
 help_auto_detect=Lee automáticamente los menús que el mod no conoce a partir del texto interno de la ventana (no de la pantalla, así que es preciso). Si alguna pantalla se lee dos veces o de más, desactiva esta opción.
 lbl_read_help=Leer ayudas de menú

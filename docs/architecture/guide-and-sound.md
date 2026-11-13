@@ -38,6 +38,7 @@ map has something of their kind (`Locator.active_categories`). What each categor
 - `:puzzles`: the targets of the map's puzzle (`Puzzles.category_targets`), while it has any.
 - `:lens`: the Lens of Truth tiles (`#EOT` events), on a map that holds one.
 - `:marks`: the player's own markers, on a map that carries one.
+- `:scenes`: recognized active invisible touch scenes that change lasting game state, while `scene_guidance` is on. The existing control cue sounds them; `read_help` gates activation advice. The active page is read without running it or searching future pages.
 
 Rules come before detection. A [profile](../reference/glossary.md) files events with its `event_category` rules
 and hides them with `event_hidden` ([profile DSL](../reference/profile-dsl.md)). The category the player gives an
