@@ -6,7 +6,7 @@ require File.expand_path("reference_names", File.dirname(__FILE__))
 class HookedClassesTest < PokeAccessTest
   ROOT = File.expand_path("../..", File.dirname(__FILE__))
   DIR = File.dirname(__FILE__)
-  SOURCES = 35
+  SOURCES = 36
   CENSUSES = %w[ivar_census.txt fangame_classes.txt plugin_census.txt all_classes.txt loop_census.txt
                 arity_census.txt].freeze
   # The registration shapes that take a class name as a literal string; scene_classes takes several at once.

@@ -6,7 +6,7 @@
 # format: <DetectionProbe> = <profile>, <profile>...   (empty = no surveyed game ships it)
 # A probe is a class name, or Class#method for a plugin that brings no class of its own and is
 # only given away by a method it adds to one the engine already has.
-# surveyed profiles (35): africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier
+# surveyed profiles (36): africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier, xenoverse
 AdvancedPokedexScene = desolation, perseida, pokemon_z, rejuvenation, vitro
 AdvancedWorldTournament = emerald
 AlbumFotos_Scene = anil, royal
@@ -36,7 +36,7 @@ GachaScene = awakening, perseida, royal
 Game_Character#on_middle_of_stair? = anil, darkhorizon, gruelinggold, realidea, royal, worldfrontier
 Game_Player#move_left_stairs = edas, perseida, vitro
 Game_Screen#aUpdateRadar = soulstones1, soulstones2
-GenOneStyle = africanus, armonia, awakening, edas, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, sevii, vitro
+GenOneStyle = africanus, armonia, awakening, edas, infinitefusion, infinitefusion_hoenn, opalo, pokemon_z, realidea, sevii, vitro, xenoverse
 GenderSelectorScene = darkhorizon, royal, uranium, vitro, worldfrontier
 GetKeyItemScene = anil, darkhorizon, reminiscencia, royal, worldfrontier
 HM_Catalogue = gruelinggold
@@ -49,7 +49,7 @@ ItemBerryPots_Scene = gruelinggold, herolegacy, keishou, royal, vitro
 ItemCraft_Scene = awakening, emerald, herolegacy, keishou, perseida, pokemon_z, soulstones2
 LBDSKY = anil, revival, royal, worldfrontier
 LairMapScene = fireash, goldencrown, keishou
-Log = ashenfrost, awakening, edas, perseida, realidea, reminiscencia, vitro, worldfrontier
+Log = ashenfrost, awakening, edas, perseida, realidea, reminiscencia, vitro, worldfrontier, xenoverse
 Logros_Scene = africanus, awakening, perseida, pokemon_z, reminiscencia, royal, worldfrontier
 MaxRaidScene = fireash, goldencrown, keishou
 MementoSprite = decades, royal, worldfrontier
@@ -60,17 +60,17 @@ ModularSelection_Scene = decades
 ModularTitleScreen = anil, darkhorizon, decades, emerald, gruelinggold, revival, royal, worldfrontier
 MostrarPokemonAnimado = anil, pokemon_z, royal, worldfrontier
 MoveInfoScene = vitro
-MysteryGiftScene = perseida, vitro
-NewChoiceSel = sevii, uranium
+MysteryGiftScene = perseida, vitro, xenoverse
+NewChoiceSel = sevii, uranium, xenoverse
 Object#autosaveAnim = awakening, edas, perseida, vitro
 Object#pbBlackJack = 
 Object#pbCallFlute = ashenfrost
 Object#pbPiano = 
-Object#renderBadgeAnimation = africanus, anil, armonia, edas, opalo, perseida, pokemon_z, realidea, royal, vitro
+Object#renderBadgeAnimation = africanus, anil, armonia, edas, opalo, perseida, pokemon_z, realidea, royal, vitro, xenoverse
 PartyPicture = anil, royal
 Phenomenon = goldencrown
 PokeBattle_Scene#pbBreakBar = awakening, edas, perseida
-PokeBattle_Scene#showAbilityMessage = sevii, uranium
+PokeBattle_Scene#showAbilityMessage = sevii, uranium, xenoverse
 PokeSearch_Scene = goldencrown
 PokeTetra = 
 PokedexListSprite = emerald
@@ -90,10 +90,10 @@ PokemonPartyShowcase_Scene = soulstones2
 PokemonPokedexInfo_Scene#displaySubPage = awakening, relict, soulstones1
 PokemonPokegearTheme_Scene = anil, herolegacy, revival, royal, worldfrontier
 PokemonPokegear_Scene#initialize_watch = anil, herolegacy, revival, royal, worldfrontier
-PokemonRegionMapScene#drawRoamingPosition = perseida, vitro
+PokemonRegionMapScene#drawRoamingPosition = perseida, vitro, xenoverse
 PokemonRegionMap_Scene#updateSpeciesInfo = decades, herolegacy, royal
 PokemonSave_Scene#pbUpdateSlotInfo = anil, ashenfrost, decades, emerald, infinitefusion, infinitefusion_hoenn, keishou, royal, soulstones2, worldfrontier
-PokemonStarterSelection = armonia, perseida
+PokemonStarterSelection = armonia, perseida, xenoverse
 PokemonSummaryScene#Habilidades = armonia, pokemon_z
 PokemonSummaryScene#drawPageInfo = vitro
 PokemonSummaryScene#drawPageSix = insurgence, sevii

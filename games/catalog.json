@@ -412,6 +412,22 @@
       "detect": "world[ _-]?frontier",
       "exes": [],
       "engine": "gamedata"
+    },
+    {
+      "key": "xenoverse",
+      "display": "Pokemon Xenoverse (experimental, source 1.5.5)",
+      "titles": [
+        "xenoverse",
+        "pokemon xenoverse",
+        "pokémon xenoverse"
+      ],
+      "detect": "xenoverse",
+      "exes": [],
+      "engine": "gen6",
+      "markers": [
+        "snGame_n.exe"
+      ],
+      "compat": "compat.rb"
     }
   ]
 }
