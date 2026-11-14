@@ -109,7 +109,7 @@ class ZHiddenSpaTest < PokeAccessTest
   test "lists the clown for the third riddle" do
     on_map(ENTRANCE, 5)
     place(23, 32, 25, [TestCmd.new(101, ["!"])], "payaso")
-    assert_equal [spot(32, 25, t(:z_spa_clown))], PokeAccess::Puzzles.category_targets
+    assert_equal [spot(32, 25, t(:z_spa_clown), 23)], PokeAccess::Puzzles.category_targets
   end
 
   test "sends the player to Urano's challenge once the paintings are solved, then leaves the info key alone" do
@@ -166,8 +166,8 @@ class ZHiddenSpaTest < PokeAccessTest
   end
 
   # A named point, as the locator lists it.
-  def spot(x, y, name)
-    PokeAccess::Locator::SurfaceTarget.new(x, y, name, :puzzle_spot, nil)
+  def spot(x, y, name, ref = nil)
+    PokeAccess::Locator::SurfaceTarget.new(x, y, name, :puzzle_spot, ref)
   end
 
   # Painting n showing value, as said.

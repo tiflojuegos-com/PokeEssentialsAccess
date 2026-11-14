@@ -83,7 +83,7 @@ class ZStoryPuzzlesTest < PokeAccessTest
     { 88 => [[2, 18, 19], :z_lanto_mirror_alt], 94 => [[9, 10, 11], :z_lanto_mirror_real] }.each do |map, (ids, key)|
       on_map(map)
       mirrors = ids.each_with_index.map { |id, i| place(id, 30 + i, 15, [TestCmd.new(201, [0, map, 1, 1])]) }
-      assert_equal mirrors.map { |m| spot(m.x, m.y, key) }, targets, "map #{map}"
+      assert_equal mirrors.map { |m| spot(m.x, m.y, key, m.id) }, targets, "map #{map}"
       mirrors.each { |m| assert_equal t(key), PokeAccess::Locator.target_name(m), "map #{map}, event #{m.id}" }
     end
   end
@@ -137,7 +137,7 @@ class ZStoryPuzzlesTest < PokeAccessTest
   test "lists the chalice until it is filled" do
     on_map(86)
     chalice = place(12, 30, 20, [TestCmd.new(101, ["!"])], :sprite => "flecha")
-    assert_equal [spot(30, 20, :z_lanto_chalice)], targets
+    assert_equal [spot(30, 20, :z_lanto_chalice, 12)], targets
     assert_equal t(:z_lanto_chalice), PokeAccess::Locator.target_name(chalice)
     $game_self_switches[[86, 12, "A"]] = true
     assert_empty targets
@@ -147,7 +147,7 @@ class ZStoryPuzzlesTest < PokeAccessTest
     on_map(109)
     $game_variables[89] = 6
     button = place(2, 26, 10, [TestCmd.new(101, ["..."])], :name => "boton(2,1)")
-    assert_equal [spot(26, 10, :z_lanto_button)], targets
+    assert_equal [spot(26, 10, :z_lanto_button, 2)], targets
     assert_equal t(:z_lanto_button), PokeAccess::Locator.target_name(button)
     assert_equal "", PokeAccess::Puzzles.info_line.to_s
     assist_on
@@ -204,13 +204,13 @@ class ZStoryPuzzlesTest < PokeAccessTest
     on_map(126)
     table = place(2, 35, 22, [TestCmd.new(121, [265, 265, 0])])
     place(14, 5, 24, [TestCmd.new(121, [266, 266, 0])], :sprite => "palancas")
-    assert_equal [spot(35, 22, :z_fort_table), spot(5, 24, :z_fort_lever)], targets
+    assert_equal [spot(35, 22, :z_fort_table, 2), spot(5, 24, :z_fort_lever, 14)], targets
     assert_equal t(:z_fort_table), PokeAccess::Locator.target_name(table)
     tick
     assert_equal "#{t(:z_fort_table)}: #{t(:z_fort_still)}. #{t(:z_fort_cell)}: #{t(:z_fort_closed)}", info_key
     $game_switches[265] = true
     assert_equal [["#{t(:z_fort_table)}: #{t(:z_fort_moved)}", false]], tick
-    assert_equal [spot(35, 22, :z_fort_way_out), spot(5, 24, :z_fort_lever)], targets
+    assert_equal [spot(35, 22, :z_fort_way_out, 2), spot(5, 24, :z_fort_lever, 14)], targets
     assert_equal t(:z_fort_way_out), PokeAccess::Locator.target_name(table)
     refute_includes info_key, t(:z_fort_hint)
     assist_on
@@ -226,7 +226,7 @@ class ZStoryPuzzlesTest < PokeAccessTest
     assert_empty targets, "no talisman"
     assert_equal "", PokeAccess::Puzzles.info_line.to_s
     $PokemonBag = HeldBag.new([:TALISMANMALVO])
-    assert_equal [spot(74, 25, :z_chair)], targets
+    assert_equal [spot(74, 25, :z_chair, 94)], targets
     assert_equal [], tick
     assert_equal "", PokeAccess::Puzzles.info_line.to_s
     assist_on
@@ -416,7 +416,7 @@ class ZStoryPuzzlesTest < PokeAccessTest
     assert_empty targets
     refute_equal t(:z_romantis_symbol), PokeAccess::Locator.target_name(symbol)
     $game_switches[479] = true
-    assert_equal [spot(13, 29, :z_romantis_symbol)], targets
+    assert_equal [spot(13, 29, :z_romantis_symbol, 4)], targets
     assert_equal t(:z_romantis_symbol), PokeAccess::Locator.target_name(symbol)
     $game_switches[493] = true
     assert_empty targets
@@ -732,8 +732,8 @@ class ZStoryPuzzlesTest < PokeAccessTest
       place(id, x, y, [TestCmd.new(201, [0, 473, tx, ty])], :trigger => 1)
     end
     on_map(473)
-    expected = [spot(7, 5, :z_lanto_mirror_alt), spot(22, 42, :z_lanto_mirror_alt), spot(56, 5, :z_lanto_mirror_real),
-                spot(71, 42, :z_lanto_mirror_real)]
+    expected = [spot(7, 5, :z_lanto_mirror_alt, 38), spot(22, 42, :z_lanto_mirror_alt, 64), spot(56, 5, :z_lanto_mirror_real, 39),
+                spot(71, 42, :z_lanto_mirror_real, 65)]
     stand(37, 8)
     assert_equal expected, targets
     assert_equal t(:z_lanto_mirror_alt), PokeAccess::Locator.target_name($game_map.events[38])
@@ -922,8 +922,8 @@ class ZStoryPuzzlesTest < PokeAccessTest
     end
     stand(29, 55)
     tick
-    assert_equal [spot(19, 42, :z_fractal_button), spot(40, 42, :z_fractal_button), spot(35, 24, :z_fractal_button),
-                  spot(24, 24, :z_fractal_button)], targets
+    assert_equal [spot(19, 42, :z_fractal_button, 71), spot(40, 42, :z_fractal_button, 72), spot(35, 24, :z_fractal_button, 87),
+                  spot(24, 24, :z_fractal_button, 94)], targets
     assert_equal "", PokeAccess::Puzzles.info_line.to_s
     assist_on
     assert_equal t(:z_fractal_go1), info_key
@@ -931,7 +931,7 @@ class ZStoryPuzzlesTest < PokeAccessTest
     tick
     $game_switches[569] = true
     assert_equal [["#{t(:z_fractal_mid)}: #{t(:z_fractal_open)}", false], [t(:z_fractal_go2), false]], tick
-    refute_includes targets, spot(19, 42, :z_fractal_button)
+    refute_includes targets, spot(19, 42, :z_fractal_button, 71)
     assert_includes targets, hidden(72, 40, 42, :puzzle_right_way)
     $game_switches[571] = true
     $game_switches[569] = false
@@ -1321,8 +1321,8 @@ class ZStoryPuzzlesTest < PokeAccessTest
   end
 
   # A named point, as the locator lists it.
-  def spot(x, y, key)
-    PokeAccess::Locator::SurfaceTarget.new(x, y, t(key), :puzzle_spot, nil)
+  def spot(x, y, key, ref = nil)
+    PokeAccess::Locator::SurfaceTarget.new(x, y, t(key), :puzzle_spot, ref)
   end
 
   # A hidden event still to find, as the locator lists it.

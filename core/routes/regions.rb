@@ -262,8 +262,13 @@ module PokeAccess
           @frame = f
           @deadline = PokeAccess.clock + (c.route_budget_ms rescue 12).to_i / 1000.0
           @top_up = @share / 10
+          @time_asked = false
         end
-        return [nil, @deadline] if mode == :time
+        if mode == :time
+          return nil if @time_asked && PokeAccess.clock >= @deadline
+          @time_asked = true
+          return [nil, @deadline]
+        end
         n = @left > 0 ? @left : @top_up
         n > 0 ? [n, nil] : nil
       end

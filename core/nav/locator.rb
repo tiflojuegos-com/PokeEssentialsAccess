@@ -139,8 +139,32 @@ module PokeAccess
         list = $game_map.events.values.select { |ev| in_category?(ev, cat) && !hidden?(ev) }
         list = cluster_exits(list, $game_player.x, $game_player.y)
         list.concat(connection_targets.map { |t| aim_connection(t) }.compact) if cat == :exits || cat == :all
-        list
+        cat == :all ? everything_targets(list) : list
       end
+    end
+
+    # Everything uses each provider's eligibility rules. Puzzle representations replace their ordinary event,
+    # while distinct floor spots, surfaces and player marks keep their own stable identities.
+    def self.everything_targets(events)
+      puzzles = candidates(:puzzles).reject { |t| (ev = puzzle_event_of(t)) && tag_hidden?(ev) }
+      replaced = {}
+      puzzles.each { |t| ev = puzzle_event_of(t); replaced[ev.id] = true if ev }
+      list = events.reject { |ev| !ev.is_a?(SurfaceTarget) && replaced.key?(ev.id) }
+      list = list + puzzles + candidates(:surfaces) + candidates(:marks)
+      seen = {}
+      list.select do |t|
+        id = identity(t)
+        fresh = !seen.key?(id)
+        seen[id] = true
+        fresh
+      end
+    end
+
+    # A puzzle target may stand for an event at its actual tile; coordinate-only spots have no backing event.
+    def self.puzzle_event_of(t)
+      return nil unless t.is_a?(SurfaceTarget) && t.ref.is_a?(Integer)
+      ev = $game_map.events[t.ref]
+      ev && ev.x == t.x && ev.y == t.y ? ev : nil
     end
 
     # The targets of all to list in category cat: with hide_noninteractive only interactable ones (but in lens); while
@@ -310,10 +334,10 @@ module PokeAccess
     end
 
     # How many rooms away the target lies, by the fewest transfers to other spots of the map on the way: 0 in the
-    # player's own. Nil unless rooms_apart?, for a synthetic target but a map edge, and until the regions are all
-    # walked and reach it.
+    # player's own. Nil unless rooms_apart? and until the regions are all walked and reach it. Synthetic targets
+    # need the same room result when they join Everything; their dedicated categories still bypass room grouping.
     def self.room_depth(t)
-      return nil if t.nil? || (t.is_a?(SurfaceTarget) && !edge?(t)) || !rooms_apart?
+      return nil if t.nil? || !rooms_apart?
       s = reach_status(t)
       s[0] == :yes && PokeAccess::Routes::Regions.foot.done? ? s[1] : nil
     rescue StandardError => e

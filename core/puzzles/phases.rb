@@ -203,6 +203,7 @@ module PokeAccess
     end
 
     # Named points as targets, while they are listed: a fixed tile, or where an event stands.
+    # Event-based spots retain their source ID; explicit coordinates stay independent.
     def self.spot_targets(spots)
       (spots || []).map do |sp|
         next nil if (sp[:assist] && !assist?) || (sp[:when] && !PokeAccess::World::Mechanics.truth(sp[:when]))
@@ -211,7 +212,8 @@ module PokeAccess
           ev = ($game_map.events[sp[:event]] rescue nil)
           xy = ev && [ev.x, ev.y]
         end
-        xy ? PokeAccess::Locator::SurfaceTarget.new(xy[0], xy[1], label_of(sp[:label]), sp[:onto] ? :puzzle_cell : :puzzle_spot) : nil
+        ref = sp[:at] ? nil : sp[:event]
+        xy ? PokeAccess::Locator::SurfaceTarget.new(xy[0], xy[1], label_of(sp[:label]), sp[:onto] ? :puzzle_cell : :puzzle_spot, ref) : nil
       end.compact
     end
 

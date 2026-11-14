@@ -27,8 +27,9 @@ locator makes itself, such as surfaces and map edges, in `core/nav/locator_surfa
 The player cycles the categories of `Config.categories`. `:puzzles`, `:lens` and `:marks` join them only while the
 map has something of their kind (`Locator.active_categories`). What each category lists:
 
-- `:all`: every event with a sprite, every transfer, every examinable event and every lens tile, and the map edges
-  the player can step off.
+- `:all`: every event with a sprite, every transfer, every examinable event and every lens tile, the map edges
+  the player can step off, and all eligible puzzle, surface and player-marker targets. Each provider keeps its
+  normal eligibility rules. A puzzle control replaces its ordinary event entry; distinct targets keep their identity.
 - `:people` and `:objects`: events with a sprite that are not exits, split by `Locator.event_category`. A hazard, an
   item ball, a lever or a container is an object.
 - `:exits`: transfer events, a wide doorway as one target, and the map edges that lead to a connected map.
@@ -44,8 +45,9 @@ and hides them with `event_hidden` ([profile DSL](../reference/profile-dsl.md)).
 event in the Ctrl+K menu (`PokeAccess::Tags`) wins over the profile's and the detected one. An event the player or
 the profile hides is left out of the locator and the sonar.
 
-`hide_noninteractive` and `hide_unreachable` filter the event categories. The categories the locator makes itself
-are never hidden by reach (`Locator::SYNTHETIC`). `target_order` sorts a list by distance, by the presses to walk
+`hide_noninteractive` and `hide_unreachable` filter the ordinary categories, including all target kinds in
+Everything. Synthetic targets use their actual route and room there. The dedicated categories the locator makes
+itself are never hidden by reach (`Locator::SYNTHETIC`). `target_order` sorts a list by distance, by the presses to walk
 there or in a fixed order. Each target keeps an identity across rebuilds, an event's id or a synthetic target's key,
 so the selection survives a rebuilt list (`Locator.identity`).
 
