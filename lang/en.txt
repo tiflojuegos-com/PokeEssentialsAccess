@@ -3865,6 +3865,7 @@ vitro_whirlpool=Whirlpool
 vitro_fallen_rock=Fallen boulder
 vitro_hole=Hole
 vitro_torch=Torch
+xenoverse_torch=Torch
 vitro_torch_unlit=Unlit torch
 vitro_torch_lit=Lit torch
 vitro_dust_cloud=Dust cloud

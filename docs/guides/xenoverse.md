@@ -25,6 +25,11 @@ visible. Map/NPC names follow the game's translation API; verified healing
 centers are recognized from their original nurse events. No event Ruby is
 evaluated to invent a label.
 
+Ambient torches appear as objects in the locator, including Everything. Their
+names follow the Access language. Verified NPC portraits provide each current
+speaker's name through the game's translation, including Nicholas and the
+Proxim Island researchers. Player labels and category choices take precedence.
+
 The game's Bag paints Q/W for left/right, Z for confirm and X for cancel; the
 profile preserves those actual key hints. Field-move rules intentionally remain
 unnamed until the PokeWES rules are verified. Generic obstacle descriptions are

@@ -15,9 +15,15 @@ module PokeAccess
     # Only literal names and portrait paths are read; never evaluate event Ruby.
     MUGSHOT = /\A\s*fbNewMugshot\s*\(\s*(["'])([^"'\\#\r\n]+)\1\s*,\s*(["'])([^"'\\#\r\n]+)\3\s*,/
 
-    # The actual leader uses a different overworld sprite and portrait filename.
-    # Only this verified asset pair is an alias; names still use game translation.
-    PORTRAIT_ALIASES = { "capopalestra1" => "ludopoli/danilo" }.freeze
+    # Verified overworld/portrait pairs; names still come from each active page
+    # and the game's translation, even when two scientists share their assets.
+    PORTRAIT_ALIASES = {
+      "capopalestra1" => "ludopoli/danilo",
+      "anziano + naso" => "ludopoli/vecchio",
+      "scienziato" => "allenatori/professore"
+    }.freeze
+
+    TORCH_NO_OP_CODES = [0, 108, 408].freeze
 
     def self.sprite_key(path)
       path.to_s.tr('\\', '/').split('/').last.to_s.sub(/\.png\z/i, '').downcase
@@ -28,6 +34,18 @@ module PokeAccess
       return true if sprite_key(path) == key
       normalized = path.to_s.tr('\\', '/').sub(/\.png\z/i, '').downcase
       PORTRAIT_ALIASES[key] == normalized
+    end
+
+    # Ambient Fiaccola events have only a terminator/comments on their active
+    # action page. Never classify an actor or mechanism from a future page.
+    def self.torch?(event)
+      return false unless sprite_key(event.character_name) == "fiaccola"
+      return false unless PokeAccess.ivar(event, :@trigger) == 0
+      list = PokeAccess.ivar(event, :@list)
+      list.is_a?(Array) && !list.empty? && list.all? { |command| TORCH_NO_OP_CODES.include?(command.code) }
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      false
     end
 
     CENTER_START = /\A\s*(?:Kernel\.)?pbSetPokemonCenter(?:\(\s*\))?\s*\z/
@@ -77,6 +95,11 @@ module PokeAccess
     # Fullbox localizes its literal speaker using this same map-specific table.
     def self.event_name(event)
       locator = PokeAccess::Locator
+      if torch?(event)
+        name = locator.own_name(event)
+        return PokeAccess::I18n.t(:xenoverse_torch) if name.downcase == "fiaccola" || locator.placeholder_name?(name)
+        return nil
+      end
       sprite = event.character_name.to_s
       return nil if sprite.empty? || !locator.placeholder_name?(locator.own_name(event))
       list = PokeAccess.ivar(event, :@list)
@@ -113,4 +136,5 @@ PokeAccess::Game.define("xenoverse") do
     original.call || PokeAccess::XenoverseNaming.pokecenter?(metadata, args[0])
   end
   event_name { |event| PokeAccess::XenoverseNaming.event_name(event) }
+  event_category(:objects) { |event| PokeAccess::XenoverseNaming.torch?(event) }
 end

@@ -3869,6 +3869,7 @@ vitro_whirlpool=Tourbillon
 vitro_fallen_rock=Rocher tombé
 vitro_hole=Trou
 vitro_torch=Torche
+xenoverse_torch=Torche
 vitro_torch_unlit=Torche éteinte
 vitro_torch_lit=Torche allumée
 vitro_dust_cloud=Nuage de poussière

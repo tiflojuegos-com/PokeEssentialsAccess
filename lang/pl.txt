@@ -3869,6 +3869,7 @@ vitro_whirlpool=Wir
 vitro_fallen_rock=Spadły głaz
 vitro_hole=Dziura
 vitro_torch=Pochodnia
+xenoverse_torch=Pochodnia
 vitro_torch_unlit=Zgaszona pochodnia
 vitro_torch_lit=Zapalona pochodnia
 vitro_dust_cloud=Chmura pyłu

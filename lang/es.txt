@@ -3867,6 +3867,7 @@ vitro_whirlpool=Torbellino
 vitro_fallen_rock=Roca caída
 vitro_hole=Agujero
 vitro_torch=Antorcha
+xenoverse_torch=Antorcha
 vitro_torch_unlit=Antorcha apagada
 vitro_torch_lit=Antorcha encendida
 vitro_dust_cloud=Polvareda

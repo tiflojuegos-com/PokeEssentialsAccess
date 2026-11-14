@@ -3859,6 +3859,7 @@ vitro_whirlpool=Strudel
 vitro_fallen_rock=Gefallener Felsen
 vitro_hole=Loch
 vitro_torch=Fackel
+xenoverse_torch=Fackel
 vitro_torch_unlit=Erloschene Fackel
 vitro_torch_lit=Brennende Fackel
 vitro_dust_cloud=Staubwolke

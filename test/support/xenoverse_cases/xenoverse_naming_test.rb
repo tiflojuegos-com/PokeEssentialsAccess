@@ -164,6 +164,83 @@ class XenoverseNamingTest < PokeAccessTest
       assert_nil Naming.event_name(event([script, script.sub('Alisso', 'Other')], 'Capopalestra1'))
     end
   end
+
+  def test_verified_proxim_portraits_use_each_events_literal_translated_speaker
+    [['Anziano + naso', 'ludopoli/vecchio', 'Niccolò', 'Nicholas'],
+     ['scienziato', 'allenatori/professore', 'Rem', 'Rem'],
+     ['scienziato', 'allenatori/professore', 'Pippo', 'Pippo']].each do |sprite, portrait, original, translated|
+      actor = event(["fbNewMugshot(\"#{original}\",\"#{portrait}\",\"default\",:left)"], sprite)
+      calls = []
+      with_translation(lambda { |map, name| calls << [map, name]; translated }) do
+        assert_equal translated, Loc.target_name(actor)
+        assert_equal [[$game_map.map_id, original]], calls
+      end
+    end
+  end
+
+  def test_proxim_aliases_reject_other_portraits_and_ambiguous_speakers_and_keep_user_names
+    [['Anziano + naso', 'ludopoli/vecchio'], ['scienziato', 'allenatori/professore']].each do |sprite, portrait|
+      script = "fbNewMugshot('Speaker','#{portrait}','default',:left)"
+      with_translation do
+        assert_nil Naming.event_name(event([script.sub(portrait, 'other/' + portrait.split('/').last)], sprite))
+        assert_nil Naming.event_name(event([script], 'Other ' + sprite))
+        assert_nil Naming.event_name(event([script, script.sub('Speaker', 'Other')], sprite))
+        assert_nil Naming.event_name(event([script], sprite, 'My guide'))
+        actor = event([script], sprite)
+        with_singleton(PokeAccess::Tags, :get, lambda { |_map, _id| 'My speaker' }) do
+          assert_equal 'My speaker', Loc.target_name(actor)
+        end
+      end
+    end
+  end
+
+  def torch_event(opts = {})
+    page = TestPage.new({:sprite => 'Fiaccola', :list => [TestCmd.new(0, [])]}.merge(opts))
+    TestGameEvent.new(:name => 'Fiaccola', :pages => [page])
+  end
+
+  def test_stationary_torches_are_objects_in_everything_and_keep_player_category_overrides
+    actor = torch_event
+    assert_equal :objects, Loc.event_category(actor)
+    assert Loc.in_category?(actor, :objects)
+    assert Loc.in_category?(actor, :all)
+    refute Loc.in_category?(actor, :people)
+    with_singleton(Loc, :tag_override, lambda { |_event| :people }) do
+      assert Loc.in_category?(actor, :people)
+      refute Loc.in_category?(actor, :objects)
+    end
+  end
+
+  def test_torch_detection_reads_only_the_active_no_op_action_page
+    assert Naming.torch?(torch_event(:sprite => 'Characters/FIACCOLA.png',
+      :list => [TestCmd.new(108, ['Comment']), TestCmd.new(408, ['Continuation']), TestCmd.new(0, [])]))
+    [1, 2, 3, 4].each { |trigger| refute Naming.torch?(torch_event(:trigger => trigger)) }
+    [101, 102, 111, 121, 126, 201, 355, 655].each do |code|
+      refute Naming.torch?(torch_event(:list => [TestCmd.new(code, ['raise "Must not execute"']), TestCmd.new(0, [])]))
+    end
+    ['', 'Fiaccola2', 'Other'].each { |sprite| refute Naming.torch?(torch_event(:sprite => sprite)) }
+    [nil, []].each { |list| refute Naming.torch?(torch_event(:list => list)) }
+    current = TestPage.new(:sprite => 'Fiaccola', :list => [TestCmd.new(101, ['Talking actor'])])
+    future = TestPage.new(:sprite => 'Fiaccola', :list => [TestCmd.new(0, [])])
+    actor = TestGameEvent.new(:pages => [current, future], :active_page => current)
+    refute Naming.torch?(actor)
+  end
+
+  def test_torch_name_uses_access_translation_and_preserves_meaningful_names_and_tags
+    calls = []
+    with_singleton(PokeAccess::I18n, :t, lambda { |key| calls << key; 'Translated torch' }) do
+      actor = torch_event
+      assert_equal 'Translated torch', Loc.target_name(actor)
+      assert_equal [:xenoverse_torch], calls
+      actor.name = 'Memorial flame'
+      assert_nil Naming.event_name(actor)
+      actor.name = 'EV018'
+      assert_equal 'Translated torch', Loc.target_name(actor)
+      with_singleton(PokeAccess::Tags, :get, lambda { |_map, _id| 'My light' }) do
+        assert_equal 'My light', Loc.target_name(actor)
+      end
+    end
+  end
 end
 
 exit(Minitest.run(ARGV) ? 0 : 1)

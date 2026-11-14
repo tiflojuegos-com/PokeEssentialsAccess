@@ -3881,6 +3881,7 @@ vitro_whirlpool=Redemoinho
 vitro_fallen_rock=Rocha caída
 vitro_hole=Buraco
 vitro_torch=Tocha
+xenoverse_torch=Tocha
 vitro_torch_unlit=Tocha apagada
 vitro_torch_lit=Tocha acesa
 vitro_dust_cloud=Nuvem de poeira
