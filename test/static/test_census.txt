@@ -514,6 +514,8 @@ behavior/nav/map_names_gd_test.rb
 behavior/nav/marks_test.rb
 behavior/nav/memo_fingerprint_test.rb
 behavior/nav/other_room_test.rb
+behavior/nav/pc_targets_gd_test.rb
+behavior/nav/pc_targets_test.rb
 behavior/nav/quest_marker_test.rb
 behavior/nav/realidea_passability_test.rb
 behavior/nav/region_map_cursor_test.rb

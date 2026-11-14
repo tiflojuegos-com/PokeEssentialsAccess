@@ -30,7 +30,9 @@ map has something of their kind (`Locator.active_categories`). What each categor
 - `:all`: every event with a sprite, every transfer, every examinable event and every lens tile, and the map edges
   the player can step off.
 - `:people` and `:objects`: events with a sprite that are not exits, split by `Locator.event_category`. A hazard, an
-  item ball, a lever or a container is an object.
+  item ball, a lever or a container is an object. An active action-button PC terminal is also an object when the
+  map tiles draw the computer and its event has no sprite; it uses the existing object cue. Inactive PC pages and
+  autoruns do not turn an otherwise empty event into a terminal.
 - `:exits`: transfer events, a wide doorway as one target, and the map edges that lead to a connected map.
 - `:signs`: events without a sprite that show text when examined and do not transfer.
 - `:extras`: the other examinable events without a sprite.
