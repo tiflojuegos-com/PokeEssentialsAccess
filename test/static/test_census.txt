@@ -80,6 +80,8 @@ behavior/core/ashenfrost_profile_gd_test.rb
 behavior/core/clara_common_test.rb
 behavior/core/desolation_profile_test.rb
 behavior/core/dialogue_pages_test.rb
+behavior/core/early_language_preload_gd_test.rb
+behavior/core/early_language_preload_test.rb
 behavior/core/edas_profile_test.rb
 behavior/core/gruelinggold_fight_menu_test.rb
 behavior/core/insurgence_profile_test.rb
