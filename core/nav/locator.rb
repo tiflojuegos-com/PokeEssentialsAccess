@@ -61,7 +61,7 @@ module PokeAccess
         return true if cat == :all
         return cat == ov
       end
-      named = !ev.character_name.to_s.empty?
+      named = !ev.character_name.to_s.empty? || pc_event?(ev)
       case cat
       when :exits  then transfer_event?(ev)
       when :signs  then sign_event?(ev)

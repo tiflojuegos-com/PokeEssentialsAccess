@@ -1176,6 +1176,7 @@ module PokeAccess
     def self.event_category(ev)
       ruled = ruled_category(ev)
       return ruled if ruled
+      return :objects if pc_event?(ev)
       kind = toggle_kind(ev)
       return :objects if hazard?(ev) || item_ball?(ev) || fieldmove_label(ev) || kind == :lever || kind == :container
       return :people if transfer_person?(ev)
@@ -1190,9 +1191,12 @@ module PokeAccess
       (ev.tile_id rescue 0).to_i > 0
     end
 
-    # True if an event runs the Essentials PC script.
+    # True if the current action-button page runs an Essentials PC call; inactive pages and autoruns are not terminals.
     def self.pc_event?(ev)
-      !!script_call_find(ev) { |s| s =~ /pbPokeCenterPC|pbPokemonPC|pbTrainerPC|PokemonPC/ }
+      return false if pageless?(ev) || PokeAccess.ivar(ev, :@trigger) != 0
+      live = PokeAccess.ivar(ev, :@list)
+      return false unless live.is_a?(Array)
+      !!script_call_find(ev, [live]) { |s| s =~ /\b(?:pbPokeCenterPC|pbPokemonPC|pbTrainerPC|PokemonPC)\b/ }
     rescue StandardError => e
       PokeAccess.swallowed(e)
       false
