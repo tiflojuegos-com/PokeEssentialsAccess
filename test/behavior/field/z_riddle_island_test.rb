@@ -188,7 +188,7 @@ class ZRiddleIslandTest < PokeAccessTest
   test "lists the Pikachu itself and the arrow that puts it back, and Donphan's corner only with the assist" do
     on_island(PIKACHU)
     pikachu = pikachu_and_arrow
-    listed = [spot(30, 10, t(:riddle_king)), spot(12, 18, t(:riddle_reset)), pikachu]
+    listed = [spot(30, 10, t(:riddle_king)), spot(12, 18, t(:riddle_reset), 2), pikachu]
     assert_equal listed, PokeAccess::Puzzles.category_targets, "without the assist"
     PokeAccess::Config.puzzle_assist = true
     assert_equal listed + [target(54, 42, goal, :puzzle_goal, 16)], PokeAccess::Puzzles.category_targets,
@@ -354,8 +354,8 @@ class ZRiddleIslandTest < PokeAccessTest
   end
 
   # A named point of the island for the locator.
-  def spot(x, y, name)
-    target(x, y, name, :puzzle_spot)
+  def spot(x, y, name, ref = nil)
+    target(x, y, name, :puzzle_spot, ref)
   end
 
   # Sign n showing value, as said.

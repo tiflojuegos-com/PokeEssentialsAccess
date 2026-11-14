@@ -15,13 +15,13 @@ class OtherRoomTest < PokeAccessTest
     assert_equal [0, 1, 2], targets.map { |t| Locator.room_depth(t) }
   end
 
-  test "while hiding, a map edge lies its rooms away too, and a surface none" do
+  test "while hiding, map edges and synthetic targets have their real room depth" do
     rooms_world
     PokeAccess::Config.hide_unreachable = :unreachable
     edge = Locator::SurfaceTarget.new(15, 1, "salida a Ruta 7", nil, 7)
     water = Locator::SurfaceTarget.new(15, 1, "agua", :surf_water)
     assert_equal 2, Locator.room_depth(edge), "an edge"
-    assert_nil Locator.room_depth(water), "a surface"
+    assert_equal 2, Locator.room_depth(water), "a surface included in Everything"
   end
 
   test "while hiding, no target is counted in rooms while the regions are still walking" do
@@ -100,12 +100,12 @@ class OtherRoomTest < PokeAccessTest
     assert_equal [["Ana, #{nth(5)}, #{along(6, :dir_left)}, #{along(1, :dir_down)}, #{steps(6)}", true]], said(ana)
   end
 
-  test "with hiding off the note comes from the route said, without the regions walked for it" do
+  test "with hiding off the route still gives the room note after Everything collects surfaces" do
     berto = rooms_world[1]
     PokeAccess::Config.target_order = :near
     assert_equal [["Berto, #{one_room_away}, #{nth(3)}, #{along(2, :dir_right)}, #{steps(5)}", true]], said(berto),
                  "through one pad"
-    assert_equal false, PokeAccess::Routes::Regions.foot.done?, "the regions not walked"
+    assert_equal true, PokeAccess::Routes::Regions.foot.done?, "Everything also collects reachable surfaces"
   end
 
   test "with hiding off a target in the player's own room is said with no note" do

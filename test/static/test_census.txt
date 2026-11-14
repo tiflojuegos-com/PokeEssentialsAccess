@@ -484,6 +484,8 @@ behavior/nav/deferred_rebuild_test.rb
 behavior/nav/doorway_sprites_test.rb
 behavior/nav/event_memo_test.rb
 behavior/nav/event_rules_test.rb
+behavior/nav/everything_targets_gd_test.rb
+behavior/nav/everything_targets_test.rb
 behavior/nav/exit_naming_test.rb
 behavior/nav/field_gates_test.rb
 behavior/nav/field_move_profiles_test.rb

@@ -13,9 +13,9 @@ class ZKitchenTotemsTest < PokeAccessTest
   LUM = "Item205"
 
   test "lists each room's chart, box and pot as its turn comes, and none once the menu is cooked" do
-    { [] => [[5, 4], [26, 9], [8, 6]], [198] => [[49, 5], [47, 21], [52, 7]], [198, 199] => [[15, 47], [5, 47], [20, 35]] }.each do |on, at|
+    { [] => [[5, 4], [26, 9], [8, 6], [28, 31]], [198] => [[49, 5], [47, 21], [52, 7], [33, 36]], [198, 199] => [[15, 47], [5, 47], [20, 35], [39, 40]] }.each do |on, at|
       in_kitchen(on)
-      assert_equal [spot(at[0], :z_kitchen_chart), spot(at[1], :z_kitchen_box), spot(at[2], :z_kitchen_pot)],
+      assert_equal [spot(at[0], :z_kitchen_chart), spot(at[1], :z_kitchen_box, at[3][0]), spot(at[2], :z_kitchen_pot, at[3][1])],
                    PokeAccess::Puzzles.category_targets, "switches #{on.inspect}"
     end
     in_kitchen([198, 199, 201])
@@ -124,8 +124,8 @@ class ZKitchenTotemsTest < PokeAccessTest
   end
 
   # A named point, as the locator lists it.
-  def spot(at, key)
-    PokeAccess::Locator::SurfaceTarget.new(at[0], at[1], t(key), :puzzle_spot, nil)
+  def spot(at, key, ref = nil)
+    PokeAccess::Locator::SurfaceTarget.new(at[0], at[1], t(key), :puzzle_spot, ref)
   end
 
   # A totem still to touch, as the locator lists it.
