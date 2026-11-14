@@ -103,7 +103,15 @@ module UraniumCompat
   # Evaluates a script section at top level with its methods public, as mkxp-z's own call does (the game calls them
   # as Kernel.pbRgssOpen and the like), then its AFTER_SECTION step; one that does not compile is skipped and noted
   # instead of ending the boot. The public line goes as line 0, so the section keeps its own line numbers.
+  # The original reset guard launches Uranium.exe without the converted engine or its accessibility preload.
+  # mkxp resets this process and the mod rebinds its hooks; a native RGSS/Fmod relaunch is not needed.
   def self.eval_section(src, scope, file)
+    section = file.to_s.sub(/\A\d+:/, "").strip
+    if section == "Hard Reset" && src.to_s.include?("system('Uranium')")
+      skipped.push(file.to_s)
+      note("accessibility/compat_skipped.txt", ["#{file}: native relaunch skipped; using mkxp reset"], "a")
+      return nil
+    end
     r = Kernel.eval("public\n" + src.to_s, scope || TOPLEVEL_BINDING, file || "(eval)", 0)
     after_section(file)
     r

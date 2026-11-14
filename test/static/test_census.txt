@@ -658,6 +658,7 @@ static/shadowed_names_test.rb
 static/silent_io_test.rb
 static/silent_screens_triaged_test.rb
 static/uranium_compat_test.rb
+static/uranium_restart_compat_test.rb
 unit/battle/contest_timer_test.rb
 unit/battle/helpers_test.rb
 unit/data/provider_fallback_test.rb
