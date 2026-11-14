@@ -189,6 +189,7 @@
   nav/region_map
   nav/town_map
   nav/locator
+  nav/healing_zones
   puzzles/auto
   puzzles/reach
   nav/guide

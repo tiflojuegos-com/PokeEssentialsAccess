@@ -12,9 +12,9 @@ module PokeAccess
     # a script condition asks; pressed: a button branch it took asks for that key held down (Insurgence's stairs);
     # sent: net [dx, dy] of the first route the event runs on itself with Through on (through_net); sets: the switch ids
     # and self switch letters it turned on; stops: the steps of path on which the engine asks for a touch event (route);
-    # own: the routes the event runs on itself.
+    # own: the routes the event runs on itself; heals: the current branch restores the whole party.
     Outcome = Struct.new(:move, :path, :transfer, :bridge, :jump, :talks, :changes, :waits, :unknown, :maybe_transfer,
-                         :battle, :through, :held, :pressed, :sent, :sets, :stops, :own)
+                         :battle, :through, :held, :pressed, :sent, :sets, :stops, :own, :heals)
 
     DIAGONAL = { 5 => [-1, 1], 6 => [1, 1], 7 => [-1, -1], 8 => [1, -1] }
     TURN_RIGHT = { 2 => 4, 4 => 8, 6 => 2, 8 => 6 }
@@ -44,6 +44,8 @@ module PokeAccess
     # Script calls that belong to a cutscene: battles, messages, portraits, speech bubbles, a trainer noticing.
     TALK_SCRIPT = /pb\w*Battle|TrainerBattle|WildBattle|pbMessage|pbConfirmMessage|pbShowCommands|pbNoticePlayer|pbTrainerEnd|showMug|pbCallBub/
     BATTLE_SCRIPT = /pb\w*Battle|TrainerBattle|WildBattle/
+    # Known whole-party APIs as complete statements; arbitrary Ruby branches are not inferred.
+    HEAL_SCRIPT = /\A\s*(?:(?:Kernel\.)?pbHealAll|(?:\$Trainer|\$player)\.heal_party)\s*(?:\(\s*\))?\s*;?\s*\z/
     # Script calls that set something that stays: switches, self switches, variables, rewards.
     CHANGE_SCRIPT = /pbSetSelfSwitch|setTempSwitch|\$game_(?:switches|variables)\[[^\]]*\]\s*=(?!=)|pbReceiveItem|pbItemBall|pbAddPokemon/
     # A variable set to the answer of a question with options: "$game_variables[5] = pbMessage(..., [Yes, No])".
@@ -100,7 +102,7 @@ module PokeAccess
 
     # An outcome with nothing found yet.
     def self.blank
-      Outcome.new(nil, [], nil, nil, false, false, false, false, false, false, false, false, false, false, nil, [], [], [])
+      Outcome.new(nil, [], nil, nil, false, false, false, false, false, false, false, false, false, false, nil, [], [], [], false)
     end
 
     # Runs a list on paper against the walk's state. Returns :stop when the walk is over (a transfer, the end
@@ -144,6 +146,8 @@ module PokeAccess
         elsif TALK.include?(code)
           o.talks = true
           o.battle = true if code == BATTLE
+        elsif code == 314 && pars[0] == 0
+          o.heals = true
         elsif CHANGE.include?(code)
           o.changes = true
           o.sets.concat(turned_on(code, pars))
@@ -173,6 +177,7 @@ module PokeAccess
           o.bridge = ramp(s) || o.bridge
           o.talks = true if s =~ TALK_SCRIPT
           o.battle = true if s =~ BATTLE_SCRIPT
+          o.heals = true if s =~ HEAL_SCRIPT
           if st[:act] && (m = s.match(CHOICE_ASSIGN))
             st[:vars][m[1].to_i] = 0
           elsif s =~ CHANGE_SCRIPT
