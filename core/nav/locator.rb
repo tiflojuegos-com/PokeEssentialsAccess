@@ -138,6 +138,7 @@ module PokeAccess
       else
         list = $game_map.events.values.select { |ev| in_category?(ev, cat) && !hidden?(ev) }
         list = cluster_exits(list, $game_player.x, $game_player.y)
+        list.concat(PokeAccess::HealingZones.targets) if cat == :all || cat == :objects
         list.concat(connection_targets.map { |t| aim_connection(t) }.compact) if cat == :exits || cat == :all
         list
       end
@@ -335,7 +336,7 @@ module PokeAccess
     # True for a target stood on rather than acted on: a spot to dive at or come up, a map edge, or a puzzle's floor
     # (Puzzles.onto?).
     def self.onto?(t)
-      dive_key(t) || edge?(t) || PokeAccess::Puzzles.onto?(t) ? true : false
+      dive_key(t) || edge?(t) || PokeAccess::Puzzles.onto?(t) || PokeAccess::HealingZones.target?(t) ? true : false
     end
 
     # True for a map edge's exit, the synthetic target with no surface kind.

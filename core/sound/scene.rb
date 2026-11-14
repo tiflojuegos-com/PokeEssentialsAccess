@@ -69,6 +69,7 @@ module PokeAccess
         return :belt if (PokeAccess::Locator.push_tile?(ev) rescue false)
         return :teleporter if (PokeAccess::Locator.teleporter_event?(ev) rescue false)
         return :door if (PokeAccess::Locator.transfer_event?(ev) rescue false)
+        return :object if PokeAccess::HealingZones.event?(ev)
         return nil unless (PokeAccess::Locator.has_graphic?(ev) rescue false)
         return nil unless (PokeAccess::Locator.interactable?(ev) rescue true)
         return nil unless reachable_by_keys?(ev)

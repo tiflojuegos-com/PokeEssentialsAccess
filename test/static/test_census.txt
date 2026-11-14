@@ -493,6 +493,8 @@ behavior/nav/goldencrown_profile_gd_test.rb
 behavior/nav/guide_cadence_test.rb
 behavior/nav/guide_ledge_span_test.rb
 behavior/nav/guide_track_test.rb
+behavior/nav/healing_zone_gd_test.rb
+behavior/nav/healing_zone_test.rb
 behavior/nav/held_carry_test.rb
 behavior/nav/hpa_blocking_target_test.rb
 behavior/nav/hpa_cache_readonly_test.rb

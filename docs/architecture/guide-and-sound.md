@@ -39,6 +39,15 @@ map has something of their kind (`Locator.active_categories`). What each categor
 - `:lens`: the Lens of Truth tiles (`#EOT` events), on a map that holds one.
 - `:marks`: the player's own markers, on a map that carries one.
 
+Active invisible healing floors join Everything and Objects using `HealingZones` and the existing object cue.
+The event page is interpreted without execution, including known branches and common events. Recover All[0],
+pbHealAll and the standard player/trainer heal_party statements are recognized; inactive pages, actor-specific
+recovery and unknown conditions are not inferred. An unrestricted zone is a floor goal. A directional zone instead
+offers its actual approach tile: its label names the entry side, and optional help names the final manual step.
+The route does not promise that arriving at an arbitrary side has healed the party. The original interpreter
+performs healing only after the player enters normally. Profiles can name a particular zone without replacing
+the shared mechanism.
+
 Rules come before detection. A [profile](../reference/glossary.md) files events with its `event_category` rules
 and hides them with `event_hidden` ([profile DSL](../reference/profile-dsl.md)). The category the player gives an
 event in the Ctrl+K menu (`PokeAccess::Tags`) wins over the profile's and the detected one. An event the player or

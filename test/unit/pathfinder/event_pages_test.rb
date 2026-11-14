@@ -8,7 +8,7 @@ class EventPagesTest < PokeAccessTest
 
   test "a plain carry walks its steps and nothing else" do
     want = EP::Outcome.new([-2, -1], [[-1, 0, 4], [-2, 0, 4], [-2, -1, 8]], nil, nil, false, false, false, false, false,
-                           false, false, false, false, false, nil, [], [[-2, -1, 8]], [])
+                           false, false, false, false, false, nil, [], [[-2, -1, 8]], [], false)
     assert_equal want, walk([World.move_player([2, 2, 4])], 2)
   end
 
