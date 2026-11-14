@@ -271,6 +271,13 @@ worldfrontier|pbSurf|_PluginScripts/Cambios en LBDS/008_MOs.rb:58|||SURF
 worldfrontier|pbSurf|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:6||__followingpkmn__pbSurf|SURF
 worldfrontier|pbWaterfall|0255_Overworld_FieldMoves.rb:932|||WATERFALL
 worldfrontier|pbWaterfall|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:177||__followingpkmn__pbWaterfall|WATERFALL
+xenoverse|pbCut|086_PField_HiddenMoves.rb:269|||CUT
+xenoverse|pbDive|086_PField_HiddenMoves.rb:777|||DIVE
+xenoverse|pbRockSmash|086_PField_HiddenMoves.rb:381|||ROCKSMASH
+xenoverse|pbStrength|086_PField_HiddenMoves.rb:431|||STRENGTH
+xenoverse|pbSurf|086_PField_HiddenMoves.rb:490|||SURF
+xenoverse|pbSurf|154_PokemonFollow.rb:706|||SURF
+xenoverse|pbWaterfall|086_PField_HiddenMoves.rb:719|||WATERFALL
 z218|pbCut|102_PField_HiddenMoves.rb:269|||CUT
 z218|pbDive|102_PField_HiddenMoves.rb:705|||DIVE
 z218|pbRockSmash|102_PField_HiddenMoves.rb:381|||ROCKSMASH

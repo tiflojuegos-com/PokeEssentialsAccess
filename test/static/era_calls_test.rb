@@ -4,7 +4,7 @@ require "tmpdir"
 
 class EraCallsTest < PokeAccessTest
   CENSUS = File.join(File.dirname(__FILE__), "era_census.txt")
-  SOURCES = 35
+  SOURCES = 36
   KNOWN = {
     # Ladders: the gen-6 spelling is tried and the modern one follows (or the other way round).
     "pbIsImportantItem?" => "gen-6 bag predicate; GameData::Item#is_important? follows (menus.rb bag_hides_qty?)",
