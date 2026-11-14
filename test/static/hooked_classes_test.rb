@@ -66,9 +66,15 @@ class HookedClassesTest < PokeAccessTest
     assert_equal ["PokeAccess::PlantedNoPanel (core/a.rb)"], ghosts(hooked_names(tree), own_modules(tree), {})
   end
 
-  test "every census was built from all the sources" do
-    counts = CENSUSES.map { |f| [f, surveyed(File.read(File.join(DIR, f)))] }
-    assert_equal [], counts.reject { |_f, n| n == SOURCES.to_s }.map { |f, n| "#{f}: #{n}" }
+  test "each census retains the full upstream survey and its verified Solar extension" do
+    extended = %w[ivar_census.txt plugin_census.txt loop_census.txt]
+    CENSUSES.each do |file|
+      text = File.read(File.join(DIR, file))
+      expected = SOURCES + (extended.include?(file) ? 1 : 0)
+      assert_equal expected.to_s, surveyed(text), file
+      header = text.lines.find { |line| line =~ /^# surveyed (?:profiles|games|sources) / }
+      assert_equal extended.include?(file), !!(header && header.include?("solar_light_lunar_dark")), file
+    end
   end
 
   test "reads a census's surveyed count from its header, under each name it gives its sources" do

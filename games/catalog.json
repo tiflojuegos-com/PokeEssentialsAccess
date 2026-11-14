@@ -349,6 +349,22 @@
       "engine": "gen6"
     },
     {
+      "key": "solar_light_lunar_dark",
+      "display": "Pokemon Solar Light & Lunar Dark (experimental)",
+      "titles": [
+        "solar light & lunar dark",
+        "solar light lunar dark"
+      ],
+      "detect": "solar",
+      "exes": [],
+      "engine": "gen6",
+      "convert": "mkxp-z-1.3.0-x86",
+      "markers": [
+        "Game.rgssad"
+      ],
+      "compat": "compat.rb"
+    },
+    {
       "key": "soulstones1",
       "display": "Pokémon Soulstones",
       "titles": [

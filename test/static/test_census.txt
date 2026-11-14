@@ -431,6 +431,10 @@ behavior/menus/simple_encounter_list_reset_test.rb
 behavior/menus/sky_animated_pokemon_gd_test.rb
 behavior/menus/sky_bag_test.rb
 behavior/menus/sky_move_reminder_gd_test.rb
+behavior/menus/solar_field_moves_test.rb
+behavior/menus/solar_fonts_compat_test.rb
+behavior/menus/solar_pause_menu_gd_test.rb
+behavior/menus/solar_pause_menu_test.rb
 behavior/menus/soulstones1_bag_test.rb
 behavior/menus/soulstones1_encounters_test.rb
 behavior/menus/soulstones1_quicksave_test.rb

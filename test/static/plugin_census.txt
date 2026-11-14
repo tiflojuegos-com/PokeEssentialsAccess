@@ -1,3 +1,4 @@
+# Essential Solar extension: verified memberships from actual game scripts; upstream class summaries retained.
 # Census of the classes that give a third-party plugin away: which surveyed games ship each one,
 # by PROFILE name. Read by plugins_test to check that every profile declaring a plugin has it and
 # every profile having one declares it -- a forgotten declaration is a silent screen, and that is
@@ -6,7 +7,7 @@
 # format: <DetectionProbe> = <profile>, <profile>...   (empty = no surveyed game ships it)
 # A probe is a class name, or Class#method for a plugin that brings no class of its own and is
 # only given away by a method it adds to one the engine already has.
-# surveyed profiles (35): africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier
+# surveyed profiles (36): africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, solar_light_lunar_dark, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier
 AdvancedPokedexScene = desolation, perseida, pokemon_z, rejuvenation, vitro
 AdvancedWorldTournament = emerald
 AlbumFotos_Scene = anil, royal
@@ -66,7 +67,7 @@ Object#autosaveAnim = awakening, edas, perseida, vitro
 Object#pbBlackJack = 
 Object#pbCallFlute = ashenfrost
 Object#pbPiano = 
-Object#renderBadgeAnimation = africanus, anil, armonia, edas, opalo, perseida, pokemon_z, realidea, royal, vitro
+Object#renderBadgeAnimation = africanus, anil, armonia, edas, opalo, perseida, pokemon_z, realidea, royal, solar_light_lunar_dark, vitro
 PartyPicture = anil, royal
 Phenomenon = goldencrown
 PokeBattle_Scene#pbBreakBar = awakening, edas, perseida
@@ -93,7 +94,7 @@ PokemonPokegear_Scene#initialize_watch = anil, herolegacy, revival, royal, world
 PokemonRegionMapScene#drawRoamingPosition = perseida, vitro
 PokemonRegionMap_Scene#updateSpeciesInfo = decades, herolegacy, royal
 PokemonSave_Scene#pbUpdateSlotInfo = anil, ashenfrost, decades, emerald, infinitefusion, infinitefusion_hoenn, keishou, royal, soulstones2, worldfrontier
-PokemonStarterSelection = armonia, perseida
+PokemonStarterSelection = armonia, perseida, solar_light_lunar_dark
 PokemonSummaryScene#Habilidades = armonia, pokemon_z
 PokemonSummaryScene#drawPageInfo = vitro
 PokemonSummaryScene#drawPageSix = insurgence, sevii
@@ -108,7 +109,7 @@ Pokepoker = ashenfrost
 PunchBag = anil, keishou
 PunchBagScene = uranium
 Quest_Marker = awakening, perseida, realidea, vitro
-Questlog#pbMain = africanus, awakening, edas, infinitefusion, realidea, sevii, soulstones1
+Questlog#pbMain = africanus, awakening, edas, infinitefusion, realidea, sevii, solar_light_lunar_dark, soulstones1
 RC = emerald
 RSESTarterChoice = emerald
 RaceGame = ashenfrost
