@@ -223,6 +223,13 @@ sevii|pbRockSmash|0104_PField_HiddenMoves.rb:407|||ROCKSMASH
 sevii|pbStrength|0104_PField_HiddenMoves.rb:457|||STRENGTH
 sevii|pbSurf|0199_Following Pokémon.rb:871|||SURF,switch:Following_Activated_Switch
 sevii|pbWaterfall|0104_PField_HiddenMoves.rb:738|||WATERFALL
+solar_light_lunar_dark|pbCut|0116_PField_FieldMoves.rb:192|||CLIPPERS,CUT
+solar_light_lunar_dark|pbDive|0116_PField_FieldMoves.rb:310|||DIVE,SNORKLE
+solar_light_lunar_dark|pbRockSmash|0116_PField_FieldMoves.rb:648|||HAMMER,ROCKSMASH
+solar_light_lunar_dark|pbStrength|0116_PField_FieldMoves.rb:702|||STRENGTH,STRENGTHGLOVES
+solar_light_lunar_dark|pbSurf|0116_PField_FieldMoves.rb:768|||SURF,SURFBOARD
+solar_light_lunar_dark|pbSurf|0216_Following Pokemon.rb:866|||SURF,SURFBOARD,switch:Following_Activated_Switch
+solar_light_lunar_dark|pbWaterfall|0116_PField_FieldMoves.rb:1033|||BOARDMOTOR,WATERFALL
 soulstones1|pbCut|0117_PField_FieldMoves.rb:192|||CUT
 soulstones1|pbCut|0236_HM_Items.rb:74|||CUT,CUTITEM
 soulstones1|pbDive|0117_PField_FieldMoves.rb:299|||DIVE
