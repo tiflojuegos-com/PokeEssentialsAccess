@@ -502,6 +502,8 @@ behavior/nav/if_shared_buildings_gd_test.rb
 behavior/nav/ifh_market_gd_test.rb
 behavior/nav/ifh_overworld_gd_test.rb
 behavior/nav/ifh_region_map_gd_test.rb
+behavior/nav/infinitefusion_fork_gd_test.rb
+behavior/nav/infinitefusion_fork_test.rb
 behavior/nav/insurgence_rules_test.rb
 behavior/nav/insurgence_water_test.rb
 behavior/nav/internal_warp_test.rb
