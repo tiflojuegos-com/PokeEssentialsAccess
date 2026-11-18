@@ -11,6 +11,39 @@ class XenoverseNamingTest < PokeAccessTest
     PokeAccess::Config.language = :en
   end
 
+  def supply_container(condition = 'Kernel.pbReceiveItem(::PBItems::REVIVE)', opened = false, name = 'EV034')
+    closed = TestPage.new(:sprite => 'CloseOpen', :pattern => 1,
+      :list => [TestCmd.new(111, [12, condition]), TestCmd.new(123, ['A', 0]), TestCmd.new(0, [])])
+    empty = TestPage.new(:sprite => 'CloseOpen', :pattern => 2, :list => [TestCmd.new(0, [])],
+      :condition => { :self_switch_valid => true, :self_switch_ch => 'A' })
+    actor = TestGameEvent.new(:id => 34, :name => name, :pages => [closed, empty], :active_page => opened ? empty : closed)
+    $game_map.events[actor.id] = actor
+    Loc.refresh_lever_cache
+    actor
+  end
+
+  def test_active_unnamed_supply_container_uses_the_games_item_name
+    with_singleton(PokeAccess::Data, :item_id, lambda { |id| id == 'REVIVE' ? [232, 'Revive'] : [nil, nil] }) do
+      actor = supply_container
+      assert_equal :objects, Loc.event_category(actor)
+      assert_equal 'Item, Revive, closed', Loc.target_name(actor)
+      with_singleton(PokeAccess::Tags, :get, lambda { |_map, _id| 'My supplies' }) do
+        assert_equal 'My supplies', Loc.target_name(actor)
+      end
+    end
+  end
+
+  def test_open_named_dynamic_and_disabled_container_labels_do_not_reveal_contents
+    with_singleton(PokeAccess::Data, :item_id, lambda { |_| raise 'No item lookup expected' }) do
+      assert_equal 'object, open', Loc.target_name(supply_container('Kernel.pbReceiveItem(::PBItems::REVIVE)', true))
+      assert_equal 'Supply crate, closed', Loc.target_name(supply_container('Kernel.pbReceiveItem(::PBItems::REVIVE)', false, 'Supply crate'))
+      assert_nil Loc.item_name(supply_container('Kernel.pbReceiveItem(getSupply)'))
+      with_singleton(PokeAccess::Config, :name_items, lambda { false }) do
+        assert_equal 'object, closed', Loc.target_name(supply_container)
+      end
+    end
+  end
+
   def event(scripts, sprite = 'Ezio', name = 'EV005')
     page = TestPage.new(:sprite => sprite, :list => scripts.map { |s| TestCmd.new(355, [s]) })
     TestGameEvent.new(:id => 5, :name => name, :pages => [page])

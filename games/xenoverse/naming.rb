@@ -24,6 +24,29 @@ module PokeAccess
     }.freeze
 
     TORCH_NO_OP_CODES = [0, 108, 408].freeze
+    CONTAINER_ITEM = /\A\s*(?:Kernel\.)?pbReceiveItem\(\s*(?:::)?PBItems::([A-Z][A-Z0-9_]*)\s*\)\s*\z/
+
+    # The first action page of these chests tests the item award in a branch.
+    # Read just the literal from that active page, never run the command.
+    def self.container_item_name(locator, event)
+      return nil unless PokeAccess::Config.name_items && locator.container?(event)
+      return nil if locator.container_open?(event) || !locator.placeholder_name?(locator.own_name(event))
+      return nil unless sprite_key(event.character_name) == "closeopen"
+      list = PokeAccess.ivar(event, :@list)
+      return nil unless list.is_a?(Array) && !locator.live_talks?(event)
+      ids = []
+      list.each do |command|
+        next unless command.code == 111 && command.parameters[0] == 12
+        match = CONTAINER_ITEM.match(command.parameters[1].to_s)
+        ids.push(match[1]) if match
+      end
+      return nil unless ids.uniq.length == 1
+      name = PokeAccess::Data.item_id(ids[0])[1]
+      name.is_a?(String) && !name.empty? ? name : nil
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
 
     def self.sprite_key(path)
       path.to_s.tr('\\', '/').split('/').last.to_s.sub(/\.png\z/i, '').downcase
@@ -129,6 +152,9 @@ end
 PokeAccess::Caches.register(:xenoverse_centers) { PokeAccess::XenoverseNaming.forget_centers }
 
 PokeAccess::Game.define("xenoverse") do
+  override("PokeAccess::Locator", :item_name) do |locator, original, args|
+    original.call || PokeAccess::XenoverseNaming.container_item_name(locator, args[0])
+  end
   override("PokeAccess::Locator", :game_map_name) do |locator, original, args|
     PokeAccess::XenoverseNaming.map_name(locator, args[0]) || original.call
   end
