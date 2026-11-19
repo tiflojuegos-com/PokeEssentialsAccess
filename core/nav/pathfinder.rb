@@ -181,11 +181,12 @@ module PokeAccess
       out.uniq
     end
 
-    # True when the event on (tx,ty) is an action-button one that fires on arrival (Routes::Effects.fires_on_arrival?:
-    # no sprite, on ground anyone stands on), which the engine's check_event_trigger_there skips from beside it.
+    # True when the first event here that runs commands is an action-button event the player must stand on.
+    # Empty pages can share a tile with a door after a character has moved or disappeared.
     def self.underfoot?(tx, ty)
-      ev = PokeAccess::Control.event_at(tx, ty)
-      !ev.nil? && PokeAccess.ivar(ev, :@trigger) == 0 && Routes::Effects.fires_on_arrival?(ev)
+      return false unless $game_map
+      event = PokeAccess::World::Events.at(tx, ty).find { |record| PokeAccess::Locator.has_commands?(record.ev) }
+      !event.nil? && event.trigger == 0 && Routes::Effects.fires_on_arrival?(event.ev)
     end
 
     # The tiles of the widest event standing on (tx,ty), as the game reaches it from any of them (its size(w,h) area,

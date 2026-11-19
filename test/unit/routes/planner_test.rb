@@ -149,6 +149,30 @@ class PlannerTest < PokeAccessTest
     assert_equal [[[3, 3], [4, 2]], nil], [Planner.doorways(3, 2).sort, Planner.doorways(2, 2)]
   end
 
+  test "an empty action page on a usable door does not make its tile the only route goal" do
+    corridor
+    empty_page = World.touch(:id => 40, :x => 4, :y => 1, :trigger => 0)
+    empty_page.define_singleton_method(:over_trigger?) { true }
+    door = World.touch(:id => 41, :x => 4, :y => 1, :sprite => "door",
+                       :list => [TestCmd.new(201, [0, 55, 1, 1])])
+    door.blocking = true
+    $game_player.x = 2
+    plan = Planner.plan(4, 1)
+    assert_equal [:walk, [6]], [plan.kind, plan.route]
+    $game_player.x = 3
+    plan = Planner.plan(4, 1)
+    assert_equal [:walk, []], [plan.kind, plan.route]
+  end
+
+  test "an empty page does not hide an action the player must stand on" do
+    corridor
+    World.touch(:id => 40, :x => 4, :y => 1, :trigger => 0, :sprite => "npc")
+    action = World.touch(:id => 41, :x => 4, :y => 1, :trigger => 0,
+                         :list => [TestCmd.new(101, ["A note on the floor"])])
+    action.define_singleton_method(:over_trigger?) { true }
+    assert_equal [[4, 1]], Planner.goal_for(4, 1, false).tiles
+  end
+
   test "a doorway walked into from two sides is reached on the nearer" do
     doorway_room
     { [5, 2] => [4, 2], [2, 4] => [3, 3] }.each do |(x, y), side|
