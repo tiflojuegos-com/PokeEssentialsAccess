@@ -92,6 +92,7 @@ module PokeAccess
       r = room
       ev = r && event(id)
       return unless ev && r[:mirrors].include?(ev.id)
+      PokeAccess::Locator.invalidate_targets
       PokeAccess.speak(PokeAccess.sentences([mirror_line(ev, true), status_line(r)]), true)
     rescue StandardError => e
       PokeAccess.swallowed(e)

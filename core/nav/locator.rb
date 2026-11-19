@@ -850,6 +850,11 @@ module PokeAccess
       PokeAccess.speak("#{nm ? nm + '. ' : ''}#{coords_text($game_player.x, $game_player.y)}", true)
     end
 
+    # Rebuilds an existing list on its next use, keeping the selected target by identity.
+    def self.invalidate_targets
+      @targets_stale = true unless @targets.empty?
+    end
+
     # On the edge where a running event finishes: drops the route caches and the surfaces listed, and marks a non-empty
     # target list stale, for ensure_target to rebuild when it is next used (so a collected object drops out);
     # rebuilding there and then would walk the map's regions afresh as a conversation closes.
@@ -860,7 +865,7 @@ module PokeAccess
         (PokeAccess::Guide.event_ended rescue nil)
         (PokeAccess::Locator.clear_verdicts rescue nil)
         @surface_cache = nil
-        @targets_stale = true unless @targets.empty?
+        invalidate_targets
       end
       @interp_running = run
     rescue StandardError => e
