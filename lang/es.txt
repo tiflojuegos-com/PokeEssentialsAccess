@@ -3398,6 +3398,7 @@ ura_run_state=Correr: %{state}
 ura_wire_start=Inicio del circuito %{circuit}
 ura_wire_end=Fin del circuito %{circuit}
 ura_wire_reset=Reiniciar cables
+ura_memory_screen=Pantalla del recuerdo %{n}
 ura_wire_connections=Terminales conectados, %{connected} de %{total}
 ura_wire_drawing=Trazando el circuito %{circuit}
 ura_bag_use=Usar

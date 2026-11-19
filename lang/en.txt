@@ -3398,6 +3398,7 @@ ura_run_state=Running: %{state}
 ura_wire_start=Circuit %{circuit}, start
 ura_wire_end=Circuit %{circuit}, end
 ura_wire_reset=Reset wires
+ura_memory_screen=Memory screen %{n}
 ura_wire_connections=Connected endpoints, %{connected} of %{total}
 ura_wire_drawing=Drawing circuit %{circuit}
 ura_bag_use=Use

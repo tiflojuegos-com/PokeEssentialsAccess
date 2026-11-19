@@ -3402,6 +3402,7 @@ ura_run_state=Mode course : %{state}
 ura_wire_start=Début du circuit %{circuit}
 ura_wire_end=Fin du circuit %{circuit}
 ura_wire_reset=Réinitialiser les fils
+ura_memory_screen=Écran du souvenir %{n}
 ura_wire_connections=Extrémités reliées, %{connected} sur %{total}
 ura_wire_drawing=Tracé du circuit %{circuit} en cours
 ura_bag_use=Utiliser

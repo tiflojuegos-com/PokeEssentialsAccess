@@ -6,6 +6,27 @@ module PokeAccess
     NODE = /(?:\A|;)Wire(Start|End)([A-D])(?::|;|\z)/
     CIRCUITS = %w[A B C D].freeze
 
+    MEMORY_SCREENS = {
+      268 => { 1 => 1, 2 => 2, 7 => 4, 8 => 3 }.freeze,
+      269 => { 1 => 8, 4 => 5, 5 => 7, 6 => 6 }.freeze,
+      270 => { 2 => 9, 3 => 10 }.freeze
+    }.freeze
+
+    # The original Bank's action screens share graphics even when their memory numbers differ.
+    def self.screen_number(event)
+      screens = MEMORY_SCREENS[($game_map.map_id rescue nil)]
+      return nil unless screens && event.character_name.to_s =~ /\Amemory[1-4]\z/
+      number = screens[event.id]
+      return nil unless number && PokeAccess.ivar(event, :@trigger) == 0
+      list = PokeAccess.ivar(event, :@list)
+      number if list.is_a?(Array) && list.any? { |command| (command.code rescue 0) == 101 }
+    end
+
+    def self.screen_name(event)
+      number = screen_number(event)
+      PokeAccess::I18n.t(:ura_memory_screen, :n => number) if number
+    end
+
     def self.active_scripts(event)
       return [] unless PokeAccess.ivar(event, :@trigger) == 0
       list = PokeAccess.ivar(event, :@list)
@@ -57,10 +78,17 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("uranium") do
+  event_category(:objects) { |ev| PokeAccess::UraniumWire.screen_number(ev) }
+  event_name { |ev| PokeAccess::UraniumWire.screen_name(ev) }
   PokeAccess::UraniumWire::MAPS.each do |map|
     reset_ids = PokeAccess::UraniumWire::RESETS[map]
+    screens = PokeAccess::UraniumWire::MEMORY_SCREENS[map]
     mechanic(:state, map, :part => :wire) do
       auto
+      if screens
+        name(screens.keys, lambda { |ev| PokeAccess::UraniumWire.screen_name(ev) },
+             :when => lambda { |ev| PokeAccess::UraniumWire.screen_number(ev) }, :assist => true)
+      end
       name(PokeAccess::UraniumWire::NODE, lambda { |ev| PokeAccess::UraniumWire.node(ev) },
            :when => lambda { |ev| PokeAccess::UraniumWire.node(ev) }, :assist => true)
       if reset_ids

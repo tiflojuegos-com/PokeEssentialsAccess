@@ -3395,6 +3395,7 @@ ura_run_state=Laufen: %{state}
 ura_wire_start=Start von Stromkreis %{circuit}
 ura_wire_end=Ende von Stromkreis %{circuit}
 ura_wire_reset=Leitungen zurücksetzen
+ura_memory_screen=Erinnerungsbildschirm %{n}
 ura_wire_connections=Verbundene Endpunkte, %{connected} von %{total}
 ura_wire_drawing=Stromkreis %{circuit} wird gezeichnet
 ura_bag_use=Einsetzen

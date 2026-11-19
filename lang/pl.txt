@@ -3402,6 +3402,7 @@ ura_run_state=Bieganie: %{state}
 ura_wire_start=Początek obwodu %{circuit}
 ura_wire_end=Koniec obwodu %{circuit}
 ura_wire_reset=Zresetuj przewody
+ura_memory_screen=Ekran wspomnienia %{n}
 ura_wire_connections=Połączone końce obwodów, %{connected} z %{total}
 ura_wire_drawing=Rysujesz obwód %{circuit}
 ura_bag_use=Użyj
