@@ -11,7 +11,7 @@
 # A row marked NO-DUMP is one no surveyed game defines: it was not checked and found clean, it
 # could not be checked at all. The two used to print identically, which made a sixth of the file
 # read as evidence it was not.
-# after-style hook sites: 459 / blocking somewhere: 1 / no dump defines it: 2
+# after-style hook sites: 460 / blocking somewhere: 1 / no dump defines it: 2
 # after-style sites the extractor cannot resolve (computed class or method): 44
 AdvancedPokedexScene#displayPage = 
 AdvancedPokedexScene#pbStartScene = 
@@ -62,6 +62,7 @@ BossPokemonDataBox#appear =
 BossPokemonDataBox#refresh = 
 BoundedPokemonEntryScene#pbStartScene = 
 ButtonEventScene#addImage = 
+ButtonEventScene#addImageForScreen = 
 ButtonEventScene#addLabel = 
 ButtonEventScene#addLabelForScreen = 
 ButtonEventScene#set_up_screen = 
