@@ -1207,7 +1207,6 @@ module PokeAccess
       scripts = script_calls(live)
       return true if scripts.any? { |s| s =~ /\A[ \t]*(?:(?:::)?Kernel\.)?pbNurseHeal\b/ }
       return false unless scripts.any? { |s| s =~ /\A[ \t]*(?:(?:::)?Kernel\.)?pbSetPokemonCenter\b/ }
-      # A respawn point can also be set by a battle reward. Require a party-healing command.
       live.any? { |command| (command.code rescue 0) == 314 && (command.parameters[0] rescue nil) == 0 } ||
         scripts.any? { |s| s =~ /\A\s*(?:(?:Kernel\.)?pbHealAll|(?:\$Trainer|\$player)\.heal_party)\s*(?:\(\s*\))?\s*;?\s*\z/ }
     end
