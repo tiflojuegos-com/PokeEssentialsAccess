@@ -22,6 +22,7 @@
     pokepod
     passability
     field_moves
+    wire_puzzle
   ],
   :plugins => %w[ebs_scene ebs_ui hall_of_fame_bw_gen6 punch_bag]
 }
