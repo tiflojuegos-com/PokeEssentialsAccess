@@ -2,6 +2,11 @@ module PokeAccess
   # Uranium's own overlays and screens over the field: the eighth gym's tile counter, the scoreboard of Tandor's
   # championship, the Nuzlocke game over and the post-game letter.
   module UraniumField
+    # The visible starter machine in Bamb'o's lab, including its idle page.
+    def self.starter_machine?(ev)
+      $game_map && $game_map.map_id == 50 && ev.id == 19 && ev.character_name == "PU-PokeballMachine"
+    end
+
     # Runs a paint of the eighth gym's counter (on creation, and when the white count changes) and says the lines it
     # painted; the first, queued, with the goal that opens the door: half of the room's tiles white. Both are kept
     # for the info key (gym_text).
@@ -60,6 +65,10 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("uranium") do
+  event_category(:objects) { |ev| PokeAccess::UraniumField.starter_machine?(ev) }
+  event_name do |ev|
+    PokeAccess::I18n.t(:ura_starter_machine) if PokeAccess::UraniumField.starter_machine?(ev)
+  end
   around("GymWindow", :initialize) { |win, nxt, _a| PokeAccess::UraniumField.gym_counter(win, true) { nxt.call } }
   around("GymWindow", :update) { |win, nxt, _a| PokeAccess::UraniumField.gym_counter(win, false) { nxt.call } }
   PokeAccess::Info.map_owner(:uranium_gym) { PokeAccess::UraniumField.gym_text }

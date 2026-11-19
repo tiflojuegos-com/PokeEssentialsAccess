@@ -3466,6 +3466,7 @@ ura_bmart_count=%{n} %{name}
 ura_bmart_price=preço: %{list}
 ura_bmart_have=Você tem: %{list}
 ura_ctrl_required=precisa de uma tecla
+ura_starter_machine=Máquina de Pokémon iniciais
 ura_gym8_goal=Objetivo: %{n} de cada cor
 ura_score_vs=%{a} contra %{b}
 ura_gameover=Fim de jogo

@@ -1074,6 +1074,22 @@ class UraniumProfileTest < PokeAccessTest
     end
   end
 
+  scenario :starter_machine, <<-'RUBY'
+    $game_map = Struct.new(:map_id).new(50)
+    event = Struct.new(:id, :name, :character_name)
+    machine = event.new(19, "Machine", "PU-PokeballMachine")
+    wrong_slot = event.new(20, "Machine", "PU-PokeballMachine")
+    person = event.new(19, "Bambo", "ZP- Professor")
+    loc = PokeAccess::Locator
+    actual = [loc.event_category(machine), loc.ruled_name(machine)]
+    wrongs = [wrong_slot, person].map { |ev| [loc.ruled_category(ev), loc.ruled_name(ev)] }
+    $game_map.map_id = 49
+    [actual, *wrongs, [loc.ruled_category(machine), loc.ruled_name(machine)]]
+  RUBY
+  test "names the lab's starter machine and puts it with objects" do
+    assert_equal [[:objects, t(:ura_starter_machine)], [nil, nil], [nil, nil], [nil, nil]], outcome(:starter_machine)
+  end
+
   test "says no text with raw control codes in the Uranium process" do
     assert_equal [], outcome(:raw_texts)
   end
