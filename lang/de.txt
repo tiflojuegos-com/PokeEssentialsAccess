@@ -1364,6 +1364,7 @@ loc_next_to=du stehst direkt daneben
 loc_steps.one=%{n} Schritt entfernt
 loc_steps.other=%{n} Schritte entfernt
 loc_pc=PC
+loc_healing_attendant=Heilpersonal
 dir_left=links
 dir_right=rechts
 dir_up=oben

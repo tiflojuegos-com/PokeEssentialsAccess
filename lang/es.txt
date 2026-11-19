@@ -1365,6 +1365,7 @@ loc_next_to=estás al lado
 loc_steps.one=a %{n} paso
 loc_steps.other=a %{n} pasos
 loc_pc=PC
+loc_healing_attendant=personal de enfermería
 dir_left=izquierda
 dir_right=derecha
 dir_up=arriba

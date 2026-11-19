@@ -1365,6 +1365,7 @@ loc_surf_here=surfe d'ici
 loc_next_to=tu es juste à côté
 loc_steps=à %{n} pas
 loc_pc=PC
+loc_healing_attendant=personnel soignant
 dir_left=gauche
 dir_right=droite
 dir_up=haut

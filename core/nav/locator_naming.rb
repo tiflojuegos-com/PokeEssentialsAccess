@@ -892,6 +892,7 @@ module PokeAccess
       return lever_name(ev, n) if kind == :lever
       return container_name(ev, n) if kind == :container
       return n unless placeholder_name?(n) || n =~ /\Asize\(/i
+      return PokeAccess::I18n.t(:loc_healing_attendant) if healing_attendant?(ev)
       return sign_name(ev) if sign_event?(ev)
       g = ev.character_name.to_s
       if (PokeAccess::Config.name_items rescue true) && (g.empty? || !live_talks?(ev))
@@ -1196,6 +1197,16 @@ module PokeAccess
     rescue StandardError => e
       PokeAccess.swallowed(e)
       false
+    end
+
+    # A visible, unnamed action-button event can be identified by the healing service on its current page.
+    def self.healing_attendant?(ev)
+      return false if pageless?(ev) || PokeAccess.ivar(ev, :@trigger) != 0 || ev.character_name.to_s.empty?
+      live = PokeAccess.ivar(ev, :@list)
+      return false unless live.is_a?(Array)
+      !!script_call_find(ev, [live]) do |script|
+        script =~ /\A[ \t]*(?:(?:::)?Kernel\.)?(?:pbSetPokemonCenter|pbNurseHeal)\b/
+      end
     end
 
     # True if an event is a service desk used across a counter (nurse, PC, mart clerk), by sprite or script; it stays
