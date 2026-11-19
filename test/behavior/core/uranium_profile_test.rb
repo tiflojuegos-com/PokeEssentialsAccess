@@ -1074,15 +1074,21 @@ class UraniumProfileTest < PokeAccessTest
       closed = [gym, house, fan, other_gym, hidden_fan].map { |ev| locator.ruled_name(ev) }
       $game_switches[101] = true
       opened = [gym, house].map { |ev| locator.ruled_name(ev) }
+      maria = event.new(3, "EV003", "PU-Maria")
+      other_event = event.new(4, "EV004", "PU-Maria")
+      hidden_maria = event.new(3, "EV003", "")
       $game_map.map_id = 41
-      [closed, opened, locator.ruled_name(house)]
+      outside_gym = [house, maria].map { |ev| locator.ruled_name(ev) }
+      $game_map.map_id = 42
+      gym_people = [maria, other_event, hidden_maria].map { |ev| locator.ruled_name(ev) }
+      [closed, opened, outside_gym, gym_people]
     ensure
       $game_map, $game_switches = previous_map, previous_switches
     end
   RUBY
   test "names Nowtoch story landmarks in their active states" do
     assert_equal [[t(:ura_nowtoch_gym_closed), t(:ura_maria_house), t(:ura_maria_fan), nil, nil],
-                  [nil, t(:ura_maria_house)], nil], outcome(:nowtoch_story_landmarks)
+                  [nil, t(:ura_maria_house)], [nil, nil], ["Maria", nil, nil]], outcome(:nowtoch_story_landmarks)
   end
 
   scenario :sliders, <<-'RUBY'

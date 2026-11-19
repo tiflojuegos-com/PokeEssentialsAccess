@@ -46,16 +46,18 @@ module PokeAccess
       ret
     end
 
-    # The first Gym's story landmarks on the outdoor Nowtoch map.
+    # The first Gym's people and buildings in Nowtoch.
     def self.nowtoch_landmark(ev)
-      return nil unless $game_map && $game_map.map_id == 40
-      case [ev.id, ev.character_name]
-      when [14, "door habidome"]
-        :ura_nowtoch_gym_closed if $game_switches && !$game_switches[101]
-      when [17, "PU-doorsdew"]
-        :ura_maria_house
-      when [18, "HGSS_130"]
-        :ura_maria_fan
+      return nil unless $game_map
+      case [$game_map.map_id, ev.id, ev.character_name]
+      when [40, 14, "door habidome"]
+        PokeAccess::I18n.t(:ura_nowtoch_gym_closed) if $game_switches && !$game_switches[101]
+      when [40, 17, "PU-doorsdew"]
+        PokeAccess::I18n.t(:ura_maria_house)
+      when [40, 18, "HGSS_130"]
+        PokeAccess::I18n.t(:ura_maria_fan)
+      when [42, 3, "PU-Maria"]
+        "Maria"
       end
     end
 
@@ -77,10 +79,7 @@ PokeAccess::Game.define("uranium") do
   around("GymWindow", :update) { |win, nxt, _a| PokeAccess::UraniumField.gym_counter(win, false) { nxt.call } }
   PokeAccess::Info.map_owner(:uranium_gym) { PokeAccess::UraniumField.gym_text }
   around("ScoreWindow", :initialize) { |_w, nxt, _a| PokeAccess::UraniumField.scoreboard { nxt.call } }
-  event_name do |ev|
-    label = PokeAccess::UraniumField.nowtoch_landmark(ev)
-    PokeAccess::I18n.t(label) if label
-  end
+  event_name { |ev| PokeAccess::UraniumField.nowtoch_landmark(ev) }
   before("Scene_Gameover", :main) { |_s, _a| PokeAccess.speak(PokeAccess::TitleScreen.prompt(:ura_gameover), false) }
   kernel("pbDisplayLetter", :before) { |args, _r| PokeAccess::UraniumField.letter(args[0], args[1]) }
 end
