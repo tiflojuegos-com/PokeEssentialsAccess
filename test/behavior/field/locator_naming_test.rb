@@ -306,13 +306,17 @@ class LocatorNamingTest < PokeAccessTest
   test "only an unnamed active Pokemon Center attendant gains the healing label" do
     center = TestCmd.new(355, ["Kernel.pbSetPokemonCenter"])
     greeting = TestCmd.new(101, ["Welcome to the Pokemon Center."])
-    attendant = event(21, "HGSS_135", [center, greeting])
+    recover_party = TestCmd.new(314, [0])
+    heal = TestCmd.new(355, ["Kernel.pbHealAll()"])
+    battle = TestCmd.new(111, [12, 'pbTrainerBattle(PBTrainers::LEADER_Roxanne,"Maria")'])
+    checkpoint = TestCmd.new(355, ["Kernel.pbSetPokemonCenter(43,8,13,8)"])
+    attendant = event(21, "HGSS_135", [center, greeting, recover_party])
     nurse = event(22, "HGSS_135", [TestCmd.new(355, ["pbNurseHeal()"])])
-    floor = event(23, "", [center])
-    note = event(24, "HGSS_135", [TestCmd.new(355, ["# pbSetPokemonCenter"]), greeting])
-    action = TestPage.new(:trigger => 0, :sprite => "HGSS_135", :list => [center, greeting])
+    floor = event(23, "", [center, recover_party])
+    note = event(24, "HGSS_135", [TestCmd.new(355, ["# pbSetPokemonCenter"]), greeting, recover_party])
+    action = TestPage.new(:trigger => 0, :sprite => "HGSS_135", :list => [center, greeting, recover_party])
     inactive = TestPage.new(:trigger => 0, :sprite => "HGSS_135", :list => [greeting])
-    automatic = TestPage.new(:trigger => 3, :sprite => "HGSS_135", :list => [center, greeting])
+    automatic = TestPage.new(:trigger => 3, :sprite => "HGSS_135", :list => [center, greeting, recover_party])
     named = TestGameEvent.new(:id => 25, :name => "Nurse Mollie", :pages => [action])
     idle = TestGameEvent.new(:id => 26, :name => "EV026", :pages => [action, inactive], :active_page => inactive)
     cutscene = TestGameEvent.new(:id => 27, :name => "EV027", :pages => [automatic])
@@ -324,6 +328,9 @@ class LocatorNamingTest < PokeAccessTest
     assert_equal "HGSS_135", locator.target_name(cutscene)
     assert_equal "HGSS_135", locator.target_name(note)
     assert_equal t(:loc_object), locator.target_name(floor)
+    assert_equal "PU-Maria", locator.target_name(event(28, "PU-Maria", [greeting, battle, checkpoint]))
+    assert_equal "HGSS_135", locator.target_name(event(29, "HGSS_135", [center, TestCmd.new(314, [2])]))
+    assert_equal t(:loc_healing_attendant), locator.target_name(event(30, "HGSS_135", [center, heal]))
   end
 
   test "a door to a map with no name is an exit, unless the door has a name of its own" do
