@@ -19,6 +19,24 @@ class ControlsHelpGdTest < PokeAccessTest
     assert_equal [["Las flechas mueven al personaje.", true]], SpeakCapture.log
   end
 
+  test "pairs function key pictures with labels on their own page" do
+    scene = screen_with(1 => ["Key Bindings.", "Take a screenshot."], 2 => ["Use the Arrow keys."])
+    scene.addImageForScreen(1, 44, 9, "Graphics/Pictures/Controls help/help_f1")
+    scene.addImageForScreen(1, 44, 43, "Graphics/Pictures/Controls help/help_f8")
+    scene.addImageForScreen(2, 44, 9, "Graphics/Pictures/Controls help/help_arrows")
+    scene.set_up_screen(1)
+    scene.set_up_screen(2)
+    assert_equal [["F1: Key Bindings. F8: Take a screenshot.", true], ["Use the Arrow keys.", true]], SpeakCapture.log
+  end
+
+  test "does not repeat an explicit function key or confuse F1 with F10" do
+    scene = screen_with(1 => ["Press F1 for controls.", "F10 has a different action."])
+    scene.addImageForScreen(1, 44, 9, "help_f1")
+    scene.addImageForScreen(1, 44, 43, "help_f1")
+    scene.set_up_screen(1)
+    assert_equal [["Press F1 for controls. F1: F10 has a different action.", true]], SpeakCapture.log
+  end
+
   test "says a screen again each time it is put up" do
     scene = screen_with(0 => ["F1 abre la configuracion."])
     2.times { scene.set_up_screen(0) }

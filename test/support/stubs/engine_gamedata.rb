@@ -1078,6 +1078,7 @@ end
 # the reader collects them there.
 class ButtonEventScene
   def addLabelForScreen(number, x, y, width, text); [number, x, y, width, text]; end
+  def addImageForScreen(number, x, y, file); [number, x, y, file]; end
   def set_up_screen(number); number; end
 end
 

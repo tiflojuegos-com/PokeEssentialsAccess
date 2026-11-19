@@ -1,6 +1,6 @@
 # The opening's controls help (ButtonEventScene): paragraphs are collected per screen as the scene registers them
-# (addLabelForScreen, or addLabel from the gen-6 constructor) and read when that screen is put up; a gen-6 key
-# picture (helpCkey, helpF5key...) leads the paragraph drawn at its height.
+# (addLabelForScreen, or addLabel from the gen-6 constructor) and read when that screen is put up. Key pictures
+# from the same screen lead the paragraphs drawn beside them.
 module PokeAccess
   module ControlsHelp
     # Stores one paragraph on the scene, under the screen it belongs to, with the height it is drawn at.
@@ -13,13 +13,12 @@ module PokeAccess
       nil
     end
 
-    # Stores the key a gen-6 help picture shows, with the height it is drawn at; any other picture (the background)
-    # is passed over.
-    def self.note_key(scene, y, file)
+    # Stores the name and height of a recognized key picture for its screen.
+    def self.note_key(scene, number, y, file)
       key = picture_key(file)
       return if key.nil?
-      keys = (PokeAccess.ivar(scene, :@access_keys) || [])
-      keys.push([y.to_i, key])
+      keys = (PokeAccess.ivar(scene, :@access_keys) || {})
+      (keys[number] ||= []).push([y.to_i, key])
       scene.instance_variable_set(:@access_keys, keys)
     rescue StandardError => e
       PokeAccess.swallowed(e)
@@ -31,6 +30,7 @@ module PokeAccess
     def self.picture_key(file)
       base = File.basename(file.to_s)
       return PokeAccess::I18n.t(:ctl_arrows) if base =~ /\AhelpArrowKeys\z/i
+      return $1.upcase if base =~ /\Ahelp_(f(?:[1-9]|1[0-2]))\z/i
       return nil unless base =~ /\Ahelp([A-Z]\d*)key\z/i
       letter = $1.upcase
       PokeAccess::KeyHints.key(PokeAccess::KeyHints::RGSS_LETTERS[letter], letter)
@@ -47,7 +47,14 @@ module PokeAccess
         lead[i] ||= name unless i.nil?
       end
       out = []
-      rows.each_with_index { |r, i| out.push(lead[i] ? "#{lead[i]}: #{r[0]}" : r[0]) }
+      rows.each_with_index do |row, i|
+        text, _height = row
+        key = lead[i]
+        if key && key =~ /\AF\d+\z/ && PokeAccess.clean(text) =~ /\b#{Regexp.escape(key)}\b/i
+          key = nil
+        end
+        out.push(key ? "#{key}: #{text}" : text)
+      end
       out
     end
 
@@ -58,7 +65,8 @@ module PokeAccess
       rows = labels ? labels[number] : nil
       return if rows.nil? || rows.empty?
       out = ""
-      keyed(rows, PokeAccess.ivar(scene, :@access_keys)).each do |r|
+      keys = PokeAccess.ivar(scene, :@access_keys)
+      keyed(rows, keys && keys[number]).each do |r|
         t = r.to_s.strip
         next if t.empty?
         out += (out.empty? ? "" : (out =~ /[.!?:;]\z/ ? " " : ". ")) + t
@@ -85,10 +93,14 @@ PokeAccess::Hooks.after_hook("ButtonEventScene", :addLabel, :optional => true) d
   PokeAccess::ControlsHelp.note(scene, 1, args[3], args[1]) unless scene.respond_to?(:addLabelForScreen)
 end
 
-# The gen-6 copy's key pictures, addImage(x, y, file) from the constructor; the modern copy names its keys in each
-# paragraph instead, and its addImageForScreen calls addImage.
+# A paged screen registers its pictures with the page number and their painted height.
+PokeAccess::Hooks.after_hook("ButtonEventScene", :addImageForScreen, :optional => true) do |scene, _r, args|
+  PokeAccess::ControlsHelp.note_key(scene, args[0], args[2], args[3])
+end
+
+# A legacy screen registers its pictures directly in the constructor.
 PokeAccess::Hooks.after_hook("ButtonEventScene", :addImage, :optional => true) do |scene, _r, args|
-  PokeAccess::ControlsHelp.note_key(scene, args[1], args[2]) unless scene.respond_to?(:addImageForScreen)
+  PokeAccess::ControlsHelp.note_key(scene, 1, args[1], args[2]) unless scene.respond_to?(:addImageForScreen)
 end
 
 # Speaks the gen-6 copy's screen once built. Around, not after: an after-hook would run the constructor under the
