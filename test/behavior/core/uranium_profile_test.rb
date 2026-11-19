@@ -512,7 +512,7 @@ class UraniumProfileTest < PokeAccessTest
   RUBY
   test "opens the load screen on the continue panel as painted, with the saved team and rules, queued" do
     team = t(:load_party, :list => "Especie25, Especie1")
-    assert_equal [["Route 3. Vitor. Badges: 2. Time: 5h 3m. #{team}. #{t(:ura_nuzlocke)}", false]],
+    assert_equal [["Continue. Route 3. Vitor. Badges: 2. Time: 5h 3m. #{team}. #{t(:ura_nuzlocke)}", false]],
                  outcome(:continue_panel)
   end
 

@@ -22,6 +22,8 @@ module PokeAccess
       return nil unless panel
       save = PokeAccess.ivar(panel, :@savefile)
       parts = PokeAccess.ivar(panel, :@access_ura_lines).dup
+      title = PokeAccess.clean(PokeAccess.ivar(panel, :@title).to_s)
+      parts.unshift(title) unless title.empty?
       parts.push(PokeAccess::LoadPanel.team((save.trainer rescue nil)))
       parts.concat(modes(save))
       parts.compact.join(". ")
