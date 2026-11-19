@@ -46,6 +46,19 @@ module PokeAccess
       ret
     end
 
+    # The first Gym's story landmarks on the outdoor Nowtoch map.
+    def self.nowtoch_landmark(ev)
+      return nil unless $game_map && $game_map.map_id == 40
+      case [ev.id, ev.character_name]
+      when [14, "door habidome"]
+        :ura_nowtoch_gym_closed if $game_switches && !$game_switches[101]
+      when [17, "PU-doorsdew"]
+        :ura_maria_house
+      when [18, "HGSS_130"]
+        :ura_maria_fan
+      end
+    end
+
     # Says a letter as pbDisplayLetter shows it, the message with the player's name in place and then its sender,
     # kept for the repeat key.
     def self.letter(message, sender)
@@ -64,6 +77,10 @@ PokeAccess::Game.define("uranium") do
   around("GymWindow", :update) { |win, nxt, _a| PokeAccess::UraniumField.gym_counter(win, false) { nxt.call } }
   PokeAccess::Info.map_owner(:uranium_gym) { PokeAccess::UraniumField.gym_text }
   around("ScoreWindow", :initialize) { |_w, nxt, _a| PokeAccess::UraniumField.scoreboard { nxt.call } }
+  event_name do |ev|
+    label = PokeAccess::UraniumField.nowtoch_landmark(ev)
+    PokeAccess::I18n.t(label) if label
+  end
   before("Scene_Gameover", :main) { |_s, _a| PokeAccess.speak(PokeAccess::TitleScreen.prompt(:ura_gameover), false) }
   kernel("pbDisplayLetter", :before) { |args, _r| PokeAccess::UraniumField.letter(args[0], args[1]) }
 end

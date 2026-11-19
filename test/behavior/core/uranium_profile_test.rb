@@ -1059,6 +1059,32 @@ class UraniumProfileTest < PokeAccessTest
     assert_equal [["FORMS. FORMS SEEN 3. SHINY SEEN 1", false], ["Bulbasaur, Male Shiny", true]], outcome(:dex_forms)
   end
 
+  scenario :nowtoch_story_landmarks, <<-'RUBY'
+    previous_map, previous_switches = $game_map, $game_switches
+    begin
+      $game_map = Struct.new(:map_id).new(40)
+      $game_switches = Hash.new(false)
+      event = Struct.new(:id, :name, :character_name)
+      gym = event.new(14, "EV014", "door habidome")
+      house = event.new(17, "EV017", "PU-doorsdew")
+      fan = event.new(18, "Fufufu", "HGSS_130")
+      other_gym = event.new(13, "EV013", "door habidome")
+      hidden_fan = event.new(18, "Fufufu", "")
+      locator = PokeAccess::Locator
+      closed = [gym, house, fan, other_gym, hidden_fan].map { |ev| locator.ruled_name(ev) }
+      $game_switches[101] = true
+      opened = [gym, house].map { |ev| locator.ruled_name(ev) }
+      $game_map.map_id = 41
+      [closed, opened, locator.ruled_name(house)]
+    ensure
+      $game_map, $game_switches = previous_map, previous_switches
+    end
+  RUBY
+  test "names Nowtoch story landmarks in their active states" do
+    assert_equal [[t(:ura_nowtoch_gym_closed), t(:ura_maria_house), t(:ura_maria_fan), nil, nil],
+                  [nil, t(:ura_maria_house)], nil], outcome(:nowtoch_story_landmarks)
+  end
+
   scenario :sliders, <<-'RUBY'
     fps = UraSlider.new("FPS", 40, 60)
     autosave = UraSlider.new("Autosave", 0, 60, "Off")
