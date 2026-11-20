@@ -88,6 +88,8 @@ end
 # it left them.
 PokeAccess::Control.carrier(:rock_climb) { $PokemonGlobal.forced_rockclimb? }
 
+PokeAccess::Camera.tile_reader(:flags => [:rockclimb]) { |_x, _y| PokeAccess::I18n.t(:loc_rock_climb) }
+
 # The plugin's player passability (Game_Map#playerPassable?) also reads the lava surf and the rock climb, which join
 # the probe's mode.
 PokeAccess::World::Probe.mode_reader do

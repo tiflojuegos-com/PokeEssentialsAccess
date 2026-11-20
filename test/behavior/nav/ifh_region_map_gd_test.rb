@@ -1,4 +1,4 @@
-# Infinite Fusion Hoenn's BetterRegionMap screens (games/infinitefusion_hoenn/region_map.rb), gamedata pass: the weather
+# Infinite Fusion Hoenn's BetterRegionMap screens (games/infinitefusion_common/region_map.rb), gamedata pass: the weather
 # map says each square's HUD weather after its place, in one line; the secret base's square says the point of interest
 # painted over town_map.dat's; and the quest map says its title, its own line and its side panel of quests, once each.
 # The stand-ins paint as the Hoenn copy does and come before the plugin is loaded again (the harness booted with no
@@ -78,11 +78,11 @@ begin
 ensure
   $VERBOSE = verbose
 end
-unless defined?(PokeAccess::IF2Quests)
-  ifh_quests = File.join(Harness::ROOT, "games", "infinitefusion_hoenn", "quests.rb")
+unless defined?(PokeAccess::IFQuests)
+  ifh_quests = File.join(Harness::ROOT, "games", "infinitefusion_common", "quests.rb")
   eval(Harness.source(ifh_quests), TOPLEVEL_BINDING, ifh_quests)
 end
-ifh_rmap = File.join(Harness::ROOT, "games", "infinitefusion_hoenn", "region_map.rb")
+ifh_rmap = File.join(Harness::ROOT, "games", "infinitefusion_common", "region_map.rb")
 eval(Harness.source(ifh_rmap), TOPLEVEL_BINDING, ifh_rmap)
 
 class IfhRegionMapGdTest < PokeAccessTest

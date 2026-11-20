@@ -32,3 +32,5 @@ PokeAccess::Routes::Moves.assist_source(:front_flags => [:rockclimb, :rockclimb_
 end
 
 PokeAccess::Control.carrier(:rock_climb) { $PokemonGlobal.rockclimbing }
+
+PokeAccess::Camera.tile_reader(:flags => [:can_climb]) { |_x, _y| PokeAccess::I18n.t(:loc_rock_climb) }

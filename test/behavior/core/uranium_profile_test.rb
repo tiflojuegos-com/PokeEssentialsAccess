@@ -28,7 +28,7 @@ class UraniumProfileTest < PokeAccessTest
       def pausing?; @pause; end
       def busy?; @curchar < @textchars.length; end
     end
-    class GenCustomStyle; def initialize; end; end
+    class GenCustomStyle; def initialize; end; def intro; :shown; end; end
 
     UraTrainer = Struct.new(:name, :party)
     class UraSave
@@ -494,10 +494,12 @@ class UraniumProfileTest < PokeAccessTest
     assert_equal [["Your bag is now full.", false]], outcome(:system_message_at_once)
   end
 
-  scenario :title, "GenCustomStyle.new; SpeakCapture.log"
-  test "says the title prompt once as the custom title shows, interrupting" do
+  scenario :title, "s = GenCustomStyle.new; built = SpeakCapture.log.dup; [built, s.intro, SpeakCapture.log]"
+  test "says the title prompt once the custom title's skippable intro is over, interrupting, not as it is built" do
     prompt = "#{t(:title_screen)}. #{t(:title_press, :key => t(:key_enter))}"
-    assert_equal [[prompt, true]], outcome(:title).select { |_text, interrupt| interrupt }
+    built, shown, said = outcome(:title)
+    assert_equal [[], :shown, [[prompt, true]]],
+                 [built.select { |_text, cut| cut }, shown, said.select { |_text, cut| cut }]
   end
 
   scenario :continue_panel, <<-'RUBY'
@@ -512,7 +514,7 @@ class UraniumProfileTest < PokeAccessTest
   RUBY
   test "opens the load screen on the continue panel as painted, with the saved team and rules, queued" do
     team = t(:load_party, :list => "Especie25, Especie1")
-    assert_equal [["Route 3. Vitor. Badges: 2. Time: 5h 3m. #{team}. #{t(:ura_nuzlocke)}", false]],
+    assert_equal [["Continue. Route 3. Vitor. Badges: 2. Time: 5h 3m. #{team}. #{t(:ura_nuzlocke)}", false]],
                  outcome(:continue_panel)
   end
 
@@ -1072,6 +1074,58 @@ class UraniumProfileTest < PokeAccessTest
       "a stock slider at 0" => "0" }.each do |what, want|
       assert_equal want, outcome(:sliders)[what], "for #{what}"
     end
+  end
+
+  scenario :starter_machine, <<-'RUBY'
+    $game_map = Struct.new(:map_id).new(50)
+    event = Struct.new(:id, :name, :character_name)
+    machine = event.new(19, "Machine", "PU-PokeballMachine")
+    wrong_slot = event.new(20, "Machine", "PU-PokeballMachine")
+    person = event.new(19, "Bambo", "ZP- Professor")
+    loc = PokeAccess::Locator
+    actual = [loc.event_category(machine), loc.ruled_name(machine)]
+    wrongs = [wrong_slot, person].map { |ev| [loc.ruled_category(ev), loc.ruled_name(ev)] }
+    $game_map.map_id = 49
+    [actual, *wrongs, [loc.ruled_category(machine), loc.ruled_name(machine)]]
+  RUBY
+  test "names the lab's starter machine and puts it with objects" do
+    assert_equal [[:objects, t(:ura_starter_machine)], [nil, nil], [nil, nil], [nil, nil]], outcome(:starter_machine)
+  end
+
+  scenario :nowtoch_landmarks, <<-'RUBY'
+    previous_map, previous_switches = $game_map, $game_switches
+    begin
+      $game_map = Struct.new(:map_id).new(40)
+      $game_switches = Hash.new(false)
+      event = Struct.new(:id, :name, :character_name)
+      gym = event.new(14, "EV014", "door habidome")
+      house = event.new(17, "EV017", "PU-doorsdew")
+      fan = event.new(18, "Fufufu", "HGSS_130")
+      other_gym = event.new(13, "EV013", "door habidome")
+      hidden_fan = event.new(18, "Fufufu", "")
+      locator = PokeAccess::Locator
+      closed = [gym, house, fan, other_gym, hidden_fan].map { |ev| locator.ruled_name(ev) }
+      $game_switches[101] = true
+      opened = [gym, house].map { |ev| locator.ruled_name(ev) }
+      call = 'pbTrainerBattle(PBTrainers::LEADER_Roxanne,"Maria",_I("There!~"),false,0)'
+      battle = Struct.new(:code, :parameters).new(111, [12, call])
+      maria = event.new(3, "EV003", "PU-Maria")
+      other_event = event.new(4, "EV004", "PU-Maria")
+      hidden_maria = event.new(3, "EV003", "")
+      unarmed = event.new(3, "EV003", "PU-Maria")
+      [maria, other_event, hidden_maria].each { |ev| ev.instance_variable_set(:@list, [battle]) }
+      $game_map.map_id = 41
+      outside_gym = [house, maria].map { |ev| locator.ruled_name(ev) }
+      $game_map.map_id = 42
+      gym_people = [maria, other_event, hidden_maria, unarmed].map { |ev| locator.ruled_name(ev) }
+      [closed, opened, outside_gym, gym_people]
+    ensure
+      $game_map, $game_switches = previous_map, previous_switches
+    end
+  RUBY
+  test "names the way to Nowtoch's Gym as its story leaves it, and Maria inside by the name her battle gives" do
+    assert_equal [[t(:ura_nowtoch_gym_closed), t(:ura_maria_house), t(:ura_maria_admirer), nil, nil],
+                  [nil, t(:ura_maria_house)], [nil, nil], ["Maria", nil, nil, nil]], outcome(:nowtoch_landmarks)
   end
 
   test "says no text with raw control codes in the Uranium process" do

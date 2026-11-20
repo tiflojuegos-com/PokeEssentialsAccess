@@ -120,13 +120,15 @@ class RouteEventsTest < PokeAccessTest
   test "a pad that transfers within the map lands the player where it sends them" do
     pad_map(:id => 56, :x => 3, :y => 1, :list => [transfer_to(6, 1)])
     assert_equal [6, 6], walk_route(7, 1), "stepping on the pad lands across the wall"
-    assert_equal [[6, 1, 0, 1, nil, false, true, :warp]], whole(traced(2, 1, 0, [6])), "a warp, through a transfer"
+    assert_equal [[6, 1, 0, 1, nil, false, true, :warp, PokeAccess::Routes.pkey(3, 1)]], whole(traced(2, 1, 0, [6])),
+                 "a warp, through a transfer, from the pad stepped on"
   end
 
   test "an event bumped into that transfers within the map takes the player across" do
     pad_map(:id => 57, :x => 4, :y => 1, :sprite => "escalera", :list => [transfer_to(6, 1)])
     assert_equal [6, 6, 6], walk_route(7, 1), "the bump lands across the wall"
-    assert_equal [[6, 1, 0, 1, nil, false, true, :warp]], whole(traced(3, 1, 0, [6])), "a warp, through a transfer"
+    assert_equal [[6, 1, 0, 1, nil, false, true, :warp, nil]], whole(traced(3, 1, 0, [6])),
+                 "a warp, through a transfer, with no tile stepped on"
   end
 
   test "a pad that sends the player where nobody can stand is plain floor" do
@@ -134,7 +136,7 @@ class RouteEventsTest < PokeAccessTest
                          "#@..##.##",
                          "#########"])
     World.touch(:id => 58, :x => 3, :y => 1, :list => [transfer_to(6, 1)])
-    assert_equal [[3, 1, 0, 1, nil, false, false, :walk]], whole(traced(2, 1, 0, [6])), "the step stays on the pad"
+    assert_equal [[3, 1, 0, 1, nil, false, false, :walk, nil]], whole(traced(2, 1, 0, [6])), "the step stays on the pad"
     assert_nil walk_route(6, 1), "and the closet stays out of reach"
   end
 
@@ -248,7 +250,8 @@ class RouteEventsTest < PokeAccessTest
                          "##########"])
     World.touch(:id => 65, :x => 3, :y => 1, :list => [World.move_player([3])])
     World.touch(:id => 66, :x => 4, :y => 1, :list => [transfer_to(7, 1)])
-    assert_equal [[7, 1, 0, 1, nil, false, true, :carry]], whole(traced(2, 1, 0, [6])), "a carry, through a transfer"
+    assert_equal [[7, 1, 0, 1, nil, false, true, :carry, PokeAccess::Routes.pkey(3, 1)]], whole(traced(2, 1, 0, [6])),
+                 "a carry, through a transfer, from the arrow stepped on"
     assert_equal [6, 6], walk_route(8, 1), "and the route takes it"
   end
 
@@ -358,7 +361,7 @@ class RouteEventsTest < PokeAccessTest
     steps.map { |s| [s.x, s.y, s.kind] }
   end
 
-  # A replay's Steps whole: [x, y, level, presses, gate, mid, warp, kind].
+  # A replay's Steps whole: [x, y, level, presses, gate, mid, warp, kind, entry].
   def whole(steps)
     steps.map { |s| s.to_a }
   end

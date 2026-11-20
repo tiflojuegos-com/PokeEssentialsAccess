@@ -308,7 +308,7 @@ class RemapTest < PokeAccessTest
   end
 
   test "while Ctrl and Alt are held for one of the mod's gestures, the game reads its Alt and F8 as up" do
-    with_scripted_input do
+    without_camera_key do
       with_f8 do
         kb = PokeAccess::Keyboard
         engine_answers(true)
@@ -618,13 +618,13 @@ class RemapTest < PokeAccessTest
     end
   end
 
-  test "with an action on Alt plus a key the game's Alt reads one frame as it is let go, and not as it goes down" do
+  test "with an action on Alt plus a key the game's Alt triggers one frame as it is let go, and is pressed as held" do
     with_shipped_extra do
       [[[ALT], true, false], [[ALT], true, false], [[], false, true], [[], false, false]].each do |keys, engine, want|
         engine_answers(engine)
         key_frame(*keys)
         reads = [Input.trigger?(Input::ALT), Input.press?(Input::ALT), Input.repeat?(Input::ALT)]
-        assert_equal [want] * 3, reads, keys.inspect
+        assert_equal [want, engine, want], reads, keys.inspect
       end
     end
   end
@@ -679,6 +679,112 @@ class RemapTest < PokeAccessTest
         PokeAccess::ConfigMenu.define_singleton_method(:active?, menu)
       end
     end
+  end
+
+  test "a bare left Shift, which mkxp-z gives A, triggers A once as it is let go; held, A reads held" do
+    on_shift_engine do
+      reads = [[SHIFT_KEYS, true], [SHIFT_KEYS, true], [[], false], [[], false]].map do |keys, engine|
+        engine_answers(engine)
+        key_frame(*keys)
+        [Input.trigger?(Input::A), Input.repeat?(Input::A), Input.press?(Input::A)]
+      end
+      assert_equal [[false, false, true], [false, false, true], [true, true, false], [false, false, false]], reads
+    end
+  end
+
+  test "a Shift that went with a key of the mod's, an arrow, Ctrl or Alt triggers no A" do
+    [PokeAccess::Config.keys[:next], 0x25, PokeAccess::Keyboard::VK_CONTROL, ALT].each do |other|
+      on_shift_engine do
+        engine_answers(true)
+        key_frame(*SHIFT_KEYS)
+        key_frame(*(SHIFT_KEYS + [other]))
+        key_frame(*SHIFT_KEYS)
+        engine_answers(false)
+        key_frame
+        assert_equal false, Input.trigger?(Input::A), "with #{other}"
+      end
+    end
+  end
+
+  test "a Shift held over a game key of mkxp-z's own, Enter, X or Space, triggers no A as it is let go" do
+    [0x0D, 0x58, 0x20].each do |other|
+      on_shift_engine do
+        engine_answers(true)
+        key_frame(*SHIFT_KEYS)
+        key_frame(*(SHIFT_KEYS + [other]))
+        key_frame(*SHIFT_KEYS)
+        engine_answers(false)
+        key_frame
+        assert_equal false, Input.trigger?(Input::A), "with #{other}"
+      end
+    end
+  end
+
+  test "a Shift the mod moved a key onto A for is the engine's: A answers at once" do
+    bound = PokeAccess::Remap.method(:bound_code)
+    on_shift_engine do
+      begin
+        PokeAccess::Remap.define_singleton_method(:bound_code) { |sym| sym == :a ? 0x41 : bound.call(sym) }
+        engine_answers(true)
+        key_frame(*SHIFT_KEYS)
+        assert_equal true, Input.trigger?(Input::A)
+      ensure
+        PokeAccess::Remap.define_singleton_method(:bound_code, bound)
+      end
+    end
+  end
+
+  test "Z, A's other key under RGSS1, triggers A at once with Shift held; the right Shift, on no button, taps nothing" do
+    on_shift_engine([0, false, true]) do
+      engine_answers(true)
+      key_frame(*(SHIFT_KEYS + [0x5A]))
+      assert_equal true, Input.trigger?(Input::A), "Z"
+    end
+    on_shift_engine do
+      engine_answers(false)
+      key_frame(PokeAccess::Keyboard::VK_SHIFT, 0xA1)
+      key_frame
+      assert_equal false, Input.trigger?(Input::A), "the right Shift"
+    end
+  end
+
+  test "Shift is the engine's where the mod's Shift is another key, the game reads its own keys or a field is typed in" do
+    { :moved => lambda { PokeAccess::Config.keys[:shift] = 0x14 },
+      :typing => lambda { PokeAccess::Keys.instance_variable_set(:@typing_ttl, 99) } }.each do |name, change|
+      on_shift_engine do
+        begin
+          change.call
+          engine_answers(true)
+          key_frame(*SHIFT_KEYS)
+          assert_equal true, Input.trigger?(Input::A), name.to_s
+        ensure
+          PokeAccess::Config.keys[:shift] = PokeAccess::Keyboard::VK_SHIFT
+          PokeAccess::Keys.instance_variable_set(:@typing_ttl, 0)
+        end
+      end
+    end
+    with_scripted_input do
+      on_engine([2, 2, 0], [0, false, true], true) do
+        engine_answers(true)
+        key_frame(*SHIFT_KEYS)
+        assert_equal true, Input.trigger?(Input::A), "the game's own keys"
+      end
+    end
+  end
+
+  test "with F1 bindings, the button they give Shift waits for it, and the others answer at once" do
+    table = PokeAccess::NativeKeys.method(:table)
+    PokeAccess::NativeKeys.define_singleton_method(:table) { { :c => [0x0D], :x => [0x10, 0x43] } }
+    on_shift_engine do
+      engine_answers(true)
+      key_frame(PokeAccess::Keyboard::VK_SHIFT)
+      held = [Input.trigger?(Input::X), Input.trigger?(Input::A), Input.trigger?(Input::C)]
+      engine_answers(false)
+      key_frame
+      assert_equal [[false, true, true], true], [held, Input.trigger?(Input::X)]
+    end
+  ensure
+    PokeAccess::NativeKeys.define_singleton_method(:table, table)
   end
 
   test "a combination read that way fires no Alt either" do
@@ -767,7 +873,7 @@ class RemapTest < PokeAccessTest
   end
 
   test "with nothing on Alt plus a key the game's Alt is the engine's" do
-    with_scripted_input do
+    without_camera_key do
       engine_answers(true)
       key_frame(ALT)
       assert_equal true, Input.trigger?(Input::ALT)
@@ -775,6 +881,56 @@ class RemapTest < PokeAccessTest
       key_frame
       assert_equal false, Input.trigger?(Input::ALT)
     end
+  end
+
+  test "the free camera's Alt+K makes the game's Alt answer as it is let go on the map, and as the engine's in a battle" do
+    with_scripted_input do
+      engine_answers(true)
+      key_frame(ALT)
+      down = Input.trigger?(Input::ALT)
+      key_frame
+      up = Input.trigger?(Input::ALT)
+      kept = PokeAccess::Battle.method(:in_battle?)
+      begin
+        PokeAccess::Battle.define_singleton_method(:in_battle?) { true }
+        key_frame(ALT)
+        fight = Input.trigger?(Input::ALT)
+      ensure
+        PokeAccess::Battle.define_singleton_method(:in_battle?, kept)
+      end
+      assert_equal [false, true, true], [down, up, fight]
+    end
+  end
+
+  test "with the camera's Alt+K the game's Alt reads held while held (a turn in place), pressed once let go, and not after K" do
+    with_scripted_input do
+      engine_answers(true)
+      key_frame(ALT)
+      first = [Input.press?(Input::ALT), Input.trigger?(Input::ALT), Input.repeat?(Input::ALT)]
+      key_frame(ALT)
+      held = [Input.press?(Input::ALT), Input.trigger?(Input::ALT)]
+      engine_answers(false)
+      key_frame
+      let_go = [Input.press?(Input::ALT), Input.trigger?(Input::ALT)]
+      key_frame
+      engine_answers(true)
+      key_frame(ALT)
+      key_frame(ALT, 0x4B)
+      camera = Remap.code_pressed?(PokeAccess::Config.keys[:camera])
+      engine_answers(false)
+      key_frame
+      after_k = Input.trigger?(Input::ALT)
+      assert_equal [[true, false, false], [true, false], [false, true], true, false], [first, held, let_go, camera, after_k]
+    end
+  end
+
+  # Runs the block on scripted input with no mod key on Alt plus a key: the free camera's Alt+K taken off.
+  def without_camera_key
+    keys = PokeAccess::Config.keys
+    PokeAccess::Config.keys = keys.reject { |sym, _code| sym == :camera }
+    with_scripted_input { yield }
+  ensure
+    PokeAccess::Config.keys = keys
   end
 
   test "the game's Alt bound by the player follows that key, with an action on Alt plus another" do
@@ -1188,7 +1344,8 @@ class RemapTest < PokeAccessTest
     yield
   ensure
     release_all
-    [:@alt_was, :@alt_tap, :@alt_used].each { |state| Remap.instance_variable_set(state, false) }
+    [:@alt_was, :@alt_tap, :@alt_used, :@shift_was, :@shift_tap, :@shift_used, :@any_shift,
+     :@shift_at].each { |state| Remap.instance_variable_set(state, nil) }
     (ENGINE_KEYS + ENGINE_DIRS).each { |orig| unscript_engine(sc, orig) }
     PokeAccess::Keyboard::GAKS.singleton_class.send(:remove_method, :call)
   end
@@ -1286,6 +1443,14 @@ class RemapTest < PokeAccessTest
     PokeAccess::Config.keys = keys
     PokeAccess::Config.key_defaults = shipped
     2.times { PokeAccess::Keyboard.snapshot }
+  end
+
+  # The keys a held left Shift reads down: either Shift and the left one.
+  SHIFT_KEYS = [PokeAccess::Keyboard::VK_SHIFT, 0xA0]
+
+  # Runs the block on mkxp-z's input (mkxp.json config as on_engine takes it), with the keyboard scripted.
+  def on_shift_engine(config = [0, false, false])
+    with_scripted_input { on_engine([2, 2, 0], config) { yield } }
   end
 
   # One frame with exactly these keys held: the picture the pulse takes, then the remapper's look at them.

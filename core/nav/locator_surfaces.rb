@@ -20,34 +20,37 @@ module PokeAccess
     def self.surface_targets
       reach = [(PokeAccess::Pathfinder.vehicle_state rescue nil), (PokeAccess::Routes::Regions.foot.tiles.length rescue 0),
                (PokeAccess::Config.target_order rescue :near)]
-      pos = [$game_player.x, $game_player.y, ($game_map.map_id rescue 0), reach]
+      at = PokeAccess::Camera.focus
+      pos = [at[0], at[1], ($game_map.map_id rescue 0), reach]
       return @surface_cache if @surface_cache && @surface_cache_pos == pos
       @surface_cache_pos = pos
       @surface_cache = scan_surfaces(pos[0], pos[1])
     end
 
-    # One pass over the reachable tiles and the ring around them, keeping the tile of each surface that ranks first
-    # (surface_rank).
+    # A pass over the reachable tiles, then one over the ring around them, keeping the tile of each surface that ranks
+    # first (surface_rank); a tile of the ring counts where the player could stand on it or surf it (Terrain.liquid?),
+    # as any other surface there is the tag of a wall.
     def self.scan_surfaces(px, py)
       rt = PokeAccess::Routes
+      terrain = PokeAccess::World::Terrain
       reg = (PokeAccess::Config.target_order rescue :near) == :walk ? rt::Regions.foot : nil
       w = ($game_map.width rescue 0); h = ($game_map.height rescue 0)
       seen = {}
       best = {}
-      look = lambda do |tx, ty|
+      look = lambda do |tx, ty, ring|
         next if tx < 0 || ty < 0 || tx >= w || ty >= h
         k = rt.pkey(tx, ty)
         next if seen[k]
         seen[k] = true
-        lbl = PokeAccess::World::Terrain.label(tx, ty)
+        lbl = terrain.label(tx, ty)
         next if lbl.nil?
+        next if ring && !terrain.liquid?(tx, ty) && !PokeAccess::Sound::Scene.standable?(nil, nil, tx, ty)
         r = surface_rank(tx, ty, px, py, reg, false)
         best[lbl] = [r, tx, ty] if best[lbl].nil? || (r <=> best[lbl][0]) < 0
       end
-      (rt::Regions.foot.tiles rescue []).each do |x, y|
-        look.call(x, y)
-        rt::DIRS.each { |dir| look.call(x + dir[0], y + dir[1]) }
-      end
+      foot = (rt::Regions.foot.tiles rescue [])
+      foot.each { |x, y| look.call(x, y, false) }
+      foot.each { |x, y| rt::DIRS.each { |dir| look.call(x + dir[0], y + dir[1], true) } }
       dive = dive_spots(px, py, reg)
       best.delete(:surf_deepwater) if dive[:surf_dive]
       best.merge!(dive)
@@ -63,8 +66,26 @@ module PokeAccess
     def self.surface_rank(x, y, px, py, reg, onto)
       d = (x - px).abs + (y - py).abs
       return [d] unless reg
-      w = reg.presses_to(PokeAccess::Routes::Planner.goal_for(x, y, onto).tiles)
+      g = PokeAccess::Routes::Planner.goal_for(x, y, onto)
+      w = reg.presses_to(g.tiles, g.entry)
       w ? [0, w, d] : [1, d]
+    end
+
+    # The free camera's ground for (x, y) as dive_spots ranks it: :surf_dive on deep water over a dive map (unless the
+    # party surely cannot dive), :surf_surface under the upper map's deep water while diving; else nil.
+    def self.dive_ground(x, y)
+      mid = ($game_map.map_id rescue 0)
+      if ($PokemonGlobal.diving rescue false)
+        up = PokeAccess::MapMeta.surface_map(mid)
+        return nil unless up && !surface_anywhere?
+        deep = (PokeAccess::World::Terrain.tag_bits(PokeAccess::MapMeta.terrain_on(up, x, y)) & PokeAccess::World::Terrain::DEEP) != 0
+        return deep ? :surf_surface : nil
+      end
+      return nil unless PokeAccess::World::Terrain.deep?(x, y) && PokeAccess::MapMeta.dive_map(mid)
+      PokeAccess::FieldMoves.can?(:DIVE) == false ? nil : :surf_dive
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
     end
 
     # The places to dive and to come up that rank first (surface_rank with reg), as { label => [rank, x, y] }: deep
@@ -118,10 +139,11 @@ module PokeAccess
       { :surf_dive => :loc_dive_here, :surf_surface => :loc_surface_here }[t.key]
     end
 
-    # The way to step off the map from a map edge's exit, the player standing on its tile: that border tile's way out
-    # (an open one first, where a corner leads off two ways), else nil.
+    # The way to step off the map from a map edge's exit, the focus (Camera.focus) on its tile: that border tile's way
+    # out (an open one first, where a corner leads off two ways), else nil.
     def self.edge_out(t)
-      return nil unless edge?(t) && $game_player && $game_player.x == t.x && $game_player.y == t.y
+      at = edge?(t) ? PokeAccess::Camera.focus : nil
+      return nil unless at && at[0] == t.x && at[1] == t.y
       ways = ((@conn_edges || {})[t.ref] || []).select { |x, y, _w| x == t.x && y == t.y }
       e = ways.find { |w| edge_open?(w) } || ways[0]
       e && e[2]
@@ -131,6 +153,8 @@ module PokeAccess
     # edge's exit ("you have arrived, exit to the left", and for the route key "route: exit to the left"), else that
     # the player has arrived.
     def self.arrived_line(t, route = false)
+      cam = PokeAccess::Camera.arrived_line(t)
+      return cam if cam
       d = edge_out(t)
       return PokeAccess::I18n.t(dive_key(t) || :loc_arrived) if d.nil?
       way = PokeAccess::Routes::Text.exit_out(d)
@@ -205,7 +229,7 @@ module PokeAccess
       own = edges.any? { |e| e[0] == t.x && e[1] == t.y }
       return t if own && edges.length == 1
       reg = PokeAccess::Routes::Regions.foot
-      px = $game_player.x; py = $game_player.y
+      px, py = PokeAccess::Camera.focus
       x, y = edge_on_foot(edges, reg, px, py)
       if x.nil?
         return t if own && reg.status([[t.x, t.y]])[0] != :no

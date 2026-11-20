@@ -19,6 +19,13 @@
     puzzles/memory_mansion
     puzzles/carcitoma_crossroads
     puzzles/azure_lookout
+    puzzles/oblivion_tower
+    puzzles/catacumbion_club
+    puzzles/catabrumas
+    puzzles/azure_rocks
+    puzzles/heart_fragments
+    puzzles/carcitoma_mazes
+    puzzles/type_sphinxes
   ],
   :plugins => %w[battle_lives book_scene boon_side_stairs easy_questing fancy_badges luka_title menu2_pausemenu slide_banners text_log]
 }

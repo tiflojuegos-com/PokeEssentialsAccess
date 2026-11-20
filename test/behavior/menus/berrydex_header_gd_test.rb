@@ -2,11 +2,10 @@
 # they change, the focused berry's name left to the row; a berry's page read as laid out, each label beside its value.
 
 # The detail screen: drawPage paints the page asked for (its description by drawTextEx, the rest by
-# pbDrawTextPositions) on the berry's current subpage.
+# pbDrawTextPositions).
 class BerrydexInfo_Scene
   def initialize(berry, rows, description = nil)
     @berry = berry
-    @subpage = 0
     @rows = rows
     @description = description
   end
@@ -114,13 +113,12 @@ class BerrydexHeaderGdTest < PokeAccessTest
     assert_nothing_spoken
   end
 
-  test "the same page on another subpage is read again" do
+  test "the same page painting another subpage is read again, with what it paints now" do
     scene = page_scene
-    PokeAccess::BerryDex.page(scene, 2, paint(PAGE.first(1)))
+    PokeAccess::BerryDex.page(scene, 3, paint([["1/2", 88, 50], ["Cheri Berry", 222, 58]]))
     SpeakCapture.clear
-    scene.instance_variable_set(:@subpage, 1)
-    PokeAccess::BerryDex.page(scene, 2, paint(PAGE.first(1)))
-    assert_equal [["ItemCHERIBERRY. #{section(:bdx_page_plant)}. 01 Cheri Berry", true]], SpeakCapture.log
+    PokeAccess::BerryDex.page(scene, 3, paint([["2/2", 88, 50], ["Pecha Berry", 222, 58]]))
+    assert_equal [["ItemCHERIBERRY. #{PokeAccess::I18n.t(:bdx_section, :name => 3)}. 2/2. Pecha Berry", true]], SpeakCapture.log
   end
 
   test "leaves the berry's painted name out of its page" do
@@ -180,7 +178,7 @@ class BerrydexHeaderGdTest < PokeAccessTest
   end
 
   test "a screen with no berry says nothing" do
-    PokeAccess::BerryDex.page(World.stub_scene(:@berry => nil, :@subpage => 0), 1, page_paint)
+    PokeAccess::BerryDex.page(World.stub_scene(:@berry => nil), 1, page_paint)
     assert_nothing_spoken
   end
 
@@ -196,9 +194,9 @@ class BerrydexHeaderGdTest < PokeAccessTest
     paint(HEADER.map { |text, x, y| [text || registered, x, y] })
   end
 
-  # The detail screen on a berry's first subpage.
+  # The detail screen on a berry.
   def page_scene
-    World.stub_scene(:@berry => :CHERIBERRY, :@subpage => 0)
+    World.stub_scene(:@berry => :CHERIBERRY)
   end
 
   # The detail page's capture: the description painted by drawTextEx, then the rest by pbDrawTextPositions.

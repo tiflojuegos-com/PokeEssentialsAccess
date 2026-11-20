@@ -89,6 +89,20 @@ class GenericPushesTest < PokeAccessTest
     end
   end
 
+  test "a page that ends the event when the player faces one way and acts otherwise answers from the other three" do
+    room(["#######", "#.....#", "#.....#", "#@....#", "#######"]) do
+      list = [TestCmd.new(111, [6, -1, 2], 0), TestCmd.new(115, [], 1), TestCmd.new(0, [], 1), TestCmd.new(411, [], 0),
+              TestCmd.new(101, ["The lever moves"], 1), TestCmd.new(0, [], 1), TestCmd.new(412, [], 0), TestCmd.new(0, [], 0)]
+      $game_map.events[75] = TestGameEvent.new(:id => 75, :x => 3, :y => 2, :pages => [TestPage.new(:trigger => 0, :list => list)])
+      $game_map.events[75].blocking = true
+      PokeAccess::Pathfinder.invalidate_cache(true)
+      events.sync(true)
+      assert_equal [4, 6, 8], Effects.sides_facet(events.record_of($game_map.events[75])).sort
+      refute_includes Effects.act_sides(3, 2), [3, 1], "not from above, facing down"
+      assert_includes Effects.act_sides(3, 2), [3, 3]
+    end
+  end
+
   test "a branch on anything else besides those on facing answers from any side" do
     room(["#######", "#@....#", "#.....#", "#.....#", "#######"]) do
       list = [TestCmd.new(111, [6, -1, 8], 0), TestCmd.new(101, ["up"], 1), TestCmd.new(0, [], 1), TestCmd.new(412, [], 0),

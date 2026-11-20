@@ -146,12 +146,83 @@ module Harness
     PokeAccess::Data.instance_variable_set(:@active_entry, nil)
   end
 
-  # Declares a profile's puzzles again, through source so a mutant of one is the one tested, for a test whose reset dropped them.
+  # Declares a profile's puzzles again, through source so a mutant of one is the one tested, for a test whose reset dropped them;
+  # a function or method hook already added by an earlier load stays added once, as in the game, which loads each file once,
+  # a reader or rule the files register again takes the place of the one an earlier load left (renew_registered), and the
+  # constants it sets again raise no warning.
   def self.load_puzzles(game)
+    chains = PokeAccess::Hooks.instance_variable_get(:@chains)
+    added = {}
+    linked = {}
+    PokeAccess::Hooks.fn_bodies.each { |key, list| added[key] = list.length }
+    chains.each { |key, list| linked[key] = list.length }
+    before = registries.map { |list| [list, list.dup] }
+    paths = []
+    verbose = $VERBOSE
+    $VERBOSE = nil
     manifest_of("games/#{game}")[:modules].select { |entry| entry =~ %r{\Apuzzles/} }.each do |entry|
       path = File.join(ROOT, "games", game, "#{entry}.rb")
+      paths.push(path)
       eval(source(path), TOPLEVEL_BINDING, path)
     end
+    added.each { |key, n| PokeAccess::Hooks.fn_bodies[key].slice!(n..-1) if n > 0 }
+    linked.each { |key, n| chains[key].slice!(n..-1) if n > 0 && chains[key] }
+    before.each { |list, old| renew_registered(list, old, paths) }
+  ensure
+    $VERBOSE = verbose
+  end
+
+  # Every list a PokeAccess module keeps in an instance variable: where the mod's readers, rules and listeners are registered.
+  def self.registries
+    out = []
+    seen = {}
+    stack = [PokeAccess]
+    real_name = Module.instance_method(:name)
+    until stack.empty?
+      mod = stack.pop
+      next if seen[mod]
+      seen[mod] = true
+      mod.instance_variables.each do |iv|
+        v = mod.instance_variable_get(iv)
+        out.push(v) if v.is_a?(Array) && !v.frozen?
+      end
+      mod.constants.each do |c|
+        k = (mod.const_get(c) rescue nil)
+        stack.push(k) if k.is_a?(Module) && real_name.bind(k).call.to_s.start_with?("PokeAccess")
+      end
+    end
+    out.uniq { |l| l.object_id }
+  end
+
+  # In list, the entries a reload of paths added stand where the ones from those same lines stood before it (old, the
+  # list as it was), in the same order, and those are dropped: one reader or rule per declaration, the newest.
+  def self.renew_registered(list, old, paths)
+    return if list.length <= old.length
+    kept = {}
+    old.each { |e| kept[e.object_id] = true }
+    fresh = list.reject { |e| kept[e.object_id] }
+    by_line = {}
+    fresh.each { |e| (loc = registered_at(e, paths)) && (by_line[loc] ||= []).push(e) }
+    by_line.each do |loc, news|
+      olds = list.select { |e| kept[e.object_id] && registered_at(e, paths) == loc }
+      next if olds.empty?
+      news.each { |e| list.delete_if { |x| x.equal?(e) } }
+      olds.each_with_index do |e, i|
+        at = list.index { |x| x.equal?(e) }
+        i < news.length ? list[at] = news[i] : list.delete_at(at)
+      end
+      list.push(*news[olds.length..-1]) if news.length > olds.length
+    end
+  end
+
+  # The [file, line] of the block an entry of a registry holds, when one of paths declared it, else nil.
+  def self.registered_at(entry, paths)
+    parts = [entry]
+    parts.concat(entry) if entry.is_a?(Array)
+    parts.concat(entry.to_a) if entry.is_a?(Struct)
+    blk = parts.find { |x| x.is_a?(Proc) }
+    loc = blk && blk.source_location
+    loc && paths.include?(loc[0]) ? loc : nil
   end
 
   # The first declaration of a map's mechanics, or nil.

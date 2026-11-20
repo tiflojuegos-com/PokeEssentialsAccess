@@ -1,5 +1,6 @@
-# Surfaces with a name of their own under the player: seaweed (the underwater tall grass) while diving, and lava where
-# the game's terrain names it (PBTerrain::Lava in Reborn and Rejuvenation), never a tag the game leaves unnamed.
+# Surfaces with a name of their own under the player: seaweed (the underwater tall grass) while diving, and lava, snow,
+# mud and cliffs where the game's terrain names them (PBTerrain::Lava in Reborn and Rejuvenation, Snow in Uranium, Mud in
+# Xenoverse), never a tag the game leaves unnamed.
 
 class SurfaceLabelsTest < PokeAccessTest
   SEAWEED = 11
@@ -20,6 +21,19 @@ class SurfaceLabelsTest < PokeAccessTest
   ensure
     PBTerrain.send(:remove_const, :Lava) if PBTerrain.const_defined?(:Lava)
     PokeAccess::World::Terrain.reset!
+  end
+
+  test "names the snow, the mud and the cliffs of a game whose terrain tags name them" do
+    { :Snow => :surf_snow, :Mud => :surf_mud, :Cliff => :surf_cliff }.each do |name, label|
+      begin
+        PBTerrain.const_set(name, LAVA)
+        PokeAccess::World::Terrain.reset!
+        standing_on(LAVA) { assert_equal [[PokeAccess::I18n.t(label), false]], SpeakCapture.log, name.to_s }
+      ensure
+        PBTerrain.send(:remove_const, name) if PBTerrain.const_defined?(name)
+        PokeAccess::World::Terrain.reset!
+      end
+    end
   end
 
   test "leaves the lava number unnamed in a game that does not name it" do

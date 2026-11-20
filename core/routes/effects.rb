@@ -29,7 +29,8 @@ module PokeAccess
       @field_gates = []
 
       # Registers a reader of events a plugin gives a meaning of its own: it gets a live event and answers the
-      # effect arriving on it has for every facing (a :run), or nil to leave the event to EventPages.
+      # effect arriving on it has for every facing (a :run), :unseen for one the walks step on as plain ground (what a
+      # sighted player cannot see, without the puzzle assist), or nil to leave the event to EventPages.
       def self.touch_source(&reader); @touch_sources.push(reader); end
 
       # Reads the indexes every walk and search looks up at each step, from the world as it stands, before events are lent
@@ -57,11 +58,12 @@ module PokeAccess
 
       # One event's :touch facet: pkey => [fires_on_arrival, { facing => effect }] for each tile it covers where
       # touching it does something, a page with a script condition walked once per tile; a plugin reader's effect
-      # (touch_source) takes precedence. nil for an event touching does nothing to.
+      # (touch_source) takes precedence. nil for an event touching does nothing to, or that the reader calls unseen.
       def self.touch_facet(r)
         ev = r.ev
         out = {}
         own = sourced_effect(ev)
+        return nil if own == :unseen
         if own
           all = { 2 => own, 4 => own, 6 => own, 8 => own }
           r.tiles.each { |x, y| out[Routes.pkey(x, y)] ||= [true, all] }
@@ -155,13 +157,16 @@ module PokeAccess
 
       # The engine's own answer to "does this event fire when the player stands on it": a sprite-less (or
       # through) event on a tile the map lets anyone stand on. Asked of the event where the engine has it. The map's
-      # answer, which the tiles and other events change, makes the facet asking it volatile.
+      # answer, which the tiles and other events change, makes the facet asking it volatile. A Lens of Truth event is
+      # asked as a route meets it (World::Lens.met).
       def self.fires_on_arrival?(ev)
         PokeAccess::World::Flags.volatile!
-        r = (ev.over_trigger? rescue nil)
-        return r ? true : false unless r.nil?
-        return false unless ev.character_name.to_s.empty? || (ev.through rescue false)
-        ($game_map.passable?(ev.x, ev.y, 0) rescue false) ? true : false
+        PokeAccess::World::Lens.met(ev) do
+          r = (ev.over_trigger? rescue nil)
+          next(r ? true : false) unless r.nil?
+          next false unless ev.character_name.to_s.empty? || (ev.through rescue false)
+          ($game_map.passable?(ev.x, ev.y, 0) rescue false) ? true : false
+        end
       end
 
       # One facing's effect from a walk's outcome, or nil when it changes nothing for a route. A carry keeps the steps
@@ -444,6 +449,8 @@ module PokeAccess
         body = list.reject { |c| [108, 408].include?((c.code rescue 0)) }
         first = body.first
         return nil unless first && facing_branch?(first)
+        left = refused_side(body, first)
+        return left if left
         dirs = []
         body.each_with_index do |c, i|
           next if c.indent != first.indent || c.code == 0 || c.code == 412
@@ -456,6 +463,24 @@ module PokeAccess
         end
         dirs = dirs.uniq
         dirs.length < 4 ? dirs : nil
+      end
+
+      # The other three facings when the page is one branch on the player's facing that only ends the event (or does
+      # nothing) and an else that does something, as Desolation's Keneph lever; nil for any other page.
+      def self.refused_side(body, first)
+        k = first.indent
+        i = 1
+        i += 1 while body[i] && body[i].indent > k && [115, 0].include?(body[i].code)
+        return nil unless body[i] && body[i].indent == k && body[i].code == 411
+        j = i + 1
+        acts = false
+        while body[j] && body[j].indent > k
+          acts = true unless body[j].code == 0
+          j += 1
+        end
+        return nil unless acts && body[j] && body[j].code == 412
+        return nil unless (body[(j + 1)..-1] || []).all? { |c| c.code == 0 }
+        [2, 4, 6, 8] - [first.parameters[2]]
       end
 
       # True for a branch on the player's facing.

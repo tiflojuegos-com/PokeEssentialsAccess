@@ -176,6 +176,10 @@ module PokeAccess
              :vol => [:audio3d_mark, 85, :lbl_pos_marks, :help_pos_marks],
              :freq => [:audio3d_freq_mark, 80, :lbl_freq_marks, :help_freq_marks],
              :tone => [:audio3d_tone_mark, 50, :lbl_tone_marks, :help_tone_marks])
+      family(:scenes, :on => [:sound_scenes, true, :lbl_on_scenes], :shown => :sonar,
+             :vol => [:audio3d_scene, 85, :lbl_pos_scenes, :help_pos_scenes],
+             :freq => [:audio3d_freq_scene, 10, :lbl_freq_scenes, :help_freq_scenes],
+             :tone => [:audio3d_tone_scene, 50, :lbl_tone_scenes, :help_tone_scenes])
       family(:water, :on => [:sound_water, true, :lbl_on_water], :shown => :sonar,
              :vol => [:audio3d_water, 70, :lbl_pos_water, :help_pos_water],
              :tone => [:audio3d_tone_water, 50, :lbl_tone_water, :help_tone_water])
@@ -190,6 +194,9 @@ module PokeAccess
       family(:wall, :on => [:sound_wall, true, :lbl_on_wall], :shown => :nav_on,
              :vol => [:wall_volume, 80, :lbl_wall_vol, :help_wall_vol],
              :tone => [:wall_tone, 50, :lbl_wall_tone, :help_wall_tone])
+      family(:interact, :on => [:sound_interact, true, :lbl_on_interact], :shown => :nav_on,
+             :vol => [:interact_volume, 80, :lbl_interact_vol, :help_interact_vol],
+             :tone => [:interact_tone, 50, :lbl_interact_tone, :help_interact_tone])
       family(:guide,
              :vol => [:event_volume, 70, :lbl_guide_vol, :help_guide_vol],
              :freq => [:guide_freq, 75, :lbl_guide_freq, :help_guide_freq],
@@ -227,6 +234,8 @@ module PokeAccess
             :glossary => [:snd_push, :snd_push_help, "pa3d_push", 100])
       sound(:exit, :exits, :file => "pa3d_exit", :role => :ping, :rank => 11,
             :glossary => [:snd_exit, :snd_exit_help, "pa3d_exit", 100])
+      sound(:scene, :scenes, :file => "pa3d_scene", :role => :ping, :rank => 12,
+            :glossary => [:snd_scene, :snd_scene_help, "pa3d_scene", 100])
       sound(:trap, :traps, :file => "pa3d_boop", :role => :ping, :rank => 5,
             :glossary => [:snd_trap, :snd_trap_help, "pa3d_boop", 100])
       sound(:hazard, :hazards, :file => "pa3d_hazard", :role => :ping, :rank => 4,
@@ -244,7 +253,7 @@ module PokeAccess
             :glossary => [:snd_wind_w, :snd_wind_help, "pa3d_wind_w", 100])
       sound(:wall, :wall, :file => "pa3d_wall", :place => :front, :flat => WALL_FLAT, :clamp => [80, 120],
             :glossary => [:snd_wall, :snd_wall_help, "pa3d_wall", 100])
-      sound(:interact, :wall, :file => "pa3d_interact", :place => :front, :flat => INTERACT_FLAT, :clamp => [80, 120],
+      sound(:interact, :interact, :file => "pa3d_interact", :place => :front, :flat => INTERACT_FLAT, :clamp => [80, 120],
             :glossary => [:snd_interact, :snd_interact_help, "pa3d_interact", 100])
       sound(:bump, :wall, :glossary => [:snd_bump, :snd_bump_help, "pa3d_wall_c", 100])
       sound(:step, :steps, :file => "pa_step", :place => :player, :flat => { :any => ["pa_step", 100] },

@@ -8,6 +8,8 @@ class TerrainTest < PokeAccessTest
   ICE = Terrain::ICE
   DEEP = Terrain::DEEP
   GRASS = Terrain::GRASS
+  WILD = Terrain::WILD
+  LAND = GRASS | WILD
   FALLING = Terrain::FALLING
   # A modern tag object (GameData::TerrainTag) with the flags the tag tests read and one a plugin adds (rail).
   ModernTag = Struct.new(:id, :id_number, :can_surf, :ledge, :ice, :can_dive, :rail)
@@ -55,7 +57,7 @@ class TerrainTest < PokeAccessTest
       ModernTag.new(:DeepWater, 5, true, false, false, true) => SURF | DEEP,
       ModernTag.new(:Ice, 12, false, false, true, false) => ICE,
       ModernTag.new(:Ice, 12, false, false, false, false) => 0,
-      ModernTag.new(:TallGrass, 10, false, false, false, false) => GRASS,
+      ModernTag.new(:TallGrass, 10, false, false, false, false) => LAND,
       ModernTag.new(:Waterfall, 8, true, false, false, false) => SURF | FALLING
     }.each { |tag, bits| assert_equal bits, Terrain.bits_of(tag), "for #{tag.id} #{tag.to_a.inspect}" }
   end
@@ -65,6 +67,16 @@ class TerrainTest < PokeAccessTest
     assert_equal :sand, Terrain.kind_of(ModernTag.new(:Rail, 3)), "a game's own id falls back to its number"
     assert_nil Terrain.kind_of(ModernTag.new(:Rail, 99)), "and a number no standard tag has is no kind"
     assert_equal 99, Terrain.number_of(ModernTag.new(:Ice, 99))
+  end
+
+  test "snow, mud and cliffs have no standard number: only a tag's id or the game's own name makes them" do
+    { :Snow => :snow, :Mud => :mud, :Cliff => :cliff }.each do |id, kind|
+      assert_equal kind, Terrain.kind_of(ModernTag.new(id, 44)), "Infinite Fusion's #{id}"
+      assert_equal "surf_#{kind}".to_sym, Terrain::LABEL[kind]
+    end
+    with_pbterrain(:Snow => 16) { assert_equal :snow, Terrain.kind_of(16), "Uranium's 16" }
+    with_pbterrain(:Mud => 16) { assert_equal :mud, Terrain.kind_of(16), "Xenoverse's 16" }
+    without_pbterrain_names { [44, 45, 46].each { |n| assert_nil Terrain.kind_of(n), "an unnamed #{n}" } }
   end
 
   test "a raw tag's number is the gen-6 Integer itself, and nothing else has one" do
@@ -91,6 +103,9 @@ class TerrainTest < PokeAccessTest
   test "where two names share a number the standard one wins, whichever the engine lists first" do
     assert_equal({ 16 => :puddle }, Terrain.kinds_of_names([[:Puddle, 16], [:Charco, 16]]))
     assert_equal({ 16 => :puddle }, Terrain.kinds_of_names([[:Charco, 16], [:Puddle, 16]]))
+    assert_equal({ 16 => :puddle }, Terrain.kinds_of_names([[:Mud, 16], [:Puddle, 16]]), "over a kind with no number")
+    assert_equal({ 16 => :puddle }, Terrain.kinds_of_names([[:Puddle, 16], [:Mud, 16]]))
+    assert_equal({ 26 => :lava }, Terrain.kinds_of_names([[:Lava, 26], [:Snow, 26]]), "else the first kind named")
     assert_equal({ 16 => nil, 4 => :rock }, Terrain.kinds_of_names([[:Charco, 16], [:Rock, 4], [:Odd, "x"]]),
                  "a name of its own maps to no kind, and a value that is no number is left out")
     with_pbterrain(:Charco => 16, :Puddle => 16) do
@@ -100,16 +115,26 @@ class TerrainTest < PokeAccessTest
 
   test "gen-6 numbers take PBTerrain's own tag test where it has one, and the standard numbers where not" do
     {
-      0 => 0, 1 => LEDGE, 2 => GRASS, 3 => 0, 4 => 0, 5 => SURF | DEEP, 6 => 0, 7 => SURF, 8 => SURF | FALLING,
-      9 => SURF | FALLING, 10 => GRASS, 11 => 0, 12 => ICE, 13 => 0, 14 => GRASS, 15 => 0, 16 => 0
+      0 => 0, 1 => LEDGE, 2 => LAND, 3 => 0, 4 => 0, 5 => SURF | DEEP, 6 => 0, 7 => SURF, 8 => SURF | FALLING,
+      9 => SURF | FALLING, 10 => LAND, 11 => 0, 12 => ICE, 13 => 0, 14 => LAND, 15 => 0, 16 => 0
     }.each { |n, bits| assert_equal bits, Terrain.bits_of(n), "for #{n}" }
   end
 
   test "with no surf test of the engine's own, the standard numbers count still water as surfable" do
     without_pbterrain_surf_test do
-      { 4 => 0, 5 => SURF | DEEP, 6 => SURF, 7 => SURF, 8 => SURF | FALLING, 9 => SURF | FALLING, 10 => GRASS }
+      { 4 => 0, 5 => SURF | DEEP, 6 => SURF, 7 => SURF, 8 => SURF | FALLING, 9 => SURF | FALLING, 10 => LAND }
         .each { |n, bits| assert_equal bits, Terrain.bits_of(n), "for #{n}" }
     end
+  end
+
+  test "a tag the game's own grass test counts for encounters is wild, though not grass (Desolation's sand, 25)" do
+    Object.send(:define_method, :pbIsGrassTag?) { |tag| [2, 10, 25].include?(tag) }
+    Object.send(:private, :pbIsGrassTag?)
+    Terrain.reset!
+    assert_equal [WILD, LAND], [Terrain.bits_of(25), Terrain.bits_of(2)]
+  ensure
+    Object.send(:remove_method, :pbIsGrassTag?)
+    Terrain.reset!
   end
 
   test "the global surf test of the copies older than v15 is asked before the standard numbers" do

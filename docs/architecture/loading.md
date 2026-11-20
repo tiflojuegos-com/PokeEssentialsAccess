@@ -116,8 +116,22 @@ adds nothing to `Hooks.missing`. A game that ships an older or edited copy of a 
 
 ## F12 reset
 
-F12 makes mkxp-z raise `Reset` out of `Graphics.update` and evaluate the game's scripts again. The preload script does
-not run again, and the boot is not repeated:
+F12 makes mkxp-z raise `Reset` out of the call that is running frames, and then evaluate the game's scripts again in
+the same process. Some games do not survive that: an engine method they alias ends up calling itself, or they answer by
+starting their original player without the mod. The preload therefore answers F12 by starting the game anew in a
+process of its own.
+
+1. The preload wraps every call where mkxp-z raises `Reset`: `Graphics.update`, `transition`, `wait`, `fadeout`,
+   `fadein` and `freeze`, and the engine's message boxes, `msgbox`, `print` and `p` of `Kernel`. Each passes its error
+   to `AccessPreload.on_raise`, and any error other than `Reset` goes on unchanged.
+2. `AccessPreload.relaunch` starts the process's own executable again, without arguments, in its folder and its
+   environment (`CreateProcessW`). The new process reads the same `mkxp.json` and loads the mod from the start.
+3. Once Windows started it, the `Reset` becomes a `SystemExit`, and the old process ends. A game that rescues that exit
+   and goes on is ended on its next `Graphics.update` (`AccessPreload.leave_if_relaunched`), since two copies would
+   read the same keys.
+
+Where no process can be started (no `Win32API`, or the call fails), the reset goes on in the same process, and the
+boot is not repeated:
 
 1. `AccessPreload.note_reset` sees the `Reset`, once the mod has loaded, and keeps the game's current `pbCallTitle`.
 2. The game's scripts run again. Their definitions replace the wrappers the mod had installed.
@@ -164,7 +178,9 @@ number:
 2. `:control` evaluates whether the player has free control, now that the world has settled, and emits
    `:control_lost` or `:control_regained`.
 3. `:nav` runs the navigation steps ([Guide and sound](guide-and-sound.md)):
-   - `:listener` moves the sound listener to the player's tile.
+   - `:camera` runs the free camera: its key, and its moves while it is open
+     ([Free camera](guide-and-sound.md#free-camera)).
+   - `:listener` moves the sound listener to the focus, the player's tile or the free camera's.
    - `:feedback` plays the sounds of the player's own moves, and `:surfaces` says the ground underfoot and the water
      ahead.
    - `:guide` runs the two guides, `:puzzles` follows the map's puzzle and `:keys` polls the locator's keys.
@@ -181,8 +197,14 @@ configuration menu is closed. `Frame.run` runs them inside `Speech.as(:nav)`, so
 [speech category](speech-and-languages.md#speech-categories). The sound stage runs on every map frame, so it can also
 silence what must stop.
 
-The listener moves first so that a step or the guide's chime from a new tile sounds from where the player stands
-(`Sound.follow_player` in `core/sound/cues.rb`).
+The listener moves before the cues so that a step or the guide's chime from a new tile sounds from where the player
+stands (`Sound.follow_focus` in `core/sound/cues.rb`). The free camera moves the listener itself, before the step it
+plays.
+
+While the free camera is open, the mod's `Input` hooks answer every read of the game's input as released
+([Keys](../reference/keys.md#free-camera)), so `Game_Player#update` still runs, and the map frame with it, while the
+player stands still. A poller of the pulse (`Camera.pulse`) keeps that hold after the camera closes, until the keys that
+closed it are let go.
 
 `Frame.step` registers a step in a stage at an order number. Lower numbers run first, and equal numbers keep their
 registration order. Registering a name again replaces its step. `core/input/frame.rb` registers every step at its
@@ -214,6 +236,6 @@ go quiet, and the locator keys lock. The map frame cannot see the stall, since i
 The preload writes `preload_started.txt` in `accessibility/data`, and the error of a boot that fails to
 `loader_error.txt` in the same folder. The boot writes its own lines to `loader_error.txt` in the data folder, or in
 `accessibility/data` before `PokeAccess::Paths` has loaded. The hooks, the steps and the pulse jobs write their first
-failures and each F12 reset to the marker file, `hook_loaded.txt`, in the data folder.
+failures and each F12 reset carried out in the same process to the marker file, `hook_loaded.txt`, in the data folder.
 [Files of the loader](diagnostics.md#files-of-the-loader) and
 [The marker file](diagnostics.md#the-marker-file) describe their lines.

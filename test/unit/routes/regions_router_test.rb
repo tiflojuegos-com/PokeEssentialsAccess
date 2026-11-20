@@ -270,7 +270,7 @@ class RegionsRouterTest < PokeAccessTest
   # The router's answers in style to every inner tile of the 13 x 10 map loaded that differ from brute force (presses
   # and turns, a route where there is none, or no answer at all): [mismatches, answers checked].
   def mismatches(style, tag)
-    best = brute_best(style, LEDGE)
+    best = brute_reach(style, LEDGE)
     cost = Routes::CostModel.new(style)
     bad = []
     checked = 0

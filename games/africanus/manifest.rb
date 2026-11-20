@@ -8,6 +8,7 @@
     cuadrigas
     pictures
     passability
+    centers
     puzzles/tarraco_gym
     puzzles/cartago_nova_gym
     puzzles/gades_gym
@@ -18,6 +19,11 @@
     puzzles/massilia_gym
     puzzles/siracusa_play
     puzzles/iol_scene
+    puzzles/dionysus_palace
+    puzzles/cyclops_cave
+    puzzles/constantinople_dyes
+    puzzles/utica_traps
+    puzzles/ibossim_temple
   ],
   :plugins => %w[easy_questing logros luka_title fancy_badges]
 }

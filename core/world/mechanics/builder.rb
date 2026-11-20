@@ -41,20 +41,25 @@ module PokeAccess
         # Names events, listed in the puzzles category while they are drawn or their page can run, and called that in
         # every list. :numbered => true adds :n, their place in reading order, to the label's interpolations; a lambda with
         # one parameter gives the label of each event, asked each time it is read; :assist => true, with the puzzle assist
-        # alone; :when, a test given the event for while it is listed (false: never).
+        # alone; :when, a test given the event for while it is listed (false: never); :grouped => true lists touching
+        # ones of one name as one target.
         def name(what, label, opts = {})
           add(:names, opts.dup.merge!(:events => Mechanics.picked(what), :label => label))
         end
 
         # Events a walk keeps off while there is another way: floor that changes the puzzle when stepped on, though no wall
-        # reads it (plates that change where something leads). A walk that ends on one still goes.
-        def avoid(what); add(:avoids, Mechanics.picked(what)); end
+        # reads it (plates that change where something leads). A walk that ends on one still goes. :assist => true, with
+        # the puzzle assist alone (tiles that punish, which a walk round them would give away).
+        def avoid(what, opts = {})
+          add(opts[:assist] ? :assist_avoids : :avoids, Mechanics.picked(what))
+        end
 
         # Events the core should not take for silent controls, on a map that keeps what it says by itself (auto): what only
         # starts a scene.
         def not_control(what); add(:not_controls, Mechanics.picked(what)); end
 
-        # Leaves events out of the lists and the sonar; :assist => true, with the puzzle assist alone (false exits).
+        # Leaves events out of the lists and the sonar; :assist => true, with the puzzle assist alone (false exits); :when, a
+        # test given the event for while they stay out (false: never).
         def hide(what, opts = {})
           add(:hides, opts.dup.merge!(:events => Mechanics.picked(what)))
         end
@@ -95,8 +100,10 @@ module PokeAccess
         def answer(what, text); on_use(what, [:puzzle_answer, { :a => text }], :assist => true); end
 
         # The right option of the menus an event asks, a Show Command or a \ch[...] in its message, said with the assist alone as
-        # each opens, in the game's own words: the one whose branch does what :takes says and not what :avoids says, each
-        # {:var => id}, {:switch => id}, {:self => letter}, :transfer, :battle or :item; or sets a variable to a value,
+        # each opens, in the game's own words: the one whose branch, with the menus nested in it and what its jumps to a label
+        # run, does what :takes says and not what :avoids says, each
+        # {:var => id}, {:switch => id}, {:self => letter}, :transfer, :battle or :item (:takes may be a lambda answering one
+        # as things stand, nil for none); or sets a variable to a value,
         # {:var => id, :value => a number or a lambda}, or to the one another event's page takes as right,
         # {:var => id, :compared_by => event}, the first it compares it with or, with :moving => var, the first whose branch writes
         # that variable. Nothing is said unless just one is left.
@@ -132,6 +139,10 @@ module PokeAccess
 
         # While the mechanic answers the info key (by default: a :state with an info line until solved).
         def active(&blk); @spec[:active] = blk; end
+
+        # With the puzzle assist, the way to a target the mechanic plans itself: the block gets the target and whether it
+        # is stood on and answers a Routes::Plan, or nil to leave it to the routes.
+        def way(&blk); @spec[:way] = blk; end
 
         # A test for a phase: the player stands in the box, in map tiles (Mechanics.at).
         def at(x0, x1, y0, y1); Mechanics.at(x0, x1, y0, y1); end

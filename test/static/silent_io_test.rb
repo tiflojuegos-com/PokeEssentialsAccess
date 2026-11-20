@@ -1,10 +1,11 @@
 # A multi-line method of core, games or plugins that touches a file and rescues at its own level leaves a trace in its
-# rescue (a log line, a swallowed record, a marker, a speak or a raise), but for the two allowed marker writers (the
-# mod's, and Uranium's compat script's, which runs before the mod has a log).
+# rescue (a log line, a swallowed record, a marker, a speak or a raise), but for the allowed marker writers (the
+# mod's, and the compat scripts of Uranium and Solar, which run before the mod has a log).
 class SilentIoTest < PokeAccessTest
   IO_CALL = /\b(File\.(open|read|readlines|foreach|write|delete|rename|binread|unlink)|KVFile\.each|Marshal\.load|IO\.(write|read))\b/
   TRACE = /log_once|swallowed|write_marker|log3d|log_body_failure|PokeAccess\.speak|\braise\b/
-  ALLOWED = ["core/foundation/failures.rb write_marker", "games/uranium/compat.rb note"].freeze
+  ALLOWED = ["core/foundation/failures.rb write_marker", "games/uranium/compat.rb note",
+             "games/solarlight/compat.rb apply", "games/xenoverse/compat.rb apply"].freeze
 
   test "finds no method of the mod that touches a file and rescues without a trace" do
     sources = mod_sources

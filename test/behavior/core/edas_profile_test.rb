@@ -13,6 +13,15 @@ class EdasProfileTest < ProfileProcessTest
     # The maps whose water the action key does nothing on (0228_Finales).
     NO_SURF_MAPS = [7]
 
+    # The Eye of Truth's module and the flag it keeps on Scene_Map (0192_Eye of Truth).
+    module LensOfTruth
+      RANGE = 3
+    end
+
+    class Scene_Map
+      attr_accessor :eye_of_truth
+    end
+
     # The moves the party knows, as the game's finder asks for them: a function defined at the top level, public in the
     # game, which calls it on Kernel.
     $party_moves = []
@@ -233,7 +242,15 @@ class EdasProfileTest < ProfileProcessTest
       probe(:key_letters) { PokeAccess::KeyHints.table }
       probe(:plain_passability) { PokeAccess::World::Probe.plain? }
       probe(:remap) { [PokeAccess::Config.rebind_labels[:l], PokeAccess::Remap.extras.select { |row| row[1] == 0x45 || row[1] == 0x46 }] }
-      probe(:lens) { ["EOT", "#EOT", "Puerta EOT", "Puerta", nil].map { |n| PokeAccess::Locator.lens_tile?(Named.new(n)) } }
+      probe(:lens) do
+        ["EOT HIDE", "#EOT SHOW/noShadow", "Puerta EOT", "Puerta", nil].map { |n| PokeAccess::Locator.lens_tile?(Named.new(n)) }
+      end
+      probe(:lens_declared) do
+        lens = PokeAccess::World::Lens
+        usable = [false, true].map { |on| $game_switches[231] = on; lens.usable? }
+        $game_switches[231] = false
+        [lens.item_name, usable, lens.comments?, lens.ends_on_events?]
+      end
       probe(:picture_names) { PokeAccess::PictureCues::TEXTS.keys.map { |n| [n, PokeAccess::PictureCues.text_for(n)] } }
       probe(:picture_shown) { said { PokeAccess::PictureCues.on_picture("aende", []) } }
     end
@@ -466,8 +483,12 @@ class EdasProfileTest < ProfileProcessTest
                   "Misión, En progreso. Lleva el paquete", t(:water_ahead)], played(:other_words)
   end
 
-  test "the Eye of Truth reveals any event with EOT in its name, with or without the hash" do
-    assert_equal [true, true, true, false, false], played(:lens)
+  test "the Eye of Truth marks an event with EOT and HIDE or SHOW in its name, with or without the hash" do
+    assert_equal [true, true, false, false, false], played(:lens)
+  end
+
+  test "the Eye of Truth is the Dark Gem's power, usable once switch 231 gives the gem, read by name alone" do
+    assert_equal [t(:edas_lens_name), [false, true], false, false], played(:lens_declared)
   end
 
   test "every picture has its text, literal or in the mod's words" do

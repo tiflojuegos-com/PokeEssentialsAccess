@@ -106,6 +106,13 @@ The bridge starts on first use: `PokeAccess.init_speech!` calls `PeaInitialize` 
 calls `PokeAccess.retry_init!` ([Keys](../reference/keys.md)). Inside the bridge, a `PeaSpeak` that fails acquires
 the best backend again and retries the line once.
 
+The bridge also creates prism's context with its availability poll on. A thread inside prism checks every second,
+backing off to four seconds while nothing changes, which backends can speak, and flags each change. The next
+`PeaSpeak` or `PeaBraille` then asks for the best backend again and switches to it when it is a different one. A
+screen reader started or restarted while the game runs thus takes over from the speech engine, and one that closes
+hands over to the speech engine. The bridge keeps the backend in use when the best one is the same, so its speech
+is not cut.
+
 The bridge is never shut down. `PeaShutdown` stays unbound, because the mod has no point where it stops and a call
 could cut off a line being read. The game's exit releases the backend.
 

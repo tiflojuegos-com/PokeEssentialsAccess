@@ -18,7 +18,7 @@ class DedupTest < PokeAccessTest
     list_entry ls_autosub mgift_card mono_type move_idx opt_tab pchm_ring place_idx place_row pm
     rea_baya rea_mankey rea_postre_col rea_ppt rea_timon rea_timon_dir ready_last rem_build
     rem_tree ribbon_idx rse_starter sb_place slot_spin slot_wager starter_sel sum_key sumkey support tl tm_name
-    vp_msg wardrobe_row opt_val tp_cell pnav_hearts bb_key mbs_sel ck_target mm_help mm_sel mg_score
+    vp_msg wardrobe_row opt_val tp_cell tp_hint pnav_hearts bb_key mbs_sel ck_target mm_help mm_sel mg_score
     triad_score hof_welcome dex_header voltseon_entry modular_selection mine_wall pc_mode ss2_boxpick ss2_boxset
     ss2_boxpin su_block arcky_mode arcky_preview ss2_tutor showcase ev_alloc
     book_page hofbw6_slide party_help enc_cursor cc_timer pbk_cond ss2_adv_overlay ss2_adv_hearts ss2_adv_keys

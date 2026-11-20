@@ -4,7 +4,7 @@ class FloodTest < PokeAccessTest
   Routes = PokeAccess::Routes
   LEDGE = PokeAccess::Routes::Moves::LEDGE
 
-  test "its way to every tile matches brute force in each style, and a wall has none" do
+  test "its way to every tile matches brute force in each style, a pad's by the press onto it, and a wall has none" do
     bad = []
     checked = 0
     [3, 11, 29, 47].each do |seed|
@@ -13,13 +13,14 @@ class FloodTest < PokeAccessTest
         f = flood_for(Routes::CostModel.new(style))
         assert f.done?, "seed #{seed}, #{style}: the flood ran to the end"
         brute = brute_best(style, LEDGE)
-        brute.each do |(tx, ty), want|
+        reach = brute_reach(style, LEDGE)
+        reach.each do |(tx, ty), want|
           next if [tx, ty] == [$game_player.x, $game_player.y]
           checked += 1
           got = shape(f.route_to(Routes::Goal.onto(tx, ty)))
           bad.push([seed, style, tx, ty, got, want]) unless got == want
           next unless style == :shortest
-          near = Routes::Goal.near(tx, ty).tiles.map { |g| brute[g] }.compact.min
+          near = (Routes::Goal.near(tx, ty).tiles.map { |g| brute[g] } + [want]).compact.min
           got = shape(f.route_to(Routes::Goal.near(tx, ty)))
           bad.push([seed, :near, tx, ty, got, near]) unless got == near
         end

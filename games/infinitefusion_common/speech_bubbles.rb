@@ -1,6 +1,7 @@
 module PokeAccess
   # Infinite Fusion's speech bubbles (its edition of Carmaniac's plugin): a line pbCallBub hangs over or points at an
-  # event other than the one talked to is led by where it stands from the player, and by the player's tag for it if any.
+  # event other than the one talked to is led by the player's tag for it, if any, and by where it stands from the player
+  # (the :if_bubble_place reading, from medium).
   module IFSpeechBubbles
     # The event the running map interpreter belongs to, or nil when none runs.
     def self.running_event_id
@@ -11,13 +12,14 @@ module PokeAccess
       nil
     end
 
-    # Who a bubble on this event marks: the player's tag for it, if any, and where it stands from the player, said as a
-    # place so as not to sound like a route. The event's own name is left out: an editor's name can give a puzzle away
-    # (Berry Forest's impostor is "fake kid").
+    # Who a bubble on this event marks: the player's tag for it, if any, and, while the reading's level reaches medium,
+    # where it stands from the player, said as a place so as not to sound like a route; nil with neither. The event's
+    # own name is left out: an editor's name can give a puzzle away (Berry Forest's impostor is "fake kid").
     def self.speaker(ev)
+      tag = (PokeAccess::Tags.get($game_map.map_id, ev.id) rescue nil).to_s
+      return (tag.empty? ? nil : tag) unless PokeAccess::Verbosity.keep?(:if_bubble_place, :medium)
       where = place(ev.x - $game_player.x, ev.y - $game_player.y)
-      tag = (PokeAccess::Tags.get($game_map.map_id, ev.id) rescue nil)
-      return PokeAccess::I18n.t(:if_bubble_from, :where => where) if tag.nil? || tag.to_s.empty?
+      return PokeAccess::I18n.t(:if_bubble_from, :where => where) if tag.empty?
       PokeAccess::I18n.t(:if_bubble_tag_from, :tag => tag, :where => where)
     end
 
@@ -43,6 +45,8 @@ module PokeAccess
     end
   end
 end
+
+PokeAccess::Verbosity.define_reading(:if_bubble_place, :vb_if_bubble_place, :vbh_if_bubble_place, :game)
 
 PokeAccess::Game.define("infinitefusion_common") do
   kernel("pbCreateMessageWindow", :after) { |_a, _r| PokeAccess::IFSpeechBubbles.opened }

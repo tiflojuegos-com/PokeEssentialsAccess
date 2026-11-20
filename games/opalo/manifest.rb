@@ -18,6 +18,16 @@
     puzzles/galerna_house
     puzzles/route19_farms
     puzzles/rock_holes
+    puzzles/boreal_sewers
+    puzzles/spectre_village
+    puzzles/golden_bug_casino
+    puzzles/gatling_base
+    puzzles/xatu_chest
+    puzzles/romualdo_treasure
+    puzzles/bayamo_police
+    puzzles/delibird_cave
+    puzzles/tourmaline_mine
+    puzzles/area151
     floor_traps
     picture_cues
     painted_pictures

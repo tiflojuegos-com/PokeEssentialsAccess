@@ -58,11 +58,13 @@ module PokeAccess
 
     # Registers an owner of the info key on the map under a name (registering a name again replaces it): a block
     # answering its line, or nil to pass. Owners are asked in order (the puzzles first, then the profiles' screens
-    # over the map) only when the key is pressed.
-    def self.map_owner(name, &blk)
+    # over the map) only when the key is pressed; with first, before every other (the free camera's).
+    def self.map_owner(name, first = false, &blk)
       i = @map_owners.index { |o| o[0] == name }
       if i
         @map_owners[i] = [name, blk]
+      elsif first
+        @map_owners.unshift([name, blk])
       else
         @map_owners.push([name, blk])
       end
@@ -172,7 +174,11 @@ module PokeAccess
       if mv
         mname = PokeAccess::Data.move_name(mv)
         mdesc = PokeAccess::Data.move_description(mv)
-        parts.push(PokeAccess::I18n.t(:it_teaches, :move => mname) + ". #{mdesc}") if mname
+        if mname
+          teaching = PokeAccess::I18n.t(:it_teaches, :move => mname)
+          same_description = PokeAccess.clean(mdesc) == PokeAccess.clean(desc)
+          parts.push(teaching + (same_description ? "." : ". #{mdesc}"))
+        end
       end
       PokeAccess.sentences(parts)
     end

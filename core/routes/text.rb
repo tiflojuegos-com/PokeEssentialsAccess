@@ -66,13 +66,14 @@ module PokeAccess
       end
 
       # One leg as said, "3 up", or for a press that cannot be undone the same way its kind, "jump down", "slide
-      # right"; with held, along ground where the key has to be kept down ("hold 3 up"); with transfer, ending on one
-      # ("3 up, transfer").
+      # right", "go ashore up"; with held, along ground where the key has to be kept down ("hold 3 up"); with transfer,
+      # ending on one ("3 up, transfer").
       def self.leg(d, presses, held = false, transfer = false, kind = nil)
         t = PokeAccess::I18n
         s = case kind
             when :jump then jump(d)
             when :slide then t.t(:loc_slide_leg, :dir => dir(d))
+            when :land then t.t(:loc_land_leg, :dir => dir(d))
             else t.t(:loc_leg, :n => presses, :dir => dir(d))
             end
         s = t.t(:loc_leg_held, :leg => s) if held
@@ -127,8 +128,9 @@ module PokeAccess
       end
 
       # The route key's line for a plan: the steps (kinds marks the presses that cannot be undone the same way); for an
-      # assisted route as assisted_line says; those to the shore, the way by water and which way to push off, only the
-      # last on the shore; why there is none (see none); that no route can be got to.
+      # assisted route as assisted_line says; those to the shore (afloat, over the water and ashore to the next one), the
+      # way by water and which way to push off, only the last on the shore; why there is none (see none); that no route
+      # can be got to.
       def self.line(plan, at = nil, kinds = nil)
         t = PokeAccess::I18n
         case plan.kind
@@ -202,6 +204,7 @@ module PokeAccess
         when :dismount then t.t(:loc_dismount_route)
         when :pull then t.t(:loc_gate_route_pull, :what => obstacle(g))
         when :control then t.t(:loc_control_route, :what => obstacle(g))
+        when :lens then lens_line(:loc_lens_route, :loc_lens_route_need)
         else
           return t.t(:loc_gate_route_push, :what => obstacle(g)) if g[:move].nil? && g[:item].nil?
           fm = PokeAccess::FieldMoves
@@ -217,6 +220,7 @@ module PokeAccess
         case g[:kind]
         when :act then t.t(:loc_act_spot)
         when :dismount then t.t(:loc_dismount_spot)
+        when :lens then t.t(:loc_lens_spot, :item => PokeAccess::World::Lens.item_name)
         else obstacle(g)
         end
       end
@@ -230,12 +234,14 @@ module PokeAccess
       end
 
       # What to do where an assisted route stops, the player on (px,py), with the side it lies on ("to the right"):
-      # act, dismount, pull, press a control, push, or use its field move or item (or that it is needed).
+      # act, dismount, pull, use the Lens of Truth, press a control, push, or use its field move or item (or that it is
+      # needed).
       def self.hold(g, px, py)
         t = PokeAccess::I18n
         case g[:kind]
         when :act then return t.t(:loc_act_here, :dir => side(g[:face]))
         when :dismount then return t.t(:loc_dismount_here, :dir => side(g[:face]))
+        when :lens then return lens_line(:loc_lens_here, :loc_lens_need_here)
         when :pull
           return t.t(:loc_gate_pull, :what => obstacle(g), :dir => side(g[:face]), :toward => toward(10 - g[:face]))
         end
@@ -254,6 +260,13 @@ module PokeAccess
         return t.t(:loc_gate_bare, :what => what, :dir => side(d)) unless fm.named?
         key = fm.clear?(g) == false ? :loc_gate_need : :loc_gate_use
         t.t(key, :what => what, :dir => side(d), :move => fm.clearer(g))
+      end
+
+      # A line naming the Lens of Truth as the game does (World::Lens.item_name): key, or need where the player surely
+      # cannot use it.
+      def self.lens_line(key, need)
+        lens = PokeAccess::World::Lens
+        PokeAccess::I18n.t(lens.usable? == false ? need : key, :item => lens.item_name)
       end
 
       # Where a route by water stops, on the shore: push off toward d ("toward the right"), or from here with no way

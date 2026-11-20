@@ -65,6 +65,34 @@ class InsurgenceLasersTest < PokeAccessTest
     assert_equal [["#{mirror}. #{room_line(2, 3, 0)}", true]], SpeakCapture.log
   end
 
+  test "repeating the selected puzzle target reads its current mirror orientation" do
+    gym_room
+    PokeAccess::World::Mechanics.define(:state, 543) do
+      PokeAccess::InsurgenceLasers.spots(543).each { |entry| spot entry }
+    end
+    locator = PokeAccess::Locator
+    locator.instance_variable_set(:@cat_id, :puzzles)
+    locator.rebuild_targets
+    targets = locator.instance_variable_get(:@targets)
+    mirror = ev(6)
+    index = targets.index do |target|
+      target.is_a?(PokeAccess::Locator::SurfaceTarget) && target.key == :puzzle_spot &&
+        target.x == mirror.x && target.y == mirror.y
+    end
+    refute_nil index
+    locator.instance_variable_set(:@ti, index)
+    locator.select_current
+    original_line = SpeakCapture.log.last[0]
+    assert_includes original_line, Lasers.mirror_line(mirror)
+
+    pbChangeMirror(6)
+    locator.ensure_target
+    locator.announce_selected(true)
+    updated_line = SpeakCapture.log.last[0]
+    assert_includes updated_line, Lasers.mirror_line(mirror)
+    refute_equal original_line, updated_line
+  end
+
   test "turning what is no mirror of the room says nothing" do
     [[543, 40, "a track tile"], [543, 11, "the mirror away from the room"],
      [5, 6, "a mirror off the mirror rooms"]].each do |map, id, what|

@@ -41,6 +41,7 @@ takes and its effect, by the screen that lists it. To declare a new setting, fol
 | `:hpacl` | 6 to 20 | 2 | `tiles_unit` |
 | `:nmaps` | 8 to 64 | 8 | `maps_unit` |
 | `:slice` | 1 to 20 | 1 | `ms_unit` |
+| `:pitch` | 50 to 150 | 5 | `percent_unit` |
 
 A list kind (`Config::LISTS`) steps through its values in order and wraps at both ends; a value the list does not hold
 steps on from the default. Left and right step the focused row, confirm steps it as right does, the info key says its
@@ -119,14 +120,28 @@ A player's schemes are kept in `verbosity.txt` in the data folder. A name that i
 from, as `full`. The verbosity key, unbound by default, steps through the same values
 ([Readers](../architecture/readers.md)).
 
+A scheme gives each [reading](glossary.md) a level, edited under Personalization; those levels are kept with the
+scheme, not in `settings.ini`. Core declares its readings in `core/speech/verbosity.rb`
+([Readings](reading-apis.md#readings)), and plugins and profiles add theirs. Two of them:
+
+- `:camera_step`, in the map group: what a step of the [free camera](../architecture/guide-and-sound.md#free-camera)
+  says. Brief says what stands on the tile, what the player's move there does (a jump, a slide, a teleport) and that a
+  crossed tile cannot be stood on; medium adds the ground where it changes; full adds that the player cannot get there
+  on foot.
+- `:if_bubble_place`, declared by `games/infinitefusion_common/speech_bubbles.rb` for both Infinite Fusion profiles:
+  where the character a speech bubble points at speaks from, said before its line from medium on. The player's own
+  label for that character is said at every level.
+
 ## Navigation and pathfinder options
 
 | Key | Default | Values | Effect |
 |---|---|---|---|
 | `auto_guide` | `false` | Flag | Starts the [cane](glossary.md) toward a target when it is selected |
 | `auto_steps` | `false` | Flag | Starts the [step guide](glossary.md) toward a target when it is selected |
-| `hide_unreachable` | `off` | `off`, `unreachable`, `room` | Which targets the list leaves out |
+| `hide_unreachable` | `off` | `off`, `unreachable`, `room`, `other_rooms` | Which targets the list leaves out |
 | `hide_noninteractive` | `false` | Flag | Leaves decorative events with no interaction out of the list |
+| `scene_triggers` | `false` | Flag | Locates the invisible tiles that start a scene, in a category and with a ping of their own |
+| `everything_extras` | `false` | Flag | Adds the targets of puzzles, surfaces and markers to the `:all` category |
 | `target_order` | `walk` | `near`, `walk`, `fixed` | The order the locator keys go through the targets |
 | `target_numbering` | `dynamic` | `off`, `dynamic`, `static` | The number said with each target |
 | `name_items` | `true` | Flag | Names the item in a ball on the ground |
@@ -136,20 +151,36 @@ from, as `full`. The verbosity key, unbound by default, steps through the same v
 | `surface_cues` | `true` | Flag | Says the terrain under the player when it changes |
 | `puzzle_assist` | `false` | Flag | Gives the hints and routes that solve puzzles |
 
-- `hide_unreachable`: `unreachable` leaves out the targets with no route; `room` also leaves out, on a map with
-  several rooms, those outside the player's room. Ctrl with the coordinates key (Ctrl+M) steps it.
+- `hide_unreachable`: `unreachable` leaves out the targets the player cannot get to, and keeps them all when none can
+  be got to. `room` also leaves out, on a map that a transfer within it divides into [rooms](glossary.md), the targets
+  outside the player's room. `other_rooms` leaves out those alone, and keeps the targets of the player's room that have
+  no route. A target whose room is not known yet counts as the player's, and a room filter that would leave nothing
+  keeps the list whole. With any value but `off`, on such a map, the player's room comes first and the rest follow by
+  rooms away, except in the fixed order. Ctrl with the coordinates key (Ctrl+M) steps through the four values.
+- `scene_triggers`: a scene trigger is an event with no sprite nor tile, run by touch, whose page, entered from any
+  side, says something and changes something that stays, with no transfer (`core/nav/scene_triggers.rb`). The page is
+  read as the routes read it, never run. They go to the
+  `:scenes` category, which shows only on a map that has one, and ping with the Scenes family. Neighbouring triggers that
+  run the same page are one target, sounding from the middle one. Off by default, since knowing where a scene waits
+  gives part of it away.
+- `everything_extras`: each target once; a puzzle spot on an event stands for that event.
 - `target_order`: by straight distance, by walking distance with the targets without a route last, or an order fixed
   while the player stays on the map.
 - `target_numbering`: `off` says the place in the list; `dynamic` keeps each target's number while the player stays
   on the map; `static` also counts the targets the hide settings leave out, so numbers can skip.
 - `puzzle_assist`: on, the mod says what each control would change and how far a piece is from its goal, and routes
-  may push several boulders or go first to the control that opens the way. Off, it says positions and states only.
+  may push several boulders or go first to the control that opens the way. In the Tile Puzzle minigame it also says
+  where each piece goes and the next move toward the solution
+  ([World and routes](../architecture/world-and-routes.md#the-tile-puzzles-next-move)). Off, it says positions and
+  states only.
 
 ## Advanced navigation
 
 | Key | Default | Values | Effect |
 |---|---|---|---|
 | `route_style` | `shortest` | `shortest`, `balanced`, `straightest` | Which route is chosen among several |
+| `avoid_grass` | `false` | Flag | Routes go round grass where wild Pokémon appear while the way round is not much longer |
+| `avoid_trainers` | `false` | Flag | Routes go round the tiles seen by the trainers still to battle while another way exists |
 | `route_reach` | `128` | `:reach` | The farthest target, in Manhattan tiles, that a route is searched for |
 | `route_limit` | `effort` | `effort`, `time`, `none` | When a search gives up |
 | `astar_max` | `2500` | `:astar` | Tiles a search may examine; four times that for the one that moves boulders |
@@ -166,6 +197,12 @@ from, as `full`. The verbosity key, unbound by default, steps through the same v
 - `route_style`: `shortest` takes the fewest presses, then the fewest turns; `balanced` counts a turn as a press;
   `straightest` takes the fewest turns while the route stays within 5/4 of the shortest plus 4 presses, and the
   balanced route otherwise ([World and routes](../architecture/world-and-routes.md)).
+- `avoid_grass`: each tile of grass costs `Routes::Moves::GRASS_COST` presses more, on a map whose own encounters put
+  wild Pokémon on land. Grass here is what the game's own encounter test counts (`World::Terrain.wild?`): its grass
+  tags and any other it adds, as Desolation's sand. With no other way, the route crosses the grass.
+- `avoid_trainers`: the trainers of the map not yet battled count as watchers, and walks keep off what they see
+  ([World and routes](../architecture/world-and-routes.md#watchers)). With no other way, the route crosses their
+  sight.
 - `route_limit`: `effort` stops a search once it has examined `astar_max` tiles, `time` stops the whole route
   operation after `route_budget_ms`, and `none` never stops. `astar_max` shows with `effort` and `route_budget_ms`
   with `time`.
@@ -182,17 +219,26 @@ from, as `full`. The verbosity key, unbound by default, steps through the same v
 | `sonar_only_locatable` | `false` | Flag | The sonar plays only for what the locator keys reach |
 | `game_bump` | `false` | Flag | Also plays the game's own bump at a wall |
 | `audio3d_output` | `binaural` | `binaural`, `stereo`, `mono`, `quad`, `surround51`, `surround71` | How the positional engine reaches the speakers |
+| `audio3d_pitch_north` | `120` | `:pitch` | The pitch of a sound straight north of the listener |
+| `audio3d_pitch_south` | `80` | `:pitch` | The pitch of a sound straight south |
+| `audio3d_pitch_west` | `100` | `:pitch` | The pitch of a sound straight west |
+| `audio3d_pitch_east` | `100` | `:pitch` | The pitch of a sound straight east |
 | `audio3d_volume` | `80` | `:vol` | Master volume of the positional engine |
 
 - `sound_nav`: `off` plays no footsteps or walls and does not start the positional engine; `basic` plays footsteps
   and wall cues; `full` adds the sonar, water, wind and the radar. The guide, puzzles and minigames sound in every
   mode ([Guide and sound](../architecture/guide-and-sound.md)).
 - `game_bump`: off, the game's bump is silent while the mod's wall cue is on.
-- `audio3d_output`: `binaural` goes through the HRTF. The others pan each sound between their speakers. `mono` and
-  `stereo` have none behind, so the pitch rises up to 20 % straight ahead and falls as much straight behind; a sound
-  on the player keeps its pitch. `quad`, `surround51` and `surround71` need those speakers set up in Windows: a device
-  with fewer channels plays the largest layout that fits, and the player is told. Occlusion, air absorption, distance
-  and the families' tones apply in every output.
+- `audio3d_output`: `binaural` goes through the HRTF. The others pan each sound between their speakers. `quad`,
+  `surround51` and `surround71` need those speakers set up in Windows: a device with fewer channels plays the largest
+  layout that fits, and the player is told. Occlusion, air absorption, distance and the families' tones apply in every
+  output.
+- `audio3d_pitch_north`, `audio3d_pitch_south`, `audio3d_pitch_west` and `audio3d_pitch_east`: `mono` and `stereo` have
+  no speakers in front or behind, so a sound tells its direction by its pitch, in percent of its own. North is up on
+  the map, since the listener always faces north. A sound between two directions takes each one's share by how far
+  toward it it lies, and a sound on the listener keeps its pitch. The defaults are the engine's own tilt. The four
+  rows show while `audio3d_output` is `stereo` or `mono` and the positional engine is up
+  ([Positional audio](../architecture/guide-and-sound.md#positional-audio)).
 - `sonar_only_locatable` shows with Sonar, `game_bump` with Navigation on, and `audio3d_output` and `audio3d_volume`
   with Navigation and engine.
 
@@ -225,11 +271,13 @@ tables.
 | Exits | `sound_exits` | `audio3d_exit`, 85 | Sonar | A crossing at the map's edge |
 | Teleporters | `sound_teleporters` | `audio3d_teleporter`, 90 | Sonar | A teleporter, portal or elevator |
 | Marks | `sound_marks` | `audio3d_mark`, 85 | Sonar | A marker the player set |
+| Scenes | `sound_scenes` | `audio3d_scene`, 85 | Sonar | A scene trigger, with `scene_triggers` on |
 | Water | `sound_water` | `audio3d_water`, 70 | Sonar | The water nearby, as a loop |
 | Shore | None | `audio3d_shore`, 40 | Sonar | While surfing, the nearest land to get off onto |
 | Wind | `sound_wind` | `audio3d_wind`, 55 | Sonar | A wall on each side, as a loop |
 | Steps | `sound_steps` | `footstep_volume`, 80 | Navigation on | The player's footsteps |
-| Wall | `sound_wall` | `wall_volume`, 80 | Navigation on | A bump into a wall or into something to use |
+| Wall | `sound_wall` | `wall_volume`, 80 | Navigation on | A bump into a wall |
+| Interact | `sound_interact` | `interact_volume`, 80 | Navigation on | A bump into something to use: a sign, a person or an object |
 | Guide | None | `event_volume`, 70 | Always | The guide toward the target |
 | Jumps | `sound_jumps` | `jump_volume`, 70 | Always | A ledge the route jumps |
 | Ledges | `sound_ledges` | Jumps' | Navigation on | A ledge in front of the player |
@@ -250,11 +298,13 @@ tables.
 | Exits | `audio3d_freq_exit`, 70 | `audio3d_tone_exit` |
 | Teleporters | `audio3d_freq_teleporter`, 70 | `audio3d_tone_teleporter` |
 | Marks | `audio3d_freq_mark`, 80 | `audio3d_tone_mark` |
+| Scenes | `audio3d_freq_scene`, 10 | `audio3d_tone_scene` |
 | Water | None | `audio3d_tone_water` |
 | Shore | None | Steps' (`footstep_tone`) |
 | Wind | None | `audio3d_tone_wind` |
 | Steps | None | `footstep_tone` |
 | Wall | None | `wall_tone` |
+| Interact | None | `interact_tone` |
 | Guide | `guide_freq`, 75 | `guide_tone` |
 | Jumps | None | `jump_tone` |
 | Ledges | None | Jumps' (`jump_tone`) |

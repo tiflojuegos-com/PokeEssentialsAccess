@@ -66,6 +66,14 @@ module PokeAccess
       black_tiles[[x, y]] ? :black : :white
     end
 
+    # What the free camera says of a tile of a room: white or black floor, or out of the white floor where the player
+    # could stand there; nil on a wall.
+    def self.tile_word(x, y)
+      s = state(x, y, blacks)
+      return nil if s == :out && !PokeAccess::CameraText.standable?(x, y)
+      PokeAccess::I18n.t(STATES[s])
+    end
+
     # How many white tiles are left to step on, read tile by tile.
     def self.whites_left(black_tiles)
       count = 0
@@ -106,6 +114,7 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("realidea") do
+  camera_tile(:maps => PokeAccess::RealideaAgate::ROUTES.keys) { |x, y| PokeAccess::RealideaAgate.tile_word(x, y) }
   PokeAccess::RealideaAgate::ROUTES.each_key do |map|
     mechanic(:state, map) do
       auto

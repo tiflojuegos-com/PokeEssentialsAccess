@@ -94,13 +94,6 @@ class RouteWaterTest < PokeAccessTest
     end
   end
 
-  test "already afloat there is no shore to plan" do
-    with_tile_world(TWO_PONDS) do
-      $PokemonGlobal.surfing = true
-      assert_nil PF.surf_plan(10, 1)
-    end
-  end
-
   test "where the game keeps the player on the bike, Surf is not offered" do
     with_tile_world(TWO_PONDS) do
       with_cycling_road { assert_nil PF.surf_plan(10, 1) }
@@ -259,6 +252,45 @@ class RouteWaterTest < PokeAccessTest
                        "#########"]) do
         $game_map.map_id = 901
         assert_equal [:surf_deepwater], PokeAccess::Locator.scan_surfaces(1, 1).map { |t| t.key }
+      end
+    end
+  end
+
+  test "the free camera names deep water over a sea as a dive spot, and deep water over no sea by its ground" do
+    with_dive_map(900) do
+      with_tile_world(["#########",
+                       "#@..DDD.#",
+                       "#.......#",
+                       "#########"]) do
+        assert_equal :surf_dive, PokeAccess::CameraText.ground(5, 1, true), "over the sea"
+        refute_equal :surf_dive, PokeAccess::CameraText.ground(2, 1, true), "dry ground is no dive spot"
+        $game_map.map_id = 901
+        assert_equal PokeAccess::World::Terrain.label(5, 1), PokeAccess::CameraText.ground(5, 1, true), "over no sea"
+      end
+    end
+  end
+
+  test "the free camera keeps a dive spot as the ground it stands on, so a walk across deep water over a sea names it once" do
+    with_dive_map(900) do
+      with_tile_world(["#########",
+                       "#@..DDD.#",
+                       "#.......#",
+                       "#########"]) do
+        cam = PokeAccess::Camera
+        vb = PokeAccess::Verbosity.singleton_class
+        vb.send(:alias_method, :route_water_test_level, :level)
+        PokeAccess::Verbosity.define_singleton_method(:level) { |_r| :full }
+        begin
+          cam.place(4, 1, 0, false)
+          kept = cam.instance_variable_get(:@label)
+          again = PokeAccess::CameraText.step_line(5, 1, [4, 1], kept, nil, 6, false).to_s
+          first = PokeAccess::CameraText.step_line(4, 1, [3, 1], nil, nil, 6, false).to_s
+          assert_equal [:surf_dive, true, false], [kept, first.include?(T.t(:surf_dive)), again.include?(T.t(:surf_dive))]
+        ensure
+          vb.send(:alias_method, :level, :route_water_test_level)
+          vb.send(:remove_method, :route_water_test_level)
+          cam.reset
+        end
       end
     end
   end

@@ -6,6 +6,28 @@ class ExitNamingTest < PokeAccessTest
   METADATA_OUTDOOR = 1
   METADATA_HEALING_SPOT = 5
 
+  test "map names come from MapInfos.rxdata itself where no engine loader answers, a failed load tried on the next map" do
+    info = Struct.new(:name).new("Ruta Probada")
+    table = nil
+    saved = Loc.instance_variable_get(:@mapinfos)
+    Object.send(:alias_method, :exit_naming_test_rx, :pbLoadRxData)
+    Object.send(:define_method, :pbLoadRxData) { |_path| nil }
+    Object.send(:define_method, :load_data) { |path| path == "Data/MapInfos.rxdata" ? table : nil }
+    begin
+      Loc.instance_variable_set(:@mapinfos, nil)
+      assert_nil Loc.map_name(901), "no file to read"
+      table = { 901 => info }
+      assert_nil Loc.map_name(901), "the failure kept on the same map"
+      Loc.clear_targets
+      assert_equal "Ruta Probada", Loc.map_name(901), "read again once the map changes"
+    ensure
+      Object.send(:alias_method, :pbLoadRxData, :exit_naming_test_rx)
+      Object.send(:remove_method, :exit_naming_test_rx)
+      Object.send(:remove_method, :load_data)
+      Loc.instance_variable_set(:@mapinfos, saved)
+    end
+  end
+
   test "names a door from outdoors into an interior an entrance, and any other an exit" do
     { [[1, 40], 35] => [:loc_entrance_to, 35], [[1, 40], 40] => [:loc_exit_to, 40], [[40], 35] => [:loc_exit_to, 35],
       [[40], 40] => [:loc_exit_to, 40] }.each do |(outdoor, dest), (key, map)|

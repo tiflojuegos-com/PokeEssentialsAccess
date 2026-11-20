@@ -9,6 +9,23 @@
     field_moves
     quicksave
     passability
+    puzzles/sleeper_spire
+    puzzles/abandoned_subway
+    puzzles/sirius_sewers
+    puzzles/carleton_facility
+    puzzles/time_matrix
+    puzzles/genesis_facility
+    puzzles/agency_delta
+    puzzles/fallen_tomb
+    puzzles/power_plant
+    puzzles/media_hq
+    puzzles/mt_fhenzhu
+    puzzles/realm_deception
+    puzzles/beta_omicron
+    puzzles/refugee_tunnels
+    puzzles/ishizu
+    puzzles/jenola_caves
+    puzzles/side_quests
   ],
   :plugins => %w[advanced_pokedex easy_questing item_find fl_set_controls item_radar]
 }

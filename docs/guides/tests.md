@@ -86,7 +86,10 @@ its runtime files to a temporary folder of its own, `POKEACCESS_DATA_DIR`, and r
    with `eval(Harness.source(path), TOPLEVEL_BINDING, path)` and restore what it replaces, as
    `test/behavior/battle/rejuvenation_inspect_test.rb` does. A hook binds once per class name: a class created again
    under the same name stays unhooked, and a file evaluated twice adds its hook bodies twice. Load a shared profile
-   with `Harness.load_common(name)`. A profile whose overrides would reach other tests, or one tested whole, runs in a
+   with `Harness.load_common(name)`. For a profile's puzzles, `Harness.load_puzzles(game)` evaluates again every
+   `puzzles/` entry of its manifest, after the reset before each test dropped the declarations; a function hook an
+   earlier load added stays added once, as in the game, and the constants set again raise no warning. A profile whose
+   overrides would reach other tests, or one tested whole, runs in a
    process of its own: subclass `ProfileProcessTest` (`test/support/profile_process.rb`) and give `profile` the folder,
    a world of classes shaped as the game's and a play of probes, as `test/behavior/core/edas_profile_test.rb` does.
 7. Assert what the mod says. `assert_spoken(pattern)`, `assert_spoken_once`, `refute_spoken` and
@@ -137,7 +140,10 @@ repository ([Census sources](../reference/static-checks.md#census-sources)).
 2. Run `ruby test/static/build_census.rb`, or pass the folder of script dumps as its argument.
 3. Check that the last line is `every census regenerated`.
 4. Review the changes with `git diff test/static`.
-5. If you added a source, raise `SOURCES` in `test/static/hooked_classes_test.rb` and `test/static/era_calls_test.rb`.
+5. If you added a source, raise `SOURCES` in `test/static/hooked_classes_test.rb` and `test/static/era_calls_test.rb`
+   to the count the rebuilt censuses give in their headers (`surveyed sources (N)`). `hooked_classes_test.rb` compares it with the
+   header of every census and `era_calls_test.rb` with that of `era_census.txt`, so censuses rebuilt with a dump more,
+   or with one missing from the folder, fail until the constants match.
 6. Run `ruby test/run_all.rb static`.
 
 ## Other runs

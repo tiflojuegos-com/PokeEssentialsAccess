@@ -33,7 +33,7 @@ PokeAccess::Game.define("pokemon_z") do
   # What the puzzle maps' events are, which core would say by a sprite's file name or as "another part" of the same
   # place: sprites of objects that are never people, and single events by map: Chateau Lanto's mirrors, chalice and
   # hidden button, and the mirrors of its copy in the Arma Definitiva; the Torre Oscura's jukebox; the Maraña Oscura's
-  # ropes and cobwebs, and the Arma's; its library's hidden books; the Cueva Talasia's doors, each by its own side and not
+  # ropes and cobwebs, and the Arma's; the Cueva Talasia's doors, each by its own side and not
   # by where it lands; Fort Leviatán's cell table, a way out once moved; the Romantis keep's purple symbol, a witch's event
   # until switch 479; the Bastión Fractal's soldiers, while frozen, and its ice tiles once broken, which a page's transfer
   # would list as passages.
@@ -47,7 +47,6 @@ PokeAccess::Game.define("pokemon_z") do
    [:z_tangle_web, 387, [11, 12, 13, 14, 15, 16, 17, 18, 19]],
    [:z_tangle_rope_down, 388, [2, 5]], [:z_tangle_rope_up, 388, [1, 3, 4, 6]], [:z_tangle_web, 388, [7]],
    [:z_tangle_rope_down, 384, [1, 2]], [:z_tangle_web, 477, [4, 5, 6, 7, 8]], [:z_tangle_web, 470, [1]],
-   [:z_arma_book_nw, 472, [11]], [:z_arma_book_e, 472, [10]],
    [:z_talasia_door_n, 433, [6, 7, 11, 15, 21, 25, 29, 32]], [:z_talasia_door_s, 433, [10, 14, 18, 19, 26, 27, 34]],
    [:z_talasia_door_e, 433, [2, 9, 12, 17, 22, 23, 30, 33]],
    [:z_talasia_door_w, 433, [3, 8, 13, 16, 20, 24, 28, 31]]].each do |key, map, events|

@@ -41,10 +41,11 @@ module PokeAccess
       v == :none ? false : (v ? true : false)
     end
 
-    # True for a Pokemon Centre, the kind of map that declares where Teleport sets the player down (HealingSpot).
+    # True for a Pokemon Centre, the kind of map that declares where Teleport sets the player down (HealingSpot): a
+    # real map, not the [0, 0, 0] a game such as Vitro leaves on every map.
     def self.pokecenter?(mid)
       v = field(mid, :teleport_destination, "MetadataHealingSpot", HEALING_SPOT)
-      v.is_a?(Array) && !v.empty?
+      v.is_a?(Array) && v[0].is_a?(Integer) && v[0] > 0
     end
 
     # The map under the sea of mid, or nil.

@@ -25,7 +25,8 @@ class PluginsTest < PokeAccessTest
                  "royal" => %w[bw_gender_selector],
                  "worldfrontier" => %w[bw_gender_selector],
                  "vitro" => %w[berry_pots bes_region_map encounter_pages kyu_autosave simple_encounter_list teleport_menu],
-                 "anil" => %w[punch_bag_v12] }
+                 "anil" => %w[punch_bag_v12],
+                 "xenoverse" => %w[alt_mystery_gift starter_selection] }
 
   # Two releases of one plugin, whose readers claim the same methods with other arities: their probes shut each other out,
   # so no game loads both.

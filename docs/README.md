@@ -16,7 +16,7 @@ How each part of the mod works and why it is built that way.
 
 - [Overview](architecture/overview.md): what the mod does, its three layers, the design rules and the source tree.
 - [Loading](architecture/loading.md): the installed layout, profile selection, the preload script, the boot and its
-  load order, plugin readers and probes, the F12 reset, the pulse and the map frame.
+  load order, plugin readers and probes, the F12 reset in a new process, the pulse and the map frame.
 - [Engine eras](architecture/engine-eras.md): gen-6, GameData, v22 and the Sky fork, their detection, data providers
   and capabilities, the class names that change between versions, the Reborn engine, and the constraints of Ruby 1.8.7
   and of the core methods some games redefine.
@@ -26,10 +26,11 @@ How each part of the mod works and why it is built that way.
   detection, painted text, information windows, scene watchers, the info key, verbosity, the message history and key
   hints, and where readers go.
 - [World and routes](architecture/world-and-routes.md): the World layer, the route planner and its searches, regions,
-  assisted steps, water and surfing, transfers, puzzles and route text.
+  assisted steps, water and surfing, transfers, puzzles and the Tile Puzzle's next move, route text, routes from
+  another tile and the free camera's trail.
 - [Guide and sound](architecture/guide-and-sound.md): the locator's targets and categories, the cane and the step
-  guide, positional audio, the flat channel and the sound catalog, the soundscape and its sonar, and the cues of the
-  player's moves and of the surfaces.
+  guide, the free camera, positional audio and the pitch by direction, the flat channel and the sound catalog, the
+  soundscape and its sonar, and the cues of the player's moves and of the surfaces.
 - [Speech and languages](architecture/speech-and-languages.md): the speech output and the screen reader bridge,
   game text and control codes, speech categories, interrupting and queueing, braille, the mod's language, plural
   forms and game text in builds of several languages.
@@ -71,7 +72,8 @@ Interfaces, settings, keys and files, complete and terse.
   readers, `SceneWatcher`, `PaintCapture`, `Info`, `Verbosity` and `KeyHints`, with their signatures.
 - [Settings](reference/settings.md): every setting of the configuration menu, its key in `settings.ini`, its default
   and its effect.
-- [Keys](reference/keys.md): the default keys, what each does and how the remap changes them.
+- [Keys](reference/keys.md): the default keys, what each does, the keys inside the free camera, the game's Shift and
+  Alt beside the mod's gestures, and how the remap changes them.
 - [Language files](reference/lang-files.md): the format of `lang/*.txt`, its keys and placeholders, the plural forms
   of each language and the checks the suite runs on the files.
 - [Static checks](reference/static-checks.md): each static test and census under `test/static/`, what it guards and

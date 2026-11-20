@@ -183,6 +183,13 @@ the build's language (`GameLang`), never the player's ([Speech and languages](..
   answers the line, or nil for a teleport not its own.
 - An `event_category` rule decides between `:people` and `:objects`, for an event with a sprite that does not
   transfer the player. The locator files exits, signs and extras by what the event does (`Locator.in_category?`).
+- `PokeAccess::World::Lens` answers for Drimer's Eye/Lens of Truth in any of its copies (Z, Vitro, Edas, Perseida), for a
+  profile to read instead of its own: `on?` (in use), `range`, `kind(ev)` (`:hide`, `:show` or nil), `reaches?(ev)` (in
+  use and within range of the player), `events` and `item_name`. `World::Lens.declare(opts)`, called from a profile, tells
+  what the script does not: `:name`, the i18n key of a lens no item works (a power the story gives; without it, the
+  core's `lens_name`); `:usable`, a lambda answering whether the player can use it now; `:comments => true` for a copy
+  that also reads `hideEvent` and `showEvent` comments; `:ends_on_events => true` for one any running event puts down, or a lambda answering it as things stand.
+  The routes and the locator's `:lens` category read it too ([World and routes](../architecture/world-and-routes.md)).
 - `transfer_script` serves doors that transfer the player by a script call instead of the Transfer Player command. The
   block reads the destination from the game's own constants or tables, and never runs the game's script. Without a
   block, a first group of digits is the map id. A call that names no map, as a way out that returns where the player
@@ -217,6 +224,28 @@ the build's language (`GameLang`), never the player's ([Speech and languages](..
   false when it fails, or nil off its terrain.
 - `assisted_step(owner = nil)`: an action that gets the player past what stops a walk, for the assisted route. The
   block gets x, y, the direction and the bridge level and answers a `Routes::Moves::Step` with its gate, or nil.
+- `tile_cost(owner = nil)`: tiles a route goes round while the way round costs fewer presses. The block gets x and y
+  and answers the presses of more that stepping on the tile counts as, 0 or nil for none. A hop or a slide pays each
+  tile it crosses, and a carry or a warp the tile it lands on. With no other way the route still crosses them.
+- `watchers(maps = nil, opts = {})`: events on `maps` (a map id, a list, or nil for every map) that see the tiles
+  ahead of them, as a trainer does. Walks keep off the tiles they see while another way exists, and the free camera
+  says who sees a tile. `:events` picks them: a list of ids, a `Regexp` of the name, or a block of the event. By
+  default it picks those named for their sight as the era's engine reads the name (`Trainer(n)` alone before the
+  GameData era, `trainer(n)` or `sight(n)` anywhere in it from then on), on a page started by event touch, so a
+  battled trainer drops out. `:range` is how far they see: a number, or a block of the event. By default it is the
+  number in the name, and 0 sees the watcher's own tiles alone. `:through => true` makes the sight pass walls and
+  events, and `false` stops it where the watcher could not walk on. By default it passes them only for a watcher that
+  walks through, as the engine does. A watcher counts while it is drawn. One that patrols is read along its page's
+  whole move route ([World and routes](../architecture/world-and-routes.md#watchers)). An unknown key, or the options
+  given without the maps, raises `ArgumentError`.
+
+```ruby
+# Realidea's snow field (sketch): fifteen lookouts named "Trainer(4)" that walk through, so their sight passes the trees
+watchers(129)
+# A guarded hall (sketch): two guards picked by id, their sight stopped by the walls
+watchers(42, :events => [3, 4], :through => false)
+```
+
 - `plain_passability`: the game's player passability reads nothing an event's end can change besides the map's tiles,
   tileset and events and the mode, checked against its scripts. The answers of the
   [passability probe](glossary.md) then outlive an event's end.
@@ -236,11 +265,48 @@ tile.
 | `:kinds` | its terrain kind |
 | `:flags` | a terrain flag |
 | `:tiles` | a block given x and y, reading only the map's tiles and events |
+| `:maps` | the map's id among those listed, beside the other keys (never prefixed) |
 
 A list may come as a block, read when asked. `assisted_step` takes the keys prefixed `front_`, for the tile in front.
-An unknown key raises `ArgumentError`. State the game's passability reads beyond the map goes in with
+An unknown key raises `ArgumentError`. `:assist => true`, never prefixed, makes the rule count with the puzzle assist
+alone, on the tiles the other keys name or, with none, on any: without the assist the routes take those tiles as if
+the rule were not there, so a route round the tiles that punish does not give the answer away. `:maps`, never
+prefixed either, makes it count on those maps alone: a list of map ids, one id, or a block giving them. On any other
+map the core asks none of its tiles, so its `:tiles` block is not called there, tile by tile, by the routes, the map's
+scan or the free camera; with no other key it takes in every tile of its maps. A rule counts on a map only when its
+owner takes in some tile of it, so a rule for another map's tiles keeps JPS and HPA* there. A registered
+`assisted_step` makes every target no walk reaches set off the assisted search and the assisted regions
+(`Pathfinder.assist_possible?`), on every map, or with `:maps` on those alone. State the game's passability reads
+beyond the map goes in with
 `PokeAccess::World::Probe.mode_reader`, which profiles call directly
 ([World and routes](../architecture/world-and-routes.md)).
+
+## Free camera
+
+The [free camera](../architecture/guide-and-sound.md#free-camera) (Alt+K) moves over the map one tile at a time, says
+what each tile holds and stops where the player would stop. A profile adds to what it says of a tile with
+`camera_tile(owner = nil)`, whose `owner` is read as a terrain rule's (above) and which forwards to
+`Camera.tile_reader`.
+
+- The block gets x and y and answers a line, a list of lines, or nil.
+- The lines are said with what stands on the tile, as the camera steps onto it and with the info key while the camera
+  is there. A line that repeats another part is said once.
+- An error in the block is logged once, and the tile is said without its lines.
+- Spoken text comes from the language files, as everywhere else.
+
+The core reads the names of the map's declared puzzle points with it: each `spot`, cell, statue, control and named event
+of a `mechanic` is said on its tile (`Puzzles.names_at`).
+
+A reader for one map's tiles names it with `:maps`, so the camera does not call it on the others. A line that stays
+the same over a stretch of tiles (a current, a watcher's sight) lets Shift go through it: a long move stops where what
+a tile says changes.
+
+```ruby
+PokeAccess::Game.define("example") do
+  camera_tile(:tags => [16]) { |x, y| PokeAccess::I18n.t(:example_current) }
+  camera_tile(:maps => [42], :tiles => lambda { |x, y| x == 7 }) { |x, y| PokeAccess::I18n.t(:example_shelf) }
+end
+```
 
 ## Puzzles
 
@@ -274,12 +340,15 @@ block declares the puzzle with these verbs:
 - `name(what, label, opts = {})`: names events in every list, and lists them in the puzzles category while they are drawn
   or their page can run, with no graphic too. `:numbered => true` adds `:n`, their place in reading order, to the label's
   interpolations; a lambda with one parameter gives the label of each, asked each time it is read, so it can follow the flags
-  and the assist; `:assist => true`, with the puzzle assist alone; `:when`, a test given the event for while it is listed
+  and the assist, and one that answers nil leaves the event its own name meanwhile; `:grouped => true` lists touching
+  events of one name as one target, on the middle one (rows of force fields, not a row of cans each to be checked); `:assist => true`, with the puzzle assist alone; `:when`, a test given the event for while it is listed
   (`false`: never, a name for the other lists alone).
 - `not_control(what)`: events the core should not take for silent controls, with `auto`: what only starts a scene.
-- `hide(what, opts = {})`: leaves events out of the lists and the sonar; `:assist => true`, with the puzzle assist alone.
-- `avoid(what)`: events a walk keeps off while there is another way: floor that changes the puzzle when stepped on, though no
-  wall reads it. A walk that ends on one still goes.
+- `hide(what, opts = {})`: leaves events out of the lists and the sonar; `:assist => true`, with the puzzle assist alone;
+  `:when`, a test given the event for while they stay out (`false`: never).
+- `avoid(what, opts = {})`: events a walk keeps off while there is another way: floor that changes the puzzle when stepped
+  on, though no wall reads it. Every tile of a wide event is kept off. A walk that ends on one still goes. `:assist => true`,
+  with the puzzle assist alone.
 - `count(label, opts = {})`: a count said as "label: n of total" as it grows and in the info key's line: of `:value` (a lambda), `:var` (less
   `:from`), `:flags`, `:switches => ids` or `:selfs => [ids, letter, map]`, out of `:of` (by default, how many flags). As it
   falls, `:reset` is said with it (a line, or the core's; `false`, nothing). `:announce => false` leaves it to the info
@@ -297,22 +366,27 @@ block declares the puzzle with these verbs:
   not compare: a page that compares an entry with a fixed value says it by itself.
 - `right_choice(what, opts)`: the right option of the menus an event asks, a Show Command or a `\ch[...]` in its message, said
   with the assist alone as each opens, in the game's own words: the one whose branch does what `:takes` says and not what
-  `:avoids` says, each `{:var => id}`, `{:switch => id}`, `{:self => letter}`, `:transfer`, `:battle` or `:item`; or sets a
+  `:avoids` says, each `{:var => id}`, `{:switch => id}`, `{:self => letter}`, `:transfer`, `:battle` or `:item` (`:takes`
+  may be a lambda answering one of them as things stand, or nil when no branch is right); or sets a
   variable to a value, `{:var => id, :value => number or lambda}`, or to the one another event's page takes as right,
   `{:var => id, :compared_by => event}`: the first it compares it with or, with `:moving => var`, the first whose branch writes
-  that variable. Nothing is said unless just one is left.
+  that variable. What a branch does takes in the menus nested in it and what its jumps to a label run there, up to an
+  exit of the event or the next menu. Nothing is said unless just one is left.
 - `solved(say = nil, opts = {})`: the win. The block is its test, and `say` is what the mod says once it holds.
   `:quiet => true` leaves the win to the info key. While it holds the room's rule says no more and the info key is silent. A
   phase goes on telling what opens as it opens, for the rooms the game keeps working: its test takes the end in if it should
   stop. A puzzle the game can start over only holds while it stands solved: a wrong answer after the end brings it back.
 - `hint(label)`: the hint the puzzle assist says.
 - `arrival_hint(label, opts = {})`: a rule said queued on arriving at the map, when descriptions are on and the puzzle is not
-  solved; a lambda is asked each time. With `:once => true`, just the first time this session, for a room that reloads with
-  each try.
+  solved; a lambda is asked each time. With `:once => true`, just the first time this session it says something, for a
+  room that reloads with each try: a rule that comes out empty does not spend it.
 - `spot(opts)`: a named point for the locator, `:at => [x, y]` or `:event => id`, with its `:label`. `:assist => true`,
   with the puzzle assist alone; `:when`, a test for while it is listed; `:onto => true`, stood on rather than faced.
 - `info`: the block answers the info key's line.
 - `active`: the block answers whether the puzzle answers the info key.
+- `way`: with the puzzle assist alone, the route to a target that the puzzle plans itself. The block gets the target
+  and whether it is stood on. It answers a `Routes::Plan`, or nil to leave the target to the routes. An error in it is
+  logged once, and the routes take over.
 - `phase(test, opts = {})`: a phase, live while `test` holds; the first live phase is current. Its title is said as it
   opens, unless `:quiet`, and its hint with the puzzle assist; on arriving at the map, the hint of the phase open then is
   said queued, with the assist, and of the rest only its title with `:entry_title`. It takes `:title`, `:quiet`,

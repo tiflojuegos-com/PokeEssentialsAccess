@@ -41,8 +41,10 @@ class MapMetaTest < PokeAccessTest
   end
 
   test "a Pokemon Centre is a map that declares a healing spot" do
-    with_metadata(30 => { 5 => [30, 4, 7] }, 31 => { 5 => [] }) do
-      { 30 => true, 31 => false, 32 => false }.each { |mid, want| assert_equal want, MM.pokecenter?(mid), "map #{mid}" }
+    with_metadata(30 => { 5 => [30, 4, 7] }, 31 => { 5 => [] }, 33 => { 5 => [0, 0, 0] }) do
+      { 30 => true, 31 => false, 32 => false, 33 => false }.each do |mid, want|
+        assert_equal want, MM.pokecenter?(mid), "map #{mid}"
+      end
     end
   end
 

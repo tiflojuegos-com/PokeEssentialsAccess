@@ -1,46 +1,66 @@
 # The title prompt: Luka's styles (plugins/luka_title.rb) and the stock v19+ title say it, the v16/v17 splash
 # (core/menus/gen6/title_screen_g6.rb) queues it; each test makes the game's classes and evaluates the readers over them.
 class TitleScreensTest < PokeAccessTest
-  # Luka S.J.'s Modern Title Screen styles, each a constructor that goes on to wait for a key.
+  # Luka S.J.'s Modern Title Screen styles, each built, then made to play its skippable intro, then to wait for a key.
   STYLES = %w[GenOneStyle GenTwoStyle GenThreeStyle GenFourStyle GenFiveStyle GenSixStyle GenSevenStyle GenCustomStyle]
 
-  test "each of Luka's styles but the second says the prompt, queued, as it is built" do
-    built = STYLES - ["GenTwoStyle"]
-    with_title(built.map { |n| [n, Class.new { def initialize; end }] }, ["plugins/luka_title.rb"]) do
-      built.each do |name|
+  test "each of Luka's styles says the prompt, queued, once its intro is over, not as it is built" do
+    with_title(STYLES.map { |n| [n, Class.new { def intro; :shown; end }] }, ["plugins/luka_title.rb"]) do
+      STYLES.each do |name|
         SpeakCapture.clear
-        Object.const_get(name).new
-        assert_equal [[prompt, false]], SpeakCapture.log, name
+        screen = Object.const_get(name).new
+        built = SpeakCapture.log.dup
+        assert_equal :shown, screen.intro, "#{name} keeps its intro's result"
+        assert_equal [[], [[prompt, false]]], [built, SpeakCapture.log], name
       end
     end
   end
 
-  test "Luka's second style says the prompt, queued, once its skippable intro is over, not as it is built" do
-    style = Class.new { def intro; :shown; end }
-    with_title([["GenTwoStyle", style]], ["plugins/luka_title.rb"]) do
-      screen = GenTwoStyle.new
-      built = SpeakCapture.log.dup
-      assert_equal :shown, screen.intro, "the intro keeps its result"
-      assert_equal [[], [[prompt, false]]], [built, SpeakCapture.log]
+  test "Luka's intro keeps the readers of what it shows, the prompt after them" do
+    child = Class.new { def read; :read; end }
+    style = Class.new do
+      def intro
+        TitleReadyChild.new.read
+        :ready
+      end
     end
+    with_title([["GenOneStyle", style], ["TitleReadyChild", child]], ["plugins/luka_title.rb"]) do
+      PokeAccess::Hooks.after_hook("TitleReadyChild", :read) { |_s, _r, _a| PokeAccess.speak("Nested intro message", false) }
+      assert_equal :ready, GenOneStyle.new.intro
+    end
+    assert_equal [["Nested intro message", false], [prompt, false]], SpeakCapture.log
+  end
+
+  test "a Luka intro that fails passes its error on and says no prompt" do
+    style = Class.new { def intro; raise "original intro failure"; end }
+    with_title([["GenOneStyle", style]], ["plugins/luka_title.rb"]) do
+      error = assert_raises(RuntimeError) { GenOneStyle.new.intro }
+      assert_equal "original intro failure", error.message
+    end
+    assert_nothing_spoken
+  end
+
+  test "a Luka title opened again says the prompt once for each intro" do
+    style = Class.new { def intro; :ready; end }
+    with_title([["GenOneStyle", style]], ["plugins/luka_title.rb"]) do
+      2.times { GenOneStyle.new.intro }
+    end
+    assert_equal [[prompt, false]] * 2, SpeakCapture.log
   end
 
   test "Luka's splash says each picture's transcription, queued, and nothing for one without" do
-    intro = Class.new do
-      def initialize(pics); @pics = pics; end
-      def cyclePics; :cycled; end
-    end
+    intro = Class.new { def cyclePics(_pics, _bgm = nil); :cycled; end }
     with_transcription("intro_city", "Una ciudad bajo la niebla") do
       with_title([["Scene_Intro", intro]], ["plugins/luka_title.rb"]) do
-        assert_equal :cycled, Scene_Intro.new(["intro_logo", "intro_city"]).cyclePics, "the splash keeps its result"
+        assert_equal :cycled, Scene_Intro.new.cyclePics(["intro_logo", "intro_city"]), "the splash keeps its result"
       end
     end
     assert_equal [["Una ciudad bajo la niebla", false]], SpeakCapture.log
   end
 
   test "Luka's splash with no pictures says nothing" do
-    intro = Class.new { def cyclePics; :cycled; end }
-    with_title([["Scene_Intro", intro]], ["plugins/luka_title.rb"]) { Scene_Intro.new.cyclePics }
+    intro = Class.new { def cyclePics(_pics); :cycled; end }
+    with_title([["Scene_Intro", intro]], ["plugins/luka_title.rb"]) { Scene_Intro.new.cyclePics(nil) }
     assert_nothing_spoken
   end
 

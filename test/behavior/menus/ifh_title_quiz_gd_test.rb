@@ -33,8 +33,8 @@ class FusionQuiz
 end
 
 # The profile's files, loaded after the stand-ins above: a hook on a class not yet defined binds nothing.
-%w[title fusion_quiz].each do |f|
-  path = File.join(Harness::ROOT, "games", "infinitefusion_hoenn", "#{f}.rb")
+[%w[infinitefusion_hoenn title], %w[infinitefusion_common fusion_quiz]].each do |dir, f|
+  path = File.join(Harness::ROOT, "games", dir, "#{f}.rb")
   eval(Harness.source(path), TOPLEVEL_BINDING, path)
 end
 

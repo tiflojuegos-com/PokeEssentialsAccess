@@ -2,7 +2,8 @@
 # switch each, 151 to 160, open while on. Three buttons on the north wall of the top middle room toggle six doors each, and the game
 # shows it only by animating them. The doors read their switches, so the routes follow them, and a flip is said per door. Any order
 # of pressing all three once opens the way to the exit at the bottom right. Past that exit, one more door (switch 161) opens for
-# good from a switch on the wall beside it, with no sprite and only a sound.
+# good from a switch on the wall beside it, with no sprite and only a sound. A switch on the wall of the corridor above the rooms
+# (ev46, PuzzlePuertas.reset_puzzle) puts the ten doors back as they start, the entrance at the top right open among them.
 module PokeAccess
   module VitroDoorPuzzle
     # Each door's event (DOOR_EVENTS), its switch and its name.
@@ -10,8 +11,10 @@ module PokeAccess
              [21, 154, :vitro_door_bottom_right], [22, 155, :vitro_door_left], [18, 156, :vitro_door_middle],
              [19, 157, :vitro_door_right], [24, 158, :vitro_door_exit_top_left], [16, 159, :vitro_door_entrance_top_right],
              [25, 160, :vitro_door_exit_bottom_right], [27, 161, :vitro_door_of_switch]]
-    # The buttons' events (ev13 to ev15, each page's press_button) and the wall switch of the last door (ev28).
-    BUTTONS = { 13 => :vitro_button_green, 14 => :vitro_button_blue, 15 => :vitro_button_red, 28 => :vitro_door_switch }
+    # The buttons' events (ev13 to ev15, each page's press_button), the wall switch of the last door (ev28) and the one that
+    # resets the doors (ev46).
+    BUTTONS = { 13 => :vitro_button_green, 14 => :vitro_button_blue, 15 => :vitro_button_red, 28 => :vitro_door_switch,
+                46 => :vitro_doors_reset }
     MAP = 128
 
     # A door's or a button's name, on this map, or nil.

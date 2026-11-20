@@ -119,6 +119,61 @@ class ProviderModernGdTest < PokeAccessTest
     end
   end
 
+  test "a national number names the first form at its place in the load order, up to the last anchor it reaches" do
+    ids = national(35)
+    ids.insert(25, :MON25_1)
+    with_registry(:Species, species_table(ids)) do
+      assert_equal [:BULBASAUR, :MON25, :NIDORINA, nil, nil], [1, 25, 30, 31, 0].map { |n| national_species(n) }
+    end
+  end
+
+  test "no national number names a species where the load order does not begin as the national one" do
+    with_registry(:Species, species_table([:KOFFING, :WEEZING] + national(30))) do
+      assert_equal [nil, nil, nil], [1, 10, 25].map { |n| national_species(n) }
+    end
+  end
+
+  test "a species of the game's own inside the order cuts the numbers at the last anchor before it" do
+    ids = national(30)
+    ids.insert(14, :OWNMON)
+    with_registry(:Species, species_table(ids)) do
+      assert_equal [:BULBASAUR, :CATERPIE, nil, nil, nil], [1, 10, 11, 15, 20].map { |n| national_species(n) }
+    end
+  end
+
+  test "where species are keyed by number, as in v19 and Infinite Fusion, a number is its own species" do
+    with_registry(:Species, species_table([:PIKACHU, 25])) do
+      assert_equal [25, nil], [national_species(25), national_species(26)]
+    end
+  end
+
+  test "species not loaded yet name no number, and are read again once the table is loaded" do
+    with_registry(:Species, species_table([])) { assert_nil national_species(1) }
+    with_registry(:Species, species_table(national(10))) { assert_equal :CATERPIE, national_species(10) }
+  end
+
+  test "an overworld sprite's number names its species as the game spells it, past its female, shiny and form marks" do
+    with_registry(:Species, species_table(national(30))) do
+      { "025" => "MonMON25", "025s" => "MonMON25", "025f" => "MonMON25", "025_1" => "MonMON25",
+        "025fs_1" => "MonMON25", "025s_12" => "MonMON25", "030" => "MonNIDORINA", "031" => nil, "000" => nil,
+        "0025" => nil, "025_" => nil, "025sf" => nil, "s025" => nil }.each do |sprite, want|
+        assert_equal [want], [PokeAccess::Locator.sprite_species(sprite)], "the sprite #{sprite}"
+      end
+    end
+  end
+
+  test "a sheet the game lacks names no species by the load order, while a table keyed by number still names it" do
+    loc = PokeAccess::Locator
+    loc.define_singleton_method(:pbResolveBitmap) { |path| path =~ /025\z/ ? "#{path}.png" : nil }
+    with_registry(:Species, species_table(national(30))) do
+      assert_equal ["MonMON25", nil], [loc.sprite_species("025"), loc.sprite_species("026")]
+    end
+    with_registry(:Species, species_table([26])) { assert_equal "Mon26", loc.sprite_species("026") }
+  ensure
+    loc.singleton_class.send(:remove_method, :pbResolveBitmap)
+    loc.instance_variable_set(:@sheet_files, nil)
+  end
+
   private
 
   # A data object answering each field of fields with its value.
@@ -135,6 +190,28 @@ class ProviderModernGdTest < PokeAccessTest
     klass.define_singleton_method(:get) { |id| asked << id; rows.fetch(id) }
     klass.define_singleton_method(:try_get) { |id| rows[id] } if lookups.include?(:try_get)
     klass.define_singleton_method(:exists?) { |id| rows.key?(id) } if lookups.include?(:exists?)
+    klass
+  end
+
+  # The species a national number names, through the data layer as the locator asks.
+  def national_species(n)
+    LAYER.optional(:national_species, n)
+  end
+
+  # The national order through number last: each anchor's own species, a stand-in for every other number.
+  def national(last)
+    (1..last).map { |n| V21::NATIONAL_ANCHORS[n] || :"MON#{n}" }
+  end
+
+  # A stand-in GameData::Species whose table loads ids in the order given, each its first form unless named Base_N
+  # (form N of Base) and named "Mon<id>"; an Integer id keys a row by number, as v19 did.
+  def species_table(ids)
+    rows = {}
+    ids.each { |id| rows[id] = datum(:id => id, :form => (id.to_s =~ /_(\d+)\z/ ? $1.to_i : 0), :name => "Mon#{id}") }
+    klass = Class.new
+    klass.const_set(:DATA, rows)
+    klass.define_singleton_method(:get) { |id| rows.fetch(id) }
+    klass.define_singleton_method(:each_species) { |&blk| rows.each_value { |s| blk.call(s) if s.form == 0 } }
     klass
   end
 

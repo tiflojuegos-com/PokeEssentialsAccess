@@ -349,6 +349,22 @@
       "engine": "gen6"
     },
     {
+      "key": "solarlight",
+      "display": "Pokémon Solar Light & Lunar Dark",
+      "titles": [
+        "solar light & lunar dark",
+        "solar light and lunar dark"
+      ],
+      "detect": "solar.?light",
+      "exes": [],
+      "engine": "gen6",
+      "convert": "mkxp-z-1.3.0-x86",
+      "markers": [
+        "Game.rgssad"
+      ],
+      "compat": "compat.rb"
+    },
+    {
       "key": "soulstones1",
       "display": "Pokémon Soulstones",
       "titles": [
@@ -412,6 +428,21 @@
       "detect": "world[ _-]?frontier",
       "exes": [],
       "engine": "gamedata"
+    },
+    {
+      "key": "xenoverse",
+      "display": "Pokemon Xenoverse",
+      "titles": [
+        "xenoverse",
+        "pokemon xenoverse",
+        "pokémon xenoverse"
+      ],
+      "detect": "xenoverse",
+      "exes": [
+        "snGame_n.exe"
+      ],
+      "engine": "gen6",
+      "compat": "compat.rb"
     }
   ]
 }

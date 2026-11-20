@@ -80,6 +80,12 @@ module PokeAccess
       (WINGS[0] + WINGS[1]).find { |r| r[0] == ev.id }
     end
 
+    # The mark painted on (x, y), by its colour, for the free camera: every mark is in plain sight; nil off them.
+    def self.mark_name(x, y)
+      rock = (WINGS[0] + WINGS[1]).find { |r| r[2] == x && r[3] == y }
+      rock ? PokeAccess::I18n.t(MARK_LABELS[rock[1]]) : nil
+    end
+
     # A rock's name for the locator, by its colour; nil for any other event.
     def self.rock_name(ev)
       r = rock(ev)
@@ -92,6 +98,7 @@ PokeAccess::Game.define("ashenfrost") do
   push_script(/pbPushThisSokoban/) { |x, y| PokeAccess::AshenWellTemple.rough_floor?(x, y) }
   event_name { |ev| PokeAccess::AshenWellTemple.rock_name(ev) }
   event_category(:objects) { |ev| PokeAccess::AshenWellTemple.rock(ev) ? true : false }
+  camera_tile(:maps => [PokeAccess::AshenWellTemple::MAP]) { |x, y| PokeAccess::AshenWellTemple.mark_name(x, y) }
 
   mechanic(:state, PokeAccess::AshenWellTemple::MAP) do
     arrival_hint lambda { PokeAccess::AshenWellTemple.rule }

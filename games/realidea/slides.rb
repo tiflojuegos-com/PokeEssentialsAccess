@@ -3,6 +3,7 @@
 # not push, through walls and closed passages alike:
 #   terrain 42 (0242_Deslizarse.rb), a slope one tile down;
 #   terrains 44-47 (0205_Surf.rb), currents one tile up, right, left or down while switch 182 (water walking) is on.
+# The free camera names each slope and, while they push, each current, with the way it goes.
 PokeAccess::Game.define("realidea_slides") do
   pushes = { 42 => 2 }
   currents = { 44 => 8, 45 => 6, 46 => 4, 47 => 2 }
@@ -24,5 +25,15 @@ PokeAccess::Game.define("realidea_slides") do
       d = push.call(x, y)
     end
     steps > cap ? false : [x, y]
+  end
+  camera_tile(:tags => pushes.keys + currents.keys) do |x, y|
+    d = push.call(x, y)
+    next nil if d.nil?
+    dir = PokeAccess::Routes::Text.dir(d)
+    if pushes.key?(PokeAccess::World::Terrain.number(x, y))
+      PokeAccess::I18n.t(:rea_slope, :dir => dir)
+    else
+      PokeAccess::I18n.t(:solar_current, :dir => dir)
+    end
   end
 end

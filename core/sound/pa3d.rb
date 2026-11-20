@@ -10,6 +10,10 @@ module PokeAccess
       SND48 = "#{PokeAccess::Paths::SOUNDS}/48000"
       # Each output of audio3d_output and the dll's number for it.
       OUTPUTS = { :binaural => 0, :mono => 1, :stereo => 2, :quad => 3, :surround51 => 4, :surround71 => 5 }
+      # The outputs with no speakers behind, where the dll pitches a source by how far ahead or behind it lies: a source
+      # straight ahead by 1 + ENGINE_TILT, one straight behind by 1 - ENGINE_TILT (its PITCH_TILT).
+      TILTED = [OUTPUTS[:mono], OUTPUTS[:stereo]]
+      ENGINE_TILT = 0.2
 
       @ready = false
       @boot_tried = false
@@ -21,6 +25,8 @@ module PokeAccess
       def self.forget
         @sent = {}
         @pitch = {}
+        @base = {}
+        @ratio = {}
         @occl = {}
         @listener = nil
         @master = nil
@@ -100,12 +106,14 @@ module PokeAccess
         n && n >= 0 ? n : nil
       end
 
-      # Puts the listener on a tile; true once the engine is ready.
+      # Puts the listener on a tile, the loops that play aimed again from there; true once the engine is ready.
       def self.listener(x, y)
         return false unless @ready
         pos = [x, y]
-        Native.call(:listener, x * TILE_UNITS, y * TILE_UNITS) unless pos == @listener
+        return true if pos == @listener
+        Native.call(:listener, x * TILE_UNITS, y * TILE_UNITS)
         @listener = pos
+        @sent.each { |n, order| aim(n, order[0], order[1]) if order.is_a?(Array) }
         true
       rescue StandardError => e
         PokeAccess.swallowed(e)
@@ -116,6 +124,7 @@ module PokeAccess
       def self.start(id, x, y, vol)
         n = channel(id)
         return false unless n
+        aim(n, x, y)
         Native.call(:set, n, x * TILE_UNITS, y * TILE_UNITS, vol.to_i, 1)
         @sent[n] = nil
         true
@@ -129,6 +138,7 @@ module PokeAccess
         n = channel(id)
         return false unless n
         order = [x, y, vol.to_i]
+        aim(n, x, y)
         Native.call(:set, n, x * TILE_UNITS, y * TILE_UNITS, vol.to_i, 1) unless @sent[n] == order
         @sent[n] = order
         true
@@ -154,16 +164,58 @@ module PokeAccess
         (ids || @ch.keys).each { |id| stop(id) }
       end
 
-      # Sets a sound's playback rate, in percent of the recording; whether the engine took it.
+      # Sets a sound's playback rate, in percent of the recording, before its direction's factor (aim); whether the
+      # engine took it.
       def self.tone(id, pct)
         n = channel(id)
         return false unless n && Native.has?(:pitch)
+        @base[n] = pct
+        send_pitch(n)
+      end
+
+      # Sends a channel its rate times its direction's factor, unless the engine has that one; whether it took it.
+      def self.send_pitch(n)
+        pct = ((@base[n] || 100) * (@ratio[n] || 1.0)).round
         Native.call(:pitch, n, pct) unless @pitch[n] == pct
         @pitch[n] = pct
         true
       rescue StandardError => e
         PokeAccess.swallowed(e)
         false
+      end
+
+      # Gives a channel the factor of a source on (x, y) (direction_ratio), sending its rate again when that changed.
+      def self.aim(n, x, y)
+        r = direction_ratio(x, y)
+        return if r == (@ratio[n] || 1.0)
+        @ratio[n] = r
+        send_pitch(n) if Native.has?(:pitch)
+      end
+
+      # The factor a source on (x, y) plays at over the dll's own tilt, so it sounds at the pitch the player set for
+      # where it lies (audio3d_pitch_north, south, west and east, each side counting by how far toward it the source
+      # lies): 1.0 outside the TILTED outputs and for a source on the listener, and at the defaults, the dll's own tilt.
+      def self.direction_ratio(x, y)
+        return 1.0 unless @listener && TILTED.include?(@playing)
+        dx = (x - @listener[0]).to_f
+        dz = (y - @listener[1]).to_f
+        dist = Math.sqrt(dx * dx + dz * dz)
+        return 1.0 if dist < 1e-4
+        ux = dx / dist
+        uz = dz / dist
+        c = PokeAccess::Config
+        f = 1.0 + side(c.audio3d_pitch_north, -uz) + side(c.audio3d_pitch_south, uz) +
+            side(c.audio3d_pitch_west, -ux) + side(c.audio3d_pitch_east, ux)
+        (f / (1.0 - ENGINE_TILT * uz) * 10000).round / 10000.0
+      rescue StandardError => e
+        PokeAccess.swallowed(e)
+        1.0
+      end
+
+      # One side's share of the factor: its pitch's step away from 100 percent, by how far toward that side the source
+      # lies (toward, 0 to 1; none for a source on the other side).
+      def self.side(pct, toward)
+        toward > 0 ? (pct.to_f / 100.0 - 1.0) * toward : 0.0
       end
 
       # Muffles a sound's channel by 0 (clear) to 100.

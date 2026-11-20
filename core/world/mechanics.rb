@@ -7,7 +7,7 @@ module PokeAccess
       # A piece found on the map: its role (:obstacle, :control, :statue or :named), its event, its label (a control's
       # watch label, an obstacle's declared one, the one a name gives), whether an obstacle moves and whether a name
       # gave the label, with the assist alone when that name asks for it (:assist).
-      Piece = Struct.new(:role, :ev, :label, :moving, :named, :assist, :listed)
+      Piece = Struct.new(:role, :ev, :label, :moving, :named, :assist, :listed, :grouped)
       # A mechanic live on the current map: its declaration, its kind (:grid, :state or :facing) and type module, the
       # map, the type's own state, the controls found once (event id => watch entry), the pieces, the event generation
       # they were found at, and the obstacle groups beside the player as last seen.
@@ -59,6 +59,9 @@ module PokeAccess
         @at = mid
         @insts = built
       end
+
+      # The instances kept for the current map, as built on arrival, or nil while none are: what a visit is told by.
+      def self.built_instances; @insts; end
 
       # The current map's first instance, or nil.
       def self.instance; instances.first; end
@@ -222,7 +225,7 @@ module PokeAccess
           elsif (w = inst.controls[id]) && acts?(ev)
             out.push(Piece.new(:control, ev, nm ? nm[0] : w[:label], false, !nm.nil?, nm && nm[1], nm && nm[2]))
           elsif nm && (!cn.empty? || (ev.tile_id rescue 0).to_i > 0 || acts?(ev))
-            out.push(Piece.new(:named, ev, nm[0], false, true, nm[1], nm[2]))
+            out.push(Piece.new(:named, ev, nm[0], false, true, nm[1], nm[2], nm[3]))
           end
         end
         inst.pieces = out
@@ -238,12 +241,12 @@ module PokeAccess
         o[:named] ? !(ev.name.to_s =~ o[:named]).nil? : false
       end
 
-      # The label, assist flag and test for being listed a declaration's name gives an event, numbered where it asks for
-      # that, or nil.
+      # The label, assist flag, test for being listed and grouping a declaration's name gives an event, numbered where it
+      # asks for that, or nil.
       def self.named_as(inst, ev)
         entry = (inst.spec[:names] || []).find { |n| picks?(n[:events], ev) }
         return nil unless entry
-        [label_for(inst, entry, ev), entry[:assist], entry[:when]]
+        [label_for(inst, entry, ev), entry[:assist], entry[:when], entry[:grouped]]
       end
 
       # A name's label for an event: a lambda with one parameter asked each time it is read, so it follows the flags and the

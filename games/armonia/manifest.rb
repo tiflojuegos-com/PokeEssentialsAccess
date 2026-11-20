@@ -11,6 +11,14 @@
     puzzles/route8_exam
     puzzles/route15_trash
     puzzles/origen_pyramids
+    puzzles/wiel_museum
+    puzzles/origen_oasis
+    puzzles/racine_gym
+    puzzles/origen_reliefs
+    puzzles/nytia_arrows
+    arrow_floor
+    puzzles/termite_nest
+    puzzles/laken_savanna
     pause_menu
     location_banner
     album

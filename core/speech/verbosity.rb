@@ -211,4 +211,5 @@ PokeAccess::Verbosity.define_reading(:descriptions, :vb_descriptions, :vbh_descr
 PokeAccess::Verbosity.define_reading(:room_note, :vb_room_note, :vbh_room_note, :map)
 PokeAccess::Verbosity.define_reading(:route_transfers, :vb_route_transfers, :vbh_route_transfers, :map)
 PokeAccess::Verbosity.define_reading(:teleport, :vb_teleport, :vbh_teleport, :map)
+PokeAccess::Verbosity.define_reading(:camera_step, :vb_camera_step, :vbh_camera_step, :map)
 PokeAccess::Verbosity.define_reading(:map_changes, :vb_map_changes, :vbh_map_changes, :map)

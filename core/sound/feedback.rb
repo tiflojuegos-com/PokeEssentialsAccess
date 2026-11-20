@@ -22,10 +22,10 @@ module PokeAccess
       end
       reset_map_state
 
-      # One map frame: the step, the bump, the radar and the ledge's tick.
+      # One map frame: the step, the bump, the radar and the ledge's tick; none while the free camera is open.
       def self.tick
         return unless $game_map && $game_player
-        return unless PokeAccess::Control.free?
+        return unless PokeAccess::Control.free? && !PokeAccess::Camera.active?
         footstep
         wall_cue
         radar
@@ -67,11 +67,12 @@ module PokeAccess
         false
       end
 
-      # A bump toward the wall the player pushes into: on the push, on turning to another wall and once per cooldown;
-      # what it records tells just_cued? whether a bump the game plays now repeats it.
+      # A bump toward the wall the player pushes into, its own sound when what blocks is something to interact with: on
+      # the push, on turning to another wall and once per cooldown; what it records tells just_cued? whether a bump the
+      # game plays now repeats it.
       def self.wall_cue
         return if Scheduler.nav_off?
-        return if (Mixer.volume(:wall) || 0) <= 0
+        return if (Mixer.volume(:wall) || 0) <= 0 && (Mixer.volume(:interact) || 0) <= 0
         if (Input.dir4 rescue 0) == 0 || walking?
           @was_blocked = false
           return

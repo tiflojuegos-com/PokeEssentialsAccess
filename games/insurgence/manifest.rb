@@ -6,6 +6,7 @@
     constants
     hm7
     soaring
+    races
     custom_move
     battle_marks
     water
@@ -14,6 +15,37 @@
     dex_forms
     naming
     puzzles/lasers
+    puzzles/vipik_gym
+    puzzles/sonata_gym
+    puzzles/abyssal_base
+    puzzles/deep_cavern
+    puzzles/infernal_base
+    puzzles/hekate_town
+    puzzles/meloetta
+    puzzles/satellite_corps
+    puzzles/perfection_base
+    puzzles/perfection_lab
+    puzzles/holon_pyramid
+    puzzles/selene_gym
+    puzzles/infernal_dungeon
+    puzzles/deep_mantle
+    puzzles/alpha_temple
+    puzzles/hieroglyph_wall
+    puzzles/mysterious_spire
+    puzzles/holon_mountain
+    puzzles/ancient_tower
+    puzzles/holon_lake
+    puzzles/murk_forest
+    puzzles/broadcast_tower
+    puzzles/helios_sewers
+    puzzles/holon_jungle
+    puzzles/fiery_caverns
+    puzzles/void_gauntlet
+    puzzles/crystal_caves
+    puzzles/slither_forest
+    puzzles/league_pathway
+    puzzles/relic_song
+    puzzles/samsara_cave
     intro
     picture_cues
     certificate

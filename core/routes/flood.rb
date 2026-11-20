@@ -37,11 +37,14 @@ module PokeAccess
       end
 
       # What a flood depends on: the events (as Planner.key_for has them) and those lent through, the player's tile and
-      # level, the pricing, the moves and the route limit.
+      # level, the pricing (with what tiles cost, Moves.costed?, and the rules that count), the moves and the route
+      # limit.
       def self.key_for(cost, mode)
         pf = PokeAccess::Pathfinder
+        c = PokeAccess::Config
         [pf.event_epoch, PokeAccess::World::Events.gen, PokeAccess::World::Probe.lent_tiles, $game_player.x,
-         $game_player.y, pf.bridge_level, cost.style, mode, (PokeAccess::Config.route_limit rescue nil)]
+         $game_player.y, pf.bridge_level, cost.style, mode, (c.route_limit rescue nil), (c.avoid_grass rescue nil),
+         PokeAccess::Puzzles.assist?]
       end
 
       # Floods from the player's state for a first budget.
@@ -70,13 +73,14 @@ module PokeAccess
       # The way to goal as a SearchResult: :found to its tile reached at the least cost, :exhausted when the flood
       # closed everything without reaching one, nil while it has not got there yet.
       def route_to(goal)
-        s = cheapest(goal.tiles)
-        return SearchResult.new(:found, Search.path_to(@t.came, s), 0, :flood, @t.settled[s / 5]) if s
+        best = cheapest(goal.tiles, goal.entry)
+        return SearchResult.new(:found, Search.path_to(@t.came, best[1]), 0, :flood, best[0]) if best
         @done ? SearchResult.new(:exhausted, nil, 0, :flood) : nil
       end
 
-      # The state that reaches one of tiles (on either bridge level) at the least cost, or nil.
-      def cheapest(tiles)
+      # [cost, state] of the least that reaches one of tiles (on either bridge level), or steps onto entry's tile and is
+      # taken on elsewhere (Search.entered); nil for none.
+      def cheapest(tiles, entry = nil)
         pf = PokeAccess::Pathfinder
         best = nil
         tiles.each do |x, y|
@@ -86,7 +90,9 @@ module PokeAccess
             best = [c, @t.first[k]] if c && (best.nil? || c < best[0])
           end
         end
-        best && best[1]
+        es = entry && Search.entry_state(entry)
+        c = es && @t.settled[es]
+        c && (best.nil? || c < best[0]) ? [c, es] : best
       end
     end
   end

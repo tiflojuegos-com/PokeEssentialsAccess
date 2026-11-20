@@ -1,5 +1,6 @@
 # Opalo's gym of map 46: two machines and two levers (175, 177); a machine sets 174, or 178 once 174 is on, and nothing turns
-# them off. It has no win: the leader's door has no condition.
+# them off. Each lever opens a smoke vent up to the machine on the other side; the first machine heats the bridges of the
+# middle and the second cools them, the one way north to the leader's door. The leader's medal (switch 146) ends it.
 module PokeAccess
   # Each machine of map 46 is three events in a row under one 3x3 graphic, the same page in each, which also sets
   # the machine's own switch (243 west, 244 east), the one its empty second page waits for: they go out of use
@@ -32,6 +33,8 @@ PokeAccess::Game.define("opalo") do
     watch :switch => 175, :label => :op_lever1,   :on => :op_on, :off => :op_off
     watch :switch => 177, :label => :op_lever2,   :on => :op_on, :off => :op_off
     controls
+    solved { $game_switches[146] }
+    hint :op_g3_hint
   end
 
   override("PokeAccess::Puzzles", :control_targets) do |_m, original, _a|

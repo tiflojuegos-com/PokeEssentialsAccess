@@ -1227,9 +1227,11 @@ class CustomScreensTest < PokeAccessTest
   end
 
   test "a player with no record of DexNav rewards has none claimed" do
-    text = with_consts(:DEXNAV_ZONES => dexnav_table_zones, :DEXNAV_REWARDS => dexnav_table_rewards) do
-      with_globals(:$PokemonGlobal => Object.new) do
-        PokeAccess::ArmoniaDexNav.rewards_text(World.stub_scene(:@mapid => 3))
+    text = items_by_number do
+      with_consts(:DEXNAV_ZONES => dexnav_table_zones, :DEXNAV_REWARDS => dexnav_table_rewards) do
+        with_globals(:$PokemonGlobal => Object.new) do
+          PokeAccess::ArmoniaDexNav.rewards_text(World.stub_scene(:@mapid => 3))
+        end
       end
     end
     assert_equal rewards_line(0, "Tierra: #{potion_reward}, #{t(:dxn_zone_fish)}: #{repel_reward}", "Caramelo Raro"),
@@ -1242,16 +1244,6 @@ class CustomScreensTest < PokeAccessTest
     end
     repel = t(:dxn_reward_line, :item => "Repel", :n => 1)
     assert_equal t(:dxn_rewards, :taken => 0, :tot => 1, :list => "Tierra: #{repel}", :final => "Caramelo Raro"), text
-  end
-
-  test "a DexNav reward its id lookup leaves nameless, with a blank name or no answer, is named by the item itself" do
-    potion = "Tierra: #{potion_reward}"
-    { "a blank name" => lambda { |sym| [sym, ""] }, "no answer" => lambda { |_sym| nil } }.each do |what, answer|
-      text = with_dexnav_tables({ 3 => [[0, :POTION, 3], :RARECANDY] }, {}) do
-        with_item_ids(answer) { PokeAccess::ArmoniaDexNav.rewards_text(World.stub_scene(:@mapid => 3)) }
-      end
-      assert_equal t(:dxn_rewards, :taken => 0, :tot => 1, :list => potion, :final => "Caramelo Raro"), text, what
-    end
   end
 
   test "a map with no DexNav rewards, or with the completion prize alone, says it has none" do
@@ -1942,22 +1934,28 @@ class CustomScreensTest < PokeAccessTest
   end
 
   # Runs the block with the DexNav's tables (rewards, the default map 3's when nil) and the player's record of the
-  # rewards claimed.
+  # rewards claimed, the item table naming by number alone (items_by_number).
   def with_dexnav_tables(rewards = nil, claimed = { 0 => true }, &blk)
     global = Object.new
     global.define_singleton_method(:getDexNavRewards) { |_map| claimed }
-    with_consts(:DEXNAV_ZONES => dexnav_table_zones, :DEXNAV_REWARDS => rewards || dexnav_table_rewards) do
-      with_globals(:$PokemonGlobal => global, &blk)
+    items_by_number do
+      with_consts(:DEXNAV_ZONES => dexnav_table_zones, :DEXNAV_REWARDS => rewards || dexnav_table_rewards) do
+        with_globals(:$PokemonGlobal => global, &blk)
+      end
     end
   end
 
-  # Runs the block with an item table whose id lookup answers what answer gives for the item (a blank name, as a gen-6
-  # message table without the item's entry does, or nothing), and that names the item when asked by the item itself.
-  def with_item_ids(answer, &blk)
-    table = Object.new
-    table.define_singleton_method(:item_id) { |sym| answer.call(sym) }
-    table.define_singleton_method(:item_name) { |item| { :POTION => "Pocion", :RARECANDY => "Caramelo Raro" }[item] }
-    Harness.with_provider(table, &blk)
+  # Runs the block with the item table refusing a constant's symbol, as a gen-6 game's own does, so an item the rewards
+  # table gives by symbol is named through its number.
+  def items_by_number
+    original = PBItems.method(:getName)
+    PBItems.define_singleton_method(:getName) do |id|
+      raise TypeError, "no implicit conversion of Symbol into Integer" if id.is_a?(Symbol)
+      original.call(id)
+    end
+    yield
+  ensure
+    PBItems.define_singleton_method(:getName, original)
   end
 
   # The land reward and the fishing one as the rewards page lists them.

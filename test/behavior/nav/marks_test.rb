@@ -24,6 +24,35 @@ class NavMarksTest < PokeAccessTest
     end
   end
 
+  test "Everything lists the player's marks only with everything_extras on, each once" do
+    with_marks do
+      Marks.set(1, 7, 5, "Tienda")
+      off = Locator.candidates(:all).count { |t| Locator.mark_target?(t) }
+      PokeAccess::Config.everything_extras = true
+      on = Locator.candidates(:all).select { |t| Locator.mark_target?(t) }.map { |t| [t.x, t.y] }
+      assert_equal [0, [[7, 5]]], [off, on]
+    end
+  end
+
+  test "with everything_extras, a puzzle spot on an event stands for that event in Everything, once" do
+    ev = World.event(:id => 30, :x => 4, :y => 4, :sprite => "boulder", :list => [TestCmd.new(355, ["pbPushThisBoulder"])])
+    PokeAccess::World::Mechanics.define(:state, $game_map.map_id) { spot :event => 30, :label => "Rock" }
+    World.next_frame
+    PokeAccess::Config.everything_extras = true
+    at_rock = Locator.candidates(:all).select { |t| [t.x, t.y] == [4, 4] }
+    assert_equal [[Locator::SurfaceTarget, "Rock"]], at_rock.map { |t| [t.class, Locator.target_name(t)] }
+  ensure
+    PokeAccess::World::Mechanics.instance_variable_get(:@defs).delete($game_map.map_id) rescue nil
+  end
+
+  test "a puzzle spot stands for the event on its tile, and for none elsewhere" do
+    ev = World.event(:id => 30, :x => 4, :y => 4)
+    spot = Locator::SurfaceTarget
+    assert_equal [ev, nil, nil], [Locator.puzzle_event_of(spot.new(4, 4, "Roca", :puzzle, 30)),
+                                  Locator.puzzle_event_of(spot.new(4, 5, "Roca", :puzzle, 30)),
+                                  Locator.puzzle_event_of(spot.new(4, 4, "Roca", :puzzle, :zone))]
+  end
+
   test "a marks store that cannot be read offers no :marks category" do
     with_marks do
       Marks.set(1, 7, 5, "Tienda")

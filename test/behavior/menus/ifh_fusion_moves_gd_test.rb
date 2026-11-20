@@ -1,4 +1,4 @@
-# Infinite Fusion 2's move picker for a fusion (games/infinitefusion_hoenn/fusion_moves.rb), over stand-ins shaped as
+# Infinite Fusion 2's move picker for a fusion (games/infinitefusion_common/fusion_moves.rb), over stand-ins shaped as
 # its classes: the header row that takes every move of the head or of the body, four rows of two moves, Confirm, the
 # moves taken and the counter of them, the box and the panel under the list, followed each frame of pbUpdate.
 
@@ -88,7 +88,7 @@ class FusionMovesOptionsScene
 end
 
 class IfhFusionMovesGdTest < PokeAccessTest
-  PATH = File.join(Harness::ROOT, "games", "infinitefusion_hoenn", "fusion_moves.rb")
+  PATH = File.join(Harness::ROOT, "games", "infinitefusion_common", "fusion_moves.rb")
   SLOTS = [[:TACKLE, :EMBER], [:GROWL, nil], [:VINEWHIP, :GROWL], [nil, nil]]
   # The data the game keeps for each stand-in move: type name, power, accuracy, total PP and category; MYSTERY has none.
   MOVE_DATA = { :TACKLE => ["Normal", 40, 100, 35, 0], :EMBER => ["Fire", 40, 100, 25, 1],

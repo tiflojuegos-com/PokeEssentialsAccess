@@ -21,10 +21,12 @@ class CatalogTest < PokeAccessTest
     [:sound_teleporters, true, :flag, :audio3d_on, :lbl_on_teleporters, :snd_teleporter_help,
      [:sound_nav, :full], [:positional]],
     [:sound_marks, true, :flag, :audio3d_on, :lbl_on_marks, :snd_mark_help, [:sound_nav, :full], [:positional]],
+    [:sound_scenes, true, :flag, :audio3d_on, :lbl_on_scenes, :snd_scene_help, [:sound_nav, :full], [:positional]],
     [:sound_water, true, :flag, :audio3d_on, :lbl_on_water, :snd_water_help, [:sound_nav, :full], [:positional]],
     [:sound_wind, true, :flag, :audio3d_on, :lbl_on_wind, :snd_wind_help, [:sound_nav, :full], [:positional]],
     [:sound_steps, true, :flag, :audio3d_on, :lbl_on_steps, :snd_step_help, [:sound_nav, [:basic, :full]], []],
     [:sound_wall, true, :flag, :audio3d_on, :lbl_on_wall, :snd_wall_help, [:sound_nav, [:basic, :full]], []],
+    [:sound_interact, true, :flag, :audio3d_on, :lbl_on_interact, :snd_interact_help, [:sound_nav, [:basic, :full]], []],
     [:sound_jumps, true, :flag, :audio3d_on, :lbl_on_jumps, :snd_jump_help, nil, []],
     [:sound_ledges, true, :flag, :audio3d_on, :lbl_on_ledges, :snd_ledge_help, [:sound_nav, [:basic, :full]], []],
     [:proximity_radar, true, :flag, :audio3d_on, :lbl_on_radar, :snd_radar_help, [:sound_nav, :full], []],
@@ -43,12 +45,14 @@ class CatalogTest < PokeAccessTest
     [:audio3d_teleporter, 90, :vol, :audio3d_vol, :lbl_pos_teleporter, :help_pos_teleporter, [:sound_nav, :full],
      [:positional]],
     [:audio3d_mark, 85, :vol, :audio3d_vol, :lbl_pos_marks, :help_pos_marks, [:sound_nav, :full], [:positional]],
+    [:audio3d_scene, 85, :vol, :audio3d_vol, :lbl_pos_scenes, :help_pos_scenes, [:sound_nav, :full], [:positional]],
     [:audio3d_water, 70, :vol, :audio3d_vol, :lbl_pos_water, :help_pos_water, [:sound_nav, :full], [:positional]],
     [:audio3d_shore, 40, :vol, :audio3d_vol, :lbl_pos_shore, :help_pos_shore, [:sound_nav, :full], [:positional]],
     [:audio3d_wind, 55, :vol, :audio3d_vol, :lbl_pos_wind, :help_pos_wind, [:sound_nav, :full], [:positional]],
     [:footstep_volume, 80, :vol, :audio3d_vol, :lbl_footstep_vol, :help_footstep_vol, [:sound_nav, [:basic, :full]],
      []],
     [:wall_volume, 80, :vol, :audio3d_vol, :lbl_wall_vol, :help_wall_vol, [:sound_nav, [:basic, :full]], []],
+    [:interact_volume, 80, :vol, :audio3d_vol, :lbl_interact_vol, :help_interact_vol, [:sound_nav, [:basic, :full]], []],
     [:event_volume, 70, :vol, :audio3d_vol, :lbl_guide_vol, :help_guide_vol, nil, []],
     [:jump_volume, 70, :vol, :audio3d_vol, :lbl_jump_vol, :help_jump_vol, nil, []],
     [:radar_volume, 31, :vol, :audio3d_vol, :lbl_radar_vol, :help_radar_vol, [:sound_nav, :full], []],
@@ -76,6 +80,8 @@ class CatalogTest < PokeAccessTest
      [:sound_nav, :full], [:positional]],
     [:audio3d_freq_mark, 80, :vol, :audio3d_freq, :lbl_freq_marks, :help_freq_marks, [:sound_nav, :full],
      [:positional]],
+    [:audio3d_freq_scene, 10, :vol, :audio3d_freq, :lbl_freq_scenes, :help_freq_scenes, [:sound_nav, :full],
+     [:positional]],
     [:guide_freq, 75, :vol, :audio3d_freq, :lbl_guide_freq, :help_guide_freq, nil, []],
     [:guide_rhythm, :distance, :grhythm, :audio3d_freq, :lbl_guide_rhythm, :help_guide_rhythm, nil, []],
     [:audio3d_tone_npc, 50, :tone, :audio3d_tone, :lbl_tone_people, :help_tone_people, [:sound_nav, :full],
@@ -100,6 +106,8 @@ class CatalogTest < PokeAccessTest
      [:sound_nav, :full], [:positional]],
     [:audio3d_tone_mark, 50, :tone, :audio3d_tone, :lbl_tone_marks, :help_tone_marks, [:sound_nav, :full],
      [:positional]],
+    [:audio3d_tone_scene, 50, :tone, :audio3d_tone, :lbl_tone_scenes, :help_tone_scenes, [:sound_nav, :full],
+     [:positional]],
     [:audio3d_tone_water, 50, :tone, :audio3d_tone, :lbl_tone_water, :help_tone_water, [:sound_nav, :full],
      [:positional]],
     [:audio3d_tone_wind, 50, :tone, :audio3d_tone, :lbl_tone_wind, :help_tone_wind, [:sound_nav, :full],
@@ -107,6 +115,8 @@ class CatalogTest < PokeAccessTest
     [:footstep_tone, 50, :tone, :audio3d_tone, :lbl_footstep_tone, :help_footstep_tone, [:sound_nav, [:basic, :full]],
      []],
     [:wall_tone, 50, :tone, :audio3d_tone, :lbl_wall_tone, :help_wall_tone, [:sound_nav, [:basic, :full]], []],
+    [:interact_tone, 50, :tone, :audio3d_tone, :lbl_interact_tone, :help_interact_tone, [:sound_nav, [:basic, :full]],
+     []],
     [:guide_tone, 50, :tone, :audio3d_tone, :lbl_guide_tone, :help_guide_tone, nil, []],
     [:jump_tone, 50, :tone, :audio3d_tone, :lbl_jump_tone, :help_jump_tone, nil, []],
     [:radar_tone, 50, :tone, :audio3d_tone, :lbl_radar_tone, :help_radar_tone, [:sound_nav, :full], []],
@@ -159,7 +169,7 @@ class CatalogTest < PokeAccessTest
   end
 
   test "pings in rank order, which breaks a tie" do
-    assert_equal [:npc, :object, :door, :hazard, :trap, :control, :belt, :teleporter, :mark, :push, :exit],
+    assert_equal [:npc, :object, :door, :hazard, :trap, :control, :belt, :teleporter, :mark, :push, :exit, :scene],
                  Catalog.pings.map { |e| e.id }
   end
 

@@ -36,6 +36,8 @@ end
 # everything only meanwhile, while the flag stays on after a climb whose last jump the map's edge stopped.
 PokeAccess::Control.carrier(:rock_climb_ex) { $PokemonGlobal.rockclimbing && $game_player.through }
 
+PokeAccess::Camera.tile_reader(:flags => [:rock_climb_tag]) { |_x, _y| PokeAccess::I18n.t(:loc_rock_climb) }
+
 # The plugin's player passability (Game_Map#playerPassable?) also reads the climb, which joins the probe's mode.
 PokeAccess::World::Probe.mode_reader { ($PokemonGlobal.rockclimbing rescue nil) ? true : false }
 

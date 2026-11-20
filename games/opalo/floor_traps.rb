@@ -1,6 +1,7 @@
-# Opalo's trap floor: the game sends a player who steps on terrain tag 4 (PBTerrain::Rock) back to the entrance of
-# its psychic gym (map 36; 21,69), whatever the map, with no message, so no route steps on it, it is named as a trap
-# and the move back is said as the trap's. The gym's path lights are a mechanic (puzzles/psychic_gym.rb).
+# Opalo's trap floor: the game sends a player who steps on terrain tag 4 (PBTerrain::Rock) back to the entrance of its
+# psychic gym (map 36; 21,69), whatever the map, with no message. It looks like the floor round it, so only with the
+# puzzle assist is it named as a trap and kept off by the routes; the move back is said as the trap's. What shows the
+# way is the gym's path lights (puzzles/psychic_gym.rb).
 module PokeAccess
   module OpaloTraps
     # True where (x,y) is trap floor.
@@ -16,9 +17,11 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("opalo") do
-  terrain_rule(:kinds => [:rock]) { |x, y, _d| PokeAccess::OpaloTraps.trap?(x, y) ? false : nil }
+  terrain_rule(:kinds => [:rock], :assist => true) { |x, y, _d| PokeAccess::OpaloTraps.trap?(x, y) ? false : nil }
 
-  PokeAccess::World::Terrain.label_rule { |x, y| PokeAccess::OpaloTraps.trap?(x, y) ? :op_trap : nil }
+  PokeAccess::World::Terrain.label_rule do |x, y|
+    PokeAccess::OpaloTraps.trap?(x, y) ? (PokeAccess::Puzzles.assist? ? :op_trap : false) : nil
+  end
 
   PokeAccess::Locator.teleport_cause(:opalo_trap_floor) { |from, to| PokeAccess::OpaloTraps.sent_back(from, to) }
 end

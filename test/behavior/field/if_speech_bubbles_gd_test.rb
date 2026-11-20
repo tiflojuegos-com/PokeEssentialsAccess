@@ -81,6 +81,24 @@ class IfSpeechBubblesGdTest < PokeAccessTest
     assert_equal ["#{from(t(:moved_down, :n => 1))}: ¡Diez!"], SpeakCapture.lines
   end
 
+  test "under brief, a bubble's line is led by the player's tag alone, and one with no tag by nothing" do
+    PokeAccess::Config.verbosity = :brief
+    in_room do
+      bubble(1, 15, "¡Doce!")
+      bubble(2, 14, "¡Trece!")
+    end
+    assert_equal ["hermana: ¡Doce!", "¡Trece!"], SpeakCapture.lines
+  end
+
+  test "a scheme with the bubbles reading at brief leaves out where the speaker stands, other readings as they are" do
+    PokeAccess::VerbositySchemes.set("bocadillos", PokeAccess::Verbosity::OTHERS => :full, :if_bubble_place => :brief)
+    PokeAccess::Config.verbosity = :bocadillos
+    in_room { bubble(2, 14, "¡Catorce!") }
+    assert_equal [["¡Catorce!"], :full], [SpeakCapture.lines, PokeAccess::Verbosity.level(:positions)]
+  ensure
+    PokeAccess::VerbositySchemes.delete("bocadillos")
+  end
+
   test "a speaker on the player's own tile is said as being right there" do
     assert_equal t(:loc_here), PokeAccess::IFSpeechBubbles.place(0, 0)
   end

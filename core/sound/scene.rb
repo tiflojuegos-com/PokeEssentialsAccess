@@ -50,8 +50,9 @@ module PokeAccess
       def self.occlusion_mode; (PokeAccess::Config.audio3d_occlusion rescue :hide); end
 
       # The sound an event pings with, or nil when it does not ping: a tag override first, then the puzzle piece it is
-      # (World::Mechanics), a rock to push, and the locator's kinds; a lever, a person or an object needs a graphic and
-      # to be interactable, and a lever pings as a control.
+      # (World::Mechanics), a rock to push, and the locator's kinds; a scene trigger or a healing spot from the middle of
+      # its row only; a lever, a person or an object needs a graphic (a healing spot, none) and to be interactable, and a
+      # lever pings as a control.
       def self.family_of(ev)
         return nil if (PokeAccess::Locator.hidden?(ev) rescue false)
         ov = (PokeAccess::Locator.tag_override(ev) rescue nil)
@@ -69,7 +70,10 @@ module PokeAccess
         return :belt if (PokeAccess::Locator.push_tile?(ev) rescue false)
         return :teleporter if (PokeAccess::Locator.teleporter_event?(ev) rescue false)
         return :door if (PokeAccess::Locator.transfer_event?(ev) rescue false)
-        return nil unless (PokeAccess::Locator.has_graphic?(ev) rescue false)
+        return (PokeAccess::SceneTriggers.lead?(ev) ? :scene : nil) if (PokeAccess::SceneTriggers.event?(ev) rescue false)
+        heal = (PokeAccess::HealingFloors.event?(ev) rescue false)
+        return nil if heal && !PokeAccess::HealingFloors.lead?(ev)
+        return nil unless heal || (PokeAccess::Locator.has_graphic?(ev) || PokeAccess::Locator.pc_terminal?(ev) rescue false)
         return nil unless (PokeAccess::Locator.interactable?(ev) rescue true)
         return nil unless reachable_by_keys?(ev)
         return :control if (PokeAccess::Locator.lever?(ev) rescue false)
@@ -261,12 +265,13 @@ module PokeAccess
         false
       end
 
-      # Notes an event that came, went or changed within the sonar's range of the player (World::Events.on_change; a
-      # step alone is the watch's), so moved? reads the emitters again with the player standing still.
+      # Notes an event that came, went or changed within the sonar's range of the focus (Camera.focus; World::Events.on_change;
+      # a step alone is the watch's), so moved? reads the emitters again with the focus standing still.
       def self.stir(tiles, how)
-        return if how == :move || $game_player.nil?
-        px = $game_player.x
-        py = $game_player.y
+        at = PokeAccess::Camera.focus
+        return if how == :move || at.nil?
+        px = at[0]
+        py = at[1]
         r = range
         @stirred = true if tiles.any? { |x, y| (x - px).abs + (y - py).abs <= r }
       end

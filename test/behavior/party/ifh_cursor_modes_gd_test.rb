@@ -8,7 +8,7 @@ end
 
 # Hooks bind at load to the methods that exist then: the profile's file is evaluated once over the method above, and
 # its profile name taken back out.
-ifh_modes_path = File.join(Harness::ROOT, "games", "infinitefusion_hoenn", "cursor_modes.rb")
+ifh_modes_path = File.join(Harness::ROOT, "games", "infinitefusion_common", "cursor_modes.rb")
 ifh_modes_profiles = PokeAccess::Game.profiles.dup
 ifh_modes_name = PokeAccess::Game.instance_variable_get(:@profile_name)
 begin

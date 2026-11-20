@@ -34,8 +34,8 @@ class RouteRunsTest < PokeAccessTest
 
   test "each end of a stair sets off only toward the other, any other press there is a plain step" do
     stair_map
-    want = { [2, 3, 6] => [5, 2, 0, 3, nil, false, false, :run], [2, 3, 4] => [1, 3, 0, 1, nil, false, false, :walk],
-             [5, 2, 4] => [2, 3, 0, 3, nil, false, false, :run], [5, 2, 6] => [6, 2, 0, 1, nil, false, false, :walk] }
+    want = { [2, 3, 6] => [5, 2, 0, 3, nil, false, false, :run, nil], [2, 3, 4] => [1, 3, 0, 1, nil, false, false, :walk, nil],
+             [5, 2, 4] => [2, 3, 0, 3, nil, false, false, :run, nil], [5, 2, 6] => [6, 2, 0, 1, nil, false, false, :walk, nil] }
     assert_equal want, want.keys.each_with_object({}) { |(x, y, d), got| got[[x, y, d]] = step_from(x, y, d).to_a },
                  "[x, y, press] => the move it makes"
   end
@@ -43,17 +43,17 @@ class RouteRunsTest < PokeAccessTest
   test "the slope comment is read wherever it stands in the event's list" do
     $game_map.load_grid(STAIR)
     slope(80, 2, 3, 3, -1, true)
-    assert_equal [5, 2, 0, 3, nil, false, false, :run], step_from(2, 3, 6).to_a
+    assert_equal [5, 2, 0, 3, nil, false, false, :run, nil], step_from(2, 3, 6).to_a
   end
 
   test "a stair one tile long is one press onto its partner's tile" do
     short_stair_map(1)
-    assert_equal [[3, 1, 0, 1, nil, false, false, :run]], traced(2, 2, 0, [6]).map { |s| s.to_a }
+    assert_equal [[3, 1, 0, 1, nil, false, false, :run, nil]], traced(2, 2, 0, [6]).map { |s| s.to_a }
   end
 
   test "a slope comment with no tiles sideways arms no stair" do
     short_stair_map(0)
-    assert_equal [1, 2, 0, 1, nil, false, false, :walk], step_from(2, 2, 4).to_a
+    assert_equal [1, 2, 0, 1, nil, false, false, :walk, nil], step_from(2, 2, 4).to_a
   end
 
   test "a stair whose first step the map walls off is no way, and no press sets off on it" do

@@ -1,7 +1,8 @@
 # Resets the mod's mutable module state before each test, so a test cannot leak into the next: config, globals,
-# puzzles (their last tracked line among them), the field-move rules, caches and the maps the world keeps, info,
-# battle, locator, cursor dedup, the test map, the input claims, the frame's stall count and control's state, history,
-# the last dialogue line (a repeat within half a second is not spoken), the last line spoken and the speak log.
+# puzzles (their last tracked line among them), the field-move rules, caches (the free camera's hold on the input
+# with them) and the maps the world keeps, info, battle, locator, cursor dedup, the test map, the input claims, the
+# frame's stall count and control's state, history, the last dialogue line (a repeat within half a second is not
+# spoken), the last line spoken and the speak log.
 module Reset
   # Runs before each test, each reset guarded; the language is pinned to Spanish, which the literal assertions
   # are written against, rather than the shipped :auto that follows this machine.
@@ -16,6 +17,7 @@ module Reset
     (PokeAccess::Routes::Pushes.instance_variable_set(:@sliding, false) rescue nil)
     (reset_field_rules rescue nil)
     (PokeAccess::Caches.reset_all rescue nil)
+    (PokeAccess::Camera.instance_variable_set(:@guard, false) rescue nil)
     (PokeAccess::World::Visits.forget rescue nil)
     (PokeAccess::World::Neighbours.forget rescue nil)
     (PokeAccess::Info.set_info(nil, nil) rescue nil)

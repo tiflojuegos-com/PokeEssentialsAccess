@@ -72,7 +72,7 @@ class RouteMemoTest < PokeAccessTest
     mv = PokeAccess::Routes::Moves
     with_own_tile_refused do
       s = PokeAccess::Pathfinder.searching { mv.step(5, 1, 0, PokeAccess::Routes::DIR_OF[4], mv::LEDGE) }
-      assert_equal [1, 1, 0, 1, nil, false, false, :slide], s.to_a, "the slide from the far side runs on to the wall"
+      assert_equal [1, 1, 0, 1, nil, false, false, :slide, nil], s.to_a, "the slide from the far side runs on to the wall"
     end
   end
 

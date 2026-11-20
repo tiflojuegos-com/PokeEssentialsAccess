@@ -3,7 +3,9 @@ module PokeAccess
     # What a search may end on: the tiles that count as getting there (on either bridge level), the least Manhattan
     # distance to them, and the tile the route is for.
     class Goal
-      attr_reader :tiles, :tx, :ty
+      # Its tiles, the target's tile and entry, the key of the target's own tile when it is one of the goal's (nil
+      # otherwise): a move onto it whose touch event takes the player on elsewhere (Moves::Step#entry) gets there too.
+      attr_reader :tiles, :tx, :ty, :entry
 
       # Acting on (tx,ty): on it, beside it, or across a counter from it (Pathfinder.reach_tiles).
       def self.near(tx, ty); new(PokeAccess::Pathfinder.reach_tiles(tx, ty), tx, ty); end
@@ -18,6 +20,8 @@ module PokeAccess
         @ty = ty
         @hit = {}
         tiles.each { |x, y| @hit[Routes.pkey(x, y)] = true }
+        own = Routes.pkey(tx, ty)
+        @entry = @hit.key?(own) ? own : nil
         @ring = tiles.include?([tx, ty]) && tiles.all? { |x, y| (x - tx).abs + (y - ty).abs <= 1 }
         @slack = tiles.length > 1 ? 1 : 0
       end
@@ -45,8 +49,9 @@ module PokeAccess
     end
 
     # How a route is priced, as one Integer the frontier orders by: its presses (an assisted step adds GATE_COST, see
-    # route_gates) and its turns, weighed by the route style: the shortest (the fewest presses, then the fewest turns),
-    # balanced (a turn costs a press, then the fewest turns) or the straightest (the fewest turns, then presses).
+    # route_gates, and the tiles it crosses what they cost, Moves.crossed_extra) and its turns, weighed by the route
+    # style: the shortest (the fewest presses, then the fewest turns), balanced (a turn costs a press, then the fewest
+    # turns) or the straightest (the fewest turns, then presses).
     class CostModel
       K = 4096
       STYLES = [:shortest, :balanced, :straightest]
@@ -54,9 +59,10 @@ module PokeAccess
 
       def initialize(style); @style = STYLES.include?(style) ? style : :shortest; end
 
-      # The cost of a move of presses presses, turned from the way the route came or not, through a gate or not.
-      def step(presses, turned, gated)
-        p = gated ? presses + PokeAccess::Pathfinder::GATE_COST : presses
+      # The cost of a move of presses presses, turned from the way the route came or not, through a gate or not, over
+      # tiles that cost extra presses more.
+      def step(presses, turned, gated, extra = 0)
+        p = gated ? presses + extra + PokeAccess::Pathfinder::GATE_COST : presses + extra
         t = turned ? 1 : 0
         case @style
         when :balanced then (p + t) * K + t
@@ -183,10 +189,11 @@ module PokeAccess
       end
 
       # One A* toward goal in the route style, past the regions router and the kept floods: for a search that keeps
-      # tiles off (Moves.with_closed), which those never saw.
-      def self.fresh(goal, mode)
+      # tiles off (Moves.with_closed), which those never saw, or one from another tile than the player's, origin
+      # [x, y, bridge level].
+      def self.fresh(goal, mode, origin = nil)
         style = (PokeAccess::Config.route_style rescue :shortest)
-        run(goal, CostModel.new(style), mode, :astar, bound_for(goal, mode))
+        run(goal, CostModel.new(style), mode, :astar, bound_for(goal, mode), nil, nil, origin)
       end
 
       # One search with the estimate est, answered first by the regions router (when chosen) or a kept flood; when the
@@ -264,15 +271,19 @@ module PokeAccess
 
       # One search with the estimate est: the most tiles a press may cover, a Bound, nil for none or :reach (quick, not
       # admissible); ties go to the costlier and the budget counts tiles. Routes past cap are dropped; with no goal it
-      # floods to :exhausted or the budget, t kept to go on from; with :jps (shortest style, on foot), jump points.
-      def self.run(goal, cost, mode, algo, est, cap = nil, t = nil)
+      # floods to :exhausted or the budget, t kept to go on from; with :jps (shortest style, on foot, no tile that costs
+      # more), jump points. It starts from the player, or from origin [x, y, bridge level]. A move onto the goal's entry
+      # ends a route of its own (entered), and a flood keeps one for every tile so stepped on and left.
+      def self.run(goal, cost, mode, algo, est, cap = nil, t = nil, origin = nil)
         pf = PokeAccess::Pathfinder
         mv = Moves
-        px = $game_player.x; py = $game_player.y
-        l0 = pf.bridge_level
+        aim = goal && goal.entry
+        px, py, l0 = origin || [$game_player.x, $game_player.y, pf.bridge_level]
         gw, hw = pf.algo_weights(algo)
         heaped = algo != :bfs && algo != :dfs
-        jumps = algo == :jps && goal && cost.style == :shortest && (mode & (Moves::ASSIST | Moves::SURF_PLAN)) == 0
+        priced = mv.costed?
+        jumps = algo == :jps && goal && cost.style == :shortest && (mode & (Moves::ASSIST | Moves::SURF_PLAN)) == 0 &&
+                !priced
         scan = jumps ? Jumps.budget(pf.limits) : nil
         name = jumps ? :jps : ((algo == :jps || algo == :hpa || algo == :regions) ? :astar : algo)
         unit = cost.turn_unit
@@ -304,6 +315,12 @@ module PokeAccess
                 end
           g = -cur[1]; cx = cur[2]; cy = cur[3]; cl = cur[4]; cs = cur[5]
           next if closed[cs] || g > least[cs]
+          if cs < 0
+            return SearchResult.new(:found, path_to(came, cs), iter, name, g) if goal
+            closed[cs] = true
+            settled[cs] = g
+            next
+          end
           tile = cs / 5
           s = settled[tile]
           next if s && g >= s + unit
@@ -343,6 +360,10 @@ module PokeAccess
                 n = mv.step(cx, cy, cl, dir, mode)
                 next if n.nil?
                 nx = n.x; ny = n.y; nl = n.level; presses = n.presses; gate = n.gate; warp = n.warp; arrive = 4
+                if n.entry && n.entry == aim
+                  entered(t, aim, g + cost.step(presses, from != 4 && from != i, gate), [cs, dir[2], presses, false],
+                          gw, cap, true, queue)
+                end
               end
               nt = pf.skey(nx, ny, nl)
               ns = nt * 5 + arrive
@@ -369,15 +390,21 @@ module PokeAccess
             next if f.nil?
             if f == true
               nx = cx + dir[0]; ny = cy + dir[1]; nl = cl; presses = 1; gate = nil; warp = false
+              extra = priced ? mv.tile_extra(nx, ny, nl) : 0
             else
               n = mv.step(cx, cy, cl, dir, mode)
               next if n.nil?
               nx = n.x; ny = n.y; nl = n.level; presses = n.presses; gate = n.gate; warp = n.warp
+              extra = priced ? mv.crossed_extra(cx, cy, nx, ny, dir, nl, mv.relocated?(n)) : 0
+              if n.entry && (goal.nil? || n.entry == aim)
+                entered(t, n.entry, g + cost.step(presses, from != 4 && from != i - 1, gate, extra),
+                        [cs, dir[2], presses, false], gw, cap, heaped, queue)
+              end
             end
             nt = pf.skey(nx, ny, nl)
             ns = nt * 5 + i - 1
             next if closed[ns]
-            ng = g + cost.step(presses, from != 4 && from != i - 1, gate)
+            ng = g + cost.step(presses, from != 4 && from != i - 1, gate, extra)
             s2 = settled[nt]
             next if s2 && ng >= s2 + unit
             old = least[ns]
@@ -392,6 +419,22 @@ module PokeAccess
         end
         SearchResult.new(:exhausted, nil, iter, name)
       end
+
+      # Offers the end of a route at a move onto entry, a tile whose touch event takes the player on elsewhere
+      # (Moves::Step#entry): a state of its own (entry_state) at cost ng by link, whose transfer is none on the way,
+      # onto the heap of t or else the queue; none at a cost no lower than one offered already, or past cap.
+      def self.entered(t, entry, ng, link, gw, cap, heaped, queue)
+        es = entry_state(entry)
+        old = t.least[es]
+        return if (old && ng >= old) || (cap && ng > cap)
+        t.least[es] = ng
+        t.came[es] = link
+        item = [gw * ng, -ng, 0, 0, 0, es]
+        heaped ? PokeAccess::Pathfinder.heap_push(t.heap, item) : queue.push(item)
+      end
+
+      # The search state that ends a route on a move onto entry's tile, below every state of a tile.
+      def self.entry_state(entry); -1 - entry; end
 
       # The estimate at (x,y) in cost (see run).
       def self.estimate(goal, cost, est, x, y)

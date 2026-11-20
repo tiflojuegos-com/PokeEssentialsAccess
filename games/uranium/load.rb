@@ -1,7 +1,8 @@
 module PokeAccess
   # Uranium's load screen, whose saves are PokemonSaveFile objects: the continue panel from its paint with the team and
   # the rule icons, the other-saves list by each slot's newest file, and the normal/autosave chooser in full. The
-  # title before it is Luka's GenCustomStyle alone, whose prompt is said here (plugins/luka_title probes GenOneStyle).
+  # title before it is Luka's GenCustomStyle alone, whose prompt is said here once its skippable intro is over and it
+  # waits for the key (plugins/luka_title probes GenOneStyle).
   module UraniumLoad
     # Brackets a panel's refresh: a panel holding a save keeps what it painted, minus its title (the focused command).
     def self.capture(panel)
@@ -22,6 +23,8 @@ module PokeAccess
       return nil unless panel
       save = PokeAccess.ivar(panel, :@savefile)
       parts = PokeAccess.ivar(panel, :@access_ura_lines).dup
+      title = PokeAccess.clean(PokeAccess.ivar(panel, :@title).to_s)
+      parts.unshift(title) unless title.empty?
       parts.push(PokeAccess::LoadPanel.team((save.trainer rescue nil)))
       parts.concat(modes(save))
       parts.compact.join(". ")
@@ -81,7 +84,9 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("uranium") do
-  after("GenCustomStyle", :initialize) { |_s, _r, _a| PokeAccess.speak(PokeAccess::TitleScreen.prompt, true) }
+  after("GenCustomStyle", :intro, :hook_container => true) do |_s, _r, _a|
+    PokeAccess.speak(PokeAccess::TitleScreen.prompt, true)
+  end
   around("PokemonLoadPanel", :refresh) { |panel, nxt, _a| PokeAccess::UraniumLoad.capture(panel) { nxt.call } }
   read_on_open("PokemonLoadScene", :pbStartScene2, :hook_container => true) { |scene| PokeAccess::UraniumLoad.summary(scene) }
   before("PokemonLoadScene", :pbDrawSaveCommands) { |scene, _a| PokeAccess::Cursor.reset(scene, :ura_slot) }

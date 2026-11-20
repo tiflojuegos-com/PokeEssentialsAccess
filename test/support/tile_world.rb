@@ -2,11 +2,11 @@
 # it of both tiles, which the grid stub cannot (a shore). Rows: '#' wall, '.' floor, '~' water (terrain 7), 'D' deep
 # water (terrain 5), ']' floor closed on its right side, 'g' tall grass (terrain 10, no riding onto it), 'V' a
 # waterfall's crest (terrain 9, surfable), 'W' the fall (terrain 8, only climbed or dropped), '%' a rock laid over
-# water (terrain 7 below it, never passable), '@' the start.
+# water (terrain 7 below it, never passable), '}' water closed on its right side (terrain 7), '@' the start.
 class TileWorld
   attr_accessor :map_id, :events, :width, :height
 
-  TAGS = { "~" => 7, "D" => 5, "g" => 10, "V" => 9, "W" => 8, "%" => 7 }
+  TAGS = { "~" => 7, "D" => 5, "g" => 10, "V" => 9, "W" => 8, "%" => 7, "}" => 7 }
 
   # The map's tile ids, none of them a bridge's, so it reads as a map without bridges (World::Terrain): on the ground
   # layer one per terrain tag, so the tag follows the tiles as in every engine; all 0 with no world.
@@ -35,12 +35,12 @@ class TileWorld
 
   def cell(x, y); (y >= 0 && x >= 0 && @rows[y] && x < @rows[y].length) ? @rows[y][x, 1] : "#"; end
   def valid?(x, y); x >= 0 && y >= 0 && x < @width && y < @height; end
-  def water?(x, y); c = cell(x, y); c == "~" || c == "D" || c == "V"; end
+  def water?(x, y); c = cell(x, y); c == "~" || c == "D" || c == "V" || c == "}"; end
   def terrain_tag(x, y, *_); TAGS[cell(x, y)] || 0; end
   def counter?(_x, _y); false; end
   def passable?(x, y, d = 0)
     c = cell(x, y)
-    valid?(x, y) && c != "#" && c != "W" && c != "%" && !(c == "]" && d == 6)
+    valid?(x, y) && c != "#" && c != "W" && c != "%" && !((c == "]" || c == "}") && d == 6)
   end
 end
 

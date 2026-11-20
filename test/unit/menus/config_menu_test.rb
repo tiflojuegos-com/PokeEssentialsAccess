@@ -9,10 +9,10 @@ class ConfigMenuTest < PokeAccessTest
   STATE = [:@active, :@mode, :@index, :@stack, :@armed, :@items, :@items_key, :@entry, :@capturing, :@preview, :@ri]
   # The sonar's volumes, which only positional sound plays, in the order the volumes screen lists them.
   SONAR_VOLUMES = [:audio3d_npc, :audio3d_object, :audio3d_hazard, :audio3d_trap, :audio3d_control, :audio3d_push,
-                   :audio3d_belt, :audio3d_door, :audio3d_exit, :audio3d_teleporter, :audio3d_mark, :audio3d_water,
-                   :audio3d_shore, :audio3d_wind]
+                   :audio3d_belt, :audio3d_door, :audio3d_exit, :audio3d_teleporter, :audio3d_mark, :audio3d_scene,
+                   :audio3d_water, :audio3d_shore, :audio3d_wind]
   # The pathfinder's advanced settings before and after the row the search limit shows of its own.
-  ADV_HEAD = [:route_style, :route_reach, :route_limit]
+  ADV_HEAD = [:route_style, :avoid_grass, :avoid_trainers, :route_reach, :route_limit]
   ADV_TAIL = [:path_algorithm, :edge_relax, :regions_background, :regions_slice_ms, :neighbour_cache,
               :neighbours_background, :back]
 
@@ -27,9 +27,9 @@ class ConfigMenuTest < PokeAccessTest
 
   test "lists the pathfinder's settings, then its advanced screen, then back" do
     on_screen(:pathfinder) do
-      assert_equal [:auto_guide, :auto_steps, :hide_unreachable, :hide_noninteractive, :target_order,
-                    :target_numbering, :name_items, :name_trainers, :name_species, :name_signs, :surface_cues,
-                    :puzzle_assist, [:enter, :pathfinder_adv], :back],
+      assert_equal [:auto_guide, :auto_steps, :hide_unreachable, :hide_noninteractive, :scene_triggers, :everything_extras,
+                    :target_order, :target_numbering, :name_items, :name_trainers, :name_species, :name_signs,
+                    :surface_cues, :puzzle_assist, [:enter, :pathfinder_adv], :back],
                    rows(:pathfinder)
     end
   end
@@ -137,7 +137,7 @@ class ConfigMenuTest < PokeAccessTest
   end
 
   test "adds the sonar's volumes only with the positional engine and the full nav mode" do
-    flat = [:footstep_volume, :wall_volume, :event_volume, :jump_volume]
+    flat = [:footstep_volume, :wall_volume, :interact_volume, :event_volume, :jump_volume]
     {
       [true, :full]  => SONAR_VOLUMES + flat + [:radar_volume, :puzzle_volume, :minigame_volume],
       [false, :full] => flat + [:radar_volume, :puzzle_volume, :minigame_volume],
@@ -178,7 +178,7 @@ class ConfigMenuTest < PokeAccessTest
   test "lists the guide's row among the sound switches, just before the jumps' switch" do
     on_screen(:audio3d_on) do
       Reset.with_capability(:positional, false) do
-        assert_equal [:sound_steps, :sound_wall, :guide, :sound_jumps, :sound_ledges, :proximity_radar, :sound_grid,
+        assert_equal [:sound_steps, :sound_wall, :sound_interact, :guide, :sound_jumps, :sound_ledges, :proximity_radar, :sound_grid,
                       :sound_minigame, :back], rows(:audio3d_on)
       end
     end
@@ -193,7 +193,8 @@ class ConfigMenuTest < PokeAccessTest
       [:auto_guide, false]              => T.t(:val_off),
       [:hide_unreachable, :off]         => T.t(:hide_off),
       [:hide_unreachable, :unreachable] => T.t(:hide_unreachable),
-      [:hide_unreachable, :room]        => T.t(:hide_room)
+      [:hide_unreachable, :room]        => T.t(:hide_room),
+      [:hide_unreachable, :other_rooms] => T.t(:hide_other_rooms)
     }.each do |(key, value), said|
       Cfg.send("#{key}=", value)
       assert_equal said, Menu.value_text(Cfg.setting(key)), "#{key} = #{value.inspect}"
@@ -277,20 +278,20 @@ class ConfigMenuTest < PokeAccessTest
     assert_equal :brief, Cfg.next_value(Cfg.setting(:verbosity), 1)
   end
 
-  test "steps the hide setting off, unreachable, room and off again" do
+  test "steps all four hide modes without changing the existing stored meanings" do
     on_screen(:pathfinder) do
       row = Cfg.setting(:hide_unreachable)
-      went = 3.times.map { Menu.adjust_setting(row, 1); Cfg.hide_unreachable }
-      assert_equal [:unreachable, :room, :off], went
+      went = 4.times.map { Menu.adjust_setting(row, 1); Cfg.hide_unreachable }
+      assert_equal [:unreachable, :room, :other_rooms, :off], went
     end
   end
 
   test "Ctrl+M steps the hide setting on as its row does and says the new value" do
     on_screen(:top) do
       Cfg.hide_unreachable = :room
-      PokeAccess::Locator.toggle_hide_unreachable
-      assert_equal [:off, [["#{T.t(:lbl_hide_unreachable)}, #{T.t(:hide_off)}", true]]],
-                   [Cfg.hide_unreachable, SpeakCapture.log]
+      went = 2.times.map { PokeAccess::Locator.toggle_hide_unreachable; Cfg.hide_unreachable }
+      said = [:hide_other_rooms, :hide_off].map { |k| ["#{T.t(:lbl_hide_unreachable)}, #{T.t(k)}", true] }
+      assert_equal [[:other_rooms, :off], said], [went, SpeakCapture.log]
     end
   end
 
@@ -479,7 +480,7 @@ class ConfigMenuTest < PokeAccessTest
     on_screen(:pathfinder) do
       point_at { |row| row[:row] && row[:row].key == :hide_unreachable }
       went = [Input::LEFT, Input::RIGHT, Input::RIGHT].map { |button| press(button); Cfg.hide_unreachable }
-      assert_equal [:room, :off, :unreachable], went
+      assert_equal [:other_rooms, :off, :unreachable], went
     end
   end
 

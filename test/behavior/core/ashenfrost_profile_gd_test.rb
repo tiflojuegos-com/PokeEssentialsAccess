@@ -1069,6 +1069,10 @@ class AshenFrostProfileGdTest < ProfileProcessTest
     probe(:temple_marks) do
       PokeAccess::AshenWellTemple::WINGS.flatten(1).map { |rock| [rock[0], [rock[2], rock[3]], rock[1]] }.sort_by { |row| row[0] }
     end
+    probe(:temple_camera) do
+      here = on_temple { [[13, 63], [10, 63], [26, 61], [12, 70]].map { |x, y| PokeAccess::CameraText.parts(x, y) } }
+      here + [on_temple(685) { PokeAccess::CameraText.parts(13, 63) }]
+    end
     probe(:temple_category) do
       on_temple do
         other = TestGameEvent.new(:id => 200, :name => "Bandit", :x => 1, :y => 1)
@@ -2019,6 +2023,12 @@ class AshenFrostProfileGdTest < ProfileProcessTest
     assert_equal [[49, [13, 63], :grey], [50, [10, 63], :orange], [51, [10, 66], :grey], [52, [13, 68], :orange],
                   [53, [10, 74], :grey], [54, [13, 71], :orange], [55, [30, 64], :grey], [56, [26, 61], :orange],
                   [57, [30, 66], :grey], [58, [26, 69], :orange], [59, [30, 71], :grey], [60, [27, 74], :orange]], played(:temple_marks)
+  end
+
+  test "the free camera names every mark by its colour, the next rock's or not, on the temple's map alone" do
+    grey = [t(:ashen_mark_grey)]
+    orange = [t(:ashen_mark_orange)]
+    assert_equal [grey, orange, orange, [], []], played(:temple_camera)
   end
 
   test "the rocks go under the locator's objects" do

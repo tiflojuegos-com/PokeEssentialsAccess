@@ -25,8 +25,8 @@ module PokeAccess
       # The classes of a tile that moves the player by itself (forcing?).
       FORCING = C_ICE | C_IN | C_OUT
 
-      # A tile's class in an assisted search: an obstacle a field move clears, an action-button event's tile, a tile in
-      # front a registered assisted step owns.
+      # A tile's class in an assisted search: an obstacle a field move clears or the Lens of Truth opens, an action-button
+      # event's tile, a tile in front a registered assisted step owns.
       A_GATE = 1
       A_ACT = 2
       A_FRONT = 4
@@ -67,10 +67,11 @@ module PokeAccess
       @strides = nil
       @crowded = nil
 
-      # Drops the classes taken (the events changed).
+      # Drops the classes and the tile costs taken (the events changed).
       def self.forget_classes
         @krows = []
         @arows = []
+        @crows = []
         @kgen = nil
         @kw = nil
         @kh = nil
@@ -164,7 +165,7 @@ module PokeAccess
       def self.assisted_class(x, y)
         key = Routes.pkey(x, y)
         k = 0
-        k |= A_GATE if Effects.gate_index[key]
+        k |= A_GATE if Effects.gate_index[key] || PokeAccess::World::Lens.marked_at?(x, y)
         k |= A_ACT if Effects.act_index[key]
         k |= A_FRONT if @assist_sources.any? { |r| r.owner && owns?(r.owner, x, y) }
         k
@@ -182,10 +183,10 @@ module PokeAccess
       # step that owns a tile here.
       def self.base_speed(mode)
         t = PokeAccess::World::Terrain
-        bits, loose, _bridges, _ledges, assisted = map_scan
-        return nil if loose
+        bits, ice, _bridges, _ledges, assisted = map_scan
+        return nil if ice || ruled_terrain?
         return nil if (bits & t::FALLING) != 0 && ((mode & SURF_PLAN) != 0 || ($PokemonGlobal.surfing rescue false))
-        return nil if (mode & ASSIST) != 0 && (assisted || !Effects.act_index.empty?)
+        return nil if (mode & ASSIST) != 0 && (assisted.any? { |r| live?(r.owner) } || !Effects.act_index.empty?)
         ((mode & LEDGE) != 0 && (bits & t::LEDGE) != 0) ? 2 : 1
       end
 
@@ -195,35 +196,57 @@ module PokeAccess
       # Puts back a scan saved with the map.
       def self.restore_scan(s); @scan = s; end
 
-      # The map's terrain for speed, read once per map and tiles: [the terrain bits of all its tiles (both bridge
-      # heights), whether a press may cover any number of them (ice, or an arrival or leave rule owning a tile here),
-      # whether it has bridges, its ledge tiles, whether a registered assisted step owns a tile here].
+      # The map's terrain and the rules it has, read once per map and tiles with its events synced, whatever the puzzle
+      # assist: [the terrain bits of all its tiles (both bridge heights), whether it has ice, whether it has bridges,
+      # its ledge tiles, and the registered assisted steps, the arrival and leave rules and the tile_cost rules that own
+      # a tile here, a bridge's tiles at either height].
       def self.map_scan
         return @scan if @scan
+        PokeAccess::World::Events.sync
         t = PokeAccess::World::Terrain
         w = ($game_map.width rescue 0).to_i
         h = ($game_map.height rescue 0).to_i
         bits = 0
         reps = {}
-        bridges = false
+        spans = []
         ledges = []
         (0...h).each do |y|
           (0...w).each do |x|
             bridge = t.bridge_at?(x, y)
-            bridges ||= bridge
+            spans.push([x, y]) if bridge
             c = t.cell(x, y)
             ledges.push([x, y]) if (c & t::LEDGE) != 0
             bits |= c | (bridge ? t.cell(x, y, true) : 0)
             reps[t.index(x, y, false)] ||= [x, y]
           end
         end
+        rules = @assist_sources.dup.concat(@arrival_rules).concat(@leave_rules).concat(@cost_rules)
+        across = spans.empty? ? {} : owned_across(spans, rules)
         owned = lambda do |r|
           o = r.owner
-          next true if o.nil? || bridges || reps.values.any? { |x, y| owns?(o, x, y) }
+          next true if o.nil?
+          next false unless on_map?(o)
+          next true if across[r.object_id] || reps.values.any? { |x, y| covers?(o, x, y) }
           o[:tiles] ? (0...h).any? { |y| (0...w).any? { |x| (o[:tiles].call(x, y) rescue false) } } : false
         end
-        loose = (bits & t::ICE) != 0 || @arrival_rules.dup.concat(@leave_rules).any?(&owned)
-        @scan = [bits, loose, bridges, ledges, @assist_sources.any?(&owned)]
+        @scan = [bits, (bits & t::ICE) != 0, !spans.empty?, ledges, @assist_sources.select(&owned),
+                 @arrival_rules.dup.concat(@leave_rules).select(&owned), @cost_rules.select(&owned)]
+      end
+
+      # The rules of rules whose owner takes in one of the bridge tiles of tiles at the other bridge height than the
+      # engine's now, as object_id => true; the engine's height is put back.
+      def self.owned_across(tiles, rules)
+        t = PokeAccess::World::Terrain
+        e = PokeAccess::World::Engine
+        was = e.bridge_height
+        e.set_bridge(was > 0 ? 0 : 2)
+        reps = {}
+        tiles.each { |x, y| reps[t.index(x, y, false)] ||= [x, y] }
+        out = {}
+        rules.each { |r| out[r.object_id] = true if r.owner && reps.values.any? { |x, y| covers?(r.owner, x, y) } }
+        out
+      ensure
+        e.set_bridge(was) if e && was
       end
 
       # How far a press may take the player along each way on this map with the moves of mode, as Strides: two the

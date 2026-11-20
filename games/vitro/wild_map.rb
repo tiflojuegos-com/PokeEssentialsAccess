@@ -1,6 +1,7 @@
-# Vitro's Pokemon on the map: those its spawners bring (0365_OWE_Spawner, events named SpawnedPokemon, on 59 maps, with
-# $PokemonSystem.pokeMap on as it comes) and those a CaveMon dust cloud turns into as the map's scene starts (pbSetBattles in
-# 0364_Pokemon_WildMap, events named PokeBattle), each kept for its battle in $PokemonGlobal.storedRouteMon under its event's id.
+# Vitro's Pokemon on the map, both only while the option $PokemonSystem.pokeMap shows them: those its spawners bring
+# (0365_OWE_Spawner, events named SpawnedPokemon, on 63 maps, caves among them) and those a CaveMon dust cloud turns into as the
+# map's scene starts (pbSetBattles in 0364_Pokemon_WildMap, events named PokeBattle; with the option off the cloud stays, said by
+# map_objects.rb), each kept for its battle in $PokemonGlobal.storedRouteMon under its event's id.
 # Core would say the event's name. The routes meet them as any event that walks: World::Events follows them as they come and go.
 # A spawn is said only when shiny, which the game marks with an animation alone: the rest come every few seconds, with a cry.
 module PokeAccess

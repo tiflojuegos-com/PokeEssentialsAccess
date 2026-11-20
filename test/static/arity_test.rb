@@ -18,7 +18,10 @@ class ArityTest < PokeAccessTest
     "PokemonScreen_Scene#pbShowCommands" => "Reminiscencia's showheart; a shorter call is its default, true",
     # Insurgence's naming screen takes (helptext, minlength, maxlength, initialText), with no subject or Pokemon: both
     # read nil there, which the caption takes as naming no Pokemon, and that screen paints no sign.
-    "PokemonEntryScene2#pbStartScene" => "Insurgence's four-argument screen; nil subject and Pokemon mean no sign"
+    "PokemonEntryScene2#pbStartScene" => "Insurgence's four-argument screen; nil subject and Pokemon mean no sign",
+    # Luka's title screen hands cyclePics its pictures (pics, and Uranium's bgm after them); the Modular Title Screen's
+    # takes none and reads IntroEventScene's, and no game loads luka_title beside it.
+    "Scene_Intro#cyclePics" => "the Modular Title Screen's takes none; luka_title is not loaded there, and nil splashes nothing"
   }.freeze
   # Folded before comparing argument names: case and underscores go, and each synonym maps to its meaning.
   SAME_MEANING = { "msg" => "message", "message" => "message", "text" => "message", "helptext" => "message",

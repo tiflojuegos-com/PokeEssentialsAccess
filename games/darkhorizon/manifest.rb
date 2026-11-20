@@ -16,6 +16,15 @@
     trainer_abilities
     starter_selection
     phantom_path
+    puzzles/obscura_lab
+    puzzles/shadow_lab
+    puzzles/shadow_factory
+    puzzles/shadow_hq
+    puzzles/mirage_mansion
+    puzzles/faraway_island
+    puzzles/lab_floor
+    puzzles/nucleus_laser
+    puzzles/gateon_port
   ],
   :plugins => %w[bag_screen_party bw_gender_selector bw_key_items bw_summary ebdx ev_allocator fl_diploma hidden_power_type
                  marin_side_stairs modular_title quest_ui tip_cards type_match voltseon_pausemenu wardrobe]

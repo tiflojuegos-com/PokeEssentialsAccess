@@ -10,6 +10,7 @@ class PreloadTriggerTest < PokeAccessTest
   BOOT = "File.open('booted.txt', 'a') { |f| f.write(\"boot\\n\") }\n".freeze
   DRIVER = <<~'RUBY'.freeze
     require "json"
+    Object.send(:remove_const, :Win32API) if defined?(Win32API)
     module Graphics
       def self.update(*args)
         $updates = ($updates || 0) + 1
@@ -26,8 +27,8 @@ class PreloadTriggerTest < PokeAccessTest
       puts "REPORT=" + JSON.generate($report)
     end
   RUBY
-  # mkxp-z's F12: the frame update raises Reset (an Exception, not a StandardError) while $reset_now is set, and a
-  # planted RuntimeError while $fail_now is; rebinds counts the toolkit's after_reset calls.
+  # mkxp-z's F12: the frame update and a transition raise Reset (an Exception, not a StandardError) while $reset_now is
+  # set, and the update a planted RuntimeError while $fail_now is; rebinds counts the toolkit's after_reset calls.
   RESET = <<~'RUBY'.freeze
     class Reset < Exception; end
     module Graphics
@@ -38,13 +39,93 @@ class PreloadTriggerTest < PokeAccessTest
           raise "planted" if $fail_now
           update__driver(*args)
         end
+
+        def transition(*args)
+          raise Reset if $reset_now
+          [:faded] + args
+        end
+
+        def freeze
+          raise Reset if $reset_now
+          :frozen
+        end
       end
+    end
+    module Kernel
+      def msgbox(*args)
+        raise Reset if $reset_now
+        [:shown] + args
+      end
+      private :msgbox
     end
     def rebinds; File.exist?("rebound.txt") ? File.read("rebound.txt").count("\n") : 0; end
   RUBY
   # A toolkit whose Hooks.after_reset notes each call in rebound.txt.
   REBIND_BOOT = (BOOT + "module PokeAccess; module Hooks; def self.after_reset; " \
                  "File.open('rebound.txt', 'a') { |f| f.write(\"r\\n\") }; end; end; end\n").freeze
+  # Windows as relaunch calls it: the executable's path, a process started unless $create_fails, with handles 11 and 12;
+  # the command line and the startup block's size and first field, and each handle closed, go in the report. The
+  # screen-reader bridge as the early language reader calls it: each initialization, line said and braille line go in
+  # the report; it fails to start with $init_fails, raises on the next $speak_fails lines, and has no braille export
+  # with $no_braille.
+  WIN32 = <<~'RUBY'.freeze
+    class Win32API
+      def initialize(dll, fn, *rest)
+        raise "no such export" if fn == "PeaBraille" && $no_braille
+        @fn = fn
+      end
+
+      def call(*a)
+        case @fn
+        when "GetModuleFileNameW"
+          path = "C:\\G\\Game.exe".unpack("C*").pack("v*")
+          a[1][0, path.size] = path
+          path.size / 2
+        when "CreateProcessW"
+          $report["line"] = a[1].unpack("v*").pack("U*")
+          $report["startup"] = [a[8].size, a[8].unpack("L")[0]]
+          return 0 if $create_fails
+          handles = [11, 12].pack(a[9].size == 24 ? "Q2" : "L2")
+          a[9][0, handles.size] = handles
+          1
+        when "CloseHandle"
+          ($report["closed"] ||= []) << a[0]
+          1
+        when "PeaInitialize"
+          ($report["inits"] ||= []) << 1
+          $init_fails ? 0 : 1
+        when "PeaSpeak"
+          if ($speak_fails || 0) > 0
+            $speak_fails -= 1
+            raise "planted bridge failure"
+          end
+          ($report["spoken"] ||= []) << [a[0].chomp("\0"), a[1]]
+          1
+        when "PeaBraille"
+          ($report["braille"] ||= []) << a[0].chomp("\0")
+          1
+        else
+          1
+        end
+      end
+    end
+  RUBY
+  # A first-boot language picker as Essentials 16 builds it: LANGUAGES, its command window, and pbChooseLanguage
+  # running the frames its block gives while the window is up.
+  PICKER = <<~'RUBY'.freeze
+    LANGUAGES = [["Italiano", "italian.dat"], ["English", "english.dat"]]
+    class Window_CommandPokemon
+      attr_accessor :index, :visible, :active, :commands, :disposed
+
+      def initialize
+        @index, @visible, @active, @disposed = 0, true, true, false
+        @commands = LANGUAGES.map { |row| row[0] }
+      end
+
+      def disposed?; @disposed; end
+    end
+    def pbChooseLanguage; yield; end
+  RUBY
   SCRIPT_THREAD = <<~'RUBY'.freeze
     class ThreadLoader
       @@gate = Queue.new
@@ -340,7 +421,174 @@ class PreloadTriggerTest < PokeAccessTest
     assert_equal({ "early" => true, "passed_on" => "planted", "rebinds" => 0, "boots" => 1 }, got)
   end
 
+  test "answers F12 by starting the game's executable anew, without arguments, and ending this process" do
+    got = run_preload(WIN32 + RESET + <<~'RUBY', REBIND_BOOT)
+      load ARGV[0]
+      def pbCallTitle; :title; end
+      $scene = Object.new
+      frames(1)
+      $reset_now = true
+      Graphics.update
+      $report["went_on"] = true
+    RUBY
+    assert_equal({ "line" => "\"C:\\G\\Game.exe\"\0", "startup" => [startup_size] * 2, "closed" => [11, 12],
+                   "exit" => 0 }, got)
+  end
+
+  test "answers F12 out of a transition, before the toolkit loaded, the same way, and hands a transition its result" do
+    got = run_preload(WIN32 + RESET + <<~'RUBY', REBIND_BOOT)
+      load ARGV[0]
+      $report["value"] = Graphics.transition(20)
+      $reset_now = true
+      Graphics.transition(8)
+      $report["went_on"] = true
+    RUBY
+    assert_equal [["faded", 20], [11, 12], 0, nil], got.values_at("value", "closed", "exit", "went_on")
+  end
+
+  test "answers F12 out of a frozen screen or an engine message box the same way, handing each its result" do
+    [["Graphics.freeze", "frozen"], ["msgbox(\"Oops\")", ["shown", "Oops"]]].each do |call, value|
+      got = run_preload(WIN32 + RESET + <<~RUBY, REBIND_BOOT)
+        load ARGV[0]
+        $report["value"] = #{call}
+        $reset_now = true
+        #{call}
+        $report["went_on"] = true
+      RUBY
+      assert_equal [value, [11, 12], 0, nil], got.values_at("value", "closed", "exit", "went_on"), call
+    end
+  end
+
+  test "ends the old process at its next frame where the game caught the exit after a relaunch" do
+    got = run_preload(WIN32 + RESET + <<~'RUBY', REBIND_BOOT)
+      load ARGV[0]
+      module Kernel
+        def exit!(code = 0)
+          $report["hard_exit"] = code
+          raise SystemExit.new(code)
+        end
+      end
+      $reset_now = true
+      begin
+        Graphics.update
+      rescue Exception
+        $report["caught"] = true
+      end
+      $reset_now = false
+      Graphics.update
+      $report["went_on"] = true
+    RUBY
+    assert_equal [true, 0, nil], got.values_at("caught", "hard_exit", "went_on")
+  end
+
+  test "goes on with the reset in this process where Windows cannot start the game, and puts the wrappers back" do
+    got = run_preload(WIN32 + RESET + <<~'RUBY', REBIND_BOOT)
+      load ARGV[0]
+      def pbCallTitle; :title; end
+      $scene = Object.new
+      frames(1)
+      $create_fails = true
+      $reset_now = true
+      begin
+        Graphics.update
+      rescue Reset
+        $report["reset"] = true
+      end
+      $reset_now = false
+      def pbCallTitle; :title_again; end
+      frames(3)
+      $report["rebinds"] = rebinds
+    RUBY
+    assert_equal [true, 1, nil, nil], got.values_at("reset", "rebinds", "closed", "exit")
+  end
+
+  test "says the first-boot picker's highlighted language as it changes, before the toolkit loads, and then no more" do
+    got = run_preload(WIN32 + PICKER + <<~'RUBY')
+      load ARGV[0]
+      load ARGV[0]
+      window = Window_CommandPokemon.new
+      frames(1)
+      pbChooseLanguage do
+        frames(2)
+        window.index = 1
+        frames(1)
+        window.index = 0
+        frames(1)
+      end
+      frames(1)
+      pbChooseLanguage { frames(1) }
+      $report["boots_meanwhile"] = boots
+      def pbCallTitle; :title; end
+      $scene = Object.new
+      frames(1)
+      pbChooseLanguage { window.index = 1; frames(1) }
+      $report["boots"] = boots
+    RUBY
+    said = [["Italiano", 1], ["English", 1], ["Italiano", 1], ["Italiano", 1]]
+    assert_equal({ "spoken" => said, "braille" => said.map { |s| s[0] }, "inits" => [1], "boots_meanwhile" => 0,
+                   "boots" => 1 }, got)
+  end
+
+  test "says nothing for a picker window it cannot single out" do
+    got = run_preload(WIN32 + PICKER + <<~'RUBY')
+      load ARGV[0]
+      window = Window_CommandPokemon.new
+      { "visible" => false, "active" => false, "disposed" => true, "commands" => ["Unrelated", "Screen"],
+        "index" => -1 }.each do |field, value|
+        was = window.send(field)
+        window.send("#{field}=", value)
+        pbChooseLanguage { frames(1) }
+        window.send("#{field}=", was)
+      end
+      window.index = 2
+      pbChooseLanguage { frames(1) }
+      window.index = 0
+      pbChooseLanguage { frames(1) }
+      Window_CommandPokemon.new
+      window.index = 1
+      pbChooseLanguage { frames(1) }
+    RUBY
+    assert_equal [["Italiano", 1]], got["spoken"], "only the window that stands alone, as it was built"
+  end
+
+  test "tries the bridge once, saying nothing, where it cannot start" do
+    got = run_preload(WIN32 + PICKER + <<~'RUBY')
+      $init_fails = true
+      load ARGV[0]
+      window = Window_CommandPokemon.new
+      pbChooseLanguage { frames(1); window.index = 1; frames(1) }
+    RUBY
+    assert_equal({ "inits" => [1] }, got)
+  end
+
+  test "notes the first failing line once, goes on without braille, and the toolkit still loads" do
+    got = run_preload(WIN32 + PICKER + <<~'RUBY')
+      $no_braille = true
+      $speak_fails = 2
+      load ARGV[0]
+      window = Window_CommandPokemon.new
+      pbChooseLanguage do
+        frames(1)
+        window.index = 1
+        frames(1)
+        window.index = 0
+        frames(1)
+      end
+      $report["noted"] = File.read("accessibility/data/loader_error.txt").scan("early language:").length
+      def pbCallTitle; :title; end
+      $scene = Object.new
+      frames(1)
+      $report["boots"] = boots
+    RUBY
+    assert_equal({ "inits" => [1], "spoken" => [["Italiano", 1]], "noted" => 1, "boots" => 1 }, got)
+  end
+
   private
+
+  # The size of Windows' STARTUPINFOW for this Ruby's pointers.
+  def startup_size
+    ["a"].pack("p").size == 8 ? 104 : 68
+  end
 
   # What the driver body put in $report, run after DRIVER in a fresh game folder whose accessibility/boot.rb holds
   # boot (with the data folder unless data is false), the preload as the harness would load it given as ARGV[0].

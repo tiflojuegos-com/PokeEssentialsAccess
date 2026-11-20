@@ -308,6 +308,9 @@ module PokeAccess
       ENTRY_RE = /ChooseNumber|pbEnterText|pbTextEntry|FreeText/
       # Where a script keeps what is entered: the variable it assigns or pbTextEntry's last argument.
       ENTRY_VAR_RE = /\$game_variables\[\s*(\d+)\s*\]\s*=[^=]|\bpbSet\(\s*(\d+)\s*,|pbTextEntry\(.*,\s*(\d+)\s*\)/
+      # The variable a script keeps the entry itself in, on the line that opens it: assigned it, or pbTextEntry's last
+      # argument.
+      ENTRY_ASSIGN_RE = /\$game_variables\[\s*(\d+)\s*\]\s*=[^=][^\n;]*(?:ChooseNumber|pbEnterText|FreeText)|\bpbSet\(\s*(\d+)\s*,[^\n;]*(?:ChooseNumber|pbEnterText|FreeText)|pbTextEntry\([^\n;]*,\s*(\d+)\s*\)/
       # What the game skips over looking for what comes after a Show Text: its further lines, comments and labels.
       SKIPPED = [401, 108, 408, 118]
 
@@ -368,12 +371,13 @@ module PokeAccess
       end
 
       # The one option of the menu at list[i], a Show Command or a Show Text holding one, the declaration of the event running
-      # it tells is right, as the game shows it; nil with no rule, or with none or several left.
+      # it tells is right, as the game shows it, by what its branch runs (reached); nil with no rule, or with none or several
+      # left.
       def self.right_option(int, list, i)
         rule = choice_rule(int)
         return nil unless rule
         names, options = menu_at(list, i)
-        right = options.select { |_option, cmds| right?(rule, cmds) }
+        right = options.select { |_option, cmds| right?(rule, reached(list, cmds)) }
         return nil unless right.length == 1
         text = names[right[0][0]].to_s
         text = (respond_to?(:_MAPINTL, true) ? _MAPINTL($game_map.map_id, text) : text) rescue text
@@ -416,18 +420,95 @@ module PokeAccess
         out
       end
 
-      # The branches of a Show Text's own menu: what follows it, up to the next such menu, comparing its variable with an option's
-      # place, as [that place, the commands the comparison holds]; what cancelling leaves there is no option.
+      # The branches of a Show Text's own menu: the comparisons of its variable with an option's place that meet its answer
+      # (asked_by), at its level or nested in another branch, as [that place, the commands the comparisons of it hold], one
+      # per place; what cancelling leaves there is no option.
       def self.text_branches(list, i, var)
         depth = list[i].indent
         out = []
+        at = {}
         ((i + 1)...list.length).each do |j|
           c = list[j]
-          break if c.indent < depth || (c.code == 101 && text_menu(list, j))
-          next unless c.indent == depth && comparison_of?(c, var) && c.parameters[3] >= 0
-          out.push([c.parameters[3], body(list, j)])
+          break if c.indent < depth
+          next unless comparison_of?(c, var) && c.parameters[3] >= 0 && asked_by(list, j, var) == i
+          place = c.parameters[3]
+          if at[place]
+            out[at[place]][1].concat(body(list, j))
+          else
+            at[place] = out.length
+            out.push([place, body(list, j)])
+          end
         end
         out
+      end
+
+      # Where the value of var that the command at list[j] meets comes from: the place of the last Show Text holding a
+      # menu that writes it on the way there (the commands before it at its level or above), or nil with none, or with
+      # another command writing var on that way.
+      def self.asked_by(list, j, var)
+        level = list[j].indent
+        (j - 1).downto(0) do |k|
+          c = list[k]
+          next if c.indent > level
+          level = c.indent
+          pr = c.parameters
+          return nil if (c.code == 122 && pr[0] <= var && pr[1] >= var) || (c.code == 103 && pr[0] == var)
+          menu = c.code == 101 ? text_menu(list, k) : nil
+          return k if menu && menu[0] == var
+        end
+        nil
+      end
+
+      # A branch's commands with what its jumps to a label run there (after_label), each label followed once.
+      def self.reached(list, cmds)
+        out = cmds.dup
+        jumps = cmds.select { |c| c.code == 119 }
+        seen = {}
+        until jumps.empty?
+          name = jumps.shift.parameters[0]
+          next if seen[name]
+          seen[name] = true
+          at = (0...list.length).find { |k| list[k].code == 118 && list[k].parameters[0] == name }
+          next unless at
+          run = after_label(list, at)
+          out.concat(run)
+          jumps.concat(run.select { |c| c.code == 119 })
+        end
+        out
+      end
+
+      # The commands the game runs from the label at list[at] on, as its interpreter goes: out of each branch it ends in past
+      # the block's other branches (block_end), up to the next menu or entry, which asks again, and to a jump or an exit of
+      # the event that nothing before skips, or the end of the page.
+      def self.after_label(list, at)
+        level = list[at].indent
+        out = []
+        k = at + 1
+        while k < list.length
+          c = list[k]
+          break if [102, 103].include?(c.code) || (c.code == 101 && text_menu(list, k))
+          if c.indent < level
+            level = c.indent
+            if [402, 403, 411].include?(c.code)
+              k = block_end(list, k)
+              next
+            end
+          end
+          break if c.code == 115 && c.indent <= level
+          out.push(c)
+          break if c.code == 119 && c.indent <= level
+          k += 1
+        end
+        out
+      end
+
+      # Where the game goes on once a branch ends at list[k], the start of another branch of its block (an option, the
+      # cancel, an else): past the block's end.
+      def self.block_end(list, k)
+        level = list[k].indent
+        j = k + 1
+        j += 1 while j < list.length && (list[j].indent > level || (list[j].indent == level && [402, 403].include?(list[j].code)))
+        j < list.length && list[j].indent == level && [404, 412].include?(list[j].code) ? j + 1 : j
       end
 
       # True for a Conditional Branch on a variable being equal to a constant.
@@ -441,10 +522,13 @@ module PokeAccess
         (list[(i + 1)..-1] || []).take_while { |c| c.indent > depth }
       end
 
-      # True for a branch as a rule wants it: it does what :takes says and not what :avoids says.
+      # True for a branch as a rule wants it: it does what :takes says (or what a lambda there answers as things stand,
+      # nil for no branch) and not what :avoids says.
       def self.right?(rule, cmds)
         return false if rule[:avoids] && does?(cmds, rule[:avoids])
-        rule[:takes] ? does?(cmds, rule[:takes]) : true
+        return true unless rule[:takes]
+        takes = rule[:takes].respond_to?(:call) ? rule[:takes].call : rule[:takes]
+        takes ? does?(cmds, takes) : false
       end
 
       # True when a branch's commands write a flag ({:var => id}, {:switch => id} or {:self => letter}), set a variable to a
@@ -504,11 +588,13 @@ module PokeAccess
         (j..i).map { |k| list[k].parameters[0].to_s }.join("\n")
       end
 
-      # The variable an entry at command i writes: a number input's, or where its script keeps it; nil when it does not tell.
+      # The variable an entry at command i writes: a number input's, or where its script keeps it, the variable assigned the
+      # entry itself before any other the script sets; nil when it does not tell.
       def self.entry_var(list, i)
         return list[i].parameters[0] if (list[i].code rescue 0) == 103
-        return nil unless script_running(list, i) =~ ENTRY_VAR_RE
-        ($1 || $2 || $3).to_i
+        script = script_running(list, i)
+        m = script.match(ENTRY_ASSIGN_RE) || script.match(ENTRY_VAR_RE)
+        m ? m.captures.compact.first.to_i : nil
       end
 
       # The one fixed value the commands after an entry, up to the next one, compare its own variable with, or nil with none

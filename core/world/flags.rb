@@ -56,6 +56,9 @@ module PokeAccess
         note([:direction, id], ev ? (ev.direction rescue nil) : read([:direction, id]))
       end
 
+      # Whether the Lens of Truth is in use (World::Lens.on?).
+      def self.lens; note([:lens], read([:lens])); end
+
       # The live value behind a key. A read that fails raises, as the page reader takes a condition it cannot read
       # for unknown; only a facing nobody has reads as nil.
       def self.read(k)
@@ -68,6 +71,7 @@ module PokeAccess
         when :visited then ($PokemonGlobal.visitedMaps[k[1]] ? true : false)
         when :direction then ($game_map.events[k[1]].direction rescue nil)
         when :volatile then @volatile
+        when :lens then PokeAccess::World::Lens.on?
         end
       end
 

@@ -18,6 +18,22 @@ class OpaloPuzzlesTest < PokeAccessTest
     assert_nil PokeAccess::Puzzles.sent_back_line([3, 37, 38], [23, 31, 38])
   end
 
+  test "the psychic gym names its path lights while they are lit, as a sighted player sees them, and the camera says them" do
+    on_map(36)
+    $game_switches[313] = false
+    $game_switches[314] = false
+    light = place(10, 23, 54, [TestCmd.new(0, [])], "", 3557, 1)
+    light.name = "luz1/noShadow/"
+    World.next_frame
+    assert_equal [], PokeAccess::Puzzles.names_at(23, 54), "unlit"
+    $game_switches[313] = true
+    World.next_frame
+    assert_equal [t(:op_light)], PokeAccess::Puzzles.names_at(23, 54)
+    assert_includes PokeAccess::Camera.tile_lines(23, 54), t(:op_light)
+  ensure
+    $game_switches[313] = false
+  end
+
   test "the earth gym names its rocks and its patrolling Mudsdale" do
     on_map(38)
     rock = place(10, 20, 31, [TestCmd.new(0, [])], "", 1570)

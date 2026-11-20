@@ -91,7 +91,7 @@ class IceBridgeTest < PokeAccessTest
   test "a warp pad slid over sets where the slide ends" do
     ice_row("#@.....#", 2..5, "#......#")
     World.touch(:id => 61, :x => 4, :y => 1, :list => [TestCmd.new(201, [0, $game_map.map_id, 1, 2])])
-    assert_equal [1, 2], Moves.ice_slide(2, 1, 1, 0, 6)
+    assert_equal [1, 2], Moves.ice_slide(2, 1, 1, 0, 6)[0, 2]
     s = Moves.step(1, 1, 0, RIGHT, 0)
     assert_equal [1, 2], [s.x, s.y], "and the step onto the ice lands there"
   end
@@ -177,6 +177,7 @@ class IceBridgeTest < PokeAccessTest
       goal = Object.new
       goal.define_singleton_method(:hit?) { |x, y, _moved = nil| [x, y] == [5, 3] }
       goal.define_singleton_method(:bound) { |x, y, _moved = nil, lvl = nil| seen.push([x, y, lvl]); 0 }
+      goal.define_singleton_method(:entry) { nil }
       assert PokeAccess::Routes::Pushes.route(goal)
       assert_equal [0, 3, 0], seen.first, "the player's state"
       assert_includes seen, [2, 3, 2], "a state on the deck"

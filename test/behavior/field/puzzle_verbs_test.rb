@@ -43,6 +43,42 @@ class PuzzleVerbsTest < PokeAccessTest
     end
   end
 
+  test "a grouped name lists a touching row of one name as one target on its middle, a plain name each one" do
+    on_map do
+      [[50, 1, 1], [51, 2, 1], [52, 3, 1], [53, 6, 1]].each { |id, x, y| silent_event(id, x, y) }
+      mechanics.define(:state, MAP) { name 50..53, "Force field", :grouped => true }
+      assert_equal [["Force field", 2], ["Force field", 6]],
+                   PokeAccess::Puzzles.category_targets.map { |tg| [tg.name, tg.x] }.sort_by { |_n, x| x }
+      mechanics.define(:state, MAP) { name 50..53, "Trash can" }
+      assert_equal 4, PokeAccess::Puzzles.category_targets.length
+    end
+  end
+
+  test "a name's lambda that answers nothing leaves the event its own name, out of the puzzle list" do
+    on_map do
+      silent_event(50, 1, 1)
+      mechanics.define(:state, MAP) { name 50, lambda { |ev| $game_switches[SWITCH] ? nil : "Hidden pass" } }
+      assert_equal "Hidden pass", PokeAccess::Puzzles.piece_name($game_map.events[50])
+      assert_equal ["Hidden pass"], PokeAccess::Puzzles.category_targets.map { |tg| tg.name }
+      $game_switches[SWITCH] = true
+      assert_nil PokeAccess::Puzzles.piece_name($game_map.events[50])
+      assert_equal [], PokeAccess::Puzzles.category_targets
+    end
+  end
+
+  test "a control whose label answers nothing is left out of the puzzle list" do
+    on_map do
+      silent_event(50, 1, 1)
+      mechanics.define(:state, MAP) do
+        controls
+        watch :switch => 5, :label => lambda { $game_switches[SWITCH] ? nil : "Lever" }, :on => "on", :off => "off"
+      end
+      assert_equal ["Lever"], PokeAccess::Puzzles.category_targets.map { |tg| tg.name }
+      $game_switches[SWITCH] = true
+      assert_equal [], PokeAccess::Puzzles.category_targets
+    end
+  end
+
   test "a name with :when is listed while its test holds, and keeps its name" do
     on_map do
       silent_event(50, 1, 1)
@@ -64,6 +100,20 @@ class PuzzleVerbsTest < PokeAccessTest
       mechanics.forget
       assert_equal [], frame, "back in the room"
       assert_includes PokeAccess::Puzzles.info_line, "The rule"
+    end
+  end
+
+  test "an arrival rule with :once that says nothing the first time is said on a later arrival that has it" do
+    on_map do
+      rule = lambda { $game_switches[SWITCH + 2] ? "Ice rule" : nil }
+      mechanics.define(:state, MAP) do
+        watch :switch => SWITCH, :label => "A", :on => "on", :off => "off"
+        arrival_hint rule, :once => true
+      end
+      assert_equal [], frame
+      $game_switches[SWITCH + 2] = true
+      mechanics.forget
+      assert_equal ["Ice rule"], frame
     end
   end
 
@@ -209,6 +259,18 @@ class PuzzleVerbsTest < PokeAccessTest
       assert_equal [true, false], [PokeAccess::Locator.hidden?(always), PokeAccess::Locator.hidden?(false_exit)]
       PokeAccess::Config.puzzle_assist = true
       assert_equal true, PokeAccess::Locator.hidden?(false_exit)
+    end
+  end
+
+  test "hide with a when keeps events out only while its test holds" do
+    on_map do
+      exit_back = silent_event(28, 4, 4)
+      mechanics.define(:state, MAP) { hide 28, :when => lambda { |ev| ev.id == 28 && !$game_switches[SWITCH] } }
+      assert_equal true, PokeAccess::Locator.hidden?(exit_back)
+      $game_switches[SWITCH] = true
+      assert_equal false, PokeAccess::Locator.hidden?(exit_back)
+      mechanics.define(:state, MAP) { hide 28, :when => false }
+      assert_equal false, PokeAccess::Locator.hidden?(exit_back), ":when => false hides nothing, as with name"
     end
   end
 

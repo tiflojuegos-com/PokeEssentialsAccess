@@ -64,6 +64,7 @@
   world/events
   world/probe
   world/neighbours
+  world/lens
   world/mechanics
   world/mechanics/builder
   world/mechanics/grid
@@ -75,6 +76,7 @@
   routes/moves
   routes/moves_terrain
   routes/moves_fast
+  routes/moves_cost
   routes/limits
   routes/search
   routes/jumps
@@ -86,6 +88,7 @@
   routes/controls
   routes/planner
   routes/text
+  routes/trail
   sound/native
   sound/flat
   sound/pa3d
@@ -189,9 +192,15 @@
   nav/region_map
   nav/town_map
   nav/locator
+  nav/event_rows
+  nav/scene_triggers
+  nav/healing_floors
   puzzles/auto
   puzzles/reach
   nav/guide
+  nav/camera_text
+  nav/camera
+  routes/sight
   nav/forced_move
   nav/held_carry
   nav/surfaces

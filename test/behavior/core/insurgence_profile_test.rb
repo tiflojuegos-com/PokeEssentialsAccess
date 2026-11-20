@@ -97,6 +97,14 @@ class InsurgenceProfileTest < PokeAccessTest
       $game_map.init_ledges
     end
 
+    # What the free camera says of a tile of climbable rocks at (3, 3) and of the plain tile below it.
+    def rock_climb_camera
+      $game_map.set_terrain(3, 3, PokeAccess::InsurgenceRockClimb::TAG)
+      [PokeAccess::Camera.tile_lines(3, 3), PokeAccess::Camera.tile_lines(3, 4)]
+    ensure
+      $game_map.clear_grid
+    end
+
     def insurgence_play
       probe(:load_errors) { ERRS }
       probe(:missing_hooks) { PokeAccess::Hooks.missing - CORE_MISSING }
@@ -122,6 +130,7 @@ class InsurgenceProfileTest < PokeAccessTest
       probe(:step_on_foot) { step_from_afar(false) }
 
       probe(:fall) { surf_down_falls }
+      probe(:rock_climb_camera) { rock_climb_camera }
 
       probe(:relearner) do
         pk = Poke.build(:name => "Pika")
@@ -251,6 +260,10 @@ class InsurgenceProfileTest < PokeAccessTest
 
   test "carries a planned surf down into a fall from any of its tiles, its falls having no crest" do
     assert_equal({ [6, 3] => [6, 5], [6, 4] => [6, 5] }, played(:fall))
+  end
+
+  test "the free camera names climbable rocks, and nothing on the tile beside them" do
+    assert_equal [[t(:ins_rock_climb)], []], played(:rock_climb_camera)
   end
 
   test "the move relearner opens on its question and the first move, queued" do

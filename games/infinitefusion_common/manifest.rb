@@ -28,5 +28,19 @@
     passability
     intro_movie
     hall_of_fame_pc
+    terrain_kinds
+    multi_select
+    dex_search
+    fusion_moves
+    pokenav
+    quests
+    cursor_modes
+    storage_selection
+    cosmetics_money
+    region_map
+    fusion_quiz
+    fusion_family
+    quest_npcs
+    art_gallery
   ]
 }

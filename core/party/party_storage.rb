@@ -418,7 +418,7 @@ module PokeAccess
       end
       return plain_row(lead + PokeAccess::I18n.t(:pc_empty) + pos) unless pkmn
       variants = PokeAccess::Marking.variants(scene)
-      marks = party ? [] : slot_marks(scene, selection)
+      marks = party ? party_slot_marks(scene, selection) : slot_marks(scene, selection)
       whole = ([PokeAccess::Verbosity.whole { pc_line(pkmn, pos, variants) }] + marks).join(", ")
       PokeAccess::Info.set_info(:pokemon, pkmn, whole)
       lead + ([pc_line(pkmn, pos, variants)] + marks).join(", ")
@@ -435,6 +435,11 @@ module PokeAccess
     # What a box draws over a slot beyond its Pokemon (a PC that marks slots for a multiselection), as words; none on
     # a stock PC, and a profile whose PC draws more overrides it.
     def self.slot_marks(_scene, _index)
+      []
+    end
+
+    # The same for a slot of the party column; none on a stock PC.
+    def self.party_slot_marks(_scene, _index)
       []
     end
 

@@ -36,13 +36,14 @@ module PokeAccess
       [:route,  :rmk_route],  [:info,  :rmk_info],  [:hp,     :rmk_hp],
       [:field,  :rmk_field],  [:coords, :rmk_coords], [:config, :rmk_config],
       [:hist_prev, :rmk_hist_prev], [:hist_next, :rmk_hist_next], [:verbosity, :rmk_verbosity],
-      [:shift,  :rmk_shift],  [:ctrl,  :rmk_ctrl]
+      [:camera, :rmk_camera], [:shift,  :rmk_shift],  [:ctrl,  :rmk_ctrl]
     ]
 
-    # Virtual-keys no action may take: Enter, Space, Escape and the arrows, which the engine answers, F1, F2 and F12,
-    # which open the engine's settings window (mouse only), show its frame rate and reset the game, and F8-F10, the
-    # mod's fixed Ctrl+Alt gestures.
+    # Virtual-keys no action may take: Enter, Space, Escape and the arrows, which the engine answers, Backspace, which
+    # takes a step of the free camera's trail back, F1, F2 and F12, which open the engine's settings window (mouse only),
+    # show its frame rate and reset the game, and F8-F10, the mod's fixed Ctrl+Alt gestures.
     RESERVED = {
+      0x08 => :rmp_key_backspace,
       0x0D => :rmp_key_enter, 0x1B => :rmp_key_escape, 0x20 => :rmp_key_space,
       0x25 => :rmp_key_left,  0x26 => :rmp_key_up,     0x27 => :rmp_key_right, 0x28 => :rmp_key_down,
       0x70 => :rmp_key_f1,    0x71 => :rmp_key_f2,     0x7B => :rmp_key_f12,
@@ -50,6 +51,19 @@ module PokeAccess
     }
     # The mod's modifiers, each a key of its own: a key with Alt could not be held beside another.
     PLAIN_KEYS = [:shift, :ctrl]
+    # The mod's keys that answer on the map alone: in a battle they hold no key, so a game's Alt there stays the
+    # engine's (alt_late?).
+    FIELD_MOD_KEYS = [:camera]
+    # The reads of the game's input no binding reaches, each with what it answers while the free camera holds the input
+    # (Camera.blocking?): mkxp-z's and those a game's own Ruby input defines, a button's let-go, its time and count held,
+    # their raw-key forms, a stick's push and the wheel.
+    HELD_READS = { :release? => false, :time? => 0.0, :count => 0, :repeatcount => 0, :repeatex? => false,
+                   :releaseex? => false, :timeex? => 0.0, :countex => 0, :repeatcountex => 0,
+                   :axis_triggerex? => false, :scroll_v => 0 }
+    # The Shift keys as virtual keys: either one, the left one and the right one.
+    SHIFT_VKS = [0x10, 0xA0, 0xA1]
+    # The arrows, which go with a held Shift in the game's own gestures (a list's page by page).
+    ARROW_VKS = [0x25, 0x26, 0x27, 0x28]
     @held = {}
     @live = true
 
@@ -221,9 +235,11 @@ module PokeAccess
       unless @live
         @held = {}
         @alt_was = @alt_tap = @alt_used = false
+        @shift_was = @shift_tap = @shift_used = false
         return
       end
       watch_alt
+      watch_shift
       binds = (PokeAccess::Config.rebinds rescue nil) || {}
       if binds.empty? && defaults.empty?
         @held = {} unless @held.empty?
@@ -254,6 +270,77 @@ module PokeAccess
       @alt_was = down
     end
 
+    # One frame of the Shift a game button shares with the mod's Shift gestures (shift_button, found as Shift goes
+    # down): letting it go is one frame's trigger of that button (shift_tap?), unless another key went with it
+    # (shift_chord?).
+    def self.watch_shift
+      kb = PokeAccess::Keyboard
+      any = kb.raw_down?(kb::VK_SHIFT)
+      @shift_at = shift_button if any && !@any_shift
+      @any_shift = any
+      down = any && @shift_at ? kb.raw_down?(@shift_at[1]) : false
+      @shift_used ||= down && shift_chord?
+      @shift_tap = @shift_was && !down && !@shift_used
+      @shift_used = false unless down
+      @shift_was = down
+    end
+
+    # The game button that answers the Shift the mod's Shift gestures use, as [action, its Shift's virtual key, its
+    # other keys]: the first standard button whose mkxp-z keys (native_buttons) hold a Shift, while the mod's Shift key
+    # is one and the mod moved no key onto that button; nil for none.
+    def self.shift_button
+      return nil unless SHIFT_VKS.include?((PokeAccess::Config.keys[:shift] rescue nil))
+      native_buttons.each do |sym, vks|
+        vk = vks.detect { |k| SHIFT_VKS.include?(k) }
+        return [sym, vk, vks - [vk]] if vk && !bound_code(sym)
+      end
+      nil
+    end
+
+    # The keys mkxp-z answers each standard button by, {action => [virtual keys]}: its F1 bindings, else its own
+    # defaults (MKXP_DEFAULT_KEYS, the only modifier A's left Shift; under RGSS1 Z on A and C on C, later Z on C); none
+    # in a game that reads the keyboard itself.
+    def self.native_buttons
+      return {} unless PokeAccess::NativeKeys.native_input?
+      return PokeAccess::NativeKeys.table if PokeAccess::NativeKeys.active?
+      keys = {}
+      MKXP_DEFAULT_KEYS.each { |sym, vks| keys[sym] = vks.dup }
+      if engine_config[2]
+        keys[:a].push(0x5A)
+        keys[:c].push(0x43)
+      else
+        keys[:c].push(0x5A)
+      end
+      keys
+    end
+
+    # mkxp-z's default keys of each standard button but the arrows, by virtual key, before the RGSS version's own.
+    MKXP_DEFAULT_KEYS = { :a => [0xA0], :b => [0x1B, 0x60, 0x58], :c => [0x20, 0x0D], :x => [0x41], :y => [0x53],
+                          :z => [0x44], :l => [0x51], :r => [0x57] }
+
+    # Whether a key goes with the Shift held: Ctrl, Alt, the mod's menu, a text field, or a key of the mod's, of a game
+    # button or an arrow.
+    def self.shift_chord?
+      kb = PokeAccess::Keyboard
+      return true if kb.raw_down?(kb::VK_CONTROL) || kb.raw_down?(kb::VK_ALT)
+      return true if PokeAccess::ConfigMenu.active? || PokeAccess::Keys.typing?
+      keys = codes_in_use.compact.map { |c| kb.key_of(c) } + native_buttons.values.flatten + ARROW_VKS
+      keys.any? { |vk| !SHIFT_VKS.include?(vk) && kb.raw_down?(vk) }
+    end
+
+    # Whether the game's trigger and repeat of a button wait for its Shift to be let go (watch_shift): the button
+    # shares the Shift the mod's gestures use, held or let go this frame, and none of its other keys is down; never in a
+    # text field, nor on a frame the mod is off or the window behind.
+    def self.shift_late?(bi)
+      return false unless @live && @shift_at && (@shift_was || @shift_tap)
+      return false unless sym_for_button(bi) == @shift_at[0] && !PokeAccess::Keys.typing?
+      kb = PokeAccess::Keyboard
+      @shift_at[2].none? { |vk| kb.raw_down?(vk) }
+    end
+
+    # True on the frame the Shift of a button that waits for it (shift_late?) is let go with no other key.
+    def self.shift_tap?; @shift_tap ? true : false; end
+
     # Whether the game reads its Alt late now: Alt down, or let go since the last pulse, with an action on Alt plus a key
     # and the game's Alt unbound. Asked at each read, as a game may read Alt inside its own Input.update, before the pulse.
     def self.alt_late?
@@ -262,10 +349,12 @@ module PokeAccess
       codes_in_use.any? { |code| code && kb.alt_code?(code) } && !bound_code(:alt)
     end
 
-    # The key codes actions answer now: the player's bindings, the mod's keys and what the profile ships; nil for none.
+    # The key codes actions answer now: the player's bindings, the mod's keys (those of FIELD_MOD_KEYS out of a battle
+    # alone) and what the profile ships; nil for none.
     def self.codes_in_use
       binds = (PokeAccess::Config.rebinds rescue nil) || {}
       keys = (PokeAccess::Config.keys rescue nil) || {}
+      keys = keys.reject { |sym, _code| FIELD_MOD_KEYS.include?(sym) } if (PokeAccess::Battle.in_battle? rescue false)
       binds.values + keys.values + defaults.keys.map { |sym| binds[sym] ? nil : shipped(sym) }
     end
 
@@ -347,14 +436,16 @@ module PokeAccess
       [[(Graphics.frame_rate rescue 40).to_i, 10].max, 120].min
     end
 
-    # mkxp.json's [fixedFramerate, syncToRefreshrate], its comment lines left out, read once; [0, false] without it.
+    # mkxp.json's [fixedFramerate, syncToRefreshrate, whether rgssVersion is RGSS1 (1, or 0 and so the rxdata scripts
+    # every Essentials game has)], its comment lines left out, read once; [0, false, true] without it.
     def self.engine_config
       @engine_config ||= begin
         text = File.exist?("mkxp.json") ? File.read("mkxp.json").gsub(/^\s*\/\/.*$/, "") : ""
-        [text[/"fixedFramerate"\s*:\s*(\d+)/, 1].to_i, (text =~ /"syncToRefreshrate"\s*:\s*true/) ? true : false]
+        [text[/"fixedFramerate"\s*:\s*(\d+)/, 1].to_i, (text =~ /"syncToRefreshrate"\s*:\s*true/) ? true : false,
+         text[/"rgssVersion"\s*:\s*(\d+)/, 1].to_i <= 1]
       rescue StandardError => e
         PokeAccess.swallowed(e)
-        [0, false]
+        [0, false, true]
       end
     end
 
@@ -380,6 +471,14 @@ module PokeAccess
       s = sym_for_button(bi)
       return false if s.nil? || DIR_CODE.key?(s)
       !bound_code(s).nil?
+    end
+
+    # True for the game's Alt where it reads late (alt_late?: an action on Alt plus a key, the game's Alt unbound): its
+    # press? stays the engine's, the key as it is held (a turn in place while it is held), and only its trigger and
+    # repeat wait for it to be let go.
+    def self.alt_held_live?(bi)
+      return false unless PokeAccess::Keys::GAKS && @live && sym_for_button(bi) == :alt && !bound_code(:alt)
+      codes_in_use.any? { |code| code && PokeAccess::Keyboard.alt_code?(code) }
     end
 
     # The order bound directions are asked in, fixed (a 1.8.7 Hash has none) so two pressed on the same frame resolve
@@ -419,8 +518,9 @@ module PokeAccess
   end
 end
 
-# Input hooks feeding the bindings into the engine's: a button the mod's Ctrl+Alt gesture holds reads as up, a
-# remapped button answers only its bound key, else engine or bound. Each forwards *args/*rest, since dir4/dir8 take an
+# Input hooks feeding the bindings into the engine's: every read of the game's input answers nothing while the free
+# camera holds it (Camera.blocking?), a button the mod's Ctrl+Alt gesture holds reads as up, a remapped button answers
+# only its bound key, else engine or bound. Each forwards *args/*rest, since dir4/dir8 take an
 # argument in La Base de Sky and none in vanilla.
 begin
   class << Input
@@ -431,8 +531,12 @@ begin
         PokeAccess::Hooks.keep_bound(self, meth) do |_again|
           alias_method ali, meth
           define_method(meth) do |n, *rest|
-            if (PokeAccess::Remap.chord_button?(n) rescue false)
+            if (PokeAccess::Camera.blocking? rescue false) || (PokeAccess::Remap.chord_button?(n) rescue false)
               false
+            elsif query != :pressed? && (PokeAccess::Remap.shift_late?(n) rescue false)
+              PokeAccess::Remap.shift_tap?
+            elsif query == :pressed? && (PokeAccess::Remap.alt_held_live?(n) rescue false)
+              send(ali, n, *rest)
             elsif (PokeAccess::Remap.remapped_button?(n) rescue false)
               (PokeAccess::Remap.send(query, n) rescue false)
             else
@@ -443,11 +547,19 @@ begin
       end
       PokeAccess::Hooks.keep_bound(self, :dir4) do |_again|
         alias_method :dir4__access_orig, :dir4
-        def dir4(*args); d = dir4__access_orig(*args); d != 0 ? d : (PokeAccess::Remap.dir rescue 0); end
+        def dir4(*args)
+          return 0 if (PokeAccess::Camera.blocking? rescue false)
+          d = dir4__access_orig(*args)
+          d != 0 ? d : (PokeAccess::Remap.dir rescue 0)
+        end
       end
       PokeAccess::Hooks.keep_bound(self, :dir8) do |_again|
         alias_method :dir8__access_orig, :dir8
-        def dir8(*args); d = dir8__access_orig(*args); d != 0 ? d : (PokeAccess::Remap.dir rescue 0); end
+        def dir8(*args)
+          return 0 if (PokeAccess::Camera.blocking? rescue false)
+          d = dir8__access_orig(*args)
+          d != 0 ? d : (PokeAccess::Remap.dir rescue 0)
+        end
       end
     end
 
@@ -459,12 +571,26 @@ begin
       PokeAccess::Hooks.keep_bound(self, meth) do |_again|
         alias_method ali, meth
         define_method(meth) do |k, *rest|
-          if (PokeAccess::Remap.extra_remapped?(k) rescue false)
+          if (PokeAccess::Camera.blocking? rescue false)
+            false
+          elsif (PokeAccess::Remap.extra_remapped?(k) rescue false)
             (PokeAccess::Remap.send(query, k) rescue false)
           else
             send(ali, k, *rest) || (PokeAccess::Remap.send(query, k) rescue false)
           end
         end
+      end
+    end
+
+    # The other reads (HELD_READS), only where the engine or the game has them: what they answer while the free camera
+    # holds the input, else theirs.
+    PokeAccess::Remap::HELD_READS.each do |meth, idle|
+      ali = :"#{meth.to_s.delete('?')}__access_orig"
+      next unless method_defined?(meth)
+      next if method_defined?(ali)
+      PokeAccess::Hooks.keep_bound(self, meth) do |_again|
+        alias_method ali, meth
+        define_method(meth) { |*args| (PokeAccess::Camera.blocking? rescue false) ? idle : send(ali, *args) }
       end
     end
   end

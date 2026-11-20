@@ -1,10 +1,14 @@
 # IF Hoenn's acro-bike rails (terrain flag acroBike): on the bike, the action button facing one jumps onto it,
 # the bike rides along it, and a press toward a non-rail tile hops one tile off, whatever that tile's passage, where
-# the jump may land (hopOffFence's pbJumpToward(1) refuses a tile someone stands on, and the press bumps).
+# the jump may land (hopOffFence's pbJumpToward(1) refuses a tile someone stands on, and the press bumps). Routes 103,
+# 115 and 110 are the only maps whose tiles bear the rail's terrain tag. The free camera names each rail tile.
 PokeAccess::Game.define("ifh_acro_rails") do
   rail = lambda { |x, y| PokeAccess::World::Terrain.flag?(x, y, :acroBike) }
+  maps = [11, 65, 71]
 
-  assisted_step(:front_flags => [:acroBike]) do |x, y, dir, lvl|
+  camera_tile(:maps => maps, :flags => [:acroBike]) { |_x, _y| PokeAccess::I18n.t(:if_ho_acro_rail) }
+
+  assisted_step(:maps => maps, :front_flags => [:acroBike]) do |x, y, dir, lvl|
     nx = x + dir[0]; ny = y + dir[1]
     next nil unless ($PokemonGlobal.bicycle rescue false) && !rail.call(x, y) && rail.call(nx, ny)
     PokeAccess::Routes::Moves::Step.new(nx, ny, lvl, 1, { :kind => :act, :face => dir[2], :x => x, :y => y })

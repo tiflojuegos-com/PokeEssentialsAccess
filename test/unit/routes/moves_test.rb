@@ -161,6 +161,36 @@ class MovesTest < PokeAccessTest
     end
   end
 
+  test "an assisted step counts for assist_possible? on every map, or on its owner's :maps alone, scanned there alone" do
+    without_rules do
+      wall_ahead
+      here = $game_map.map_id
+      scanned = 0
+      counted = lambda do |owner|
+        Moves.instance_variable_set(:@assist_sources, [])
+        Moves.assist_source(owner) { |_x, _y, _dir, _lvl| nil }
+        [Pathfinder.assist_possible?, Moves.map_scan[4].length]
+      end
+      said = [counted.call(:front_tags => [87]), counted.call(:front_tags => [88]),
+              counted.call(:maps => [here + 1], :front_tags => [88]), counted.call(:maps => here, :front_tags => [88]),
+              counted.call(:maps => lambda { [here + 1] }, :front_tiles => lambda { |_x, _y| scanned += 1; true }),
+              counted.call(nil)]
+      assert_equal [[true, 0], [true, 1], [false, 0], [true, 1], [false, 0], [true, 1]], said
+      assert_equal 0, scanned, "a map left out is not scanned for its tiles"
+    end
+  end
+
+  test "a rule owned on other maps owns no tile here, whatever its tile keys" do
+    with_rules_kept do
+      corridor
+      here = $game_map.map_id
+      away = Moves.owner_of(:maps => [here + 1])
+      both = Moves.owner_of(:maps => [here, here + 1], :tags => [0])
+      only = Moves.owner_of(:maps => here)
+      assert_equal [false, true, true], [Moves.owns?(away, 2, 1), Moves.owns?(both, 2, 1), Moves.owns?(only, 2, 1)]
+    end
+  end
+
   test "a rule registered once the tiles were classed is seen by fast" do
     with_rules_kept do
       corridor
@@ -429,8 +459,8 @@ class MovesTest < PokeAccessTest
   test "a rule that may move the player on a tile here leaves no telling how far a press goes" do
     [
       ["an arrival rule without an owner", lambda { Moves.arrival_rule { |_x, _y, _d| nil } }],
-      ["a leave rule, on a map with a bridge", lambda do
-        Moves.leave_rule(:tags => [88]) { |_x, _y, _d| nil }
+      ["a leave rule owning a bridge's tile at the other height, on a map with a bridge", lambda do
+        Moves.leave_rule(:tags => [15]) { |_x, _y, _d| nil }
         $game_map.place_bridge(5, 3)
       end],
       ["an arrival rule owning a terrain number here", lambda do

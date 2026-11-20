@@ -200,17 +200,26 @@ module PokeAccess
 
       # Runs the block with events lent through to the engine (obstacles set aside, boulders walked into), their
       # tiles kept out of the memo meanwhile; every event is put back whatever happens, one listed twice too.
-      def self.lend_through(events)
-        return yield if events.empty?
+      def self.lend_through(events, &blk)
+        lend(events.map { |ev| [ev, true] }, &blk)
+      end
+
+      # lend_through with each event's own flag: pairs of [event, through], the first pair of an event taken (the
+      # Lens of Truth's events as it in use leaves them, World::Lens.lent).
+      def self.lend(pairs)
+        return yield if pairs.empty?
         outer = @lent
         @before_lending.each { |blk| blk.call } if outer.nil?
         saved = []
+        seen = {}
         begin
           tiles = outer ? outer.dup : {}
-          events.uniq.each do |ev|
+          pairs.each do |ev, through|
+            next if seen[ev.object_id]
+            seen[ev.object_id] = true
             Events.tiles_of(ev).each { |x, y| tiles[key(x, y)] = true }
             saved.push([ev, (ev.through rescue false)])
-            (ev.through = true) rescue nil
+            (ev.through = through) rescue nil
           end
           @lent = tiles
           yield
@@ -246,7 +255,12 @@ module PokeAccess
       # (pbEndSurf), so the step is asked on foot and walking back onto water is closed, as the game has it. A neutral
       # tile is laid over water (gen 6 reads its tag above the water's), so it stays afloat.
       def self.ashore?(x, y)
-        @sig && @sig[0] == 1 && (Terrain.cell(x, y) & Terrain::SURF) == 0 && Terrain.kind(x, y) != :neutral
+        @sig && @sig[0] == 1 && dry?(x, y)
+      end
+
+      # True when a surfer on (x,y) would be ashore: no surfable water there, nor a neutral tile laid over it.
+      def self.dry?(x, y)
+        (Terrain.cell(x, y) & Terrain::SURF) == 0 && Terrain.kind(x, y) != :neutral
       end
 
       # Runs the block with the player afloat for the engine (a planned surf's water moves), its answers kept in the
@@ -324,9 +338,9 @@ module PokeAccess
         v == CLOSED && into_player?(nx, ny) ? engine(x, y, d, [x, y, d]) : v
       end
 
-      # The engine's answer for a step, with the player's through lent off, at a stair's end its stair too, and, where the
-      # game asks for it, the player placed on the step's origin; an error is ERROR. Whatever is lent is put back, whatever
-      # fails.
+      # The engine's answer for a step, with the player's through lent off, at a stair's end its stair too, where the
+      # game asks for it the player placed on the step's origin, and the Lens of Truth's events as a route meets them
+      # (Lens.posed); an error is ERROR. Whatever is lent is put back, whatever fails.
       # param at [x, y, facing] to place the player on whatever the game asks for (a jump's origin)
       def self.engine(x, y, d, at = nil)
         pl = $game_player
@@ -347,7 +361,7 @@ module PokeAccess
             stair = pl.instance_variable_get(:@stair_begin_offset)
             pl.instance_variable_set(:@stair_begin_offset, nil)
           end
-          ask_near(pl, x, y, d) ? OPEN : CLOSED
+          Lens.posed(x, y, d, @lent) { ask_near(pl, x, y, d) } ? OPEN : CLOSED
         ensure
           pl.instance_variable_set(:@stair_begin_offset, stair) if stair
           pl.through = through if through

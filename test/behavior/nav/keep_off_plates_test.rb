@@ -52,6 +52,34 @@ class KeepOffPlatesTest < PokeAccessTest
     tidy
   end
 
+  test "a walk keeps off every tile of a wide event a mechanic asks to avoid, as Fire Ash's 2x2 rune rock" do
+    $game_map.load_grid(["#######", "#.....#", "#@....#", "#.....#", "#######"])
+    rock = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(121, [3300, 3300, 0])])
+    $game_map.events[40] = TestGameEvent.new(:id => 40, :x => 3, :y => 2, :name => "Runa size(2,2)", :pages => [rock])
+    declare(:kind => :state, :avoids => [{ 40 => true }])
+    settle
+    off = [[3, 2], [4, 2], [3, 1], [4, 1]].map { |x, y| PokeAccess::Routes::Controls.keep_off[PokeAccess::Routes.pkey(x, y)] }
+    r = walk(5, 2).route.to_a
+    assert_equal [[true, true, true, true], [2, 6, 6, 6, 6, 8]], [off, r], "round by the south row, off all four tiles"
+  ensure
+    tidy
+  end
+
+  test "what a mechanic asks to avoid with the puzzle assist is walked over without it" do
+    $game_map.load_grid(OPEN)
+    plate = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(121, [3300, 3300, 0])])
+    $game_map.events[40] = TestGameEvent.new(:id => 40, :x => 3, :y => 1, :pages => [plate])
+    @defs ||= PokeAccess::World::Mechanics.instance_variable_get(:@defs).dup
+    spec = PokeAccess::World::Mechanics.define(:state, $game_map.map_id) { avoid 40, :assist => true }
+    settle
+    without = walk(7, 1).route.to_a
+    PokeAccess::Config.set(:puzzle_assist, true)
+    with = walk(7, 1).route.to_a
+    assert_equal [nil, [6, 6, 6, 6, 6, 6], [2, 2, 6, 6, 6, 6, 6, 6, 8, 8]], [spec[:avoids], without, with]
+  ensure
+    tidy
+  end
+
   test "a walk keeps off a floor grid's cells only while a letter is formed on it" do
     active = false
     grid(lambda { active }) do

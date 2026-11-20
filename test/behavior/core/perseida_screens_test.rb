@@ -727,7 +727,8 @@ class PerseidaScreensTest < ProfileProcessTest
     assert_includes lines[0][0], "pokemonperseida.blogspot.com"
     assert_includes lines[1][0], "@Clara_Dragon"
     assert_equal [false, false], lines.map { |_text, cut| cut }
-    assert_equal 1, prompt.length
+    prompt = prompt.uniq
+    assert_equal 1, prompt.length, "luka_title's hook on the same intro says the same prompt"
     assert_includes prompt[0][0], t(:title_screen)
     assert_equal false, prompt[0][1]
     assert_equal :played, value

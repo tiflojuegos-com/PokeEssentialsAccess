@@ -1,12 +1,13 @@
 # Every rescue of the mod that catches StandardError or Exception reports what it caught (swallowed, log_once,
 # write_marker, or the data layer's note_error, once per method and class) or raises it again, so no failure vanishes
 # without a trace. One-line `x rescue y` probes are out, and so are failures.rb, diag.rb and selfcheck.rb, which report
-# by other means, and Uranium's compat.rb, which runs before the mod is loaded and notes what it skips in files of its
+# by other means, and the compat.rb of Uranium and Solar, which run before the mod is loaded and note what they skip in files of their
 # own.
 require "prism"
 
 class RescueReportsTest < PokeAccessTest
-  EXEMPT = %w[core/foundation/failures.rb core/input/diag.rb core/util/selfcheck.rb games/uranium/compat.rb].freeze
+  EXEMPT = %w[core/foundation/failures.rb core/input/diag.rb core/util/selfcheck.rb games/uranium/compat.rb
+              games/solarlight/compat.rb games/xenoverse/compat.rb].freeze
   REPORTS = /\b(swallowed|log_once|write_marker|note_error|raise)\b/
 
   test "static: every broad rescue of the mod reports what it caught" do

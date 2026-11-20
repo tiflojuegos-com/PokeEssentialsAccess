@@ -1,7 +1,16 @@
 module PokeAccess
   # Uranium's own overlays and screens over the field: the eighth gym's tile counter, the scoreboard of Tandor's
-  # championship, the Nuzlocke game over and the post-game letter.
+  # championship, the Nuzlocke game over, the post-game letter, the name of the starter machine in Bamb'o's lab and
+  # those of the way to Nowtoch's Gym.
   module UraniumField
+    # A trainer battle's call, capturing the name it fights the trainer under.
+    BATTLE_NAME_RE = /pbTrainerBattle\(\s*(?:PBTrainers::|:)\w+\s*,\s*"([^"\\]+)"/
+
+    # The visible starter machine in Bamb'o's lab, including its idle page.
+    def self.starter_machine?(ev)
+      $game_map && $game_map.map_id == 50 && ev.id == 19 && ev.character_name == "PU-PokeballMachine"
+    end
+
     # Runs a paint of the eighth gym's counter (on creation, and when the white count changes) and says the lines it
     # painted; the first, queued, with the goal that opens the door: half of the room's tiles white. Both are kept
     # for the info key (gym_text).
@@ -46,6 +55,34 @@ module PokeAccess
       ret
     end
 
+    # The names of Nowtoch's first-Gym landmarks: the Gym's door while switch 101 keeps it closed, Maria's house door,
+    # her admirer outside the Gym and, inside it, Maria by the name her battle gives her (battle_name); nil for any
+    # other event.
+    def self.nowtoch_landmark(ev)
+      return nil unless $game_map
+      case [$game_map.map_id, ev.id, ev.character_name]
+      when [40, 14, "door habidome"]
+        PokeAccess::I18n.t(:ura_nowtoch_gym_closed) if $game_switches && !$game_switches[101]
+      when [40, 17, "PU-doorsdew"]
+        PokeAccess::I18n.t(:ura_maria_house)
+      when [40, 18, "HGSS_130"]
+        PokeAccess::I18n.t(:ura_maria_admirer)
+      when [42, 3, "PU-Maria"]
+        battle_name(ev)
+      end
+    end
+
+    # The trainer name one of the event's pages battles under (BATTLE_NAME_RE), or nil.
+    def self.battle_name(ev)
+      PokeAccess::Locator.event_command_lists(ev).each do |list|
+        PokeAccess::Locator.script_calls(list).each do |s|
+          m = BATTLE_NAME_RE.match(s)
+          return m[1] if m
+        end
+      end
+      nil
+    end
+
     # Says a letter as pbDisplayLetter shows it, the message with the player's name in place and then its sender,
     # kept for the repeat key.
     def self.letter(message, sender)
@@ -60,10 +97,15 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("uranium") do
+  event_category(:objects) { |ev| PokeAccess::UraniumField.starter_machine?(ev) }
+  event_name do |ev|
+    PokeAccess::I18n.t(:ura_starter_machine) if PokeAccess::UraniumField.starter_machine?(ev)
+  end
   around("GymWindow", :initialize) { |win, nxt, _a| PokeAccess::UraniumField.gym_counter(win, true) { nxt.call } }
   around("GymWindow", :update) { |win, nxt, _a| PokeAccess::UraniumField.gym_counter(win, false) { nxt.call } }
   PokeAccess::Info.map_owner(:uranium_gym) { PokeAccess::UraniumField.gym_text }
   around("ScoreWindow", :initialize) { |_w, nxt, _a| PokeAccess::UraniumField.scoreboard { nxt.call } }
+  event_name { |ev| PokeAccess::UraniumField.nowtoch_landmark(ev) }
   before("Scene_Gameover", :main) { |_s, _a| PokeAccess.speak(PokeAccess::TitleScreen.prompt(:ura_gameover), false) }
   kernel("pbDisplayLetter", :before) { |args, _r| PokeAccess::UraniumField.letter(args[0], args[1]) }
 end
