@@ -2,7 +2,7 @@
 # (GameData, but still $Trainer and PokeBattle_Scene). What it shares with Hoenn comes from infinitefusion_common.
 {
   :imports => %w[infinitefusion_common],
-  :modules => %w[kanto_title_input locked_doors ss_anne_waiter surf_race cloud_path magikarp_ride
+  :modules => %w[locked_doors ss_anne_waiter surf_race cloud_path magikarp_ride
                  puzzles/azalea_gym puzzles/goldenrod_gym puzzles/violet_gym
                  puzzles/slowpoke_well puzzles/rocket_hideout puzzles/blackthorn_gym puzzles/mahogany_gym
                  puzzles/burned_tower puzzles/ecruteak_gym puzzles/vermilion_gym puzzles/celadon_sewers
@@ -15,6 +15,6 @@
                  puzzles/ruins_of_alph puzzles/cerulean_cave puzzles/berry_forest puzzles/old_shipwreck
                  puzzles/ruby_chamber puzzles/kindle_road puzzles/moonlit_forest
                  puzzles/ilex_forest puzzles/saffron_nightclub puzzles/cyberspace puzzles/chrono_warehouse
-                 puzzles/nest_hats puzzles/sky_pillar puzzles/deep_sea],
+                 puzzles/nest_hats puzzles/sky_pillar puzzles/deep_sea kanto_title_input],
   :plugins => %w[berrydex multi_save better_region_map luka_title]
 }
