@@ -96,12 +96,16 @@ module PokeAccess
         [x, y]
       end
 
-      # Where a slide that passes over a touch event at (x,y) ends up, or nil or false when it cannot be taken.
+      # Where a slide that passes over a touch event at (x,y) ends up, as [x, y, nil, entry, kind, warp] for the Step it
+      # ends as (landed): (x,y)'s key, the event's kind and whether a transfer takes the player there; nil or false when it
+      # cannot be taken.
       def self.slid_over(x, y, e)
-        case e[0]
-        when :warp then PokeAccess::World::Probe.landing(e[1], e[2])
-        when :carry then carry_landing(x, y, e)
-        end
+        via = []
+        l = case e[0]
+            when :warp then PokeAccess::World::Probe.landing(e[1], e[2])
+            when :carry then carry_landing(x, y, e, 0, via)
+            end
+        l ? [l[0], l[1], nil, Routes.pkey(x, y), e[0], e[0] == :warp || !via.empty?] : l
       end
 
       # True if a tile is on the outer border of the map (where connection/exit tiles live).
@@ -121,7 +125,8 @@ module PokeAccess
       end
 
       # A surfing move walking cannot make, as a Step or nil: pushing off a shore onto water or water to water (then its
-      # current and touch event; falls too), or coming ashore onto an open tile with nothing solid on it.
+      # current and touch event; falls too), or coming ashore onto an open tile with nothing solid on it where the engine
+      # lets the surfer step that way, as the step afloat that a route by water lands with is.
       def self.water_step(cx, cy, dir, lvl, wet)
         nx = cx + dir[0]; ny = cy + dir[1]; d = dir[2]
         return nil unless ($game_map.valid?(nx, ny) rescue false)
@@ -137,7 +142,8 @@ module PokeAccess
         return nil unless wet
         return nil unless ($game_map.passable?(nx, ny, 10 - d) rescue false)
         return nil if solid_event_at?(nx, ny) || Effects.exit_step?(nx, ny, d)
-        Step.new(nx, ny, lvl)
+        probe = PokeAccess::World::Probe
+        probe.afloat { probe.step?(cx, cy, d) } ? Step.new(nx, ny, lvl) : nil
       end
 
       # Falling water met afloat: carried down from its crest (from any of its tiles in a game whose falls have none,

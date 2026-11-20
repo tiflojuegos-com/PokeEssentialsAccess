@@ -706,16 +706,22 @@ class ZStoryPuzzlesTest < PokeAccessTest
     assert_equal [], tick, "the riddle's return phase holds no hint"
   end
 
-  test "says the library's hidden books as they are pushed and takes the beams away with the second" do
+  test "names the library's hidden books while the lens shows them, says them as pushed, and the beams go with the second" do
     beams = library
-    assert_equal [control(10, 32, 20, :z_arma_book_e), control(11, 20, 13, :z_arma_book_nw)], targets.first(2)
-    assert_equal t(:z_arma_book_nw), PokeAccess::Locator.target_name($game_map.events[11])
+    books = lambda { targets.select { |s| s.is_a?(PokeAccess::Locator::SurfaceTarget) && [10, 11].include?(s.ref) } }
+    assert_empty books.call, "drawn only through the lens"
+    assert_equal t(:loc_lens), PokeAccess::Locator.target_name($game_map.events[11])
+    assert_nil PokeAccess::Puzzles.info_line
+    stand(20, 14)
+    with_lens do
+      assert_equal [control(11, 20, 13, :z_arma_book_nw)], books.call
+      assert_equal t(:z_arma_book_nw), PokeAccess::Locator.target_name($game_map.events[11])
+    end
     tick
-    still = "#{t(:z_arma_book_nw)}: #{t(:z_arma_book_still)}. #{t(:z_arma_book_e)}: #{t(:z_arma_book_still)}"
-    assert_equal still, info_key
-    refute_includes info_key, t(:z_arma_books_hint)
     assist_on
-    assert_includes info_key, t(:z_arma_books_hint)
+    assert_equal [control(10, 32, 20, :z_arma_book_e), control(11, 20, 13, :z_arma_book_nw)], books.call
+    still = "#{t(:z_arma_book_nw)}: #{t(:z_arma_book_still)}. #{t(:z_arma_book_e)}: #{t(:z_arma_book_still)}"
+    assert_equal "#{still}. #{t(:z_arma_books_hint)}", info_key
     PokeAccess::Config.puzzle_assist = false
     $game_switches[788] = true
     assert_equal [["#{t(:z_arma_book_nw)}: #{t(:z_arma_book_pushed)}", false]], tick
@@ -1244,11 +1250,27 @@ class ZStoryPuzzlesTest < PokeAccessTest
     World.next_frame
   end
 
-  # Map 472 with its two hidden books and two of its beams, declared again now that they stand; answers the beams.
+  # Runs the block with the Lens of Truth in use, as the game's map scene counts its frames down.
+  def with_lens
+    was = $scene
+    scene = Scene_Map.new
+    scene.define_singleton_method(:eye_of_truth_time) { 300 }
+    $scene = scene
+    World.next_frame
+    yield
+  ensure
+    $scene = was
+    World.next_frame
+  end
+
+  # Map 472 with its two hidden books, the tiles the lens shows above them and two of its beams, declared again now that
+  # they stand; answers the beams.
   def library
     on_map(472)
     place(10, 32, 20, [TestCmd.new(121, [787, 787, 0])], :name => "#EOT SHOW")
     place(11, 20, 13, [TestCmd.new(121, [788, 788, 0])], :name => "#EOT SHOW")
+    place(7, 32, 19, [], :name => "#EOT SHOW")
+    place(8, 20, 12, [], :name => "#EOT SHOW")
     both = { :switch1_valid => true, :switch1_id => 787, :switch2_valid => true, :switch2_id => 788 }
     beams = [[12, 27, 37], [13, 28, 37]].map do |id, x, y|
       place(id, x, y, [], :sprite => "rayosBarrera", :extra => TestPage.new(:condition => both))

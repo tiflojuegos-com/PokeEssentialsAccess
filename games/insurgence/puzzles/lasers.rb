@@ -87,11 +87,13 @@ module PokeAccess
     end
 
     # After a mirror is turned (its beam already redrawn): the mirror, with the assist whether it now stands as it
-    # should, and the room.
+    # should, and the room. The target list is rebuilt on its next use: the turn comes from Scene_Map after a question,
+    # outside any event, so the list may have been rebuilt with the old turn while the question was open.
     def self.rotated(id)
       r = room
       ev = r && event(id)
       return unless ev && r[:mirrors].include?(ev.id)
+      PokeAccess::Locator.invalidate_targets
       PokeAccess.speak(PokeAccess.sentences([mirror_line(ev, true), status_line(r)]), true)
     rescue StandardError => e
       PokeAccess.swallowed(e)

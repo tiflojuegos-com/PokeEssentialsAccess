@@ -12,7 +12,9 @@ explained in [Guide and sound](../architecture/guide-and-sound.md).
   keyboard the pulse takes first (`Keyboard.snapshot`).
 - A mod key answers only while the mod is on (`Keys.enabled`) and the game window is in front (`Keys.focused?`).
 - The game still sees the keys the mod answers. The mod's `Input` hooks change only the game buttons and extras that
-  have a binding, or that their profile ships on a key ([What a profile can change](#what-a-profile-can-change)).
+  have a binding, or that their profile ships on a key ([What a profile can change](#what-a-profile-can-change)),
+  the game's Shift and Alt where a gesture of the mod shares them ([Shift and Alt](#shift-and-alt)), and every read
+  while the [free camera](#free-camera) holds the game's input.
 
 ## Global gestures
 
@@ -40,7 +42,7 @@ profile moves in `Config.key_defaults`.
 | `:next` | L (`0x4C`) | Next target | Next category | As alone |
 | `:where` | K (`0x4B`) | Says the selected target | Renames the target | Opens the target's menu |
 | `:route` | I (`0x49`) | Says the route to the target | Turns the cane on or off | Turns the step guide on or off |
-| `:info` | T (`0x54`) | Says the details of the focus | Says the last dialogue | Says the focused row whole |
+| `:info` | T (`0x54`) | Says the details of what has the focus | Says the last dialogue | Says the focused row whole |
 | `:hp` | H (`0x48`) | Says the player's side's HP | Says the foes' HP | As alone |
 | `:field` | G (`0x47`) | Says the field conditions | As alone | Sets or renames a marker here |
 | `:coords` | M (`0x4D`) | Says the map and the coordinates | Renames the map | Cycles `hide_unreachable` |
@@ -48,6 +50,7 @@ profile moves in `Config.key_defaults`.
 | `:hist_prev` | Home (`0x24`) | One message back | Previous history view | First message of the view |
 | `:hist_next` | End (`0x23`) | One message on | Next history view | Last message of the view |
 | `:verbosity` | None | Next verbosity scheme | As alone | As alone |
+| `:camera` | Alt+K (`0x124B`) | Opens or closes the free camera | | |
 | `:shift` | Shift (`0x10`) | The Shift modifier | | |
 | `:ctrl` | Ctrl (`0x11`) | The Ctrl modifier | | |
 
@@ -82,8 +85,13 @@ What some rows do in full:
 - `:coords` answers only with the locator's keys free and outside battle. Ctrl with `:field` sets a marker only on
   the map, under the same conditions, and otherwise says that markers go on the map.
 - `:config` opens the menu only on the map scene; elsewhere it says so.
+- `:camera` is polled in the `:camera` step of the map frame (`Camera.tick`), before the locator's keys. It opens the
+  camera only on the map, with control free, the locator's keys free and nothing carrying the player; otherwise it
+  says so. It is in `Remap::FIELD_MOD_KEYS`: in a battle it holds no key, so the game's Alt there stays the engine's
+  ([Shift and Alt](#shift-and-alt)).
 
-What a key says goes to the message history: the locator's keys, `:coords` and the marker under `:nav`, `:info`,
+What a key says goes to the message history: the locator's keys, the free camera, `:coords` and the marker under
+`:nav`, `:info`,
 `:hp` and the field conditions under `:info`, the gestures and the configuration menu under `:system`.
 
 ## Region map
@@ -98,6 +106,59 @@ While the region map is open, the locator's keys move its cursor to the nearest 
 | `:next` | L | Right |
 | `:route` | I | Up |
 | `:where` | K | Down |
+
+## Free camera
+
+While the free camera is open (`core/nav/camera.rb`), these keys answer. The camera reads its moves through the
+game's own `Input`, inside `Camera.lend`, so the walk keys are the ones the game answers: the engine's, mkxp-z's F1
+bindings, the mod's bindings and a game's own Ruby input, at the game's repeat rate. Enter, Escape, Space and
+Backspace are read from the keyboard.
+
+| Keys | Effect |
+|---|---|
+| A walk key | One tile that way, where the player could step; a bump where they could not |
+| Shift with a walk key | On to the next tile that changes, at most `Camera::LONG_MAX` (10) tiles |
+| Ctrl with a walk key | One tile that way, whatever stands there |
+| Enter | Fixes the camera's tile as the destination, or fixes the trail being drawn, and closes the camera |
+| Shift+Enter | Starts a trail on the camera's tile, or drops the one being drawn |
+| Backspace | Takes the trail's last step back, the camera with it |
+| Space | The camera back to the player |
+| Shift+Space | The camera to the locator's selected target |
+| Escape, or `:camera` again | Closes the camera, dropping a trail being drawn |
+| `:info` | Describes the camera's tile |
+| `:coords` | Says where the camera is, and where from the player |
+| `:prev`, `:next`, `:where` | The locator's list, ordered and told from the camera |
+| `:route` | The way on foot from the camera to the selected target |
+| Ctrl with `:field` | Sets or renames a marker on the camera's tile |
+
+The other keys keep their effect: the locator's Shift and Ctrl gestures, H, G, O, the history keys and the
+verbosity key. The configuration menu opens over the camera and leaves it open. Space and Shift+Space do nothing
+while a trail is being drawn, and say so. [Free camera](../architecture/guide-and-sound.md#free-camera) explains what
+each move says and sounds.
+
+While the camera is open, every read of the game's input answers nothing (`Camera.blocking?`): `trigger?`, `press?`
+and `repeat?` are false, `dir4` and `dir8` are 0, the raw-key reads `triggerex?` and `pressex?` are false, and the
+other reads of `Remap::HELD_READS` answer their idle value. The player does not move, turn, talk or open a menu, and
+the map goes on. After the camera closes, the hold lasts until Enter, Escape and every direction are let go
+(`Camera.pulse`), so the key that closed it reaches nothing. The mod's own text field and the Ctrl+K menu run inside
+`Camera.lend`, with the game's input free. A game that reads the keyboard without `Input` still sees its keys.
+
+## Shift and Alt
+
+A key held for a mod's gesture can be one a game button also answers. Two of them wait to be let go:
+
+- The game's Shift. mkxp-z puts `Input::A` on the left Shift by default (`Remap::MKXP_DEFAULT_KEYS`), or the button
+  its F1 window put there. While the mod's `:shift` is a Shift key and no binding moved that button, the game reads
+  its trigger and its repeat on the frame Shift is let go, once, and only if no other key went with it: Ctrl, Alt, a
+  mod key, a game button, an arrow, the configuration menu or a text field (`Remap.shift_late?`, `Remap.shift_chord?`).
+  Its `press?` stays the engine's. A game that reads the keyboard itself is left as it is.
+- The game's Alt. While any action answers a key with Alt and `:alt` itself is not bound, the game reads its Alt
+  trigger and repeat for one frame as it is let go, and only if no such action and no Ctrl went with it
+  (`Remap.alt_late?`, `Remap.watch_alt`), also in a game that reads it inside its own `Input.update`. Its `press?`
+  follows the key as it is held (`Remap.alt_held_live?`). Since `:camera` ships on Alt+K, this holds in every game out
+  of battle; in battle only another action on Alt counts (`Remap::FIELD_MOD_KEYS`). A game whose Alt sets its speed
+  keeps that key, and a combination does not change the speed on the way. A game that reads Alt by its raw key
+  (Desolation) reads it as ever.
 
 ## Keys in the configuration menu
 
@@ -157,11 +218,8 @@ read; mkxp-z's own F1 window cannot bind it.
   `:button` as a constant of its own `Input` too, so one entry moves both reads. A read any other way stays the game's.
 - Key with Alt: a binding can be a key with Alt held (`Keyboard.with_alt`). It answers when the key goes down with Alt
   held, not when Alt comes second, and not with Ctrl held too, as AltGr holds both. With an action on Alt plus a letter,
-  a mod key or a binding on that letter alone answers only a press of its own with no Alt held.
-- The game's Alt: while any action answers a key with Alt and `:alt` itself is not bound, the game reads its Alt for one
-  frame as it is let go, and only if no such action and no Ctrl went with it (`Remap.alt_late?`, `Remap.watch_alt`), also
-  a game that reads it inside its own `Input.update`. A game whose Alt sets its speed keeps that key, and a combination
-  does not change the speed on the way. A game that reads Alt by its raw key (Desolation) reads it as ever.
+  a mod key or a binding on that letter alone answers only a press of its own with no Alt held. The game's own Alt then
+  waits to be let go ([Shift and Alt](#shift-and-alt)).
 - In a text field (`Keys.typing!`) the extras stay the game's, as raw keys and as buttons: their keys are letters there,
   and Shift types capitals.
 - Repeat: a bound key repeats on the schedule of the input the game reads (`Remap.repeat_schedule`): the game's own
@@ -173,9 +231,10 @@ read; mkxp-z's own F1 window cannot bind it.
 | Key | Kept for |
 |---|---|
 | Enter, Space, Escape, the arrows | The engine's own answers |
+| Backspace | The free camera's step back along its trail |
 | F1 | mkxp-z's settings window, which works by mouse only |
 | F2 | The engine's frame rate counter |
-| F12 | The game reset |
+| F12 | The game reset, which starts the game anew in a process of its own ([F12 reset](../architecture/loading.md#f12-reset)) |
 | F8, F9, F10 | The mod's Ctrl+Alt gestures |
 
 The list is `Remap::RESERVED`. A key in it is refused with what keeps it, with Alt or without.

@@ -303,6 +303,38 @@ class LocatorNamingTest < PokeAccessTest
     end
   end
 
+  test "an unnamed attendant who sets the Pokemon Centre and heals the party there is named for it" do
+    center = TestCmd.new(355, ["Kernel.pbSetPokemonCenter"])
+    greeting = TestCmd.new(101, ["Welcome to the Pokemon Center."])
+    recover_party = TestCmd.new(314, [0])
+    action = TestPage.new(:trigger => 0, :sprite => "HGSS_135", :list => [center, greeting, recover_party])
+    inactive = TestPage.new(:trigger => 0, :sprite => "HGSS_135", :list => [greeting])
+    automatic = TestPage.new(:trigger => 3, :sprite => "HGSS_135", :list => [center, greeting, recover_party])
+    with_healing_spot([1, 5, 5]) do
+      attendant = event(21, "HGSS_135", [center, greeting, recover_party])
+      healer = event(22, "HGSS_135", [center, TestCmd.new(355, ["Kernel.pbHealAll()"])])
+      named = TestGameEvent.new(:id => 23, :name => "Nurse Mollie", :pages => [action])
+      idle = TestGameEvent.new(:id => 24, :name => "EV024", :pages => [action, inactive], :active_page => inactive)
+      cutscene = TestGameEvent.new(:id => 25, :name => "EV025", :pages => [automatic])
+      note = event(26, "HGSS_135", [TestCmd.new(355, ["# pbSetPokemonCenter"]), greeting, recover_party])
+      one = event(27, "HGSS_135", [center, TestCmd.new(314, [2])])
+      floor = event(28, "", [center, recover_party])
+      assert_equal [t(:loc_healing_attendant)] * 2 + ["Nurse Mollie"] + ["HGSS_135"] * 4 + [t(:loc_object)],
+                   [attendant, healer, named, idle, cutscene, note, one, floor].map { |ev| locator.target_name(ev) }
+    end
+  end
+
+  test "who heals and sets the return point outside a Pokemon Centre keeps the name it has" do
+    center = TestCmd.new(355, ["Kernel.pbSetPokemonCenter"])
+    recover_party = TestCmd.new(314, [0])
+    battle = TestCmd.new(111, [12, 'pbTrainerBattle(PBTrainers::LEADER_Roxanne,"Maria")'])
+    kit = event(31, "HealBell", [center, recover_party])
+    leader = event(32, "PU-Maria", [battle, TestCmd.new(355, ["Kernel.pbSetPokemonCenter(43,8,13,8)"]), recover_party])
+    inn = event(33, "HGSS_129", [center, recover_party])
+    assert_equal ["HealBell", "PU-Maria"], [kit, leader].map { |ev| locator.target_name(ev) }
+    with_healing_spot([0, 0, 0]) { assert_equal "HGSS_129", locator.target_name(inn) }
+  end
+
   test "a door to a map with no name is an exit, unless the door has a name of its own" do
     doors = { World.event(:kind => :door, :id => 3) => t(:loc_exit),
               World.event(:kind => :door, :id => 4, :name => "Puerta") => t(:loc_exit),
@@ -705,6 +737,13 @@ class LocatorNamingTest < PokeAccessTest
   # A spoken text by its key.
   def t(key, vars = nil)
     PokeAccess::I18n.t(key, vars)
+  end
+
+  # Runs the block with the map the player is on declaring spot as its healing spot, as a Pokemon Centre's metadata
+  # does.
+  def with_healing_spot(spot)
+    meta = lambda { |mid, idx| idx == PokeAccess::MapMeta::HEALING_SPOT && mid == $game_map.map_id ? spot : nil }
+    GameFunctions.with(:pbGetMetadata => meta) { yield }
   end
 
   # An action-button event on the map drawn with sprite and running list.

@@ -117,17 +117,17 @@ herolegacy|pbStrength|0244_Overworld_FieldMoves.rb:634|||STRENGTH
 herolegacy|pbSurf|0244_Overworld_FieldMoves.rb:685|||SURF
 herolegacy|pbWaterfall|0244_Overworld_FieldMoves.rb:926|||WATERFALL
 infinitefusion|pbCut|012_Overworld/004_Overworld_FieldMoves.rb:191|||CUT,MACHETE
-infinitefusion|pbDive|012_Overworld/004_Overworld_FieldMoves.rb:327|||DIVE,SCUBAGEAR
-infinitefusion|pbRockSmash|012_Overworld/004_Overworld_FieldMoves.rb:707|||PICKAXE,ROCKSMASH
-infinitefusion|pbStrength|012_Overworld/004_Overworld_FieldMoves.rb:753|||LEVER,STRENGTH
-infinitefusion|pbSurf|012_Overworld/004_Overworld_FieldMoves.rb:804|||SURF,SURFBOARD
-infinitefusion|pbWaterfall|012_Overworld/004_Overworld_FieldMoves.rb:1117|||JETPACK,WATERFALL
+infinitefusion|pbDive|012_Overworld/004_Overworld_FieldMoves.rb:421|||DIVE,SCUBAGEAR
+infinitefusion|pbRockSmash|012_Overworld/004_Overworld_FieldMoves.rb:851|||PICKAXE,ROCKSMASH
+infinitefusion|pbStrength|012_Overworld/004_Overworld_FieldMoves.rb:903|||LEVER,STRENGTH
+infinitefusion|pbSurf|012_Overworld/004_Overworld_FieldMoves.rb:959|||SURF,SURFBOARD
+infinitefusion|pbWaterfall|012_Overworld/004_Overworld_FieldMoves.rb:1448|||JETPACK,WATERFALL
 infinitefusion_hoenn|pbCut|012_Overworld/004_Overworld_FieldMoves.rb:191|||CUT,MACHETE
-infinitefusion_hoenn|pbDive|012_Overworld/004_Overworld_FieldMoves.rb:330|||DIVE,SCUBAGEAR
-infinitefusion_hoenn|pbRockSmash|012_Overworld/004_Overworld_FieldMoves.rb:751|||PICKAXE,ROCKSMASH
-infinitefusion_hoenn|pbStrength|012_Overworld/004_Overworld_FieldMoves.rb:803|||LEVER,STRENGTH
-infinitefusion_hoenn|pbSurf|012_Overworld/004_Overworld_FieldMoves.rb:859|||SURF,SURFBOARD
-infinitefusion_hoenn|pbWaterfall|012_Overworld/004_Overworld_FieldMoves.rb:1297|||JETPACK,WATERFALL
+infinitefusion_hoenn|pbDive|012_Overworld/004_Overworld_FieldMoves.rb:421|||DIVE,SCUBAGEAR
+infinitefusion_hoenn|pbRockSmash|012_Overworld/004_Overworld_FieldMoves.rb:852|||PICKAXE,ROCKSMASH
+infinitefusion_hoenn|pbStrength|012_Overworld/004_Overworld_FieldMoves.rb:904|||LEVER,STRENGTH
+infinitefusion_hoenn|pbSurf|012_Overworld/004_Overworld_FieldMoves.rb:960|||SURF,SURFBOARD
+infinitefusion_hoenn|pbWaterfall|012_Overworld/004_Overworld_FieldMoves.rb:1449|||JETPACK,WATERFALL
 insurgence|pbCut|088_PokemonHiddenMoves.rb:272|||CUT,switch:6
 insurgence|pbDive|088_PokemonHiddenMoves.rb:1062|||DIVE,SCUBAGEAR
 insurgence|pbRockSmash|088_PokemonHiddenMoves.rb:402|||PICKAXE,ROCKSMASH,switch:10
@@ -223,6 +223,13 @@ sevii|pbRockSmash|0104_PField_HiddenMoves.rb:407|||ROCKSMASH
 sevii|pbStrength|0104_PField_HiddenMoves.rb:457|||STRENGTH
 sevii|pbSurf|0199_Following Pokémon.rb:871|||SURF,switch:Following_Activated_Switch
 sevii|pbWaterfall|0104_PField_HiddenMoves.rb:738|||WATERFALL
+solarlight|pbCut|0116_PField_FieldMoves.rb:192|||CLIPPERS,CUT
+solarlight|pbDive|0116_PField_FieldMoves.rb:310|||DIVE,SNORKLE
+solarlight|pbRockSmash|0116_PField_FieldMoves.rb:648|||HAMMER,ROCKSMASH
+solarlight|pbStrength|0116_PField_FieldMoves.rb:702|||STRENGTH,STRENGTHGLOVES
+solarlight|pbSurf|0116_PField_FieldMoves.rb:768|||SURF,SURFBOARD
+solarlight|pbSurf|0216_Following Pokemon.rb:866|||SURF,SURFBOARD,switch:Following_Activated_Switch
+solarlight|pbWaterfall|0116_PField_FieldMoves.rb:1033|||BOARDMOTOR,WATERFALL
 soulstones1|pbCut|0117_PField_FieldMoves.rb:192|||CUT
 soulstones1|pbCut|0236_HM_Items.rb:74|||CUT,CUTITEM
 soulstones1|pbDive|0117_PField_FieldMoves.rb:299|||DIVE
@@ -248,11 +255,11 @@ soulstones2|pbSurf|_PluginScripts/[Edited] Advanced Items Field Moves/03_Item Ha
 soulstones2|pbWaterfall|012_Overworld/004_Overworld_FieldMoves.rb:992|||WATERFALL
 soulstones2|pbWaterfall|_PluginScripts/[Edited] Advanced Items Field Moves/03_Item Handler.rb:1068|||
 uranium|pbCut|0103__ PField_HiddenMoves.rb:272|||CUT
-uranium|pbDive|0103__ PField_HiddenMoves.rb:820|||DIVE,SCUBAGEAR
+uranium|pbDive|0103__ PField_HiddenMoves.rb:825|||DIVE,SCUBAGEAR
 uranium|pbRockSmash|0103__ PField_HiddenMoves.rb:385|||BOXINGGLOVES,ROCKSMASH
-uranium|pbStrength|0103__ PField_HiddenMoves.rb:497|||POWERCELL,POWERGLOVE,STRENGTH
-uranium|pbSurf|0103__ PField_HiddenMoves.rb:575|||SURF,SURFBOARD
-uranium|pbWaterfall|0103__ PField_HiddenMoves.rb:754|||CLIMBINGPICK,WATERFALL
+uranium|pbStrength|0103__ PField_HiddenMoves.rb:501|||POWERCELL,POWERGLOVE,STRENGTH
+uranium|pbSurf|0103__ PField_HiddenMoves.rb:579|||SURF,SURFBOARD
+uranium|pbWaterfall|0103__ PField_HiddenMoves.rb:759|||CLIMBINGPICK,WATERFALL
 vitro|pbCut|0121_PField_HiddenMoves.rb:270|||SLASH
 vitro|pbCut|0318_MO Mejoradas.rb:114|||EMBER,SLASH
 vitro|pbDive|0121_PField_HiddenMoves.rb:821|||DIVE
@@ -271,6 +278,13 @@ worldfrontier|pbSurf|_PluginScripts/Cambios en LBDS/008_MOs.rb:58|||SURF
 worldfrontier|pbSurf|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:6||__followingpkmn__pbSurf|SURF
 worldfrontier|pbWaterfall|0255_Overworld_FieldMoves.rb:932|||WATERFALL
 worldfrontier|pbWaterfall|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:177||__followingpkmn__pbWaterfall|WATERFALL
+xenoverse|pbCut|0085_PField_HiddenMoves.rb:269|||CUT
+xenoverse|pbDive|0085_PField_HiddenMoves.rb:777|||DIVE
+xenoverse|pbRockSmash|0085_PField_HiddenMoves.rb:381|||ROCKSMASH
+xenoverse|pbStrength|0085_PField_HiddenMoves.rb:431|||STRENGTH
+xenoverse|pbSurf|0085_PField_HiddenMoves.rb:490|||SURF
+xenoverse|pbSurf|0153_PokemonFollow.rb:706|||SURF
+xenoverse|pbWaterfall|0085_PField_HiddenMoves.rb:719|||WATERFALL
 z218|pbCut|102_PField_HiddenMoves.rb:269|||CUT
 z218|pbDive|102_PField_HiddenMoves.rb:705|||DIVE
 z218|pbRockSmash|102_PField_HiddenMoves.rb:381|||ROCKSMASH

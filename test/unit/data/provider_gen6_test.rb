@@ -133,6 +133,31 @@ class ProviderGen6Test < PokeAccessTest
     end
   end
 
+  test "names a species, item or move asked by its symbol, as a profile writes it, through its PB* constant" do
+    by_number = lambda do |id|
+      raise TypeError, "no implicit conversion of #{id.class} into Integer" unless id.is_a?(Integer)
+      "N#{id}"
+    end
+    with_consts(PBSpecies, :MEW => 151) do
+      with_consts(PBItems, :LIBRO1 => 600) do
+        with_consts(PBMoves, :SURF => 57) do
+          GameFunctions.with(:getID => GEN6_GET_ID) do
+            with_singleton(PBSpecies, :getName, by_number) do
+              with_singleton(PBItems, :getName, by_number) do
+                with_singleton(PBMoves, :getName, by_number) do
+                  assert_equal %w[N151 N600 N57 N151],
+                               [LAYER.species_name(:MEW), LAYER.item_name(:LIBRO1), LAYER.move_name("SURF"),
+                                LAYER.species_name(151)]
+                  assert_nil LAYER.species_name(:NOTASPECIES)
+                end
+              end
+            end
+          end
+        end
+      end
+    end
+  end
+
   test "boots the toolkit with its core submodules defined" do
     assert_equal [], CORE.reject { |m| PokeAccess.const_defined?(m) }
   end

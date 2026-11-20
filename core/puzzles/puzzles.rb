@@ -46,15 +46,17 @@ module PokeAccess
       PokeAccess.speak(line, false) if !line.empty? && (!use[:assist] || assist?)
     end
 
-    # A room's rule on arriving, when descriptions are on; with :once just the first time this session, as a room may reload
-    # with each try.
+    # A room's rule on arriving, when descriptions are on; with :once just the first time this session it says something,
+    # as a room may reload with each try.
     def self.say_arrival(spec)
       return unless PokeAccess::Verbosity.descriptions?
       key = [$game_map.map_id, spec[:arrival_hint]]
       @told ||= {}
       return if spec[:arrival_once] && @told[key]
+      line = label_of(spec[:arrival_hint])
+      return if line.empty?
       @told[key] = true
-      PokeAccess.speak(label_of(spec[:arrival_hint]), false)
+      PokeAccess.speak(line, false)
     end
 
     # True while a puzzle of the current map answers the info key.
@@ -127,16 +129,45 @@ module PokeAccess
       ev ? PokeAccess::Routes::Controls.plate?(ev) : false
     end
 
+    # With the assist, the way a mechanic of the map plans to target t itself (its way block, given whether t is stood
+    # on, onto), the first one given, marked :puzzle_way in its stats for the guides to plan it again at each tile; nil
+    # otherwise, or when a block fails, for the routes.
+    def self.way_plan(t, onto)
+      return nil unless assist?
+      PokeAccess::World::Mechanics.instances.each do |inst|
+        blk = inst.spec[:way]
+        plan = blk && blk.call(t, onto)
+        next unless plan
+        plan.stats = (plan.stats || {}).dup.merge!(:puzzle_way => true)
+        return plan
+      end
+      nil
+    rescue StandardError => e
+      PokeAccess.log_once("puzzle_way", e)
+      nil
+    end
+
+    # The names of what the puzzles category lists on (x, y) (category_targets: the mechanics' spots, cells, statues,
+    # controls and named events, and the map's silent controls), each once: what the free camera adds of a tile
+    # (Camera.tile_reader).
+    def self.names_at(x, y)
+      loc = PokeAccess::Locator
+      names = category_targets.select { |t| t.x == x && t.y == y }
+      names.map { |t| (t.is_a?(loc::SurfaceTarget) ? t.name : loc.target_name(t)).to_s }.reject { |n| n.empty? }.uniq
+    end
+
     # True when the puzzles category has something to list.
     def self.has_locator_targets?
       !category_targets.empty?
     end
 
     # The locator's puzzles category: what each mechanic of the map lists, then what the map holds by itself (Auto.targets)
-    # that they do not list already.
+    # that they do not list already, a grouped name's members included.
     def self.category_targets
-      own = PokeAccess::World::Mechanics.instances.map { |inst| targets_of(inst) }.flatten
+      insts = PokeAccess::World::Mechanics.instances
+      own = insts.map { |inst| targets_of(inst) }.flatten
       refs = own.map { |t| t.is_a?(PokeAccess::Locator::SurfaceTarget) ? t.ref : t.id }
+      refs.concat(insts.map { |inst| shown_names(inst).select { |p, _t| p.grouped }.map { |p, _t| p.ev.id } }.flatten)
       own + Auto.targets.reject { |t| refs.include?(t.ref) }
     end
 
@@ -152,19 +183,40 @@ module PokeAccess
       own + named_targets(inst)
     end
 
-    # The events a mechanic's names list and no other role does, by that name.
+    # The events a mechanic's names list and no other role does, by that name: those of a grouped name that touch (eight
+    # ways) and read the same, as one target on the middle one.
     def self.named_targets(inst)
-      mech = PokeAccess::World::Mechanics
-      mech.pieces_in(inst, :named).reject { |p| (p.assist && !assist?) || (!p.listed.nil? && !mech.truth(p.listed, p.ev)) }.map do |p|
-        PokeAccess::Locator::SurfaceTarget.new(p.ev.x, p.ev.y, label_of(p.label), :puzzle_control, p.ev.id)
+      named = shown_names(inst)
+      loose = named.reject { |p, _t| p.grouped }
+      rows = named.select { |p, _t| p.grouped }
+      groups = PokeAccess::Util.union_groups(rows.length) do |a, b|
+        pa, ta = rows[a]
+        pb, tb = rows[b]
+        ta == tb && (pa.ev.x - pb.ev.x).abs <= 1 && (pa.ev.y - pb.ev.y).abs <= 1
+      end
+      middles = groups.map do |idxs|
+        members = idxs.map { |i| rows[i] }.sort_by { |p, _t| [p.ev.x, p.ev.y] }
+        members[(members.length - 1) / 2]
+      end
+      (loose + middles).map do |p, text|
+        PokeAccess::Locator::SurfaceTarget.new(p.ev.x, p.ev.y, text, :puzzle_control, p.ev.id)
       end
     end
 
-    # True when a mechanic of the map leaves an event out of the lists (hide).
+    # A mechanic's named pieces listed now, each with its name: none whose assist is off, whose :when fails or whose label
+    # answers nothing.
+    def self.shown_names(inst)
+      mech = PokeAccess::World::Mechanics
+      shown = mech.pieces_in(inst, :named).reject { |p| (p.assist && !assist?) || (!p.listed.nil? && !mech.truth(p.listed, p.ev)) }
+      shown.map { |p| [p, label_of(p.label)] }.reject { |_p, text| text.empty? }
+    end
+
+    # True when a mechanic of the map leaves an event out of the lists (hide), while its :when holds if it has one.
     def self.hidden_event?(ev)
-      PokeAccess::World::Mechanics.instances.any? do |inst|
+      mechanics = PokeAccess::World::Mechanics
+      mechanics.instances.any? do |inst|
         (inst.spec[:hides] || []).any? do |h|
-          (!h[:assist] || assist?) && PokeAccess::World::Mechanics.picks?(h[:events], ev)
+          (!h[:assist] || assist?) && (h[:when].nil? || mechanics.truth(h[:when], ev)) && mechanics.picks?(h[:events], ev)
         end
       end
     end
@@ -401,18 +453,22 @@ module PokeAccess
       label ? label_of(label) : PokeAccess::I18n.t(:obstacle_near)
     end
 
-    # The name a mechanic's declaration gives an event, a wall or one it names, or nil.
+    # The name a mechanic's declaration gives an event, a wall or one it names, or nil: also nil while a label lambda
+    # answers nothing, which leaves the event its own name.
     def self.piece_name(ev)
       piece = PokeAccess::World::Mechanics.piece_of(ev)
       return nil unless piece && piece.label && (piece.role == :obstacle || piece.named)
-      piece.assist && !assist? ? nil : label_of(piece.label)
+      return nil if piece.assist && !assist?
+      text = label_of(piece.label)
+      text.empty? ? nil : text
     end
 
     # A mechanic's controls as targets, by their watch label or name, then its walls clustered.
     def self.control_targets(inst)
       mech = PokeAccess::World::Mechanics
-      ctrls = mech.pieces_in(inst, :control).select { |p| p.listed.nil? || mech.truth(p.listed, p.ev) }.map do |p|
-        PokeAccess::Locator::SurfaceTarget.new(p.ev.x, p.ev.y, label_of(p.label), :puzzle_control, p.ev.id)
+      listed = mech.pieces_in(inst, :control).select { |p| p.listed.nil? || mech.truth(p.listed, p.ev) }
+      ctrls = listed.map { |p| [p, label_of(p.label)] }.reject { |_p, text| text.empty? }.map do |p, text|
+        PokeAccess::Locator::SurfaceTarget.new(p.ev.x, p.ev.y, text, :puzzle_control, p.ev.id)
       end
       ctrls + cluster_walls(mech.pieces_in(inst, :obstacle).reject { |p| p.moving }.map { |p| p.ev })
     end

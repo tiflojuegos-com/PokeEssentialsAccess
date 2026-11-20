@@ -32,6 +32,8 @@ module PokeAccess
 
         def hit?(x, y, moved = nil); @goal.hit?(x, y, moved); end
 
+        def entry; @goal.entry; end
+
         def bound(x, y, moved = nil, lvl = nil)
           @left[PokeAccess::Pathfinder.skey(x, y, lvl)] || @goal.bound(x, y, moved)
         end
@@ -50,6 +52,9 @@ module PokeAccess
           @box = box
           @info = info
         end
+
+        # No tile a move steps onto ends it (Goal#entry): its end is where the boulder is.
+        def entry; nil; end
 
         # True when the boulder, where the moved boulders have it, is inside the box.
         def hit?(_cx, _cy, moved = [])
@@ -152,7 +157,7 @@ module PokeAccess
         rocks = Effects.boulder_index
         return nil if rocks.empty?
         walk = goal.is_a?(Goal) && !(PokeAccess::Config.edge_relax rescue false) ? Regions.assisted : nil
-        left = walk && walk.presses_back(goal.tiles, {}, 0)
+        left = walk && walk.presses_back(goal.tiles, {}, 0, goal.entry)
         pf = PokeAccess::Pathfinder
         pf.with_gates_open do
           PokeAccess::World::Probe.lend_through(rocks.values.map { |r| r[0] }) do
@@ -173,7 +178,8 @@ module PokeAccess
         return search(goal, rocks) unless goal.is_a?(Goal)
         return search(goal, rocks) { goal } unless left
         search(WalkedGoal.new(goal, left), rocks) do
-          WalkedGoal.new(goal, walk.presses_back(goal.tiles, rocks, 1 + PokeAccess::Pathfinder::GATE_COST) || left)
+          price = 1 + PokeAccess::Pathfinder::GATE_COST
+          WalkedGoal.new(goal, walk.presses_back(goal.tiles, rocks, price, goal.entry) || left)
         end
       end
 
@@ -183,9 +189,9 @@ module PokeAccess
       def self.sealed?(walk, goal, rocks)
         return false unless walk.sure_no? && rocks.values.none? { |r| r[3] }
         can = lambda { |rock, x, y, dir| pushes?(x, y, dir, rock, [], { rock => rocks[rock] }) }
-        moving = walk.past_boulders(goal.tiles, rocks, {}, limit > 1, &can)
+        moving = walk.past_boulders(goal.tiles, rocks, {}, limit > 1, goal.entry, &can)
         return false unless moving
-        limit > 1 || moving.keys.all? { |rock| walk.past_boulders(goal.tiles, rocks, { rock => true }, false) }
+        limit > 1 || moving.keys.all? { |rock| walk.past_boulders(goal.tiles, rocks, { rock => true }, false, goal.entry) }
       end
 
       # How many boulders a route may move: with the puzzle assist on, which plans a puzzle room for the player, up to
@@ -196,9 +202,11 @@ module PokeAccess
 
       # A best-first search over the packed states, priced in presses (a push, pull or other assisted step GATE_COST
       # more), estimated by goal.bound (a state at FAR left out): an A*, or with a block one for EXACT states that goes on
-      # by the goal the block gives at WEIGHT times its estimate. The player moves as a route on foot replays.
+      # by the goal the block gives at WEIGHT times its estimate. The player moves as a route on foot replays, and a move
+      # onto the goal's entry ends a route of its own (state -1) as there.
       def self.search(goal, rocks)
         pf = PokeAccess::Pathfinder
+        aim = goal.entry
         px = $game_player.x; py = $game_player.y
         mode = pf.replay_mode
         limits = pf.limits
@@ -210,6 +218,7 @@ module PokeAccess
         closed = {}
         heap = []
         iter = 0
+        @priced = Moves.costed?
         pf.heap_push(heap, [goal.bound(px, py, [], start[3]), 0, sk])
         weight = 1
         until heap.empty?
@@ -224,11 +233,17 @@ module PokeAccess
           k = pf.heap_pop(heap)[2]
           next if closed[k]
           closed[k] = true
+          return cut(came, k) if k < 0
           cx, cy, moved, lvl = states[k]
           return cut(came, k) if goal.hit?(cx, cy, moved)
           pf.use_level(lvl)
           DIRS.each do |dir|
-            moves_from(cx, cy, dir, moved, rocks, lvl, mode).each do |nst, step, cost|
+            moves_from(cx, cy, dir, moved, rocks, lvl, mode).each do |nst, step, cost, entry|
+              if entry && entry == aim && (g[-1].nil? || g[k] + cost < g[-1])
+                g[-1] = g[k] + cost
+                came[-1] = [k, [step[0], step[1], step[2], false]]
+                pf.heap_push(heap, [g[-1], 0, -1])
+              end
               nk = pack(nst)
               next if closed[nk]
               ng = g[k] + cost
@@ -245,9 +260,11 @@ module PokeAccess
         nil
       end
 
-      # The frontier ordered afresh by goal's estimate at WEIGHT; sorted, it is a heap.
+      # The frontier ordered afresh by goal's estimate at WEIGHT, a route's end (state -1) at its cost; sorted, it is a
+      # heap.
       def self.reweighed(heap, goal, states, g)
         fresh = heap.map do |e|
+          next [g[-1], 0, -1] if e[2] < 0
           st = states[e[2]]
           [g[e[2]] + goal.bound(st[0], st[1], st[2], st[3]) * WEIGHT, 0, e[2]]
         end
@@ -255,15 +272,17 @@ module PokeAccess
       end
 
       # The moves from (cx,cy) at bridge level lvl toward dir with the boulders where moved has them, each as [state,
-      # [direction, presses, gate, transfer], cost]: a push or a pull of the boulder in front, else a move of
-      # Moves.step, whose slides and hops stop at the boulders where the state has them though they are lent through.
+      # [direction, presses, gate, transfer], cost, entry (Moves::Step#entry)]: a push or a pull of the boulder in front,
+      # else a move of Moves.step, whose slides and hops stop at the boulders where the state has them though they are
+      # lent through, paying the tiles it crosses on a map where they cost (Moves.costed?, asked as the search starts).
       def self.moves_from(cx, cy, dir, moved, rocks, lvl, mode)
         rock = rock_at(cx + dir[0], cy + dir[1], moved, rocks)
         return [push(cx, cy, dir, rock, moved, rocks, lvl), pull(cx, cy, dir, rock, moved, rocks, lvl)].compact if rock
         t = Moves.with_rocks(lambda { |x, y| rock_at(x, y, moved, rocks) }) { Moves.step(cx, cy, lvl, dir, mode) }
         return [] if t.nil? || rock_at(t.x, t.y, moved, rocks)
+        extra = @priced ? Moves.crossed_extra(cx, cy, t.x, t.y, dir, t.level, Moves.relocated?(t)) : 0
         [[[t.x, t.y, moved, t.level], [dir[2], t.presses, t.gate, t.warp],
-          t.presses + (t.gate ? PokeAccess::Pathfinder::GATE_COST : 0)]]
+          t.presses + extra + (t.gate ? PokeAccess::Pathfinder::GATE_COST : 0), t.entry]]
       end
 
       # Pushing the boulder rock in front of (cx,cy) along dir, to where that leaves it: the move, or nil where the game

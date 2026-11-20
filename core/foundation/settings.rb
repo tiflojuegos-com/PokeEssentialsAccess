@@ -61,7 +61,7 @@ module PokeAccess
     # moved off their defaults, so a later default change still reaches every player.
     def self.render
       out = "# Configuracion del mod de accesibilidad\n" \
-            "# volumenes 0-100; sound_nav off/basic/full; hide_unreachable off/unreachable/room; " \
+            "# volumenes 0-100; sound_nav off/basic/full; hide_unreachable off/unreachable/room/other_rooms; " \
             "route_limit effort/time/none; language auto o es/en/fr/pt/de/pl\n"
       PokeAccess::Config.settings.each { |s| out << "#{s.key}=#{PokeAccess::Config.send(s.key)}\n" }
       out << "# remap de controles (accion=codigo de tecla virtual de Windows, mas 4608 si es con Alt)\n"

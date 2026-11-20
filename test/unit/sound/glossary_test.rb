@@ -5,7 +5,7 @@ class GlossaryTest < PokeAccessTest
   # The config menu's state a test moves, put back after it.
   MENU_STATE = [:@mode, :@index, :@stack, :@armed, :@items, :@items_key]
   # Every sound of the catalog, in the order the glossary lists them.
-  LISTED = [:npc, :object, :door, :teleporter, :mark, :control, :belt, :push, :exit, :trap, :hazard, :water, :shore,
+  LISTED = [:npc, :object, :door, :teleporter, :mark, :control, :belt, :push, :exit, :scene, :trap, :hazard, :water, :shore,
             :wind_n, :wind_e, :wind_s, :wind_w, :wall, :interact, :bump, :step, :grass, :fstep_water, :guide,
             :guide_hold, :jump, :ledge, :radar, :minigame, :grid]
 

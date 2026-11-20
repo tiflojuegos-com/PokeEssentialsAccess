@@ -369,9 +369,9 @@ class PushSearchTest < PokeAccessTest
   def looked
     prices = []
     orig = Regions.instance_method(:presses_back)
-    Regions.send(:define_method, :presses_back) do |tiles, dear, price|
+    Regions.send(:define_method, :presses_back) do |tiles, dear, price, *rest|
       prices.push(price)
-      orig.bind(self).call(tiles, dear, price)
+      orig.bind(self).call(tiles, dear, price, *rest)
     end
     yield
     prices

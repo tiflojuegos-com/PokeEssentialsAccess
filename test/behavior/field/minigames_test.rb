@@ -47,9 +47,11 @@ class MinigamesTest < PokeAccessTest
   end
 
   # The tile puzzle (the game's TilePuzzleScene): tiles[pos] the piece on each square, past width x height the reserve,
-  # angles[piece] its quarter turns, @heldtile the piece in hand (-1 for none); solved as the game checks it.
+  # angles[piece] its quarter turns, @heldtile the piece in hand (-1 for none), @game its mode (none given: unknown);
+  # solved as the game checks it.
   class TileScene
     def initialize(tiles, opts = {})
+      @game = opts[:game]
       @boardwidth = opts.fetch(:width, 2)
       @boardheight = opts.fetch(:height, 2)
       @tiles = tiles
@@ -386,6 +388,220 @@ class MinigamesTest < PokeAccessTest
     assert_nothing_spoken
   end
 
+  test "the Mystic Square's hole is said as an empty square, on the cursor and on the board" do
+    scene = TileScene.new([0, 1, 3, 2], :game => 3, :at => 2)
+    Minigames.tile_puzzle(scene)
+    assert_equal ["#{t(:mg_rowcol, :row => 2, :col => 1)}, #{t(:tp_empty)}"], SpeakCapture.lines
+    assert_equal [t(:tp_board_row, :n => 1, :cells => "#{t(:tp_tile, :n => 1)} #{t(:tp_placed)}, #{t(:tp_tile, :n => 2)} #{t(:tp_placed)}"),
+                  t(:tp_board_row, :n => 2, :cells => "#{t(:tp_empty)}, #{t(:tp_tile, :n => 3)}"),
+                  t(:tp_wrong, :n => 1)].join(". "), PokeAccess::Info.info_text
+  end
+
+  test "with the help, the Ruins of Alph says to pick up the lowest piece not home, from the cursor's way" do
+    PokeAccess::Config.puzzle_assist = true
+    scene = TileScene.new([-1, -1, -1, -1, 2, 0, 3, 1], :game => 1)
+    assert_equal [:tp_take, 5, { :tile => 1 }], plan_of(scene)
+    Minigames.tile_puzzle(scene)
+    move = "#{t(:tp_go, :where => Minigames.tp_where(2, 2, 5))}, #{t(:tp_take, :tile => 1, :key => key_c)}"
+    assert_equal ["#{t(:mg_rowcol, :row => 1, :col => 1)}, #{t(:tp_empty)}, #{t(:tp_next, :move => move)}"],
+                 SpeakCapture.lines
+    assert PokeAccess::Info.info_text.end_with?(t(:tp_next, :move => move)), "the info key ends on the next move"
+  end
+
+  test "with the help, the piece in hand is turned straight first, then put on its square" do
+    PokeAccess::Config.puzzle_assist = true
+    turned = TileScene.new([0, -1, -1, -1, -1, 2, 3, -1], :game => 2, :held => 1, :angles => [0, 2, 0, 0])
+    assert_equal [:tp_turn, nil, { :tile => 2, :n => 2 }], plan_of(turned)
+    straight = TileScene.new([0, -1, -1, -1, -1, 2, 3, -1], :game => 2, :held => 1, :at => 1)
+    assert_equal [:tp_drop, 1, { :tile => 2 }], plan_of(straight, 1)
+    Minigames.tile_puzzle(turned)
+    assert_includes SpeakCapture.lines.last, t(:tp_next, :move => t(:tp_turn, :tile => 2, :n => 2, :key => key_a))
+  end
+
+  test "with the help, a piece home but turned is turned where it lies" do
+    PokeAccess::Config.puzzle_assist = true
+    { 2 => [0, 1, 2, 3, -1, -1, -1, -1], 5 => [0, 1, 2, 3] }.each do |game, tiles|
+      assert_equal [:tp_turn, 0, { :tile => 1, :n => 3 }], plan_of(TileScene.new(tiles, :game => game, :angles => [3, 0, 0, 0])),
+                   "game #{game}"
+    end
+  end
+
+  test "with the help, a swap puzzle moves the lowest piece not home along its row, then up into place" do
+    PokeAccess::Config.puzzle_assist = true
+    { [4, 1, 2, 3, 0, 5, 6, 7, 8] => [4, 1, 4], [0, 3, 2, 1, 4, 5, 6, 7, 8] => [3, 2, 6],
+      [3, 1, 2, 0, 4, 5, 6, 7, 8] => [3, 1, 8] }.each do |tiles, (at, piece, dir)|
+      assert_equal [:tp_swap, at, { :tile => piece, :dir => dir }],
+                   plan_of(TileScene.new(tiles, :game => 4, :width => 3, :height => 3)), tiles.inspect
+    end
+    scene = TileScene.new([4, 1, 2, 3, 0, 5, 6, 7, 8], :game => 4, :width => 3, :height => 3, :at => 4)
+    Minigames.tile_puzzle(scene)
+    swap = t(:tp_swap, :tile => 1, :key => key_c, :arrow => t(:key_arrow_left))
+    assert_equal ["#{t(:mg_rowcol, :row => 2, :col => 2)}, #{t(:tp_tile, :n => 1)}, #{t(:tp_home, :row => 1, :col => 1)}, "                   "#{t(:tp_next, :move => swap)}"],
+                 SpeakCapture.lines
+  end
+
+  test "following the help solves a shuffled swap puzzle, turns and all" do
+    PokeAccess::Config.puzzle_assist = true
+    tiles = [7, 3, 8, 0, 5, 1, 6, 2, 4]
+    scene = TileScene.new(tiles, :game => 5, :width => 3, :height => 3, :angles => [1, 0, 3, 2, 0, 0, 1, 0, 2])
+    assert_operator follow(scene, 3, 3, 60), :<=, 60
+  end
+
+  test "with the help, the Mystic Square says which arrow slides which piece into the hole" do
+    PokeAccess::Config.puzzle_assist = true
+    scene = TileScene.new([0, 1, 2, 3, 4, 5, 6, 8, 7], :game => 3, :width => 3, :height => 3, :at => 7)
+    assert_equal [:tp_slide, nil, { :dir => 6, :tile => 8 }], plan_of(scene, 7)
+    Minigames.tile_puzzle(scene)
+    slide = t(:tp_slide, :tile => 8, :key => key_c, :arrow => t(:key_arrow_right))
+    assert_equal ["#{t(:mg_rowcol, :row => 3, :col => 2)}, #{t(:tp_empty)}, #{t(:tp_next, :move => slide)}"],
+                 SpeakCapture.lines
+  end
+
+  test "following the help solves a scrambled four by four Mystic Square" do
+    PokeAccess::Config.puzzle_assist = true
+    tiles = (0...16).to_a
+    hole = 15
+    seed = 11
+    300.times do
+      seed = (seed * 1103515245 + 12345) % 2147483648
+      q = Minigames.tp_step(4, 4, hole, [2, 4, 6, 8][seed / 65536 % 4])
+      next unless q
+      tiles[hole], tiles[q] = tiles[q], tiles[hole]
+      hole = q
+    end
+    assert_operator follow(TileScene.new(tiles, :game => 3, :width => 4, :height => 4), 4, 4, 400), :<=, 400
+  end
+
+  test "with the help, the Rubik's square says which row or column to shift, and to reach it first" do
+    PokeAccess::Config.puzzle_assist = true
+    scene = TileScene.new([2, 0, 1, 3, 4, 5, 6, 7, 8], :game => 6, :width => 3, :height => 3, :at => 4)
+    assert_equal [:tp_shift_row, [:row, 0], { :n => 1, :dir => 4 }], plan_of(scene, 4)
+    Minigames.tile_puzzle(scene)
+    move = "#{t(:tp_go_row, :n => 1)}, #{t(:tp_shift_row, :n => 1, :key => key_c, :arrow => t(:key_arrow_left))}"
+    assert_includes SpeakCapture.lines.last, t(:tp_next, :move => move)
+  end
+
+  test "the search runs once per board: the frames after reuse it, a move starts a new one" do
+    PokeAccess::Config.puzzle_assist = true
+    scene = TileScene.new([2, 0, 1, 3, 4, 5, 6, 7, 8], :game => 6, :width => 3, :height => 3)
+    plan_of(scene)
+    job = scene.instance_variable_get(:@pa_tp_job)[2]
+    3.times { Minigames.tp_plan(scene, 0) }
+    assert_same job, scene.instance_variable_get(:@pa_tp_job)[2], "the same board"
+    scene.instance_variable_get(:@tiles).replace([1, 2, 0, 3, 4, 5, 6, 7, 8])
+    Minigames.tp_plan(scene, 0)
+    refute_same job, scene.instance_variable_get(:@pa_tp_job)[2], "after a shift"
+  end
+
+  test "following the help undoes the game's five random shifts in five moves at most" do
+    PokeAccess::Config.puzzle_assist = true
+    tiles = (0...16).to_a
+    [[6, 1], [2, 3], [4, 0], [8, 2], [6, 3]].each { |dir, line| tiles = Minigames.tp_shift(tiles, 4, 4, dir, line) }
+    assert_operator follow(TileScene.new(tiles, :game => 6, :width => 4, :height => 4), 4, 4, 5), :<=, 5
+  end
+
+  test "with the help, a press puzzle says where to press and how many times, the cursor's square first" do
+    PokeAccess::Config.puzzle_assist = true
+    angles = [0, 3, 0, 3, 3, 3, 0, 3, 0]
+    scene = TileScene.new((0...9).to_a, :game => 7, :width => 3, :height => 3, :angles => angles)
+    assert_equal [:tp_spin, 4, { :n => 3 }], plan_of(scene, 0)
+    Minigames.tile_puzzle(scene)
+    move = "#{t(:tp_go, :where => t(:mg_rowcol, :row => 2, :col => 2))}, #{t(:tp_spin, :n => 3, :key => key_c)}"
+    assert_includes SpeakCapture.lines.last, t(:tp_next, :move => move)
+    two = TileScene.new((0...9).to_a, :game => 7, :width => 3, :height => 3, :angles => [3, 3, 0, 3, 0, 3, 0, 3, 3])
+    assert_equal [:tp_spin, 0, { :n => 3 }], plan_of(two, 4), "the first square that needs presses"
+    assert_equal [:tp_spin, 8, { :n => 3 }], plan_of(two, 8), "the cursor's square, which needs presses"
+  end
+
+  test "following the help straightens a press puzzle turned by the game's five random presses" do
+    PokeAccess::Config.puzzle_assist = true
+    angles = Array.new(16, 0)
+    [5, 0, 15, 6, 5].each do |p|
+      ([p] + [2, 4, 6, 8].map { |d| Minigames.tp_step(4, 4, p, d) }.compact).each { |q| angles[q] = (angles[q] - 1) % 4 }
+    end
+    scene = TileScene.new((0...16).to_a, :game => 7, :width => 4, :height => 4, :angles => angles)
+    assert_operator follow(scene, 4, 4, 15), :<=, 15
+    corner = TileScene.new((0...9).to_a, :game => 7, :width => 3, :height => 3, :angles => [0, 0, 0, 0, 0, 0, 0, 0, 1])
+    assert_operator follow(corner, 3, 3, 27), :<=, 27, "a lone corner, which no press of the top row starts on"
+  end
+
+  test "a board no search takes within its cap says there is no hint" do
+    PokeAccess::Config.puzzle_assist = true
+    { "a Rubik's square not square" => TileScene.new([1, 0, 2, 3, 4, 5], :game => 6, :width => 3, :height => 2),
+      "a press puzzle too wide to chase" => TileScene.new((0...49).to_a, :game => 7, :width => 7, :height => 7,
+                                                           :angles => [1] + Array.new(48, 0)) }.each do |what, scene|
+      SpeakCapture.clear
+      assert_equal :none, plan_of(scene), what
+      Minigames.tile_puzzle(scene)
+      assert SpeakCapture.lines.last.end_with?(t(:tp_no_hint)), what
+    end
+  end
+
+  test "past its cap the search tries weighted searches, and the first that reaches the goal gives the move" do
+    walk = grid_search([300, 0])
+    finish(walk)
+    assert_equal :right, walk.result
+    assert_equal 9, walk.instance_variable_get(:@weight), "the exact and the first weighted searches ran out of states"
+  end
+
+  test "a Rubik's square only a weighted search solves is led to the end by that one path, with no search after it" do
+    PokeAccess::Config.puzzle_assist = true
+    scene = TileScene.new([5, 10, 14, 1, 15, 12, 7, 13, 4, 8, 11, 2, 9, 0, 3, 6], :game => 6, :width => 4, :height => 4)
+    tiles = scene.instance_variable_get(:@tiles)
+    searches = 0
+    moves = 0
+    until scene.pbCheckWin
+      flunk "not solved in 40 moves" if moves >= 40
+      job = Minigames.tp_job(scene, 6, 4, 4, tiles, scene.instance_variable_get(:@angles))
+      searches += 1 if job.is_a?(Minigames::TpSearch)
+      finish(job)
+      _verb, _at, vars = plan_of(scene)
+      tiles.replace(Minigames.tp_shift(tiles, 4, 4, vars[:dir], vars[:n] - 1))
+      moves += 1
+    end
+    assert_equal 1, searches
+    assert_operator moves, :>, 12, "a board the exact search gives up on"
+  end
+
+  test "a search that no weight brings to the goal within the cap ends with no move" do
+    endless = Minigames::TpSearch.new(0, lambda { |n| [[:on, n + 1], [:back, n - 1]] }, lambda { |_n| 1 }, lambda { |n| n })
+    finish(endless)
+    assert_nil endless.result
+    assert_operator endless.instance_variable_get(:@seen).size, :<=, Minigames::TP_NODE_CAP + 2
+  end
+
+  test "without the help no mode says a next move, nor starts a search" do
+    boards = { 1 => [[-1, -1, -1, -1, 2, 0, 3, 1], 2], 2 => [[-1, -1, -1, -1, 2, 0, 3, 1], 2], 3 => [[1, 0, 2, 3], 2],
+               4 => [[1, 0, 2, 3], 2], 5 => [[1, 0, 2, 3], 2], 6 => [[1, 0, 2, 3], 2], 7 => [(0...4).to_a, 2] }
+    boards.each do |game, (tiles, w)|
+      SpeakCapture.clear
+      scene = TileScene.new(tiles, :game => game, :width => w, :height => 2, :angles => [1, 0, 0, 0, 0, 0, 0, 0])
+      Minigames.tile_puzzle(scene)
+      refute_includes SpeakCapture.lines.join(" "), t(:tp_next, :move => ""), "game #{game}"
+      refute_includes PokeAccess::Info.info_text.to_s, t(:tp_next, :move => ""), "game #{game}"
+      assert_nil scene.instance_variable_get(:@pa_tp_job), "game #{game}"
+    end
+  end
+
+  test "the next move is said once while the cursor walks to it, and again after every move" do
+    PokeAccess::Config.puzzle_assist = true
+    scene = TileScene.new([-1, -1, -1, -1, 2, 0, 3, 1], :game => 1)
+    cur = scene.instance_variable_get(:@sprites)["cursor"]
+    Minigames.tile_puzzle(scene)
+    cur.position = 1
+    Minigames.tile_puzzle(scene)
+    assert_equal 1, SpeakCapture.lines.count { |l| l.include?(t(:tp_next, :move => "")) }, "walking"
+    swap = TileScene.new([1, 2, 0, 3, 4, 5, 6, 7, 8], :game => 4, :width => 3, :height => 3, :at => 2)
+    same = t(:tp_next, :move => t(:tp_swap, :tile => 1, :key => key_c, :arrow => t(:key_arrow_left)))
+    Minigames.tile_puzzle(swap)
+    assert_includes SpeakCapture.lines.last, same
+    swap.instance_variable_get(:@tiles)[1, 2] = [0, 2]
+    swap.instance_variable_get(:@sprites)["cursor"].position = 1
+    SpeakCapture.clear
+    Minigames.tile_puzzle(swap)
+    assert_includes SpeakCapture.lines.last, same, "the same words, after a swap"
+  end
+
   test "a duelist's window says the HP as it changes, queued" do
     panel = DuelPanel.new("Rojo", 3)
     Minigames.duel_hp(panel)
@@ -408,6 +624,66 @@ class MinigamesTest < PokeAccessTest
 
   def t(key, args = {})
     PokeAccess::I18n.t(key, args)
+  end
+
+  def key_c; PokeAccess::KeyHints.key(:c, "C"); end
+  def key_a; PokeAccess::KeyHints.key(:a, "Z"); end
+
+  # A search over an open grid from [0, 0] to goal, a step a move, with a lower bound a tenth of the true distance: so
+  # loose that the exact search spends its cap well before the goal.
+  def grid_search(goal)
+    steps = { :right => [1, 0], :left => [-1, 0], :up => [0, -1], :down => [0, 1] }
+    succ = lambda { |s| steps.map { |move, (dx, dy)| [move, [s[0] + dx, s[1] + dy]] } }
+    est = lambda { |s| ((goal[0] - s[0]).abs + (goal[1] - s[1]).abs) / 10 }
+    Minigames::TpSearch.new([0, 0], succ, est, lambda { |s| s[0] * 100_000 + s[1] })
+  end
+
+  # Runs a search to its end with no frame deadline to keep.
+  def finish(search)
+    search.advance(Time.now.to_f + 60) until search.done?
+  end
+
+  # The tile puzzle's next move once its search is done, a frame at a time as the reader runs it.
+  def plan_of(scene, pos = 0)
+    500.times do
+      plan = Minigames.tp_plan(scene, pos)
+      return plan if plan
+    end
+    flunk "the search never ended"
+  end
+
+  # Plays the help's moves on a w x h tile puzzle as the game would, the cursor going where each says, until solved;
+  # the moves it took, failing past limit.
+  def follow(scene, w, h, limit)
+    tiles = scene.instance_variable_get(:@tiles)
+    angles = scene.instance_variable_get(:@angles)
+    game = scene.instance_variable_get(:@game)
+    pos = 0
+    steps = 0
+    until scene.pbCheckWin
+      flunk "not solved in #{limit} moves" if steps >= limit
+      verb, at, vars = plan_of(scene, pos)
+      pos = at if at.is_a?(Integer)
+      case verb
+      when :tp_slide
+        hole = tiles.index(w * h - 1)
+        q = Minigames.tp_step(w, h, hole, vars[:dir])
+        tiles[hole], tiles[q] = tiles[q], tiles[hole]
+      when :tp_swap
+        q = Minigames.tp_step(w, h, at, vars[:dir])
+        tiles[at], tiles[q] = tiles[q], tiles[at]
+      when :tp_turn
+        angles[tiles[at]] = (angles[tiles[at]] - vars[:n]) % 4
+      when :tp_shift_row, :tp_shift_col
+        tiles.replace(Minigames.tp_shift(tiles, w, h, vars[:dir], vars[:n] - 1))
+      when :tp_spin
+        ([at] + [2, 4, 6, 8].map { |d| Minigames.tp_step(w, h, at, d) }.compact).each { |q| angles[q] = (angles[q] - vars[:n]) % 4 }
+      else
+        flunk "game #{game}: no move for #{tiles.inspect}"
+      end
+      steps += verb == :tp_turn || verb == :tp_spin ? vars[:n] : 1
+    end
+    steps
   end
 
   # The spoken names of the given symbol keys, as a row of reels says them.

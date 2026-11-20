@@ -149,8 +149,8 @@ class QuestMapPopup
 end
 
 # The profile's files, loaded after the stand-ins above: a hook on a class not yet defined binds nothing.
-%w[starters pokenav quests].each do |f|
-  path = File.join(Harness::ROOT, "games", "infinitefusion_hoenn", "#{f}.rb")
+[%w[infinitefusion_hoenn starters], %w[infinitefusion_common pokenav], %w[infinitefusion_common quests]].each do |dir, f|
+  path = File.join(Harness::ROOT, "games", dir, "#{f}.rb")
   eval(Harness.source(path), TOPLEVEL_BINDING, path)
 end
 
@@ -529,10 +529,10 @@ class IfhScreensGdTest < PokeAccessTest
     assert_equal "Lleva la carta, #{t(:qu_status_done)}", PokeAccess::Info.info_text
   end
 
-  test "says from medium the kind a quest's name colour marks, and none for a field quest" do
+  test "says from medium the kind a quest's name colour marks, and none for a field quest or a Kanto one" do
     PokeAccess::Config.verbosity = :medium
     { :MAIN_QUEST => ", #{t(:qmp_main)}", :MAGMA_QUEST => ", #{t(:if2_qt_magma)}",
-      :AQUA_QUEST => ", #{t(:if2_qt_aqua)}", :FIELD_QUEST => "" }.each do |type, mark|
+      :AQUA_QUEST => ", #{t(:if2_qt_aqua)}", :FIELD_QUEST => "", nil => "" }.each do |type, mark|
       got = last_said { questlog([Quest.new("Grafiti", false, type)]).move_selection }
       assert_equal row("Grafiti, #{t(:qu_status_pending)}#{mark}", 1, 1), got, "for #{type}"
     end

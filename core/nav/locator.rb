@@ -18,7 +18,7 @@ module PokeAccess
     TCAT_KEYS = { :all => :tcat_all, :people => :tcat_people, :objects => :tcat_objects,
                   :exits => :tcat_exits, :signs => :tcat_signs, :extras => :tcat_extras,
                   :surfaces => :tcat_surfaces, :puzzles => :tcat_puzzles, :lens => :tcat_lens,
-                  :marks => :tcat_marks }
+                  :marks => :tcat_marks, :scenes => :tcat_scenes }
 
     # The spoken name of a target category.
     def self.cat_name(cat)
@@ -61,12 +61,13 @@ module PokeAccess
         return true if cat == :all
         return cat == ov
       end
-      named = !ev.character_name.to_s.empty?
+      named = !ev.character_name.to_s.empty? || pc_terminal?(ev) || PokeAccess::HealingFloors.event?(ev)
       case cat
       when :exits  then transfer_event?(ev)
       when :signs  then sign_event?(ev)
       when :extras then !named && examinable?(ev) && !sign_event?(ev) && !transfer_event?(ev)
       when :lens   then lens_tile?(ev)
+      when :scenes then PokeAccess::SceneTriggers.event?(ev)
       when :all    then named || transfer_event?(ev) || examinable?(ev) || lens_tile?(ev)
       else              named && !transfer_event?(ev) && event_category(ev) == cat
       end
@@ -75,16 +76,18 @@ module PokeAccess
     # The categories to cycle now: the configured ones, with puzzles, lens (#EOT tiles) and marks only while there is
     # something to locate in them.
     def self.active_categories
-      base = PokeAccess::Config.categories.reject { |c| c == :puzzles || c == :lens || c == :marks }
+      base = PokeAccess::Config.categories.reject { |c| [:puzzles, :lens, :marks, :scenes].include?(c) }
       base += [:puzzles] if (PokeAccess::Puzzles.has_locator_targets? rescue false)
       base += [:lens] if any_lens_tile?
       base += [:marks] if marks_here?
+      base += [:scenes] if PokeAccess::SceneTriggers.any?
       base
     end
 
-    # True if the current map carries at least one of the player's marks, gating the :marks category.
+    # True if the current map carries at least one of the player's marks or a target of the free camera's, gating the
+    # :marks category.
     def self.marks_here?
-      !!($game_map && PokeAccess::Marks.any_on?($game_map.map_id))
+      !!($game_map && (PokeAccess::Marks.any_on?($game_map.map_id) || !PokeAccess::Camera.targets.empty?))
     rescue StandardError => e
       PokeAccess.swallowed(e)
       false
@@ -95,7 +98,7 @@ module PokeAccess
       return false unless $game_map
       tiles = $game_map.events.values.select { |ev| lens_tile?(ev) }
       return false if tiles.empty?
-      return true unless hiding?
+      return true unless hiding_unreachable?
       tiles.any? { |ev| reachable?(ev) }
     rescue StandardError => e
       PokeAccess.swallowed(e)
@@ -129,23 +132,52 @@ module PokeAccess
     end
 
     # Every target of category cat on the map before any is hidden: its events (a wide doorway as one, see
-    # cluster_exits) and the connections the player can step off the map into, or its synthetic targets.
+    # cluster_exits, from the focus) and the connections the player can step off the map into, or its synthetic targets.
     def self.candidates(cat)
       case cat
       when :surfaces then (surface_targets.dup rescue [])
       when :puzzles then (PokeAccess::Puzzles.category_targets rescue [])
       when :marks then mark_targets
       else
+        at = PokeAccess::Camera.focus
         list = $game_map.events.values.select { |ev| in_category?(ev, cat) && !hidden?(ev) }
-        list = cluster_exits(list, $game_player.x, $game_player.y)
+        list = cluster_exits(list, at[0], at[1])
+        list = cluster_rows(list, cat == :scenes ? :scene : :heal, at[0], at[1])
         list.concat(connection_targets.map { |t| aim_connection(t) }.compact) if cat == :exits || cat == :all
-        list
+        cat == :all && (PokeAccess::Config.everything_extras rescue false) ? with_extras(list) : list
       end
     end
 
+    # The all category's targets with the puzzles', the surfaces' and the marks' (everything_extras), each once: a puzzle
+    # spot on an event stands for that event.
+    def self.with_extras(events)
+      puzzles = candidates(:puzzles).reject { |t| (ev = puzzle_event_of(t)) && tag_hidden?(ev) }
+      replaced = {}
+      puzzles.each { |t| ev = puzzle_event_of(t); replaced[ev.id] = true if ev }
+      list = events.reject { |t| !t.is_a?(SurfaceTarget) && replaced[t.id] }
+      seen = {}
+      (list + puzzles + candidates(:surfaces) + candidates(:marks)).select do |t|
+        id = identity(t)
+        fresh = !seen[id]
+        seen[id] = true
+        fresh
+      end
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      events
+    end
+
+    # The event a puzzle spot stands on, or nil for a spot of its own tile.
+    def self.puzzle_event_of(t)
+      return nil unless t.is_a?(SurfaceTarget)
+      id = t.ref.is_a?(Integer) ? t.ref : (t.ref.nil? ? PokeAccess::Puzzles.spot_event_at(t.x, t.y) : nil)
+      ev = id && $game_map.events[id]
+      ev && ev.x == t.x && ev.y == t.y ? ev : nil
+    end
+
     # The targets of all to list in category cat: with hide_noninteractive only interactable ones (but in lens); while
-    # hiding, only those the player can get to, map edges included (all when none can, but in lens); with :room, only
-    # those of the player's own room.
+    # hiding unreachable ones, only those the player can get to, map edges included (all when none can, but in lens).
+    # Both room modes keep the player's own room and unknown rooms, retaining the nonempty-list fallback.
     def self.filtered(all, cat)
       return all if SYNTHETIC.include?(cat)
       list = all
@@ -153,28 +185,33 @@ module PokeAccess
         list = list.select { |t| t.is_a?(SurfaceTarget) || interactable?(t) }
       end
       return list unless hiding?
-      reachable_only = list.select { |t| reachable?(t) }
-      list = reachable_only if cat == :lens || !reachable_only.empty?
-      if (PokeAccess::Config.hide_unreachable rescue nil) == :room
+      if hiding_unreachable?
+        reachable_only = list.select { |t| reachable?(t) }
+        list = reachable_only if cat == :lens || !reachable_only.empty?
+      end
+      if [:room, :other_rooms].include?((PokeAccess::Config.hide_unreachable rescue nil))
         own = list.select { |t| (room_depth(t) || 0) == 0 }
         list = own unless own.empty?
       end
       list
     end
 
-    # The targets in the order chosen (target_order), each one's key kept for J and L: :near by distance counting no
-    # walls, :walk by fewest presses (Routes::Regions#presses_to; no way, or none known yet, last by distance), :fixed
-    # alone; while rooms are told apart the player's own room comes first, except in :fixed. Ties go by rank_key.
+    # The targets in the order chosen (target_order), each one's key kept for J and L: :near by distance from the focus
+    # (Camera.focus) counting no walls, :walk by fewest presses (Routes::Regions#presses_to; no way, or none known yet,
+    # last by distance), which the regions count from the player, so it orders as :near while the free camera is open,
+    # :fixed alone; while rooms are told apart the player's own room comes first, except in :fixed. Ties go by rank_key.
     def self.ordered(list, cat)
       order = (PokeAccess::Config.target_order rescue :near)
-      px = $game_player.x; py = $game_player.y
+      order = :near if order == :walk && PokeAccess::Camera.active?
+      px, py = PokeAccess::Camera.focus
       reg = order == :walk ? PokeAccess::Routes::Regions.foot : nil
       rooms = order != :fixed && !SYNTHETIC.include?(cat) && rooms_apart?
       @keys = {}
       list.each do |t|
         id = identity(t)
         d = (t.x - px).abs + (t.y - py).abs
-        w = reg && reg.presses_to(goal_of(t).tiles)
+        g = reg && goal_of(t)
+        w = g && reg.presses_to(g.tiles, g.entry)
         key = case order
               when :fixed then [0, 0]
               when :walk then w ? [0, w] : [1, d]
@@ -207,11 +244,12 @@ module PokeAccess
 
     # The fixed-order ranks the static numbers count (number_of), as { identity => rank_key }: of an event category,
     # every target of it seen since the map was entered, so a number keeps its gap when its target goes or is hidden;
-    # of a synthetic one, those it has now.
+    # of a synthetic one, and of all while it takes in the synthetic ones (everything_extras), whose ranks change with
+    # each list, those it has now.
     def self.static_ranks(cat, all)
       now = {}
       all.each { |t| now[identity(t)] = @rank[identity(t)] }
-      return now if SYNTHETIC.include?(cat)
+      return now if SYNTHETIC.include?(cat) || (cat == :all && (PokeAccess::Config.everything_extras rescue false))
       seen = ((@seen ||= {})[cat] ||= {})
       seen.merge!(now)
     end
@@ -273,10 +311,29 @@ module PokeAccess
       events
     end
 
+    # Collapses each row of events of a kind (EventRows: :scene, :heal) into the tile that stands for it, ranked as a
+    # wide doorway's (door_rank), noting for each of its tiles the least id among them, its identity; the other events
+    # pass through.
+    def self.cluster_rows(events, kind, px, py)
+      by_group = {}
+      events.each { |ev| (by_group[PokeAccess::EventRows.group_of(kind, ev).min] ||= []).push(ev) }
+      return events if by_group.length == events.length
+      reg = (PokeAccess::Config.target_order rescue :near) == :walk ? PokeAccess::Routes::Regions.foot : nil
+      by_group.map do |least, evs|
+        next evs[0] if evs.length == 1
+        evs.each { |ev| @door_ids[ev.id] = least } if @door_ids
+        evs.min_by { |ev| door_rank(ev, px, py, reg) }
+      end
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      events
+    end
+
     # How a wide doorway's tile ranks to stand for it: one the player can get to first (walked for while hiding), then
     # the fewest presses on foot with reg (the walk order's regions), else the nearest counting no walls.
     def self.door_rank(ev, px, py, reg)
-      w = reg && reg.presses_to(goal_of(ev).tiles)
+      g = reg && goal_of(ev)
+      w = g && reg.presses_to(g.tiles, g.entry)
       [reach_status(ev, hiding?)[0] == :no ? 1 : 0, w ? 0 : 1, w || (ev.x - px).abs + (ev.y - py).abs]
     end
 
@@ -332,10 +389,12 @@ module PokeAccess
       PokeAccess::Routes::Planner.goal_for(t.x, t.y, onto?(t))
     end
 
-    # True for a target stood on rather than acted on: a spot to dive at or come up, a map edge, or a puzzle's floor
-    # (Puzzles.onto?).
+    # True for a target stood on rather than acted on: a spot to dive at or come up, a map edge, a puzzle's floor
+    # (Puzzles.onto?), or the free camera's trail and a destination the player can stand on (Camera.onto?).
     def self.onto?(t)
-      dive_key(t) || edge?(t) || PokeAccess::Puzzles.onto?(t) ? true : false
+      return PokeAccess::Camera.onto?(t) if PokeAccess::Camera.target?(t)
+      return true if dive_key(t) || edge?(t) || PokeAccess::Puzzles.onto?(t)
+      PokeAccess::SceneTriggers.onto?(t) || PokeAccess::HealingFloors.onto?(t)
     end
 
     # True for a map edge's exit, the synthetic target with no surface kind.
@@ -343,8 +402,13 @@ module PokeAccess
       t.is_a?(SurfaceTarget) && t.key.nil?
     end
 
-    # True while the locator hides targets: hide_unreachable at :unreachable, or at :room, other rooms' too.
+    # True while either reachability or room filtering asks the regions about targets.
     def self.hiding?
+      hiding_unreachable? || (PokeAccess::Config.hide_unreachable rescue :off) == :other_rooms
+    end
+
+    # The original modes also leave unreachable targets out; room-only keeps them.
+    def self.hiding_unreachable?
       m = (PokeAccess::Config.hide_unreachable rescue :off)
       m == :unreachable || m == :room
     end
@@ -359,14 +423,17 @@ module PokeAccess
     # The selected target, nil with none.
     def self.target; @target; end
 
-    # True when the current target still applies: a mark still set, a surface tile, or an event still on the map with
-    # something to locate (in_category? of all): not one erased, nor an item ball picked up.
+    # True when the current target still applies: a mark still set, a free camera's target still fixed, a surface tile,
+    # or an event still on the map with something to locate (in_category? of all, or a scene trigger still waiting):
+    # not one erased, nor an item ball picked up, nor a scene already played.
     def self.target_valid?
       return false unless @target && $game_map
       return !PokeAccess::Marks.get($game_map.map_id, @target.x, @target.y).nil? if mark_target?(@target)
+      return PokeAccess::Camera.holds?(@target) if PokeAccess::Camera.target?(@target)
       return true if @target.is_a?(SurfaceTarget)
       id = (@target.id rescue nil)
-      !id.nil? && $game_map.events[id] == @target && in_category?(@target, :all)
+      return false unless !id.nil? && $game_map.events[id] == @target
+      in_category?(@target, :all) || PokeAccess::SceneTriggers.event?(@target)
     end
 
     # Ensures a valid target: a stale list is rebuilt keeping the selection, and a vanished target is replaced by the
@@ -387,6 +454,15 @@ module PokeAccess
     def self.select_current(said = nil)
       @target = @targets[@ti]
       announce_selected(true, said)
+      PokeAccess::Guide.arm(:cane)
+      PokeAccess::Guide.arm(:steps)
+    end
+
+    # Selects a target the list may not hold (the free camera's destination or trail), the guides armed as for one J
+    # and L select; the list is rebuilt on its next use, so the target shows in its category.
+    def self.pick(t)
+      @target = t
+      invalidate_targets
       PokeAccess::Guide.arm(:cane)
       PokeAccess::Guide.arm(:steps)
     end
@@ -430,20 +506,22 @@ module PokeAccess
     end
 
     # The shared rename flow: announce "label for X", prompt with the current value, save the name typed (via the
-    # block) and say so; a blank answer, which is also what Escape gives, changes nothing and says it was cancelled.
+    # block) and say so; a blank answer, which is also what Escape gives, changes nothing and says it was cancelled. The
+    # game's input is the text field's while it runs, the free camera open or not (Camera.lend).
     # keys: [announce_key, prompt_key, saved_key].
     def self.prompt_rename(current_name, current_value, keys)
       PokeAccess.speak(PokeAccess::I18n.t(keys[0], :name => current_name), true)
-      txt = (pbEnterText(PokeAccess::I18n.t(keys[1]), 0, 40, current_value) rescue nil).to_s.strip
+      txt = (PokeAccess::Camera.lend { pbEnterText(PokeAccess::I18n.t(keys[1]), 0, 40, current_value) } rescue nil).to_s.strip
       return PokeAccess.speak(PokeAccess::I18n.t(:cancelled), true) if txt.empty?
       yield(txt)
       PokeAccess.speak(PokeAccess::I18n.t(keys[2], :label => txt), true)
     end
 
-    # The player's marks on this map as synthetic targets (SurfaceTarget with the key :mark).
+    # The player's marks on this map as synthetic targets (SurfaceTarget with the key :mark), then the free camera's
+    # destination and trail (Camera.targets).
     def self.mark_targets
       mid = $game_map.map_id
-      PokeAccess::Marks.on_map(mid).map { |x, y, name| SurfaceTarget.new(x, y, name, :mark) }
+      PokeAccess::Marks.on_map(mid).map { |x, y, name| SurfaceTarget.new(x, y, name, :mark) } + PokeAccess::Camera.targets
     rescue StandardError => e
       PokeAccess.swallowed(e)
       []
@@ -516,10 +594,11 @@ module PokeAccess
                       :back => :back }
 
     # Shows a choice message and returns the chosen (or cancel) index, through Kernel.pbMessage on gen-6 and the
-    # global pbMessage elsewhere.
+    # global pbMessage elsewhere, with the game's input the window's, the free camera open or not (Camera.lend).
     def self.show_menu(msg, choices, cancel)
-      return Kernel.pbMessage(msg, choices, cancel) if Kernel.respond_to?(:pbMessage)
-      pbMessage(msg, choices, cancel)
+      PokeAccess::Camera.lend do
+        Kernel.respond_to?(:pbMessage) ? Kernel.pbMessage(msg, choices, cancel) : pbMessage(msg, choices, cancel)
+      end
     end
 
     # The Ctrl+K menu for the focused object, in the game's choice window: rename it, take off the name the player gave
@@ -602,28 +681,32 @@ module PokeAccess
       nil
     end
 
-    # The way to a target (Routes::Planner), to stand on it or to act on it as goal_of takes it; for a puzzle's goal
-    # with the assist, the way to push its piece into it (Puzzles.carry_plan).
+    # The way to a target (Routes::Planner), to stand on it or to act on it as goal_of takes it; along the free camera's
+    # trail, its own (Camera.plan); for a puzzle's goal with the assist, the way to push its piece into it
+    # (Puzzles.carry_plan); with the assist, the way a puzzle of the map plans itself (Puzzles.way_plan).
     def self.route_plan(t)
-      PokeAccess::Puzzles.carry_plan(t) || PokeAccess::Routes::Planner.plan(t.x, t.y, onto?(t))
+      onto = onto?(t)
+      PokeAccess::Camera.plan(t) || PokeAccess::Puzzles.carry_plan(t) || PokeAccess::Puzzles.way_plan(t, onto) ||
+        PokeAccess::Routes::Planner.plan(t.x, t.y, onto)
     rescue StandardError => e
       PokeAccess.log_once("route_plan", e)
       PokeAccess::Routes::Plan.new(:none)
     end
 
-    # Speaks the direction to the selected target (on a map edge's exit, the way off the map: edge_out), and with
-    # withname its name, the marks shown over it, its number and walking distance too, after said (a line to say
-    # first) if any.
+    # Speaks the direction to the selected target from the focus (Camera.focus; on a map edge's exit, the way off the
+    # map: edge_out), and with withname its name, the marks shown over it, its number and walking distance too (not
+    # while the free camera is open), after said (a line to say first) if any.
     def self.announce_selected(withname, said = nil)
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_nothing_selected), true) if @target.nil? || $game_player.nil?
+      at = PokeAccess::Camera.focus
       out = edge_out(@target)
-      phrase = out ? PokeAccess::Routes::Text.out(out) : dir_phrase(@target.x - $game_player.x, @target.y - $game_player.y)
+      phrase = out ? PokeAccess::Routes::Text.out(out) : dir_phrase(@target.x - at[0], @target.y - at[1])
       unless withname
         return PokeAccess.speak(phrase, true)
       end
       ord = number_of(@target)
       ordtxt = ord ? (PokeAccess::I18n.t(:loc_count, :n => ord[0], :total => ord[1]) + ", ") : ""
-      path, steps = route_phrase(@target)
+      path, steps = PokeAccess::Camera.active? ? [nil, ""] : route_phrase(@target)
       parts = [target_name(@target)].concat((name_marks(@target) rescue []) || [])
       note = room_note(@target, path)
       parts.push(note) if note
@@ -631,14 +714,15 @@ module PokeAccess
       PokeAccess.speak(said ? "#{said}. #{line}" : line, true)
     end
 
-    # Ctrl+G: sets or renames the mark on the player's tile. Map only, with the locator's keys free (Control.keys?: no
-    # battle, no screen looping over the map): the key is polled from Input.update, which also runs in menus and
-    # battles.
+    # Ctrl+G: sets or renames the mark on the focus's tile (Camera.focus: the player's, or the free camera's). Map only,
+    # with the locator's keys free (Control.keys?: no battle, no screen looping over the map): the key is polled from
+    # Input.update, which also runs in menus and battles.
     def self.mark_here
       unless PokeAccess::Control.on_map? && PokeAccess::Control.keys?
         return PokeAccess.speak(PokeAccess::I18n.t(:mark_map_only), true)
       end
-      edit_mark($game_player.x, $game_player.y)
+      at = PokeAccess::Camera.focus
+      edit_mark(at[0], at[1])
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
@@ -704,13 +788,18 @@ module PokeAccess
 
     # Speaks the route to the current target (Routes::Text.line, or why there is none), the piece's line on a puzzle
     # goal holding it (Puzzles.carried_line), or arrived_line on a target the player stands on (onto?); with route_stats
-    # on, how its search went too.
+    # on, how its search went too. While the free camera is open, the way on foot from it (Planner.plan_from).
     def self.announce_route
       ensure_target
       return PokeAccess.speak(PokeAccess::I18n.t(:loc_nothing_selected), true) if @target.nil?
-      plan = route_plan(@target)
-      at = [$game_player.x, $game_player.y]
-      kinds = plan.route && PokeAccess::Routes::Moves.one_way(at[0], at[1], PokeAccess::Pathfinder.bridge_level, plan.route)
+      at = PokeAccess::Camera.focus
+      lvl = PokeAccess::Camera.level
+      plan = if PokeAccess::Camera.active?
+               PokeAccess::Routes::Planner.plan_from(at[0], at[1], lvl, @target.x, @target.y, onto?(@target))
+             else
+               route_plan(@target)
+             end
+      kinds = plan.route && PokeAccess::Routes::Moves.one_way(at[0], at[1], lvl, plan.route)
       here = plan.kind == :walk && plan.route && plan.route.empty? && onto?(@target)
       line = PokeAccess::Puzzles.carried_line(@target) ||
              (here ? arrived_line(@target, true) : PokeAccess::Routes::Text.line(plan, at, kinds))
@@ -825,14 +914,15 @@ module PokeAccess
       (now[0] - before[0]).abs + (now[1] - before[1]).abs <= tile
     end
 
-    # Drops the targets and their stale mark, the selection, the targets seen for static numbers, the surface cache and
-    # the map names the game gave; run on :map_changed. Keeps @last_map_id, or the map change would be announced again
+    # Drops the targets and their stale mark, the selection, the targets seen for static numbers, the surface cache,
+    # the map names the game gave and a MapInfos that failed to load; run on :map_changed. Keeps @last_map_id, or the map change would be announced again
     # every frame.
     def self.clear_targets
       @targets = []; @targets_stale = false; @target = nil; @ti = 0
       @keys = nil; @static = nil; @dynamic = nil; @door_ids = {}; @seen = nil
       @surface_cache = nil; @surface_cache_pos = nil
       @game_names = nil
+      @mapinfos = nil if @mapinfos && @mapinfos.empty?
     end
 
     # Forgets the current map so the next announce_map_change fires even on the same map id (a load screen calls it).
@@ -843,11 +933,18 @@ module PokeAccess
       clear_targets
     end
 
-    # Speaks the current map name and coordinates.
+    # Speaks the current map name and coordinates; while the free camera is open, where it is (CameraText.where_line).
     def self.announce_coords
       return unless $game_player && $game_map
+      at = PokeAccess::Camera.active? ? PokeAccess::Camera.focus : nil
+      return PokeAccess.speak(PokeAccess::CameraText.where_line(at[0], at[1]), true) if at
       nm = (map_name($game_map.map_id) rescue nil)
       PokeAccess.speak("#{nm ? nm + '. ' : ''}#{coords_text($game_player.x, $game_player.y)}", true)
+    end
+
+    # Rebuilds an existing list on its next use, keeping the selected target by identity.
+    def self.invalidate_targets
+      @targets_stale = true unless @targets.empty?
     end
 
     # On the edge where a running event finishes: drops the route caches and the surfaces listed, and marks a non-empty
@@ -860,7 +957,7 @@ module PokeAccess
         (PokeAccess::Guide.event_ended rescue nil)
         (PokeAccess::Locator.clear_verdicts rescue nil)
         @surface_cache = nil
-        @targets_stale = true unless @targets.empty?
+        invalidate_targets
       end
       @interp_running = run
     rescue StandardError => e

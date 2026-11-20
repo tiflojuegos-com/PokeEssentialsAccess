@@ -2,8 +2,9 @@
 
 This page explains how the mod models the map and how it finds, prices and describes a route to a target: the World
 layer (terrain, passability, events, puzzle mechanics), moves and searches, regions, the planner with its
-[assisted steps](../reference/glossary.md), surfing and transfers, and route text. Read it before changing a search
-or giving a [profile](../reference/glossary.md) a terrain, route or puzzle rule.
+[assisted steps](../reference/glossary.md), surfing and transfers, route text, the routes from the free camera and the
+way along its trail. Read it before changing a search or giving a [profile](../reference/glossary.md) a terrain, route
+or puzzle rule.
 
 The settings named here are in the [settings reference](../reference/settings.md), the profile verbs in the
 [profile DSL reference](../reference/profile-dsl.md). The step guide, the cane and the sound cues that follow a route
@@ -55,7 +56,9 @@ classes, the passability answers and the map scan of `Routes::Moves`.
 
 `World::Terrain` classes each terrain tag once, into a stable kind (`:ledge`, `:ice`, `:still_water`...) and a set of
 cell bits (`SURF`, `LEDGE`, `ICE`, `DEEP`, `GRASS`, `FALLING`). The kind comes from the tag's GameData id or
-`PBTerrain` name first, since games renumber the standard tags; lava has no standard number and is found by name only.
+`PBTerrain` name first, since games renumber the standard tags; lava, snow, mud and cliffs have no standard number and are
+found by name only (`Snow`, `Mud`, `Cliff`: Infinite Fusion's tag ids, Uranium's and Xenoverse's 16). Where two names share a
+number, the one of its standard kind wins, else the first that names a kind.
 The layer asks the engine for the tag once per kind of tile (the tile ids on the map's layers) and shares it among
 every tile of that kind. A map whose file holds more than RPG Maker XP's own fields, as the extra layers an editor keeps
 there, is read tile by tile (`Terrain.extra_fields?`): its three layers may not tell what is on a tile, and only the game's
@@ -66,7 +69,8 @@ A bridge tile reads as the water below while the player is off the bridge, so it
 older than v16, such as Insurgence, keep the bridge height on `$PokemonMap` instead of `$PokemonGlobal`
 ([Engine eras](engine-eras.md)).
 
-A profile changes the terrain with two rules. `Terrain.label_rule` names a game's own surfaces, and
+A profile changes the terrain with two rules. `Terrain.label_rule` names a game's own surfaces, or with `false` names
+none where a tag would give a look away (Opalo's trap floor, drawn as the floor round it, is no rock), and
 `Terrain.surf_rule` decides where the player can surf now. `Terrain.flag?` reads the flags a plugin adds to the modern
 tag object, such as a current or a slide.
 
@@ -100,6 +104,8 @@ The passability probe asks the way the game would:
   (`Probe.ashore?`). `Probe.afloat` runs a block afloat and `Probe.on_foot` runs one off the bike.
 - An engine error is `ERROR`. A route takes it as closed and the sound cues as open (`Probe.step?` and its
   `on_error`).
+- While the Lens of Truth is in use, the events it marks on the step's two tiles are asked as a route meets them
+  (`Lens.posed`, [The Lens of Truth](#the-lens-of-truth)), and its state is one of the probe's modes.
 
 A search opens one `Probe.session`, which settles the world once for all its questions: the tiles compared, the events
 synced, the mode taken.
@@ -119,7 +125,7 @@ its record covers (`Events.reaches_past?`), as the hitboxes of Events Utilities 
 is there to rule out how the game was asked.
 
 `Probe.lend_through` makes events passable for the engine while a block runs, keeps their tiles out of the memo
-meanwhile and puts every event back afterwards. Assisted searches lend obstacles and boulders through, and the regions
+meanwhile and puts every event back afterwards; `Probe.lend` does the same with each event's own flag. Assisted searches lend obstacles and boulders through, and the regions
 lend walkers through. Nothing read meanwhile is kept, so what each step of a walk looks up is read before the outermost
 lend: `Probe.before_lending` registers it, which `Routes::Effects.read_ahead` does for its indexes. `Probe.event_movable?` asks the engine's strict check, where it has one, whether a boulder can
 move, or the plain check where the profile declares `loose_pushes` (the Reborn engine, Sevii, Infinite Fusion).
@@ -198,6 +204,17 @@ condition is walked tile by tile, since the script may ask where the player stan
 such a script returns with `script_condition`. When the page is started with the action button (`act`), the walk
 answers yes to its questions.
 
+A move route on the player stops the walk at a step it cannot measure: a random one, one toward someone, or a script
+that moves the character itself (`EventPages::MOVING_SCRIPT`: a move call bare, on `self` or on `$game_player`, or its
+`@x` or `@y` set). A script that moves another character, such as Z's `dependentEvents.remove_sprite`, or sets the
+route's speed is walked past. A Control Variables command keeps the value it sets: a constant, another variable, the map's
+id, a character's place or facing where the walk knows it (`EventPages.character_value`: the player's from the tile the
+page starts on, an event's where it stands unless the page moved it), worked into a known value. Anything else, a
+random number among them, is kept as `EventPages::UNKNOWN`, and so is what is worked out of it. The branches and a
+Transfer Player by variables after it read that value; one that rests on an unknown value stops the walk. Variables a
+transfer reads and lands by are its own, so setting them is no lasting change: the 25 Quantum Leap spots of Uranium's
+Foundation are warps within the map. A page that sets a variable to where the player stands is walked tile by tile.
+
 `Routes::Effects` turns outcomes into what an event does to a move:
 
 | Effect | Meaning |
@@ -209,6 +226,10 @@ answers yes to its questions.
 | `:ramp` | A bridge ramp, which changes the bridge level |
 | `:run` | Presses across impassable tiles, armed on arrival (side stairs) |
 | `:hold` | Ground the player stays on only with the direction key held |
+
+A reader a plugin or profile registers (`Effects.touch_source`) answers an event's effect before the outcome is walked. It
+may answer `:unseen` for one a sighted player cannot see, such as the gusts of Realidea's Temple of Mesprit, hidden by a
+sandstorm: without the puzzle assist the walks step on it as plain ground and the player meets it as anyone would.
 
 Action-button events that carry the player (a climb) or move them within the map, field-move obstacles and pushables
 are indexed apart (`Effects.act_index`, `gate_index`, `boulder_index`). Each index is built from the facets and kept
@@ -231,7 +252,9 @@ A press resolves in the game's order:
 4. An open step lands on the next tile. Ice slides the player on, a surfer moving down onto a waterfall's crest is
    carried down the fall, and a rule that owns the tile moves the player as it says.
 5. The touch event on the landing tile fires: an exit or a barrier refuses the move, a ramp changes the level, and a
-   carry or a warp lands the player elsewhere.
+   carry or a warp lands the player elsewhere. The Step then keeps the tile stepped on (`Step#entry`). A route to a
+   target on that very tile (`Goal#entry`) ends on that press, in every search: A*, the flood, the regions and their
+   router, and the pushes.
 6. A closed step bumps the event in front, which may carry or warp the player. With `ASSIST`, an assisted step may get
    past it.
 
@@ -242,7 +265,12 @@ asks (`EventPages.every_step_fires?`, `Outcome#stops`): Z's diagonal stairs carr
 that brings them back. A page that waits for its route asks on none of them.
 
 `Moves.trace` replays a route press by press with the same moves, and `Moves.one_way` marks the presses that cannot be
-undone the same way, a jump or a slide. The guide follows a route through `trace`, and route text names those presses.
+undone the same way: a jump, a slide, or a landing afloat (`:land`, a press from water onto dry ground,
+`Probe.dry?`). The guide follows a route through `trace`, and route text names those presses.
+
+`Moves.try(x, y, lvl, d, mode)` answers the `Step` one press from any tile and bridge level makes now, or nil where it
+cannot be taken, in a search of its own with the engine pointed at that level. `Moves.ok?`, the free camera's moves
+and the trail ([The free camera's trail](#the-free-cameras-trail)) ask it.
 
 `Moves.fast` answers most moves without `step`. It keeps a class per tile (ledge, ice, falling water, a rule's tile, an
 event's tile, a bridge tile, the border) and answers a plain step from the classes and the passability probe alone;
@@ -260,6 +288,13 @@ cannot silence a rule. The profile verbs are these:
 - `terrain_exit`: terrain the player leaves by a move of its own (a rail hopped off, a side stair walked a row up or
   down).
 - `assisted_step`: something the player can do where walking stops, owned by the tiles in front.
+- `tile_cost`: what stepping on or across a tile costs a route beyond its presses (`Moves.tile_cost_rule`).
+
+An owner with `:assist => true` counts with the puzzle assist alone (`Moves.live?`), on its other keys' tiles or on any.
+An owner with `:maps` counts on those maps alone (`Moves.on_map?`), so none of its tiles is asked on any other, and its
+`:tiles` block is not called there. Both keys go unprefixed beside the tile keys (`Moves::OWNER_KEYS`). `Moves.owns?`
+asks all of it, and `Moves.covers?` the map and the tiles, whatever the assist. Turning `puzzle_assist` or `avoid_grass` drops every route
+memo (`Pathfinder.invalidate_cache(true)`), so no route of the other setting is kept.
 
 ```ruby
 # games/infinitefusion_common/water_current.rb
@@ -271,8 +306,15 @@ PokeAccess::Game.define("infinitefusion_common") do
 end
 ```
 
-A map is uniform (`Moves.uniform?`) only while the player is not surfing, no touch event of the map changes a move and
-the game registers no rule that moves the player. HPA* runs only on a uniform map.
+`Moves.map_scan` lists, once per map, with its events synced and whatever the assist, the rules whose owner takes in
+some tile of the map, a bridge's tiles at either height (`Moves.owned_across`). A rule with no owner counts on every
+map, and one whose `:maps` leave this map out counts on none of its tiles. `Moves.ruled_terrain?` is true when one of
+those that moves the player counts now, and `Moves.costed?` when one of the `tile_cost` rules does, or `avoid_grass` is on
+and the map's own encounters put wild Pokémon on its grass (`Moves.wild_grass_map?`: `has_land_encounters?` from
+Essentials 19 on, `isGrass?` before).
+
+A map is uniform (`Moves.uniform?`) only while the player is not surfing, no touch event of the map changes a move, no
+rule that moves the player counts there and no tile costs more. HPA* runs only on a uniform map.
 
 ### Bridge levels
 
@@ -302,6 +344,15 @@ A ledge hop is one press over two tiles and a slide one press over many. An assi
 `Pathfinder::GATE_COST` presses more than its own, so a detour of up to that many presses is taken before stopping to
 clear something, and one obstacle before two.
 
+On a map where tiles cost more (`Moves.costed?`), each move also pays `Moves.crossed_extra` presses: every tile it
+crosses when it ends straight along its way (a step, a hop, a slide, a run), else the tile it lands on. A move that
+puts the player down without a walk (`Moves.relocated?`: a carry, a transfer, the action button's climb) pays its
+landing alone. `Moves.tile_extra` keeps each tile's cost with the tile classes; on a bridge tile above, the ground
+below costs nothing. Costs only add, so the estimate in presses still never
+overstates, and the pruning by a turn above the best state on a tile holds, since what a tile costs is the same from any
+direction. `Search.run`, the regions router, the flood and the search that moves boulders pay them; JPS gives way to A*
+there and HPA* is not asked, since both take every step as the same.
+
 A search state is a tile, a bridge bit and the direction it was entered from. A state that costs a turn or more above
 the best one closed on its tile cannot do better and is pruned. A later state on a settled tile expands only straight
 on, the one move where its direction can save a turn, which keeps the fewest turns exact.
@@ -316,8 +367,9 @@ when the budget ran out first. It also carries the tiles examined and the algori
 
 ### One engine for every algorithm
 
-`Search.run` is the one best-first search from the player's state to a goal. `path_algorithm` chooses its frontier
-from `Pathfinder::ALGORITHMS`:
+`Search.run` is the one best-first search to a goal, from the player's state or from an origin `[x, y, level]` its
+caller gives; `Search.fresh` runs it as A* in the route style, past the regions router and the kept floods.
+`path_algorithm` chooses its frontier from `Pathfinder::ALGORITHMS`:
 
 - `:astar`, `:weighted` (the estimate times `astar_weight`), `:greedy` and `:dijkstra` order a binary heap by
   `Pathfinder.algo_weights`.
@@ -400,7 +452,8 @@ The regions give four answers the rest of the mod relies on:
 ### The regions router
 
 The default `path_algorithm`, `:regions`, routes over the walk itself. Once the walk on foot is whole, an A* over the
-moves it kept, priced as `Search.run` prices its own, finds the route without asking the engine again. The route is
+moves it kept, priced as `Search.run` prices its own (with what the tiles cost), finds the route without asking the
+engine again. The route is
 replayed with `Moves.trace` and taken only if it ends on the goal, since a walker the regions lend through may stand in
 the way.
 
@@ -423,7 +476,7 @@ its budget on it. A change of tiles or of an event rebuilds the clusters around 
 
 - `:walk`: a route on foot.
 - `:assisted`: a route on foot up to the first assisted step, with that step's gate.
-- `:surf`: a route on foot to the shore, and the way to push off.
+- `:surf`: a route to the shore, on foot or, afloat, over the water and ashore first, and the way to push off.
 - `:company`: a way by water the game bars while someone walks along.
 - `:none`: no way.
 - `:cut`: a search stopped short before it could tell.
@@ -433,7 +486,8 @@ A plan is made in this order:
 
 1. On foot. The search keeps off the tiles where a step would change the map's puzzle, and crosses them only when
    their presses leave the rest of the route open. When it finds nothing while the regions say the target can be
-   reached, it runs again with the walkers lent through.
+   reached, it runs again with the walkers lent through. A way that steps where watchers see gives way to one round
+   them, when there is one ([Watchers](#watchers)).
 2. A target beyond `route_reach` is `:far`.
 3. Assisted, unless the search on foot was cut ([Assisted steps](#assisted-steps)).
 4. Through a puzzle's controls, with the puzzle assist on ([Puzzles](#puzzles)).
@@ -446,10 +500,75 @@ Route text says them with `route_stats` on.
 
 The planner keeps its last `Planner::SIZE` plans. The key (`Planner.key_for`) holds everything a plan depends on
 besides the tiles: the map, the vehicle and the events, the player's tile and bridge level, the target, the route
-settings, the puzzle assist, whether Strength is in use and whether the player may surf with company. A cut is not
-kept when asking again would go on where the regions and the flood stopped, nor under a time limit, where the clock
-decided it. What the clock of `Limits#wider` cut is kept: asking again from that tile would hold the game as long for the
-same answer.
+settings, the puzzle assist, whether Strength is in use, whether the player may surf with company and what the
+watchers see (`Sight.stamp`). A cut is not kept when asking again would go on where the regions and the flood stopped,
+nor under a time limit, where the clock decided it. What the clock of `Limits#wider` cut is kept: asking again from
+that tile would hold the game as long for the same answer.
+
+### Watchers
+
+`Routes::Sight` knows what the map's watchers see. They are the events a profile declares with `watchers`, and, with
+`avoid_trainers` on, the trainers still to battle. A trainer still to battle is named for its sight, is drawn, has a
+page started by event touch, and is not an event the player would stand over (`over_trigger?`), as the engine starts
+one. A battled trainer's page has another trigger, so it drops out. The name is read as each era reads it: before the
+GameData era only a name that is `Trainer(n)` alone, from it on `trainer(n)` or `sight(n)` anywhere in the name,
+whatever the case. A declared watcher counts while it is drawn, and one picked by the name alone also needs a page
+started by event touch.
+
+A watcher sees its own tiles and up to its range ahead. Each tile ahead is seen while the watcher could walk on to the
+one before it, as `pbEventCanReachPlayer?` asks. That needs the map's passability both ways, through
+`Game_Map#passable?` with the watcher where the engine takes it, and no other event that keeps still and blocks. A
+watcher that walks through sees past everything. Walkers do not cut a sight, because their place changes, and neither
+does the player, who is the one it looks for.
+
+A watcher is read from every pose its moves take it to (`Sight.poses`):
+
+- One that keeps still has its own pose.
+- One an event command moves with a forced route (a parallel event's patrol, or a scene) follows that route, as
+  below, while it walks it. The round goes as the forcing ends.
+- One that moves at random or by the player sees the four ways from every tile it can stand on within
+  `Sight::ROAM` steps of where it was read.
+- One with a move route on its page, or forced, is followed from the command it is on, for one round and two at most, as RPG
+  Maker turns it (steps, diagonals, jumps, the fixed direction). The route walks it whatever stands in the way. A
+  move at random or by the player ends the round with where it may roam from there, and a turn at random or by the
+  player adds the four ways.
+
+The round is kept while the watcher stands on one of its poses with the same page and the same forced route, or none,
+so a patrol walking its round, or a watcher roaming the tiles it was read with, changes nothing. `Sight.seen` is read at most once a frame. It is taken again when a watcher leaves its poses, turns
+off them, comes or goes, or when an event's end, the vehicle or the tiles may have changed what stops a sight.
+`Sight.stamp` counts the times the tiles seen changed: the planner keys on it, and the guide plans again when it moves.
+`Sight.seen_now` holds what the watchers see from where they stand and face, for a profile's hints by the frame where a
+round is crossed in time. The free camera reads it, as a sighted player sees: on a tile a watcher sees now it says *in
+sight of* it, by the name the locator gives it (`Locator.target_name`, the player's tag first), and nothing on the
+watcher's own tiles.
+
+A search on foot runs first as with no watcher, with all its memos. Only when its way steps on a tile seen, other than
+the goal's, does an A* that reads each step afresh look for one that keeps off what the watchers see and the plates
+(`Planner.closed_search`). That A* runs under a budget of its own (`Planner.aside`): what it stops short is no cut of
+the plan, and the plan's deadline moves on by the time it took (`Limits#postpone`). Its way is taken when it finds one,
+and the first one otherwise. A way round found wanting is not looked for again under the same map, regions, sight
+(`Sight.stamp`) and goal, wherever the player stands, since the guide asks again at each step.
+
+A tile counts as crossed where a press ends. Before the GameData era the engine also checks trainers on each tile of an
+ice slide (its scene map update runs the player's step checks while it slides), so there the tiles a slide passes count
+too, and the A* keeps off slides that pass a tile seen (`Moves.with_closed` with `passing`). From the GameData era on,
+the checks wait for the slide to stop. A carry runs under the interpreter, which checks no trainer. A patrol whose round
+closes every way, as the termites and the Hippopotas of Pokémon Armonía, leaves the route as it was, and only the
+timing is left to the player.
+
+### Routes from another tile
+
+The regions, the floods and HPA* are walked from the player. `Planner.plan_from(fx, fy, lvl, tx, ty, onto)` answers the
+way on foot from any tile and bridge level, which the route key asks while the free camera is open:
+
+- A goal that already holds the tile is an empty `:walk`.
+- When the tile lies in the player's zone on foot and the regions tell the goal cannot be reached, the answer is
+  `:none` with no search.
+- Otherwise one A* runs from that tile (`Search.fresh` with the origin), and again through the walkers in the way when
+  it ran out of ways while the regions tell the goal can be reached.
+
+It answers `:walk`, `:none` or `:cut`: no assisted steps, no surf and no puzzle controls. Its plans are kept with the
+others, under the tile, the level and the target.
 
 ## Assisted steps
 
@@ -462,13 +581,18 @@ there and how to get past:
 - `:act`: the action button pressed at an event that carries the player (a climb) or moves them within the map.
 - `:dismount`: off the bike where it cannot go on, such as tall grass or ice.
 - `:control`: a puzzle's control, stepped onto or pressed ([Puzzles](#puzzles)).
+- `:lens`: the Lens of Truth used where the route stands, to cross what it opens or, with `:show`, before the thing
+  it shows ([The Lens of Truth](#the-lens-of-truth)).
 
 `Planner.assisted` first asks the `:assist` regions whether the goal can be reached at all (not with `edge_relax`
 on). It then searches with
 `ASSIST` and every obstacle lent through (`Pathfinder.with_gates_open`), and cuts the route at its first gate
 (`Pathfinder.cut_at_gate`). When the way past that gate reaches the target with nothing more to clear, the gate also
 carries the presses left after it, with their jumps and slides. When no such route exists, `Routes::Pushes` looks for
-one that moves boulders. `Pathfinder.assist_possible?` skips all of it on a map with nothing that could assist.
+one that moves boulders. `Pathfinder.assist_possible?` skips all of it on a map with nothing that could assist. A
+registered assisted step counts on every map, whatever tiles it owns, unless its owner names `:maps`: then only there
+(`Moves.assist_here?`), so a profile's step for a few maps does not send every unreachable target elsewhere through
+the assisted search and the assisted regions.
 
 The planner recognizes an obstacle by the name the locator gives it (`Effects::GATES`) or by the field move its script
 calls (`Effects::SCRIPT_GATES`). A profile adds an obstacle its game clears with an item of its own with `field_gate`.
@@ -476,6 +600,37 @@ calls (`Effects::SCRIPT_GATES`). A profile adds an obstacle its game clears with
 an item that stands in (`field_move_item`, `field_move_tool`), the badge. It answers `nil` when it cannot tell, and
 `nil` never counts as no. Route text names what clears the obstacle, or that it is needed; under the
 [generic profile](../reference/glossary.md) it names the obstacle alone (`field_moves_unnamed`).
+
+### The Lens of Truth
+
+Drimer's "Eye/Lens of Truth for Essentials" turns the events it marks as the player comes within its `RANGE` with the
+lens in use, and back again out of reach or with it down: a HIDE one goes through and a SHOW one stops being through. A
+SHOW event drawn as a tile then lays its tile's passage over the map's (a bridge across a gap), and one with a sprite
+stops the way. `World::Lens` reads each copy: Z's on a timer (`Scene_Map#eye_of_truth_time`), Edas' and Perseida's on a
+flag of the scene (`eye_of_truth`), Vitro's by `LensOfTruth.active?`; "#EOT" in the name for Z's (and in a game without
+the script), "EOT" for the others, then HIDE in it or a `hideEvent` comment before SHOW or a `showEvent` one, the comments
+read as `pbEventCommentInput` reads them where the copy does (Vitro's, and one a profile declares, `Lens.declare`).
+
+A route passes beside every event it crosses, so with the lens in use the routes take it as reaching them all: the
+probe asks each step with the marked events on its two tiles as the lens leaves them in reach (`Lens.posed`), whatever
+the game shows from where the player stands now, and `Effects.fires_on_arrival?` reads them so too (`Lens.met`). The
+lens's state is a mode of the probe (`Probe.mode_reader`), so the answers, the regions and HPA* keep one set for each,
+and a facet that read a marked event is taken again when the lens turns (`Flags.lens`). With the lens down nothing is
+posed, the engine already answering as the game does. A walk taken with the lens in use is cut before the first press
+onto what only the lens lets it take once the lens is down again, with the `:lens` gate there to use it again
+(`Lens.renew_cut`): past what is left of Z's timer, at `Lens::FRAMES_PER_TILE` frames a press, or after a press onto a
+touch event that runs, in a copy any running event puts down (Vitro's `AUTO_DEACTIVATE_ON_EVENTS`, or
+`:ends_on_events`).
+
+With the puzzle assist on and the lens down, an assisted search lends the events the lens opens as it in use leaves
+them (`Lens.lent`, through `Pathfinder.with_gates_open`): each HIDE one through, and a SHOW one not through only where it
+is a bridge, the map's own tile beneath taking no step (`Lens.bridge?`); any other SHOW one stays through, since the way up
+to the lens is walked with it down. A step onto a marked event, from the player's tile or from ground the lens does not
+lay, that the engine refuses with the lens down carries the `:lens` gate (`Lens.gate_at`): a row of them costs one use. A route walked
+to a SHOW event with the lens down is cut before the press that would step onto it, with the same gate and `:show`
+(`Lens.show_cut`, `Planner.walked`). Route text names the lens as the game does (`Lens.item_name`: the item that works
+it, or the core's word), or that it is needed where the item is not in the bag. Without the assist none of this is
+offered.
 
 ### Pushes and pulls
 
@@ -524,23 +679,30 @@ ball of Opalo's map 67 goes, a puzzle declares one phase per page, each with its
 
 ## Water and surfing
 
-When the plans before it find no way, `Pathfinder.surf_plan` looks for one across water. It finds nothing while
-the player already surfs, when the party surely cannot use Surf (`FieldMoves.can?(:SURF)` is `false`), on a map that
-keeps the player on the bike (`MapMeta.always_bicycle?`), on a map known to have no water (`Terrain.water_on_map?`, which
-a plan reads for `Pathfinder::WATER_READ` at most and the map frames finish), or when the `:water` regions tell the target
-cannot be reached.
+When the plans before it find no way, `Pathfinder.surf_plan` looks for one across water. It finds nothing when the
+party surely cannot use Surf (`FieldMoves.can?(:SURF)` is `false`), on a map that keeps the player on the bike
+(`MapMeta.always_bicycle?`; both are `Pathfinder.surf_allowed?`), on a map known to have no water
+(`Terrain.water_on_map?`, which a plan reads for `Pathfinder::WATER_READ` at most and the map frames finish), or when
+the `:water` regions tell the target cannot be reached.
 
-`Routes::Launch` runs one search from the player with `SURF_PLAN`, toward the target and the four tiles beside it. On
-that way it takes the last tile walked before the water, with its facing, as the launch. A tile counts as walked when
-the regions on foot reach it, or, while they are not whole, when it is not water. The plan is the route on foot onto
-the launch tile and the way to push off from it. Launches are kept per target, player tile, events and route style
-(`Pathfinder.launch_key`).
+`Routes::Launch` runs one search from the player with `SURF_PLAN`, toward the target and the four tiles beside it. That
+search may come ashore and push off again as often as the way needs. On that way it takes the last tile walked before
+the water, with its facing, as the launch. A tile counts as walked when the regions on foot reach it, or, while they
+are not whole, when it is not water. The plan is the route onto the launch tile and the way to push off from it.
+Launches are kept per target, player tile, events and route style (`Pathfinder.launch_key`).
+
+The same holds afloat. There the regions on foot are the water the player floats on and the ground it comes ashore on,
+so the launch is the first push-off after a landing. The plan is then the route over the water, ashore and on foot to
+that shore. A way that alternates ground and water is thus planned one crossing at a time: on each shore the guide asks
+for Surf, and once afloat it plans the next crossing. Each plan costs what one crossing does on foot, one launch search
+and one route to its shore.
 
 The water moves follow the engine:
 
 - Pushing off asks whether the shore tile lets the player out that way and whether the jump lands afloat.
 - Water to water is a step asked afloat, after which a current or a touch event moves the surfer as it would on
-  foot. Coming ashore needs an open tile with nothing solid on it.
+  foot. Coming ashore needs an open tile with nothing solid on it, and the step afloat that way open, as the engine
+  checks it before it ends the surf.
 - A planned surf never stops on falling water (`Moves.surf_water?`). Moving down onto a waterfall's crest carries the
   surfer down the fall; where a game's falls have no crest, any of their tiles carries (`Moves.crestless_falls!`,
   Insurgence). Moving up into a fall climbs it unless the party surely cannot use Waterfall; while the player
@@ -619,11 +781,12 @@ describes the room and its state; with it on, it adds the hints and plans the pu
 
 ### Routes through a puzzle
 
-A route on foot keeps off the tiles where a step would change the puzzle: the plates some wall reads, and a grid's
-cells while a letter is being formed (`Controls.keep_off`). It crosses a plate only when each press it makes leaves
-the rest of the route clear of the walls it raises (`Controls.open_past?`).
+A route on foot keeps off the tiles where a step would change the puzzle: the plates some wall reads, every tile of
+the events a declaration asks to `avoid` (those it asks to avoid with `:assist => true` only with the assist on), and a
+grid's cells while a letter is being formed (`Controls.keep_off`). It crosses a plate only when each press it makes
+leaves the rest of the route clear of the walls it raises (`Controls.open_past?`).
 
-With the puzzle assist on, two more plans exist:
+With the puzzle assist on, three more plans exist:
 
 - `Routes::Controls` finds the fewest control presses, up to `Controls::DEPTH`, that open the walls between the player
   and the target, read off the controls' and the walls' pages. It reads the floor with every wall set aside, up to
@@ -631,6 +794,28 @@ With the puzzle assist on, two more plans exist:
   deadline has passed. The route walks to the first control and is cut there, and its gate names every press in turn.
 - `Planner.carry` plans the pushes that take a phase's tracked piece into its goal box, with the same search
   `Routes::Pushes` runs for a boulder.
+- A mechanic's `way` block plans the route to a target itself, for a puzzle whose floor changes with state the
+  routes do not model (`Puzzles.way_plan`, asked by `Locator.route_plan` before the planner). Xenoverse's evil mirrors
+  use it: in a zone, or on a walk into one, the route takes the presses the zone's own search plays and walks on
+  past it, and it stops after a send-back. The guides plan such a route again at each new tile.
+
+### The Tile Puzzle's next move
+
+The Tile Puzzle minigame of stock Essentials (`TilePuzzleScene`, `core/field/minigames.rb`) follows the same policy:
+with the puzzle assist on, the line of the cursor's cell also says where its piece goes and the next move toward the
+solution, where the cursor goes for it and with which key. Each of the seven modes (`@game`) gets it its own way:
+
+- Modes 1 and 2 (pieces off the board) and 4 and 5 (swapping pieces) go piece by piece: the lowest piece not home is
+  taken or swapped toward its square, then turned straight in the modes that turn pieces. No search.
+- Modes 3 (sliding into the hole) and 6 (shifting a row or a column) run `TpSearch`, an A* over the board's states.
+  Each frame gives it `TP_FRAME_BUDGET` seconds, so the minigame keeps its pace while it runs. Past `TP_NODE_CAP`
+  states it starts again weighted by the next of `TP_WEIGHTS` (1, 3, 9), which finds a longer path sooner.
+- Mode 7 (a press turns a square and its neighbours) runs `TpChase`: each choice of presses along the shorter side
+  fixes the rest row by row, within `TP_CHASE_CAP` choices, and the one with the fewest presses is kept.
+
+The search is kept on the scene until a piece moves or turns. In mode 6 the path found is followed to the end: once the
+board takes its first move, the rest of the path is the next search's answer, with no search again. When no search
+finds a way, the line says so.
 
 ## Route text
 
@@ -639,10 +824,52 @@ Its functions read the plan and the settings and speak nothing.
 
 - `Text.listing` is the suffix the target list adds: the steps away, what stands in an assisted route's way, "by
   water", or why there is no route (`:far`, `:cut`, `:company` or none).
-- `Text.line` is what the route key (`:route`, I by default) says: the legs ("3 up, 2 left"), jumps and slides as legs
-  of their own, the transfers, what to do at a gate and, on a surf route, the way to push off.
+- `Text.line` is what the route key (`:route`, I by default) says: the legs ("3 up, 2 left"), jumps, slides and
+  landings ("go ashore up") as legs of their own, the transfers, what to do at a gate and, on a surf route, the way to
+  push off.
 - `Text.moved` and `Text.moved_path` say where a forced move left the player, for `ForcedMove` and the info key.
 - `Text.stats` says how the plan's search went, with `route_stats` on.
+
+## The free camera's trail
+
+The free camera ([Guide and sound](guide-and-sound.md#free-camera)) records a trail as the tiles it walks, each
+`[x, y, level]`, none twice: going back over a tile cuts the trail back to it. `Routes::Trail` turns those tiles into
+the player's presses. The camera moves by the same rules (`Moves.try` with `Pathfinder.replay_mode`, Surf where the
+party may use it), so a trail drawn on foot is almost always one the player can take.
+
+`Trail.convert(tiles, from)` walks the trail from the state `from` in one search operation, one budget for all of it:
+
+- A press is taken when it lands further along the trail in a straight line: a ledge hop covers two tiles with one
+  press, and an ice slide the tiles it slides over.
+- On the shore of a water tile the trail goes on to, where the player may surf, the conversion stops there with the way
+  to push off; with company the game's Surf refuses, it is cut as `:company`. Afloat, a trail that comes ashore stops
+  so on the shore where it heads for the water again (`Pathfinder.may_surf?` of that tile), as the camera itself may
+  push off only from ground it came ashore on.
+- Elsewhere a press that does not land on the trail is gone round: an A* from where the player stands
+  (`Search.fresh` with that origin) to the next trail tile the player can stop on, ice and ledges aside, and to the one
+  after it, up to `REJOIN_TRIES` (3) tiles. A tile the regions rule out is skipped with no search, and a search that
+  finds nothing ends the tries, since it went through all the player can get to. A way round is a `:detour`.
+- With no way round, the trail is cut there, as `:blocked` (a wall, an event, a ledge against it, water with no Surf),
+  `:exit` (an exit or a barrier), `:warp` (a teleport off the trail), `:carried` (a move that lands off the trail, such
+  as a slide past the tile where it turns) or `:cut` (the search ran out of budget).
+
+The result is a `Trail::Conversion`: the route, its `Trail::Break` entries, the trail index reached and the state it
+ends in.
+
+`Trail.plan(tiles, progress, id)` gives the guides the way along a fixed trail. The camera keeps the progress, the
+farthest trail tile the player has stood on, on every map frame where the player's state changed (`Camera.track`); it
+is nil until the player stands on the trail's first tile:
+
+- Before that, the way is the planner's route to the first tile, where the trail begins, then the trail from there.
+- With the player on the trail, the way is the trail converted from their tile.
+- Off it, the way is the planner's route to the trail tile, from the progress on, the fewest presses from the player
+  on foot (`Trail.nearest_ahead`, by `Regions#presses_to`), then the trail from there: a tile across a wall is as far
+  as the walk round it. While the regions reach none of them, it is the progress's own tile. A way to that tile that is no plain walk (assisted, by water, none) is that plan as it is.
+
+A trail plan is a `:walk`, or a `:surf` that stops on the shore to push off. Its stats tell the trail index reached,
+why it is cut and how many stretches are gone round; the camera says them when the trail is fixed and when the player
+arrives. Plans are kept with the planner's (`Planner.kept`), under the trail and the player's place on it or the tile
+it joins, so a trail is converted again only when the player, the world or the settings change.
 
 ## Memos and what drops them
 
@@ -660,6 +887,7 @@ Its functions read the plan and the settings and speak nothing.
 | HPA* graph | Map, mode, cluster side | A reset, an event's end; clusters rebuilt around a change |
 | Launches | `Pathfinder.launch_key` | New tiles, a reset |
 | Plans (`Routes::Planner`) | `Planner.key_for` | New tiles, a reset; the oldest past `Planner::SIZE` |
+| Watchers' sight (`Routes::Sight`) | Frame; each watcher's round, the event epoch | New tiles, a reset |
 
 With `plain_passability`, an event's end keeps the passability answers, the regions and the HPA* graph.
 
@@ -683,12 +911,20 @@ With `plain_passability`, an event's end keeps the passability answers, the regi
 the one that opens it, up to the next entry, compare the variable it keeps what was entered in with a single fixed value. A
 menu says its right option by the rule a declaration gives (`right_choice`). The game takes a menu or a number
 entry right after a Show Text into the same message, in `command_101`, so what they ask goes after that text. A menu held in
-a message's own words (`\ch[...]`) is read from those words, and its branches are the comparisons of its variable that follow.
+a message's own words (`\ch[...]`) is read from those words, and its branches are the comparisons of its variable that meet
+its answer: those after it at its level or nested in another comparison's else, before another menu or command writes that
+variable again (`asked_by`), as the seal of Uranium's Route 15 starts its second sequence in the first comparison's else;
+a place compared more than once is one option, doing what all its comparisons hold. A branch is judged by what it runs:
+the menus nested in it and, for each jump to a label in it, what the game runs from that label up to the next menu, a
+jump or an exit of the event that nothing before skips (`reached`), as the koan of Uranium's Lost Seas wins after a label.
+From a label inside a branch the game goes on out of its block at the branch's end, past the other options or the else
+(`block_end`), as the stock scripts that put a failure's label in one option jump there from the others.
 
 `Puzzles::Reach` says what a declaration has for a point inside a page (`on_reach`), from `command_402` for a menu's branch and
 `command_101` for a message. `sent_back` is answered by `Locator`: within the map through `teleport_cause`, and through
 `move_cause` for a transfer from another map and, from `ForcedMove`, for the end of a move route.
 
 The routes read two more things from any game's events. An action page whose commands all hang from branches on the
-player's facing is only reached from those sides (`Effects.act_sides`). And what steps away from the player when walked into
+player's facing is only reached from those sides (`Effects.act_sides`), and one whose single branch on a facing only ends
+the event, with an else that acts, from the other three (Desolation's Keneph lever). And what steps away from the player when walked into
 or used, a page's route on its own event as it would run now, is pushed like a boulder (`Effects.self_push_dirs`).

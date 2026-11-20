@@ -75,6 +75,33 @@ class OtherRoomTest < PokeAccessTest
     assert_equal [92, 90, 93, 96, 91], listed_ids
   end
 
+  test "other rooms alone keeps local targets and removes known remote rooms" do
+    rooms_world
+    PokeAccess::Config.hide_unreachable = :other_rooms
+    assert_equal [90, 96], listed_ids
+  end
+
+  test "other rooms alone keeps a local target with no route" do
+    ana = rooms_world[0]
+    actual = Locator.method(:reach_status)
+    PokeAccess::Config.hide_unreachable = :other_rooms
+    Locator.define_singleton_method(:reach_status) { |t, *args| t == ana ? [:no] : actual.call(t, *args) }
+    assert_equal [90, 96], listed_ids
+    assert_equal false, Locator.hiding_unreachable?
+    PokeAccess::Config.hide_unreachable = :room
+    assert_equal [90], listed_ids
+  ensure
+    Locator.define_singleton_method(:reach_status, actual) if actual
+  end
+
+  test "other rooms alone retains targets when the room scan is incomplete" do
+    rooms_world
+    PokeAccess::Config.hide_unreachable = :other_rooms
+    PokeAccess::Config.route_limit = :time
+    PokeAccess::Config.route_budget_ms = -1000
+    assert_equal [90, 91, 92, 93, 96], listed_ids.sort
+  end
+
   test "at :room only the player's own room is listed, its transfer pad included" do
     rooms_world
     PokeAccess::Config.hide_unreachable = :room

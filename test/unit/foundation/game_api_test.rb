@@ -57,6 +57,7 @@ class GameApiTest < PokeAccessTest
     [:script_condition, [/api_cond/], PokeAccess::EventPages::ScriptCondition, :register_atom, [[[/api_cond/], true]]],
     [:terrain_rule, [], PokeAccess::Routes::Moves, :arrival_rule, [[[nil], true]]],
     [:terrain_rule, [:api_owner], PokeAccess::Routes::Moves, :arrival_rule, [[[:api_owner], true]]],
+    [:tile_cost, [:api_owner], PokeAccess::Routes::Moves, :tile_cost_rule, [[[:api_owner], true]]],
     [:held_key_ground, [:api_owner], PokeAccess::Routes::Moves, :held_key_rule, [[[:api_owner], true]]],
     [:terrain_exit, [:api_owner], PokeAccess::Routes::Moves, :leave_rule, [[[:api_owner], true]]],
     [:assisted_step, [:api_owner], PokeAccess::Routes::Moves, :assist_source, [[[:api_owner], true]]],

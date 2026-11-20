@@ -19,12 +19,15 @@ module PokeAccess
 
       # One move of a route as a search makes it and a replay retraces it: the tile and bridge level it ends on, its
       # presses (a run, a ride across), an assisted step's gate (route_gates), mid (passed partway along a run), warp (a
-      # transfer on this map) and kind: :walk, :jump, :slide, :carry, :warp, :run, :ramp, :assist or :surf.
-      Step = Struct.new(:x, :y, :level, :presses, :gate, :mid, :warp, :kind)
+      # transfer on this map), kind (:walk, :jump, :slide, :carry, :warp, :run, :ramp, :assist or :surf) and entry: the
+      # key of the tile it stepped on when that tile's touch event took the player on elsewhere, a goal for whatever is
+      # acted on by stepping there (Goal#entry).
+      Step = Struct.new(:x, :y, :level, :presses, :gate, :mid, :warp, :kind, :entry)
 
-      # Step with the defaults a plain move has: one press, no gate, not partway along a run, no transfer, a walk.
+      # Step with the defaults a plain move has: one press, no gate, not partway along a run, no transfer, a walk, no
+      # tile stepped on and left.
       class Step
-        def initialize(x, y, level, presses = 1, gate = nil, mid = false, warp = false, kind = :walk)
+        def initialize(x, y, level, presses = 1, gate = nil, mid = false, warp = false, kind = :walk, entry = nil)
           super
         end
 
@@ -39,6 +42,7 @@ module PokeAccess
       @held_rules = []
       @leave_rules = []
       @assist_sources = []
+      @cost_rules = []
 
       # Registers a terrain rule: the block gets (x, y, d) for a step arriving on (x,y) in direction d and answers the
       # [x, y] it ends on ([x, y, presses] for ground ridden straight across with the key held, a press a tile), false
@@ -62,30 +66,61 @@ module PokeAccess
       # param owner the tiles in front it may answer for, as arrival_rule's with each key prefixed front_
       def self.assist_source(owner = nil, &blk); register(@assist_sources, owner, blk, "front_"); end
 
-      # The keys an owner may have (see owns?).
+      # Registers what stepping on or across a tile costs a route beyond its presses: the block gets (x, y) and answers
+      # the presses of more, 0 or nil for none.
+      # param owner as arrival_rule's
+      def self.tile_cost_rule(owner = nil, &rule); register(@cost_rules, owner, rule); end
+
+      # The tile keys an owner may have (see owns?), prefixed as its stage asks; :assist and :maps go unprefixed.
       OWNER_KEYS = [:tags, :kinds, :flags, :tiles]
 
-      # Adds a rule to its stage, its owner's keys read without prefix, and has the tile classes and the map's scan
-      # taken afresh; an owner key it does not know is an error, so a misspelt one cannot silence a rule.
+      # Adds a rule to its stage, its owner read by owner_of, and has the tile classes and the map's scan taken afresh.
       def self.register(list, owner, body, prefix = "")
-        own = nil
-        if owner
-          own = {}
-          owner.each do |k, v|
-            key = k.to_s.index(prefix) == 0 ? k.to_s[prefix.length..-1].to_sym : nil
-            raise ArgumentError, "unknown rule owner key #{k.inspect}" unless OWNER_KEYS.include?(key)
-            own[key] = v
-          end
-        end
-        list.push(Rule.new(own, body))
+        list.push(Rule.new(owner_of(owner, prefix), body))
         forget_map
       end
 
-      # True when a rule's owner takes in (x,y): its terrain number in :tags, its kind in :kinds, a flag of :flags,
-      # or a yes from the :tiles block, which may read only the map's tiles and events; any tile when it has no
-      # owner. A list may come as a block, read when asked (a game's numbers known only once it runs).
+      # An owner as owns? reads it, its keys without prefix; nil for none. :assist => true, unprefixed, makes the rule
+      # count with the puzzle assist alone, and :maps, unprefixed, on those maps alone (map ids, one, or a block giving
+      # them), on the tiles of the other keys or on any. A key it does not know is an error, so a misspelt one cannot
+      # silence a rule.
+      def self.owner_of(owner, prefix = "")
+        return nil unless owner
+        own = {}
+        owner.each do |k, v|
+          if k == :assist || k == :maps
+            own[k] = k == :maps ? v : true if v
+            next
+          end
+          key = k.to_s.index(prefix) == 0 ? k.to_s[prefix.length..-1].to_sym : nil
+          raise ArgumentError, "unknown rule owner key #{k.inspect}" unless OWNER_KEYS.include?(key)
+          own[key] = v
+        end
+        return nil if own.empty?
+        own[:anywhere] = true unless OWNER_KEYS.any? { |k| own.key?(k) }
+        own
+      end
+
+      # True when a rule's owner takes in (x,y) now: it counts (live?) and covers the tile (covers?).
       def self.owns?(owner, x, y)
         return true if owner.nil?
+        return false if owner[:assist] && !PokeAccess::Puzzles.assist?
+        covers?(owner, x, y)
+      end
+
+      # True when a rule's owner counts now: always, but with the puzzle assist alone for one that asks for it.
+      def self.live?(owner)
+        owner.nil? || !owner[:assist] || PokeAccess::Puzzles.assist?
+      end
+
+      # True when an owner's tiles take in (x,y), whatever the puzzle assist: on one of its maps (on_map?), its terrain
+      # number in :tags, its kind in :kinds, a flag of :flags, or a yes from the :tiles block, which may read only the
+      # map's tiles and events; any tile when it names none. A list may come as a block, read when asked (a game's
+      # numbers known only once it runs).
+      def self.covers?(owner, x, y)
+        return true if owner.nil?
+        return false unless on_map?(owner)
+        return true if owner[:anywhere]
         t = PokeAccess::World::Terrain
         v = owner[:tags]
         return true if v && listed(v).include?(t.number(x, y))
@@ -100,19 +135,33 @@ module PokeAccess
       # An owner's list, read from its block when it comes as one.
       def self.listed(v); v.respond_to?(:call) ? v.call : v; end
 
-      # True when a game or plugin registered an assisted step.
-      def self.assist_registered?; !@assist_sources.empty?; end
-
-      # True when a game or plugin registered terrain that moves the player on arriving or leaving.
-      def self.ruled_terrain?
-        !@arrival_rules.empty? || !@leave_rules.empty?
+      # True when an owner counts on this map: it names no :maps, or this map is one of them; no tile of a map left out
+      # is asked of its other keys.
+      def self.on_map?(owner)
+        v = owner[:maps]
+        return true if v.nil?
+        [listed(v)].flatten.include?(($game_map.map_id rescue 0)) ? true : false
+      rescue StandardError => e
+        PokeAccess.log_once("owner_maps", e)
+        false
       end
 
-      # True when every move here is one plain tile, as the uniform-grid searches (JPS, HPA*) need: not surfing (a
-      # waterfall carries), and no touch events or registered terrain that move the player.
+      # True when a registered assisted step counts here now: with the puzzle assist if it asks for it (live?), and on
+      # this map if its owner names :maps (on_map?); one that names none counts on every map, whatever tiles it owns.
+      def self.assist_here?
+        @assist_sources.any? { |r| live?(r.owner) && (r.owner.nil? || on_map?(r.owner)) }
+      end
+
+      # True when terrain a game or plugin registered may move the player here, on arriving or leaving: a rule that
+      # counts now (live?) owns a tile of this map, or any tile (map_scan).
+      def self.ruled_terrain?; map_scan[5].any? { |r| live?(r.owner) }; end
+
+      # True when every move here is one plain tile at the same cost, as the uniform-grid searches (JPS, HPA*) need:
+      # not surfing (a waterfall carries), no touch events or registered terrain that move the player, no tile that
+      # costs more (costed?).
       def self.uniform?
         return false if ($PokemonGlobal.surfing rescue false)
-        Effects.touch_index.empty? && !ruled_terrain?
+        Effects.touch_index.empty? && !ruled_terrain? && !costed?
       end
 
       # One move from (cx,cy) at bridge level lvl toward dir ([dx, dy, d], see DIRS) as the game plays it, with the
@@ -137,6 +186,7 @@ module PokeAccess
           elsif PokeAccess::World::Probe.step?(cx, cy, d)
             nbr = (c & PokeAccess::World::Terrain::ICE) != 0 ? ice_slide(nx, ny, dx, dy, d) : arrive(nx, ny, d)
             kind = (nbr && !nbr[2] && (nbr[0] != nx || nbr[1] != ny)) ? :slide : :walk
+            return nil if kind == :slide && @passing && slides_past_closed?(nx, ny, nbr, dx, dy)
           elsif (mode & RELAX) != 0 && border_tile?(nx, ny) && ($game_map.passable?(nx, ny, 0) rescue false)
             nbr = [nx, ny]
             kind = :walk
@@ -146,16 +196,20 @@ module PokeAccess
       end
 
       # The Step a move onto nbr facing d ends as once the touch event there fires: the tile, a ramp's other level or a
-      # carry's or warp's landing; nil off the map, at an exit or barrier (a carry's chain too), or on a closed tile.
-      # Its presses are nbr's third, if any (ground ridden across, see arrival_rule).
+      # carry's or warp's landing, nbr's tile then its entry; nil off the map, at an exit or barrier (a carry's chain
+      # too), or on a closed tile. Its presses are nbr's third, if any (ground ridden across, see arrival_rule); a slide
+      # over a touch event (slid_over) gives the entry, kind and transfer of its landing from nbr's fourth on.
       def self.landed(nbr, lvl, d, kind, mode)
         x = nbr[0]; y = nbr[1]
         p = nbr[2] || 1
         return nil unless ($game_map.valid?(x, y) rescue true)
         return nil if @closed && @closed[Routes.pkey(x, y)]
-        gate = (mode & ASSIST) != 0 ? Effects.gate_at(x, y) : nil
+        gate = (mode & ASSIST) != 0 ? (Effects.gate_at(x, y) || PokeAccess::World::Lens.gate_at(x, y, d)) : nil
         e = Effects.touch_at(x, y, d, true)
-        return Step.new(x, y, lvl, p, gate, false, false, kind) if e.nil? || IN_PLACE.include?(e[0])
+        if e.nil? || IN_PLACE.include?(e[0])
+          return Step.new(x, y, lvl, p, gate, false, false, kind) unless nbr[3]
+          return Step.new(x, y, lvl, p, gate, false, nbr[5], nbr[4], nbr[3])
+        end
         case e[0]
         when :exit, :barrier then nil
         when :ramp then Step.new(x, y, ramp_level(e[1], lvl), p, gate, false, false, :ramp)
@@ -164,7 +218,7 @@ module PokeAccess
           l = e[0] == :carry ? carry_landing(x, y, e, 0, via) : PokeAccess::World::Probe.landing(e[1], e[2])
           return nil if l == false
           return Step.new(x, y, lvl, p, gate, false, false, kind) unless l
-          Step.new(l[0], l[1], lvl, p, gate, false, e[0] == :warp || !via.empty?, e[0])
+          Step.new(l[0], l[1], lvl, p, gate, false, e[0] == :warp || !via.empty?, e[0], Routes.pkey(x, y))
         end
       end
 
@@ -275,13 +329,26 @@ module PokeAccess
         Step.new(cx + dir[0], cy + dir[1], lvl, 1, { :kind => :dismount, :face => dir[2], :x => cx, :y => cy })
       end
 
-      # Runs the block with the tiles of closed (pkey => true) kept off: no move lands on them.
-      def self.with_closed(closed)
-        was = @closed
+      # Runs the block with the tiles of closed (pkey => true) kept off: no move lands on them, and with passing no slide
+      # passes them either.
+      def self.with_closed(closed, passing = false)
+        was = [@closed, @passing]
         @closed = closed
+        @passing = passing
         yield
       ensure
-        @closed = was
+        @closed, @passing = was
+      end
+
+      # True when a slide in (dx,dy) from (x,y) to nbr passes a closed tile before it stops.
+      def self.slides_past_closed?(x, y, nbr, dx, dy)
+        while x != nbr[0] || y != nbr[1]
+          return true if @closed[Routes.pkey(x, y)]
+          x += dx
+          y += dy
+          return false if (x - nbr[0]) * dx > 0 || (y - nbr[1]) * dy > 0
+        end
+        false
       end
 
       # Replays a route from (x,y) at bridge level lvl with the moves of mode, one Step per press (mid Steps, of the
@@ -312,29 +379,44 @@ module PokeAccess
 
       # What each press of a route from (x,y) at bridge level lvl does that cannot be undone the same way: :jump where
       # the player hops (a ledge, an event that hops them over, as jump? tells the guide), :slide where it slides them
-      # on, else nil; nil from the first press the route cannot take now.
+      # on, :land where it brings them ashore afloat (landing?), else nil; nil from the first press the route cannot take
+      # now.
       def self.one_way(x, y, lvl, path)
         steps = trace(x, y, lvl, path, PokeAccess::Pathfinder.replay_mode)
-        from = [[x, y]] + steps.map { |s| [s.x, s.y] }
+        from = [[x, y, lvl]] + steps.map { |s| [s.x, s.y, s.level] }
         (0...path.length).map do |i|
           s = steps[i]
           if s.nil? then nil
           elsif jump?(from[i][0], from[i][1], path[i]) then :jump
           elsif s.kind == :slide then :slide
+          elsif landing?(from[i], s) then :land
           end
         end
+      end
+
+      # True for a press afloat from water at ground level (from, [x, y, level]) that ends as Step s on dry ground
+      # (World::Probe.dry?), where the engine ends the surf.
+      def self.landing?(from, s)
+        return false unless ($PokemonGlobal.surfing rescue false) && from[2].to_i == 0 && s.level.to_i == 0
+        probe = PokeAccess::World::Probe
+        !probe.dry?(from[0], from[1]) && probe.dry?(s.x, s.y)
       end
 
       # True if a route step from (x,y) in direction d can be taken now with the moves of mode, from the player's
       # bridge level: the first press of a run counts as its start.
       def self.ok?(x, y, d, mode)
+        !try(x, y, PokeAccess::Pathfinder.bridge_level, d, mode).nil?
+      end
+
+      # The move a press from (x,y) at bridge level lvl in direction d makes now with the moves of mode, as a Step, or
+      # nil when it cannot be taken: one search of its own, the engine pointed at lvl for it.
+      def self.try(x, y, lvl, d, mode)
         dir = DIR_OF[d]
-        return false if dir.nil?
+        return nil if dir.nil?
         pf = PokeAccess::Pathfinder
         pf.searching do
-          lvl = pf.bridge_level
           pf.use_level(lvl)
-          !step(x, y, lvl, dir, mode).nil?
+          step(x, y, lvl, dir, mode)
         end
       end
 

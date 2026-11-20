@@ -34,11 +34,18 @@ PokeAccess::Game.define("pokemon_z") do
 
   # El Arma Definitiva, left vine, the library of map 472: two books hidden in its shelves (events 10 and 11, shown by the
   # lens but there to push without it) set 787 and 788 with nothing said, and the two together take away the beams on the
-  # way south, far from both.
+  # way south, far from both. A book is named and listed while the lens shows its tile (events 7 and 8), or with the assist;
+  # the info key, with the assist alone.
+  shelf = { 10 => [7, :z_arma_book_e], 11 => [8, :z_arma_book_nw] }
   mechanic(:state, 472) do
     watch :switch => 788, :label => :z_arma_book_nw, :on => :z_arma_book_pushed, :off => :z_arma_book_still
     watch :switch => 787, :label => :z_arma_book_e, :on => :z_arma_book_pushed, :off => :z_arma_book_still
     controls
+    name [10, 11], lambda { |ev|
+      shown = PokeAccess::Puzzles.assist? || PokeAccess::World::Lens.reaches?($game_map.events[shelf[ev.id][0]])
+      shown ? shelf[ev.id][1] : nil
+    }
+    active { PokeAccess::Puzzles.assist? && !($game_switches[787] && $game_switches[788]) }
     obstacle(/\ArayosBarrera\z/, :label => :z_arma_beams)
     solved(nil, :quiet => true) { $game_switches[787] && $game_switches[788] }
     hint :z_arma_books_hint

@@ -1,5 +1,6 @@
 # The surfaces category (Locator.surface_targets): the nearest tile of each surface on or beside a tile the player can
-# get to, however far, not one near behind a wall; named by a game's own rule first; kept while the player stays put.
+# get to, however far, not one near behind a wall nor the tag under one; named by a game's own rule first; kept while the
+# player stays put.
 class SurfaceTargetsTest < PokeAccessTest
   Loc = PokeAccess::Locator
   T = PokeAccess::I18n
@@ -18,6 +19,17 @@ class SurfaceTargetsTest < PokeAccessTest
     assert_equal({ :surf_tallgrass => [38, 1, T.t(:surf_tallgrass)], :surf_water => [5, 2, T.t(:surf_water)] },
                  by_kind(Loc.surface_targets),
                  "grass thirty-seven tiles on, water in the wall beside the corridor, not the ice behind it")
+  end
+
+  test "a surface under a wall beside the way is the wall's tag, no target, however near" do
+    $game_map.load_grid(["#######", "#@....#", "#######"])
+    $game_map.set_terrain(1, 0, 3)
+    assert_equal({}, by_kind(Loc.surface_targets), "sand under the wall alone")
+    Loc.instance_variable_set(:@surface_cache, nil)
+    $game_map.load_grid(["#######", "#@....#", "#######"])
+    $game_map.set_terrain(1, 0, 3)
+    $game_map.set_terrain(5, 1, 3)
+    assert_equal({ :surf_sand => [5, 1, T.t(:surf_sand)] }, by_kind(Loc.surface_targets), "the sand the player can walk")
   end
 
   test "lists afresh on the same tile once an event ends that opened the way to a surface" do
@@ -61,7 +73,9 @@ class SurfaceTargetsTest < PokeAccessTest
     $game_map.load_grid(["##############",
                          "#@...........#",
                          "##############"])
-    $game_map.set_terrain(11, 2, 10)
+    $game_map.set_terrain(11, 1, 10)
+    $game_map.set_terrain(4, 2, 6)
+    $game_map.set_terrain(8, 2, 6)
     rules = PokeAccess::World::Terrain.instance_variable_get(:@label_rules)
     rule = lambda { |x, y| [[4, 2], [8, 2]].include?([x, y]) ? :ins_surf_sludge : nil }
     PokeAccess::World::Terrain.label_rule(&rule)

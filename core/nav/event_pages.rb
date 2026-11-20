@@ -12,9 +12,10 @@ module PokeAccess
     # a script condition asks; pressed: a button branch it took asks for that key held down (Insurgence's stairs);
     # sent: net [dx, dy] of the first route the event runs on itself with Through on (through_net); sets: the switch ids
     # and self switch letters it turned on; stops: the steps of path on which the engine asks for a touch event (route);
-    # own: the routes the event runs on itself.
+    # own: the routes the event runs on itself; heals: it restored the whole party (Recover All on everyone, or a
+    # known healing call standing alone).
     Outcome = Struct.new(:move, :path, :transfer, :bridge, :jump, :talks, :changes, :waits, :unknown, :maybe_transfer,
-                         :battle, :through, :held, :pressed, :sent, :sets, :stops, :own)
+                         :battle, :through, :held, :pressed, :sent, :sets, :stops, :own, :heals)
 
     DIAGONAL = { 5 => [-1, 1], 6 => [1, 1], 7 => [-1, -1], 8 => [1, -1] }
     TURN_RIGHT = { 2 => 4, 4 => 8, 6 => 2, 8 => 6 }
@@ -26,9 +27,14 @@ module PokeAccess
     MOVE_ROUTE = 209
     WAIT_MOVES = 210
     TRANSFER = 201
+    CONTROL_VARIABLES = 122
+    # What the walk keeps for a variable set to a value it cannot tell, as ScriptCondition reads an unknown call.
+    UNKNOWN = :unknown
     SCRIPT = 355
     SCRIPT_MORE = 655
     STOP = 115
+    # Recover All, which heals everyone with an actor of 0.
+    RECOVER_ALL = 314
     COMMON_EVENT = 117
     # Show Choices and its branches: "when <choice>" and "when cancel".
     CHOICES = 102
@@ -41,15 +47,21 @@ module PokeAccess
     BATTLE = 301
     # Switches, variables, self switches, money, items and party: what a page sets that stays set.
     CHANGE = [121, 122, 123, 125, 126, 127, 128, 129]
-    # Script calls that belong to a cutscene: battles, messages, portraits, speech bubbles, a trainer noticing.
-    TALK_SCRIPT = /pb\w*Battle|TrainerBattle|WildBattle|pbMessage|pbConfirmMessage|pbShowCommands|pbNoticePlayer|pbTrainerEnd|showMug|pbCallBub/
+    # The calls that heal the whole party, as a statement of their own.
+    HEAL_SCRIPT = /\A\s*(?:(?:Kernel\.)?pbHealAll|(?:\$Trainer|\$player)\.heal_party)\s*(?:\(\s*\))?\s*;?\s*\z/
     BATTLE_SCRIPT = /pb\w*Battle|TrainerBattle|WildBattle/
+    # Script calls that say something: messages, choices, portraits, speech bubbles, a trainer noticing.
+    SPEECH_SCRIPT = /pbMessage|pbConfirmMessage|pbShowCommands|pbNoticePlayer|pbTrainerEnd|showMug|pbCallBub|\bfbText\b/
+    # Script calls that belong to a cutscene: battles and what speaks.
+    TALK_SCRIPT = Regexp.union(BATTLE_SCRIPT, SPEECH_SCRIPT)
     # Script calls that set something that stays: switches, self switches, variables, rewards.
     CHANGE_SCRIPT = /pbSetSelfSwitch|setTempSwitch|\$game_(?:switches|variables)\[[^\]]*\]\s*=(?!=)|pbReceiveItem|pbItemBall|pbAddPokemon/
     # A variable set to the answer of a question with options: "$game_variables[5] = pbMessage(..., [Yes, No])".
     CHOICE_ASSIGN = /\A\s*\$game_variables\[\s*(\d+)\s*\]\s*=\s*(?:Kernel\.)?(?:pbMessage\w*|pbShowCommands\w*)\s*\(.*\[/m
-    # A move-route script that moves the character is a move the walk cannot measure.
-    MOVING_SCRIPT = /moveto|jump|move_|@x\b|@y\b/
+    # A move-route script that moves the character is a move the walk cannot measure: a move call of its own, bare or on
+    # self or the player (moveto, jump, jumpForward, move_down; not the speed, frequency, type or route it moves by), or
+    # its @x or @y set. A call on another character (dependentEvents.remove_sprite, getMew.move_up) moves no one here.
+    MOVING_SCRIPT = /(?:\A|[^\w.@$]|\bself\.|\$game_player\.)(?:moveto|jump(?!ing\b|_speed)|move_(?!speed|frequency|type|route))\w*|@[xy]\s*[-+*\/]?=(?!=)/
     # A walk longer than this is a malformed list; better unknown than stuck.
     STEP_CAP = 2000
     # How deep common events calling common events are followed.
@@ -68,11 +80,13 @@ module PokeAccess
     end
 
     # True if the list, or a common event it calls, has a script condition, which may ask where the player or the
-    # event stands: such a page is walked tile by tile.
+    # event stands, or sets a variable to where the player stands (player_place?): such a page is walked tile by tile.
     def self.varies_by_tile?(list, depth = 0)
       list.any? do |c|
         code = (c.code rescue 0)
-        if code == BRANCH
+        if code == CONTROL_VARIABLES
+          player_place?((c.parameters rescue nil) || [])
+        elsif code == BRANCH
           (c.parameters[0] rescue nil) == 12
         elsif code == COMMON_EVENT && depth < COMMON_DEPTH
           sub = common_list((c.parameters[0] rescue 0))
@@ -87,8 +101,10 @@ module PokeAccess
     def self.walk(list, d, ev, at = nil, act = false)
       o = blank
       st = { :x => 0, :y => 0, :face => d, :fix => false, :moved => false, :steps => 0, :at => at,
-             :act => act, :vars => {}, :chosen => {}, :through => false, :held => false, :pressed => false }
+             :act => act, :vars => {}, :chosen => {}, :through => false, :held => false, :pressed => false, :set => {},
+             :shifted => {} }
       run(list, o, st, ev, 0)
+      o.changes = true unless st[:set].empty?
       o.move = [st[:x], st[:y]] unless st[:x] == 0 && st[:y] == 0
       o.held = st[:held]
       o.pressed = st[:pressed]
@@ -100,7 +116,8 @@ module PokeAccess
 
     # An outcome with nothing found yet.
     def self.blank
-      Outcome.new(nil, [], nil, nil, false, false, false, false, false, false, false, false, false, false, nil, [], [], [])
+      Outcome.new(nil, [], nil, nil, false, false, false, false, false, false, false, false, false, false, nil, [], [], [],
+                  false)
     end
 
     # Runs a list on paper against the walk's state. Returns :stop when the walk is over (a transfer, the end
@@ -141,9 +158,13 @@ module PokeAccess
           return stuck(o, list, i)
         elsif code == STOP
           return depth == 0 ? :stop : nil
+        elsif code == RECOVER_ALL
+          o.heals = true if pars[0].to_i == 0
         elsif TALK.include?(code)
           o.talks = true
           o.battle = true if code == BATTLE
+        elsif code == CONTROL_VARIABLES
+          control_variables(pars, st, ev)
         elsif CHANGE.include?(code)
           o.changes = true
           o.sets.concat(turned_on(code, pars))
@@ -152,7 +173,7 @@ module PokeAccess
           return stuck(o, list, i) if sub.nil? || depth >= COMMON_DEPTH
           return :stop if run(sub, o, st, ev, depth + 1) == :stop
         elsif code == TRANSFER
-          o.transfer = transfer_dest(pars)
+          o.transfer = transfer_dest(pars, st)
           return stuck(o, list, i) if o.transfer.nil?
           return :stop
         elsif code == MOVE_ROUTE && pars[0].to_i == -1
@@ -161,6 +182,9 @@ module PokeAccess
         elsif code == MOVE_ROUTE && [0, (ev.id rescue nil)].include?(pars[0].to_i)
           o.sent ||= through_net(pars[1])
           o.own.push(pars[1])
+          st[:shifted][(ev.id rescue nil)] = true
+        elsif code == MOVE_ROUTE
+          st[:shifted][pars[0].to_i] = true
         elsif code == WAIT_MOVES
           o.waits = true if st[:moved]
         elsif code == SCRIPT
@@ -173,6 +197,7 @@ module PokeAccess
           o.bridge = ramp(s) || o.bridge
           o.talks = true if s =~ TALK_SCRIPT
           o.battle = true if s =~ BATTLE_SCRIPT
+          o.heals = true if s =~ HEAL_SCRIPT
           if st[:act] && (m = s.match(CHOICE_ASSIGN))
             st[:vars][m[1].to_i] = 0
           elsif s =~ CHANGE_SCRIPT
@@ -252,16 +277,88 @@ module PokeAccess
       m[1] ? m[1].to_i : 2
     end
 
-    # A Transfer Player command's [map, x, y]: literal, or read from the variables it names.
-    def self.transfer_dest(pars)
+    # A Transfer Player command's [map, x, y]: literal, or read from the variables it names as the walk sees them
+    # (st, see variable); nil when one of them is UNKNOWN. Variables the page set and the transfer reads are then the
+    # transfer's alone: setting them changes nothing that stays.
+    def self.transfer_dest(pars, st = nil)
       return [pars[1], pars[2].to_i, pars[3].to_i] if pars[0].to_i == 0 && pars[1]
       return nil unless pars[0].to_i == 1
-      f = PokeAccess::World::Flags
-      m = f.variable(pars[1]).to_i
-      m > 0 ? [m, f.variable(pars[2]).to_i, f.variable(pars[3]).to_i] : nil
+      vars = st && st[:vars]
+      dest = pars[1, 3].map { |id| variable(id, vars) }
+      return nil if dest.include?(UNKNOWN)
+      m, x, y = dest.map { |v| v.to_i }
+      return nil unless m > 0
+      pars[1, 3].each { |id| st[:set].delete(id) } if st
+      [m, x, y]
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
+    end
+
+    # A Control Variables command (pars: first and last variable, operation, operand kind, operand, its detail) as the
+    # walk runs it for event ev: each variable set is noted in st[:set], and its value kept in st[:vars], UNKNOWN when
+    # the walk cannot tell it (a random number, a character it cannot place, a value worked out of an unknown one).
+    def self.control_variables(pars, st, ev)
+      vars = st[:vars]
+      v = operand(pars, st, ev)
+      (pars[0].to_i..pars[1].to_i).each do |id|
+        st[:set][id] = true
+        n = worked(pars[2].to_i, variable(id, vars), v)
+        vars[id] = n.is_a?(Integer) ? n : UNKNOWN
+      end
+    end
+
+    # The value a Control Variables command works with, or nil when the walk cannot tell it: a constant, a variable as
+    # the walk sees it, a character's place or facing (character_value), or the map's id.
+    def self.operand(pars, st, ev)
+      case pars[3].to_i
+      when 0 then pars[4]
+      when 1 then variable(pars[4], st[:vars])
+      when 6 then character_value(pars[4].to_i, pars[5].to_i, st, ev)
+      when 7 then pars[4].to_i == 0 ? ($game_map.map_id rescue nil) : nil
+      end
+    end
+
+    # A character's x (what 0), y (1) or facing (2) at this point of the walk of event ev: the player's where the page
+    # started plus what it moved them (position) and the facing walked; an event's (who 0 for ev) where it stands,
+    # unless the page sent it a route of its own (st[:shifted]); nil for anything else or what the walk cannot tell.
+    def self.character_value(who, what, st, ev)
+      if who == -1
+        return st[:face] if what == 2
+        pos = position(st)
+        return pos && what < 2 ? pos[what] : nil
+      end
+      id = who == 0 ? (ev.id rescue nil) : who
+      return nil if id.nil? || st[:shifted][id]
+      ch = who == 0 ? ev : ($game_map.events[who] rescue nil)
+      return nil if ch.nil?
+      PokeAccess::World::Flags.volatile! unless who == 0
+      case what
+      when 0 then ch.x
+      when 1 then ch.y
+      when 2 then ch.direction
+      end
+    end
+
+    # True when a Control Variables command (pars) reads where the player stands, which depends on the tile the page
+    # starts from.
+    def self.player_place?(pars)
+      pars[3].to_i == 6 && pars[4].to_i == -1 && pars[5].to_i < 2
+    end
+
+    # A variable's value once operation op (set, add, subtract, multiply, divide, remainder) works v into it, or nil
+    # when either is not a known Integer.
+    def self.worked(op, cur, v)
+      return nil unless v.is_a?(Integer)
+      return v if op == 0
+      return nil unless cur.is_a?(Integer)
+      case op
+      when 1 then cur + v
+      when 2 then cur - v
+      when 3 then cur * v
+      when 4 then v == 0 ? nil : cur / v
+      when 5 then v == 0 ? nil : cur % v
+      end
     end
 
     # A conditional branch against live state: true, false, or nil when it cannot be answered here. RMXP stores

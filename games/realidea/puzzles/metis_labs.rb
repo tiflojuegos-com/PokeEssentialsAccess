@@ -1,7 +1,8 @@
 # Metis Labs: the four levers of the first floor (map 18), told apart by their colour (levers.rb), which must be pulled in
 # order and are checked at the fourth (variable 115 counts them); the papers with A, B and C on floors 1, 2 and 3 (maps 18,
 # 133 and 56); and the door of the ground floor (map 62), which asks for A+BxC. The levers' door open ends the first floor's
-# rule and its count on the info key.
+# rule and its count on the info key. The second floor's doors open and shut together by floor buttons; the third floor's
+# spinning tiles are named and kept off.
 module PokeAccess
   module RealideaMetis
     LEVER_DOOR = [18, 12]
@@ -11,6 +12,12 @@ module PokeAccess
     # How far from the door the info key still speaks of it.
     NEAR = 12
     CLUES = [8, 9, 10]
+    # The second floor (map 133): switch 318 opens all its doors at once; floor buttons drawn in two kinds open or shut them.
+    DOORS = 318
+    OPENERS = [30, 34, 35, 40]
+    CLOSERS = [33, 37, 38, 39]
+    # The third floor (map 56): corner tiles that leave the player spinning until a grunt pulls them out.
+    SPIN_TRAPS = [4, 5, 6, 8]
 
     # True once the levers' door of the first floor is open.
     def self.door_open?
@@ -44,10 +51,17 @@ PokeAccess::Game.define("realidea") do
   mechanic(:state, 133) do
     auto
     name 32, :rea_metis_paper
+    watch :switch => metis::DOORS, :label => :rea_metis_doors, :on => :rea_metis_doors_open, :off => :rea_metis_doors_shut
+    name metis::OPENERS, :rea_metis_button_open
+    name metis::CLOSERS, :rea_metis_button_shut
+    avoid metis::CLOSERS
+    hint :rea_metis_doors_hint
   end
   mechanic(:state, 56) do
     auto
     name 7, :rea_metis_paper
+    name metis::SPIN_TRAPS, :rea_metis_spin_trap
+    avoid metis::SPIN_TRAPS
   end
   mechanic(:state, metis::KEYPAD_MAP) do
     auto

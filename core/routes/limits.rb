@@ -71,6 +71,9 @@ module PokeAccess
       # True once the deadline has passed; never without one.
       def time_spent?; @deadline ? (PokeAccess.clock rescue 0.0) > @deadline : false; end
 
+      # Moves the deadline, if any, on by secs: time a search the operation does not count took (Planner.aside).
+      def postpone(secs); @deadline += secs if @deadline; end
+
       # What a search's answer under this budget depends on: the mode and its size. A stopped one also depends on the
       # clock under a time limit, and by effort on how far the regions and the flood had gone, so the Planner keeps
       # neither.

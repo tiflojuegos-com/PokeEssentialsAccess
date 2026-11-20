@@ -16,21 +16,23 @@ module PokeAccess
           t = Tables.new({}, {}, {}, {}, {}, lim)
           r = Search.run(goal, cost, mode, :astar, Search.bound_for(goal, mode), nil, t)
           op.cut! if r.status == :cut && !lim.equal?(op)
-          s = r.status == :found ? reached(t, goal.tiles) : nil
+          s = r.status == :found ? reached(t, goal) : nil
           s ? push_off(t, s, &walked) : nil
         end
       end
 
-      # The first state of the one goal tile the search settled (on either bridge level), or nil.
-      def self.reached(t, tiles)
+      # The first state of the one goal tile the search settled (on either bridge level), else the state that ends on a
+      # move onto its entry (Search.entered), or nil.
+      def self.reached(t, goal)
         pf = PokeAccess::Pathfinder
-        tiles.each do |x, y|
+        goal.tiles.each do |x, y|
           [0, 1].each do |l|
             k = pf.skey(x, y, l)
             return t.first[k] if t.settled[k]
           end
         end
-        nil
+        es = goal.entry && Search.entry_state(goal.entry)
+        es && t.came[es] ? es : nil
       end
 
       # The first move on the way to state s from a tile walked to into water not walked to, as [x, y, facing], or nil.
@@ -48,9 +50,10 @@ module PokeAccess
         nil
       end
 
-      # The [x, y] of a search state (Search.run: the tile's state key times 5 and the way it was arrived from).
+      # The [x, y] of a search state (Search.run: the tile's state key times 5 and the way it was arrived from), or of the
+      # tile a route's last move steps onto (Search.entry_state).
       def self.tile_of(s)
-        k = s / 5 / 2
+        k = s < 0 ? -1 - s : s / 5 / 2
         [k / PKEY_STRIDE, k % PKEY_STRIDE]
       end
     end

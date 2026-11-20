@@ -9,6 +9,7 @@
     words
     passability
     field_moves
+    lens
     pause
     summary
     storage
@@ -38,6 +39,10 @@
     puzzles/mensa_gym
     puzzles/furnex_gym
     puzzles/elemental_altar
+    puzzles/mirror_ruins
+    puzzles/desidia_castle
+    puzzles/tower_ruins
+    puzzles/regi_chambers
   ],
   :plugins => %w[advanced_pokedex_v16 battle_lives bes_region_map boon_side_stairs encounter_pages fancy_badges
                  fl_roulette incubator item_crafting logros magic_gachapon menu2_pausemenu quest_marker quest_ui

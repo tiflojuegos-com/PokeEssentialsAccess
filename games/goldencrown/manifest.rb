@@ -7,6 +7,7 @@
     constants
     passability
     summary_marks
+    leader_names
   ],
   :plugins => %w[boons_phenomena contest_hall dynamax ebdx encounter_list_ui modular_menu pokesearch zud_max_lair
                  zud_raid_database zud_raid_dens]

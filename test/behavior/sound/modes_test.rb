@@ -272,8 +272,9 @@ class ModesTest < PokeAccessTest
     end
   end
 
-  test "bumping into something to interact with plays the interact cue on its tile" do
-    PokeAccess::Config.wall_volume = 64
+  test "bumping into something to interact with plays the interact cue on its tile, at its own volume" do
+    PokeAccess::Config.wall_volume = 30
+    PokeAccess::Config.interact_volume = 64
     with_sound_engine do |dll|
       assert_equal :engine, Sound.cue(:interact, :dir => 4)
       assert_equal [[:interact, 4, 5, 64]], dll.played

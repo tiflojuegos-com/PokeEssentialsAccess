@@ -242,7 +242,7 @@ class VitroMapTest < ProfileProcessTest
         end
       end
       probe(:dark) do
-        [29, 32, 35, 98, 100, 101, 33].map do |map_id|
+        [29, 32, 98, 100, 101, 33].map do |map_id|
           on_map(map_id) do
             first = puzzle_frame
             [first, puzzle_frame, PokeAccess::Puzzles.active?, PokeAccess::Puzzles.has_locator_targets?]
@@ -509,12 +509,12 @@ class VitroMapTest < ProfileProcessTest
   end
 
   test "a dark map says so on arrival only, and leaves the info key and the list alone" do
-    played(:dark)[0, 6].each do |first, again, active, targets|
+    played(:dark)[0, 5].each do |first, again, active, targets|
       assert_equal [[t(:vitro_dark_area), false]], first
       assert_equal [], again
       assert_equal [false, false], [active, targets]
     end
-    first, = played(:dark)[6]
+    first, = played(:dark)[5]
     assert_equal [], first, "any other map says nothing"
   end
 

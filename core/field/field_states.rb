@@ -32,15 +32,15 @@ module PokeAccess
       nil
     end
 
-    # Whether a copy of the lens with no timer has it on: its eye_of_truth flag, up until the player lowers it.
+    # Whether a copy of the lens with no timer has it on, up until the player lowers it (World::Lens).
     def self.lens_flag?
-      $scene.is_a?(Scene_Map) && $scene.respond_to?(:eye_of_truth) && $scene.eye_of_truth == true
+      !PokeAccess::World::Lens.timed? && PokeAccess::World::Lens.scene_on?
     end
 
-    # Lens of Truth (Drimer's plugin): announces when it takes effect and when it wears off (Scene_Map#eye_of_truth_time
-    # counts the frames left; the copies with no timer keep only the flag); what it reveals is left to the locator.
+    # Lens of Truth (Drimer's plugin, World::Lens): announces when the copies Scene_Map keeps take effect and wear off
+    # (Vitro's, kept off the scene, is its profile's to say); what it reveals is left to the locator.
     def self.lens_poll
-      on = ($scene.is_a?(Scene_Map) && $scene.respond_to?(:eye_of_truth_time) && $scene.eye_of_truth_time.to_i > 0) || lens_flag?
+      on = PokeAccess::World::Lens.scene_on?
       return if on == @lens_on
       @lens_on = on
       PokeAccess.speak(PokeAccess::I18n.t(on ? :fs_lens_on : :fs_lens_off), true)

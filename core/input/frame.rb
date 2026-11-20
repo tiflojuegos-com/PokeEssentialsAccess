@@ -110,7 +110,8 @@ module PokeAccess
     step(:world, 40, :battle_end) { PokeAccess::Battle.clear_battle }
     step(:world, 50, :info)       { PokeAccess::Locator.refresh_info }
     step(:control, 10, :control)  { PokeAccess::Control.evaluate }
-    step(:nav, 10, :listener)     { PokeAccess::Sound.follow_player if PokeAccess::Control.free? }
+    step(:nav, 5, :camera)        { PokeAccess::Camera.tick }
+    step(:nav, 10, :listener)     { PokeAccess::Sound.follow_focus if PokeAccess::Control.free? }
     step(:nav, 20, :feedback)     { PokeAccess::Sound::Feedback.tick }
     step(:nav, 22, :held_carry)   { PokeAccess::HeldCarry.tick if PokeAccess::Control.free? }
     step(:nav, 25, :surfaces)     { PokeAccess::Surfaces.tick }

@@ -12,7 +12,7 @@ class FrameTest < PokeAccessTest
   test "the core's map frame runs the world, control, navigation and sound steps in this order" do
     want = [[:world, [:map_change, :teleport, :forced_move, :event_end, :battle_end, :info]],
             [:control, [:control]],
-            [:nav, [:listener, :feedback, :held_carry, :surfaces, :guide, :puzzles, :keys, :regions, :hpa, :neighbours]],
+            [:nav, [:camera, :listener, :feedback, :held_carry, :surfaces, :guide, :puzzles, :keys, :regions, :hpa, :neighbours]],
             [:sound, [:soundscape]]]
     assert_equal want, [:world, :control, :nav, :sound].map { |s| [s, Frame.steps_of(s)] }
   end
@@ -277,7 +277,7 @@ class FrameTest < PokeAccessTest
   # Which of the listener's move and the regions' walk the block ran, the real ones put back after.
   def following
     ran = []
-    swapping(PokeAccess::Sound, :follow_player, proc { |*_a| ran.push(:listener) }) do
+    swapping(PokeAccess::Sound, :follow_focus, proc { |*_a| ran.push(:listener) }) do
       swapping(PokeAccess::Routes::Regions, :tick, proc { |*_a| ran.push(:regions) }) { yield }
     end
     ran

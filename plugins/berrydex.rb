@@ -38,18 +38,18 @@ module PokeAccess
       PokeAccess::PaintCapture.lines(pairs) + loose
     end
 
-    # The detail screen on a page change: the berry, the section and the lines the page painted; the first page
-    # adds the dominant flavour, and falls back to the data's description when nothing was painted.
+    # The detail screen when the berry, the page or what it paints changes (another subpage of mutations, in the copies
+    # that have them): the berry, the section and the lines the page painted; the first page adds the dominant flavour,
+    # and falls back to the data's description when nothing was painted.
     # param pairs the page's capture, as take_pairs gives it
     def self.page(scene, page, pairs)
       berry = PokeAccess.ivar(scene, :@berry)
       return if berry.nil?
-      sub = PokeAccess.ivar(scene, :@subpage)
-      return unless PokeAccess::Cursor.changed?(scene, :bdx_page, [berry, page, sub])
+      rows = pairs.is_a?(Array) ? page_lines(pairs) : []
+      return unless PokeAccess::Cursor.changed?(scene, :bdx_page, [berry, page, rows])
       name = ((GameData::Item.get(berry).name rescue nil) || berry.to_s)
       section = sections(scene)[page.to_i - 1] || page
       parts = [name, PokeAccess::I18n.t(:bdx_section, :name => section)]
-      rows = pairs.is_a?(Array) ? page_lines(pairs) : []
       body = rows.uniq.reject { |r| r.to_s.strip == name.to_s }
       if body.empty? && page == 1
         d = (GameData::BerryData.try_get(berry).description rescue nil)

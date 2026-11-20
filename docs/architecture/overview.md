@@ -105,8 +105,8 @@ The subsystems of `core/`:
 | `core/dialogue/` | Messages and their pages |
 | `core/field/` | Field screens and messages: evolution, hatching, mail, fishing, phone, berries, minigames, the event timer |
 | `core/world/` | The World layer: terrain, passability, events and map mechanics |
-| `core/routes/` | The route planner and its searches |
-| `core/nav/` | The locator, the guide, the pathfinder, the town and region maps |
+| `core/routes/` | The route planner and its searches, and the free camera's trail |
+| `core/nav/` | The locator, the guide, the free camera, the pathfinder, the town and region maps |
 | `core/sound/` | Positional audio, the sound cues and the soundscape |
 | `core/puzzles/` | Map puzzles as the player hears them |
 

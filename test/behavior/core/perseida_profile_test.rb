@@ -11,6 +11,7 @@ class PerseidaProfileTest < ProfileProcessTest
     # follower's name (0317_Pokemon_Followpoke_Bezier).
     JOYA_NARANJA = 91
     JOYA_TURQUESA = 101
+    JOYA_OSCURA = 128
     NO_SURF_MAPS = [7]
     ACTIVARMANA = 47
     VARMANA = 121
@@ -33,6 +34,26 @@ class PerseidaProfileTest < ProfileProcessTest
     def pbGoldUnit(complete = false); complete ? " Coronas" : "<s> C</s>"; end
     def pbGetTimeNow; Time.local(2026, 11, 1, 14, 5); end
     def drawFormattedTextEx2(_bitmap, _x, _y, _width, _height, _text, _base = nil, _shadow = nil, _outline = true); end
+
+    # The Eye of Truth's module and the flag it keeps on Scene_Map (0228_Eye of truth).
+    module LensOfTruth
+      RANGE = 3
+    end
+
+    class Scene_Map
+      attr_accessor :eye_of_truth
+    end
+
+    # An event with a name and one comment on its page, as the Eye of Truth reads either.
+    LensNote = Struct.new(:code, :parameters)
+    class NotedEvent
+      attr_reader :name
+
+      def initialize(name, note)
+        @name = name
+        @list = [LensNote.new(108, [note]), LensNote.new(0, [])]
+      end
+    end
 
     # An event: its name, and the page the engine left it with.
     class FieldEvent
@@ -280,6 +301,24 @@ class PerseidaProfileTest < ProfileProcessTest
         pulls = effects.instance_variable_get(:@pull_scripts)
         rule = effects.instance_variable_get(:@push_rules).find { |re, _move, _ready| re =~ "pbPushThisBoulder" }
         [pulls.any? { |re| re =~ "pbPushThisBoulder" && re =~ "pbPushThisEvent" }, rule && rule[1], rule.nil?]
+      end
+    end
+
+    def lens_play
+      probe(:lens) do
+        lens = PokeAccess::World::Lens
+        usable = [false, true].map { |on| $game_switches[JOYA_OSCURA] = on; lens.usable? }
+        $game_switches[JOYA_OSCURA] = false
+        doors = [["#EOT Puerta", "showEvent"], ["#EOT Puerta", "hideEvent"], ["Puerta", "showEvent"], ["EOT HIDE", "nota"]]
+        class << $game_system; attr_accessor :menu_disabled; end
+        ends = [[false, false], [true, false], [false, true]].map do |lesson, menu_off|
+          $game_switches[127] = lesson
+          $game_system.menu_disabled = menu_off
+          lens.ends_on_events?
+        end
+        $game_switches[127] = false
+        $game_system.menu_disabled = false
+        [lens.item_name, usable, ends, doors.map { |name, note| lens.kind(NotedEvent.new(name, note)) }]
       end
     end
 
@@ -578,6 +617,7 @@ class PerseidaProfileTest < ProfileProcessTest
 
     probe(:profile_name) { PokeAccess::Game.profile_name }
     field_moves_play
+    lens_play
     words_play
     keys_play
     pause_play
@@ -649,6 +689,11 @@ class PerseidaProfileTest < ProfileProcessTest
             t(:perseida_sail_company), t(:perseida_dismount_route), t(:perseida_dismount_here, :dir => "al norte"), t(:perseida_dismount_spot),
             t(:perseida_sail_ahead)]
     assert_equal want, played(:words)
+  end
+
+  test "the Eye of Truth is the Dark Gem's power, usable once its switch gives the gem, marks doors by comment and ends on events" do
+    assert_equal [t(:edas_lens_name), [false, true], [true, false, false], [:show, :hide, nil, :hide]], played(:lens),
+                 "an event puts it down unless switch 127 holds it for the gem's lesson or the menu is disabled"
   end
 
   test "money is said in Crowns, a hundredth of what the game counts, with the game's own unit" do

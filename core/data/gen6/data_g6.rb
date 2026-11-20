@@ -2,7 +2,7 @@ module PokeAccess
   # Gen-6 data provider (PB* tables and pbGetMessage), registered only on gen-6. Resolvers stay raw:
   # PokeAccess::Data.resolve rescues every call.
   module DataG6
-    def self.move_name(id);        PBMoves.getName(id); end
+    def self.move_name(id);        named(PBMoves, :getName, id); end
     # A move symbol's numeric id, through the PBMoves constant or getID.
     def self.move_id(sym);         (PBMoves.const_get(sym) rescue nil) || getID(PBMoves, sym); end
     def self.move_power(id);       PBMoveData.new(id).basedamage; end
@@ -12,10 +12,10 @@ module PokeAccess
     def self.move_category(id);    PBMoveData.new(id).category; end
     def self.move_description(id); pbGetMessage(MessageTypes::MoveDescriptions, id); end
     def self.type_name(id);        PBTypes.getName(id); end
-    def self.item_name(id);        PBItems.getName(id); end
-    def self.item_name_plural(id);  PBItems.getNamePlural(id); end
+    def self.item_name(id);        named(PBItems, :getName, id); end
+    def self.item_name_plural(id);  named(PBItems, :getNamePlural, id); end
     def self.item_description(id); pbGetMessage(MessageTypes::ItemDescriptions, id); end
-    def self.species_name(id);     PBSpecies.getName(id); end
+    def self.species_name(id);     named(PBSpecies, :getName, id); end
     def self.ability_name(id);     PBAbilities.getName(id); end
     def self.ability_description(id); pbGetMessage(MessageTypes::AbilityDescs, id); end
     def self.nature_name(id);      PBNatures.getName(id); end
@@ -65,6 +65,25 @@ module PokeAccess
         return nil unless id.is_a?(Integer)
       end
       PBTrainers.getName(id)
+    end
+
+    # A PB table's name for id through reader: as the table answers it, which an engine with symbol ids (Reborn's) does
+    # for a symbol; else, when the table rejects a symbol or a string, through its numeric id (see number).
+    def self.named(table, reader, id)
+      return table.send(reader, id) if id.is_a?(Integer)
+      name = (table.send(reader, id) rescue nil)
+      return name unless name.nil? || name.to_s.empty?
+      n = number(table, id)
+      n ? table.send(reader, n) : nil
+    end
+
+    # A PB table's numeric id for id: itself when it is a number, else its constant (a symbol such as :MEW, as a
+    # profile writes it), else nil, which the table rejects and resolve turns into no name; the game's getID answers 0
+    # for a symbol it lacks, and that is no id either.
+    def self.number(table, id)
+      return id if id.is_a?(Integer)
+      n = (table.const_get(id.to_s) rescue nil) || (getID(table, id.to_sym) rescue nil)
+      n == 0 ? nil : n
     end
 
     # An item symbol parsed from an event script as [numeric id, name], through the PBItems constant or getID.

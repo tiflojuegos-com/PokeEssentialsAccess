@@ -1,7 +1,9 @@
 module PokeAccess
   # Pathfinder, across water: for a target out of walking reach, a search with surfing allowed (Routes::Launch) finds
   # where its way leaves the ground the player walks to for water (Routes::Regions on foot; while they are still being
-  # walked, the water's edge), the shore to walk to and push off from.
+  # walked, the water's edge), the shore to walk to and push off from. Afloat, that ground is the water and what it
+  # comes ashore on, so a way that lands and pushes off again is planned a crossing at a time, each from where the last
+  # one ends.
   module Pathfinder
     # The tiles a surf ends on near (tx,ty): the tile itself and the four beside it.
     SURF_AROUND = [[0, 0], [0, -1], [0, 1], [-1, 0], [1, 0]]
@@ -13,13 +15,11 @@ module PokeAccess
     @launches = []
     @surf_company = nil
 
-    # The first launch on the way to (tx,ty) as [shore x, shore y, facing], or nil when surfing gets nowhere
-    # near it, the player is already afloat, or the party is known not to be able to surf. One its search finished is
-    # kept while what it depends on stands (launch_key): a walker's step leaves it.
+    # The first launch on the way to (tx,ty) as [shore x, shore y, facing], afloat the first past coming ashore, or nil
+    # when surfing gets nowhere near it or the party may not surf here (surf_allowed?). One its search finished is kept
+    # while what it depends on stands (launch_key): a walker's step leaves it.
     def self.surf_plan(tx, ty)
-      return nil if ($PokemonGlobal.surfing rescue false)
-      return nil if PokeAccess::FieldMoves.can?(:SURF) == false
-      return nil if PokeAccess::MapMeta.always_bicycle?(($game_map.map_id rescue 0))
+      return nil unless surf_allowed?
       return nil if World::Terrain.water_on_map?(PokeAccess.clock + WATER_READ) == false
       tiles = SURF_AROUND.map { |dx, dy| [tx + dx, ty + dy] }
       return nil if Routes::Regions.water.status(tiles)[0] == :no
@@ -38,14 +38,32 @@ module PokeAccess
       nil
     end
 
+    # Whether the player may push off onto water from (x,y), the free camera's or its trail's tile: the party may surf
+    # here (surf_allowed?) and they are not afloat, unless (x,y) is ground a way afloat has come ashore on
+    # (World::Probe.dry?).
+    def self.may_surf?(x = nil, y = nil)
+      return false if ($PokemonGlobal.surfing rescue false) && (x.nil? || !World::Probe.dry?(x, y))
+      surf_allowed?
+    end
+
+    # Whether the party may surf on this map: not known unable to, and not on a map ridden by bicycle alone.
+    def self.surf_allowed?
+      return false if PokeAccess::FieldMoves.can?(:SURF) == false
+      !PokeAccess::MapMeta.always_bicycle?(($game_map.map_id rescue 0))
+    end
+
     # The launch toward goal, searched with the walkers the regions lend through lent too
     # (Routes::Regions.lendable_walkers), so that where they stand is no part of it: a tile is walked to when the
-    # regions on foot, walked whole, reach it, else when it is no water.
+    # regions on foot (afloat, the water and the ground it comes ashore on), walked whole, reach it, else when it is no
+    # water; afloat, only dry ground (World::Probe.dry?), so water a surfer moves on to by other means, as up a
+    # waterfall, is never a push-off.
     def self.launch(goal, foot)
       cost = Routes::CostModel.new((PokeAccess::Config.route_style rescue :shortest))
       whole = foot.done?
+      afloat = ($PokemonGlobal.surfing rescue false)
       PokeAccess::World::Probe.lend_through(Routes::Regions.lendable_walkers) do
         Routes::Launch.toward(goal, cost) do |x, y|
+          next false if afloat && !PokeAccess::World::Probe.dry?(x, y)
           whole ? foot.known([[x, y]])[0] == :yes : !Routes::Moves.surf_water?(x, y)
         end
       end

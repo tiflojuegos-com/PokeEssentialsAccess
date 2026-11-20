@@ -1,6 +1,6 @@
 # Vitro's title (0334_Resource_TitleScreen, Luka's script, in its custom style): the credits picture cyclePics fades in, as it
-# is written, and before it the warning SplashMessage paints and waits on (0373_pbSplash), which two map events show too. The
-# load screen after it lists the autosaves (selectAutosave, 0377_AutoSave), which core reads, and its language
+# is written, and before it the warning SplashMessage paints and waits on (0374_pbSplash), which two map events show too. The
+# load screen after it lists the autosaves (selectAutosave, 0379_AutoSave), which core reads, and its language
 # entry opens a screen of its own (PokemonLanguageSelection, 0215_Idioma Selector), one row a language under a title.
 module PokeAccess
   module VitroLanguage

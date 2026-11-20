@@ -1,4 +1,4 @@
-# Infinite Fusion 2's fusion chooser (games/infinitefusion_hoenn/fusion_family.rb): the row of dots Up brings up, one
+# Infinite Fusion 2's fusion chooser (games/infinitefusion_common/fusion_family.rb): the row of dots Up brings up, one
 # per fusion of the evolution lines, custom sprite or not and the shown one marked, said once for the side pointed at.
 
 # The chooser screen, reduced to its family row: drawEvolutionIcons asks, for each fusion of the row, whether it has a
@@ -19,7 +19,7 @@ end
 
 class IfhFusionFamilyGdTest < PokeAccessTest
   SPECIES = GameData::Species.singleton_class
-  PATH = File.join(Harness::ROOT, "games", "infinitefusion_hoenn", "fusion_family.rb")
+  PATH = File.join(Harness::ROOT, "games", "infinitefusion_common", "fusion_family.rb")
   # The two sides' rows as fusion ids (B<body>H<head>): Pichu's line under Bulbasaur's head, then under Charmander's.
   LEFT = [:B172H1, :B25H1, :B26H1]
   RIGHT = [:B172H4, :B25H4, :B26H4]

@@ -29,7 +29,7 @@ gen-6 (Essentials v16 y v17) hasta la v22 y sus variantes, incluido el motor de 
 No cambia los scripts del juego. Se carga con el `preloadScript` de mkxp-z, así que al desinstalarlo el juego queda
 como estaba.
 
-Algunos juegos siguen usando el reproductor original de RPG Maker XP, como Pokémon Insurgence y Pokémon Uranium. Al
+Algunos juegos siguen usando el reproductor original de RPG Maker XP, como Pokémon Insurgence, Pokémon Uranium y Pokémon Solar Light & Lunar Dark. Al
 instalar el mod, el launcher los **convierte**: deja el ejecutable original como está y añade a su lado
 `<nombre del juego> (PokeAccess).exe`, una versión de mkxp-z compilada para el mod. Ese es el que hay que abrir para
 jugar con accesibilidad, y el botón **Jugar** del launcher ya lo usa.
@@ -75,6 +75,10 @@ navegación, información y sistema. Guarda 300 mensajes de serie, y hasta 2000 
 - Un sonar 3D binaural (Steam Audio) sitúa a tu alrededor personas, objetos, puertas, teletransportes, agua y
   paredes.
 - El **radar de proximidad** da un pitido corto cuando tienes justo delante algo con lo que puedes interactuar.
+- Chocar con algo que se puede usar, como un cartel, una persona o un objeto, suena distinto que una pared, con su
+  propio interruptor, volumen y tono.
+- En estéreo y mono, que no pueden situar un sonido delante o detrás, el tono dice la dirección: más agudo al norte y
+  más grave al sur. «Opciones de audio» fija el tono de cada dirección.
 - En «Sonidos activados» puedes apagar cada sonido por separado.
 - El **glosario de sonidos**, en el menú del mod, te deja escuchar cada sonido y leer qué significa.
 
@@ -89,8 +93,13 @@ navegación, información y sistema. Guarda 300 mensajes de serie, y hasta 2000 
 
 En «Opciones de navegación y del buscador de rutas» decides cómo funciona la lista de objetivos:
 
-- **Ocultar objetivos**: ninguno, los que no tienen ruta, o además los de otras salas cuando un mapa junta varias.
+- **Ocultar objetivos**: ninguno, los que no tienen ruta, los que no tienen ruta y los de otras salas, o solo los de
+  otras salas, cuando un mapa junta varias.
 - **Ocultar objetos no interactuables**: deja fuera los objetos de decorado con los que no se puede hacer nada.
+- **Activadores de escena**: apagada de serie. Localiza las casillas invisibles que empiezan una escena al pisarlas o
+  tocarlas, en una categoría propia y con su propio sonido. Va apagada porque saber dónde espera una escena destripa
+  parte de ella.
+- **Todo incluye puzles, superficies y marcadores**: apagada de serie. Añade esos objetivos a la categoría «todo».
 - **Orden de los objetivos**: por distancia directa, por distancia a pie o fijo.
 - **Numeración de objetivos**: desactivada (se dice el puesto en la lista), dinámica (cada objetivo conserva su
   número mientras sigues en el mapa) o estática (cuenta también los ocultos, así que puede saltarse números).
@@ -109,12 +118,28 @@ En «Opciones de navegación y del buscador de rutas» decides cómo funciona la
 - Cada lista se importa y se exporta por separado. Cada archivo lleva el juego al que pertenece, para que no se
   mezclen.
 
+### Cámara libre
+
+- `Alt` + `K` abre la **cámara libre** en tu casilla: un punto que mueves por el mapa mientras el personaje se queda
+  donde está. Las teclas de andar del juego la mueven de casilla en casilla. Se para donde se pararía el personaje y
+  dice lo que hay en cada casilla, y el sonar se oye desde ella. Mientras está abierta, el juego no recibe tus teclas.
+- `J`, `L` y `K` cuentan desde la cámara, e `I` dice el camino a pie desde ella hasta el objetivo seleccionado.
+- `Intro` fija la casilla de la cámara como **destino**. `Shift` + `Intro` empieza un **trazado**: lleva la cámara por
+  donde quieras ir y pulsa `Intro` para fijarlo. En los dos casos la cámara se cierra, el objetivo queda seleccionado y
+  las guías te llevan. El mod nunca anda por ti.
+- El destino y el trazado duran hasta que cambias de mapa, y salen en la categoría de marcadores.
+- Sus teclas están en [Teclas](#en-la-cámara-libre).
+
 ### Puzles
 
 - La ruta cuenta con las mecánicas de serie, como las rocas que se empujan con Fuerza, en cualquier juego.
-- Los puzles propios de un juego se preparan uno a uno. De momento hay soporte en Pokémon Z y Pokémon Ópalo. Dentro de
-  un puzle, `T` dice su estado.
-- La opción «Ayuda en puzles», apagada de serie, da las pistas y las rutas que los resuelven.
+- Los puzles propios de un juego se preparan uno a uno. De momento hay soporte en Pokémon Z, Pokémon Ópalo, Pokémon
+  Armonía, Pokémon Realidea, Pokémon Africanus, Pokémon Edas, Pokémon Perseida, Pokémon GS Vitro, Pokémon Insurgence,
+  Pokémon Uranium, Pokémon Solar Light & Lunar Dark, Pokémon Añil, Pokémon Royal, Pokémon Infinite Fusion, Pokémon
+  Infinite Fusion 2 Hoenn, Pokémon Fire Ash, Pokémon Dark Horizon, Pokémon Keishou y Pokémon Ashen Frost. Dentro de un
+  puzle, `T` dice su estado.
+- La opción «Ayuda en puzles», apagada de serie, da las pistas y las rutas que los resuelven. En el minijuego del
+  puzle de piezas dice también la jugada siguiente.
 
 ### Otras herramientas
 
@@ -190,7 +215,8 @@ Cada juego tiene su perfil en `games/`. La lista con la que el launcher reconoce
 
 - **Era gen-6** (Essentials v16 y v17): Pokémon Z, Pokémon Ópalo, Pokémon Reminiscencia, Pokémon Armonía, Pokémon
   Realidea, Pokémon Africanus, Pokémon Awakening, Pokémon Soulstones, Pokémon HGSS: Sevii Islands, Pokémon Edas, Pokémon
-  Perseida y Pokémon GS Vitro, además de los que se convierten al instalar: Pokémon Insurgence y Pokémon Uranium.
+  Perseida, Pokémon GS Vitro y Pokémon Xenoverse (con su `snGame_n.exe`), además de los que se convierten al instalar:
+  Pokémon Insurgence, Pokémon Uranium y Pokémon Solar Light & Lunar Dark.
 - **Motor de Reborn** (basado en Essentials v16, con Ruby 3): Pokémon Reborn, Pokémon Rejuvenation y Pokémon
   Desolation.
 - **Era GameData** (Essentials v18 en adelante): Pokémon Añil, Pokémon Royal, Pokémon Relict, Pokémon Eternal
@@ -235,8 +261,9 @@ con la suya y la acción del juego pasa a otra:
 | Uranium | Ninguna | La `O` cerraba la lista de objetos clave, y cancelar lo sigue haciendo | `O`: menú del mod |
 
 Para usar otra tecla, asígnasela a esa acción en «Reasignar los controles del juego», donde también se pueden elegir
-combinaciones con `Alt`. En los juegos con combinaciones, el `Alt` propio del juego, que en varios cambia la velocidad,
-responde al soltarlo, y no si lo has usado en una combinación.
+combinaciones con `Alt`. Como la cámara libre va en `Alt` + `K`, fuera de combate el `Alt` propio del juego, que en
+varios cambia la velocidad, responde al soltarlo, y no si lo has usado en una combinación. En combate pasa solo en los
+juegos con combinaciones.
 
 Algunos detalles:
 
@@ -286,13 +313,37 @@ Algunos detalles:
 | `Ctrl` + `T` | Repite entera la fila enfocada, como la diría el nivel Completa |
 | `Shift` + `H` | Los PS del equipo rival |
 | `Shift` + `M` | Pone nombre al mapa actual |
-| `Ctrl` + `M` | Cambia qué objetivos se ocultan: ninguno, los que no tienen ruta, o además los de otras salas |
+| `Ctrl` + `M` | Cambia qué objetivos se ocultan: ninguno, los que no tienen ruta, los que no tienen ruta y los de otras salas, o solo los de otras salas |
 | `Ctrl` + `G` | Pone un marcador donde estás y te pide su nombre. Escape o un nombre en blanco cancelan. Se borra desde `Ctrl` + `K` o desde la lista de marcadores |
 | `Ctrl` + `Inicio` / `Fin` | Primer o último mensaje del historial |
 | `Shift` + `Inicio` / `Fin` | Cambia la categoría del historial: todo, diálogos, combate, menús, navegación, información o sistema |
 
 La tecla para **cambiar la verbosidad** (Breve, Media, Completa y tus esquemas) viene sin asignar, porque todas las
 letras las usa algún juego. Asígnala en «Reasignar los controles del juego», como cualquier otra tecla del mod.
+
+El botón del juego que va en `Shift` (el que pone ahí mkxp-z, o el que le diste en `F1`) responde al soltar `Shift`, y
+no si la has usado en una combinación del mod.
+
+### En la cámara libre
+
+| Tecla | Qué hace |
+|-------|----------|
+| `Alt` + `K` | Abre la cámara en tu casilla, o la cierra |
+| Las teclas de andar del juego | Mueven la cámara una casilla. Se para donde se pararía el personaje, con el sonido de una pared o de algo que se puede usar |
+| `Shift` + una dirección | Avanza hasta la siguiente casilla donde algo cambia, como mucho 10 |
+| `Ctrl` + una dirección | Avanza una casilla aunque haya algo que pararía al personaje |
+| `Intro` | Fija ahí el destino, o fija el trazado que estás dibujando, y cierra la cámara |
+| `Shift` + `Intro` | Empieza ahí un trazado, o descarta el que estás dibujando |
+| `Retroceso` | Deshace el último paso del trazado |
+| `Espacio` | Devuelve la cámara al personaje |
+| `Shift` + `Espacio` | Lleva la cámara al objetivo seleccionado |
+| `Escape` | Cierra la cámara |
+| `T` | Describe la casilla de la cámara: lo que hay, si se puede pisar y llegar a pie, y dónde está respecto del personaje |
+| `M` | Dónde está la cámara y respecto del personaje |
+| `Ctrl` + `G` | Pone un marcador en la casilla de la cámara |
+
+«Pasos de la cámara», entre las lecturas de tus esquemas de verbosidad, elige cuánto dice cada paso. `Retroceso` no se
+puede dar a ninguna acción en «Reasignar los controles del juego», porque la usa la cámara.
 
 Para seguir las guías: al cambiar de dirección, o al soltar la tecla y volver a pulsarla, la primera pulsación breve
 solo gira al personaje. Mantén la tecla un instante para dar el paso.
@@ -317,6 +368,7 @@ fila. Además:
 | `Ctrl` + `Alt` + `F8` | Enciende o apaga el mod. Apagado, también calla el sonar; al encenderlo, lo rehace y vuelve a conectar con el lector |
 | `Ctrl` + `Alt` + `F9` | Guarda un diagnóstico en un archivo, útil si encuentras una pantalla, un puzle o un mapa que no es accesible |
 | `Ctrl` + `Alt` + `F10` | Diagnóstico hablado rápido, útil si algo se queda en silencio |
+| `F12` | Reinicia el juego: se cierra y se vuelve a abrir, con el mod |
 
 ## Estructura del repositorio
 

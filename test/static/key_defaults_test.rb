@@ -66,7 +66,7 @@ class KeyDefaultsTest < PokeAccessTest
       remap_extra(:row, :M, :label)
       key_defaults(:row => "alt+m", :nowhere => "N")
       field_key_defaults(:c => "Alt+F1")
-      key_defaults :shift => "Alt+K", :x => "Alt+Q", :y => "Alt+Q"
+      key_defaults :shift => "Alt+P", :x => "Alt+Q", :y => "Alt+Q"
       key_defaults(:z => "T")
     RUBY
     assert_equal ["p: bad name alt+m for row", "p: nowhere is no action of the remap screen", "p: c on a reserved key",

@@ -499,6 +499,18 @@ module PokeAccess
       (scene.instance_variable_get(:@boardwidth) || 4).to_i
     end
 
+    # Tile Puzzle board height.
+    def self.tp_board_h(scene)
+      (scene.instance_variable_get(:@boardheight) || 4).to_i
+    end
+
+    # Whether a square holds no piece: none there, the game's empty mark, or the hole of the Mystic Square (game 3),
+    # its last piece, which the game never draws.
+    def self.tp_hole?(scene, tile)
+      return true if tile.nil? || tile < 0
+      scene.instance_variable_get(:@game).to_i == 3 && tile == tp_board_w(scene) * tp_board_h(scene) - 1
+    end
+
     # Where square pos is: its row and column on the board or, past it, its side of the reserve (two panels of w/2
     # columns flanking the board, which pos % w tells apart) with its row and column there.
     def self.tp_where(w, h, pos)
@@ -513,12 +525,12 @@ module PokeAccess
     # puzzle help on, where it goes.
     def self.tp_cell(scene, pos)
       w = tp_board_w(scene)
-      h = (scene.instance_variable_get(:@boardheight) || 4).to_i
+      h = tp_board_h(scene)
       tiles = scene.instance_variable_get(:@tiles) || []
       angles = scene.instance_variable_get(:@angles) || []
       tile = tiles[pos]
       parts = [tp_where(w, h, pos)]
-      if tile.nil? || tile < 0
+      if tp_hole?(scene, tile)
         parts << PokeAccess::I18n.t(:tp_empty)
       else
         parts << PokeAccess::I18n.t(:tp_tile, :n => tile + 1)
@@ -552,11 +564,12 @@ module PokeAccess
     end
 
     # The whole board for the info key: each row's pieces (in place or turned, said so), the reserve's rows that hold
-    # any, left panel first, the piece in hand, and how many are still out of place, the one in hand among them.
-    def self.tp_board(scene)
+    # any, left panel first, the piece in hand, how many are still out of place, the one in hand among them, and the
+    # help's next move when given.
+    def self.tp_board(scene, hint = nil)
       return PokeAccess::I18n.t(:tp_solved) if (scene.pbCheckWin rescue false)
       w = tp_board_w(scene)
-      h = (scene.instance_variable_get(:@boardheight) || 4).to_i
+      h = tp_board_h(scene)
       tiles = scene.instance_variable_get(:@tiles) || []
       angles = scene.instance_variable_get(:@angles) || []
       wrong = 0
@@ -565,7 +578,7 @@ module PokeAccess
         cells = (0...w).map do |c|
           i = r * w + c
           t = tiles[i]
-          next PokeAccess::I18n.t(:tp_empty) if t.nil? || t < 0
+          next PokeAccess::I18n.t(:tp_empty) if tp_hole?(scene, t)
           ok = t == i && (angles[t].to_i % 4) == 0
           wrong += 1 unless ok
           tp_piece(t, angles, ok)
@@ -588,6 +601,7 @@ module PokeAccess
         out << tp_held(held.to_i, angles)
       end
       out << PokeAccess::I18n.t(:tp_wrong, :n => wrong)
+      out << hint if hint
       out.join(". ")
     end
 
@@ -605,8 +619,439 @@ module PokeAccess
       nil
     end
 
+    TP_FRAME_BUDGET = 0.004
+    TP_NODE_CAP = 20000
+    TP_WEIGHTS = [1, 3, 9]
+    TP_CHASE_CAP = 4096
+    TP_ARROWS = { 2 => :key_arrow_down, 4 => :key_arrow_left, 6 => :key_arrow_right, 8 => :key_arrow_up }
+
+    # A* over a puzzle's states, a slice per frame: advance works until deadline and is true once done; result is
+    # then the first move of a shortest path to the goal, or, where that takes more than TP_NODE_CAP states, of a path
+    # a search weighted by the next of TP_WEIGHTS finds within as many; nil when none turned up. path is that path's
+    # moves whole. succ gives a state's [move, next state] pairs, est a lower bound on the moves left (0 only at the
+    # goal), key a state's identity.
+    class TpSearch
+      attr_reader :result, :path
+
+      def initialize(start, succ, est, key)
+        @start = start
+        @succ = succ
+        @est = est
+        @key = key
+        @weights = TP_WEIGHTS.dup
+        restart
+      end
+
+      def done?; @done; end
+
+      def advance(deadline)
+        until @done
+          node = pop
+          if node.nil?
+            @done = true
+          elsif @seen[node[4]] < node[1]
+            next
+          elsif node[0] == node[1]
+            @result = node[3]
+            @path = trace(node[4])
+            @done = true
+          elsif @seen.size > TP_NODE_CAP
+            @done = @weights.empty?
+            restart unless @done
+          else
+            expand(node)
+            return false if Time.now.to_f > deadline
+          end
+        end
+        true
+      end
+
+      private
+
+      def restart
+        @weight = @weights.shift
+        @heap = []
+        k = @key.call(@start)
+        @seen = { k => 0 }
+        @parent = {}
+        @done = false
+        push([@weight * @est.call(@start), 0, @start, nil, k])
+      end
+
+      def expand(node)
+        g = node[1] + 1
+        @succ.call(node[2]).each do |move, child|
+          k = @key.call(child)
+          next if @seen[k] && @seen[k] <= g
+          @seen[k] = g
+          @parent[k] = [node[4], move]
+          push([g + @weight * @est.call(child), g, child, node[3] || move, k])
+        end
+      end
+
+      def trace(k)
+        moves = []
+        while (link = @parent[k])
+          k, move = link
+          moves.unshift(move)
+        end
+        moves
+      end
+
+      def better?(a, b)
+        a[0] < b[0] || (a[0] == b[0] && a[1] > b[1])
+      end
+
+      def push(node)
+        heap = @heap
+        heap << node
+        i = heap.length - 1
+        while i > 0
+          up = (i - 1) / 2
+          break unless better?(heap[i], heap[up])
+          heap[i], heap[up] = heap[up], heap[i]
+          i = up
+        end
+      end
+
+      def pop
+        heap = @heap
+        return nil if heap.empty?
+        top = heap[0]
+        last = heap.pop
+        return top if heap.empty?
+        heap[0] = last
+        i = 0
+        loop do
+          l = 2 * i + 1
+          break if l >= heap.length
+          c = l + 1 < heap.length && better?(heap[l + 1], heap[l]) ? l + 1 : l
+          break unless better?(heap[c], heap[i])
+          heap[i], heap[c] = heap[c], heap[i]
+          i = c
+        end
+        top
+      end
+    end
+
+    # The presses that straighten game 7's board, where a press turns a square and its neighbours a quarter back.
+    # need[q] is the quarter turns square q still has. Each choice of presses along the shorter side fixes the rest
+    # row by row (a square still turned can only be pressed straight from the row below) and the choices whose last
+    # row also comes out straight solve it; the one with fewest presses is kept. Runs a slice per frame like
+    # TpSearch; result is the presses per square, nil when no choice solves it.
+    class TpChase
+      attr_reader :result
+
+      # a, laid out w wide and h high, turned so that its columns become rows.
+      def self.transpose(a, w, h)
+        out = Array.new(w * h, 0)
+        h.times { |r| w.times { |c| out[c * h + r] = a[r * w + c] } }
+        out
+      end
+
+      def initialize(need, w, h)
+        @flip = w > h
+        @w = @flip ? h : w
+        @h = @flip ? w : h
+        @need = @flip ? TpChase.transpose(need, w, h) : need
+        @next = 0
+        @last = 4 ** @w
+        @best = nil
+        @best_total = nil
+        @done = false
+      end
+
+      def done?; @done; end
+
+      def advance(deadline)
+        until @done
+          if @next >= @last
+            @result = @best && (@flip ? TpChase.transpose(@best, @w, @h) : @best)
+            @done = true
+          else
+            x = attempt(@next)
+            @next += 1
+            total = x && x.inject(0) { |s, v| s + v }
+            if total && (@best.nil? || total < @best_total)
+              @best = x
+              @best_total = total
+            end
+            return false if Time.now.to_f > deadline
+          end
+        end
+        true
+      end
+
+      private
+
+      def attempt(k)
+        w = @w
+        x = Array.new(w * @h, 0)
+        w.times { |c| x[c] = k % 4; k /= 4 }
+        (1...@h).each do |r|
+          w.times do |c|
+            q = (r - 1) * w + c
+            x[q + w] = (@need[q] - pressed(x, q, r - 1, c)) % 4
+          end
+        end
+        r = @h - 1
+        w.times { |c| return nil unless (pressed(x, r * w + c, r, c) - @need[r * w + c]) % 4 == 0 }
+        x
+      end
+
+      def pressed(x, q, r, c)
+        w = @w
+        s = x[q]
+        s += x[q - w] if r > 0
+        s += x[q + w] if r < @h - 1
+        s += x[q - 1] if c > 0
+        s += x[q + 1] if c < w - 1
+        s
+      end
+    end
+
+    # The square next to p in direction dir (2 down, 4 left, 6 right, 8 up) on a w x h board, nil past its edge.
+    def self.tp_step(w, h, p, dir)
+      case dir
+      when 2 then p / w < h - 1 ? p + w : nil
+      when 8 then p / w > 0 ? p - w : nil
+      when 4 then p % w > 0 ? p - 1 : nil
+      when 6 then p % w < w - 1 ? p + 1 : nil
+      end
+    end
+
+    # Pieces s after game 6 shifts row or column line one square toward dir, the piece pushed off the edge coming in
+    # on the other side.
+    def self.tp_shift(s, w, h, dir, line)
+      out = s.dup
+      if dir == 4 || dir == 6
+        step = dir == 6 ? 1 : -1
+        w.times { |c| out[line * w + (c + step) % w] = s[line * w + c] }
+      else
+        step = dir == 2 ? 1 : -1
+        h.times { |r| out[((r + step) % h) * w + line] = s[r * w + line] }
+      end
+      out
+    end
+
+    # The Mystic Square solved in stages, each a few pieces brought home with the earlier ones left alone: the rows
+    # down to the last two, each piece in turn and its last two together, then the last two rows column by column,
+    # then the closing corner.
+    def self.tp_slide_groups(w, h)
+      groups = []
+      (h - 2).times do |r|
+        (w - 2).times { |c| groups << [r * w + c] }
+        groups << [r * w + w - 2, r * w + w - 1]
+      end
+      (w - 2).times { |c| groups << [(h - 2) * w + c, (h - 1) * w + c] }
+      groups << [(h - 2) * w + w - 2, (h - 2) * w + w - 1, (h - 1) * w + w - 2]
+    end
+
+    # The search for the Mystic Square's first stage not yet home: states are the hole's square and its pieces'
+    # squares, moves the hole's direction.
+    def self.tp_slide_job(w, h, tiles)
+      n = w * h
+      hole = tiles.index(n - 1)
+      return nil if hole.nil? || w < 2 || h < 2
+      locked = {}
+      group = tp_slide_groups(w, h).find do |g|
+        home = g.all? { |c| tiles[c] == c }
+        g.each { |c| locked[c] = true } if home
+        !home
+      end
+      return nil unless group
+      succ = lambda do |s|
+        moves = []
+        [2, 4, 6, 8].each do |d|
+          q = tp_step(w, h, s[0], d)
+          next if q.nil? || locked[q]
+          child = s.map { |p| p == q ? s[0] : p }
+          child[0] = q
+          moves << [d, child]
+        end
+        moves
+      end
+      est = lambda do |s|
+        e = 0
+        group.each_with_index { |c, j| e += (s[j + 1] / w - c / w).abs + (s[j + 1] % w - c % w).abs }
+        e
+      end
+      start = [hole] + group.map { |c| tiles.index(c) }
+      TpSearch.new(start, succ, est, lambda { |s| s.inject(0) { |a, p| a * n + p } })
+    end
+
+    # The search for the Rubik's square (game 6, square boards): states are the whole board, moves [dir, line].
+    def self.tp_shift_job(w, h, tiles)
+      n = w * h
+      return nil if w != h || n > 256
+      succ = lambda do |s|
+        moves = []
+        h.times { |r| [4, 6].each { |d| moves << [[d, r], tp_shift(s, w, h, d, r)] } }
+        w.times { |c| [2, 8].each { |d| moves << [[d, c], tp_shift(s, w, h, d, c)] } }
+        moves
+      end
+      est = lambda do |s|
+        dc = 0
+        dr = 0
+        n.times do |p|
+          x = (p % w - s[p] % w).abs
+          y = (p / w - s[p] / w).abs
+          dc += [x, w - x].min
+          dr += [y, h - y].min
+        end
+        (dc + w - 1) / w + (dr + h - 1) / h
+      end
+      TpSearch.new(tiles[0, n], succ, est, lambda { |s| s.pack("C*") })
+    end
+
+    # The chase for game 7, within TP_CHASE_CAP choices along the shorter side.
+    def self.tp_spin_job(w, h, tiles, angles)
+      return nil if 4 ** [w, h].min > TP_CHASE_CAP
+      TpChase.new((0...w * h).map { |q| angles[tiles[q]].to_i % 4 }, w, h)
+    end
+
+    # The rest of a path a search found, done from the start: its first move is the result.
+    class TpPlan
+      attr_reader :path
+
+      def initialize(path); @path = path; end
+
+      def result; @path[0]; end
+
+      def done?; true; end
+
+      def advance(_deadline); true; end
+    end
+
+    # The search for the board as it stands, kept on the scene until a piece moves or turns: the frames between
+    # moves reuse it, resuming it while it runs. nil for a board no search takes.
+    def self.tp_job(scene, game, w, h, tiles, angles)
+      memo = scene.instance_variable_get(:@pa_tp_job)
+      return memo[2] if memo && memo[0] == tiles && memo[1] == angles
+      job = tp_followed(memo, game, w, h, tiles) || case game
+                                                    when 3 then tp_slide_job(w, h, tiles)
+                                                    when 6 then tp_shift_job(w, h, tiles)
+                                                    else tp_spin_job(w, h, tiles, angles)
+                                                    end
+      scene.instance_variable_set(:@pa_tp_job, [tiles.dup, angles.dup, job])
+      job
+    end
+
+    # Game 6's last path less its first move, once the board took that move: following the help never searches again,
+    # and a path a weighted search found is kept to the end instead of a new search that may find none.
+    def self.tp_followed(memo, game, w, h, tiles)
+      return nil unless game == 6 && memo && memo[2].respond_to?(:path)
+      path = memo[2].path
+      return nil unless path && path.length > 1
+      n = w * h
+      dir, line = path[0]
+      tiles[0, n] == tp_shift(memo[0][0, n], w, h, dir, line) ? TpPlan.new(path[1..-1]) : nil
+    end
+
+    # Games 1/2 piece by piece: the piece in hand turned straight (game 2) and put home; with none in hand, the lowest
+    # piece not home picked up, or turned where it lies once home.
+    def self.tp_plan_place(turns, n, tiles, angles, held)
+      if held >= 0
+        a = angles[held].to_i % 4
+        return [:tp_turn, nil, { :tile => held + 1, :n => a }] if turns && a != 0
+        return [:tp_drop, held, { :tile => held + 1 }]
+      end
+      t = (0...n).find { |i| tiles[i] != i || (turns && angles[i].to_i % 4 != 0) }
+      at = t && tiles.index(t)
+      return nil if at.nil?
+      return [:tp_turn, t, { :tile => t + 1, :n => angles[t].to_i % 4 }] if at == t
+      [:tp_take, at, { :tile => t + 1 }]
+    end
+
+    # Games 4/5 piece by piece: the lowest piece not home swapped a square toward it, along its row to its column
+    # and then up, which leaves the pieces already home alone; once home, turned straight (game 5).
+    def self.tp_plan_swap(turns, w, n, tiles, angles)
+      i = (0...n).find { |k| tiles[k] != k || (turns && angles[k].to_i % 4 != 0) }
+      at = i && tiles[0, n].index(i)
+      return nil if at.nil?
+      return [:tp_turn, i, { :tile => i + 1, :n => angles[i].to_i % 4 }] if at == i
+      dir = at % w > i % w ? 4 : (at % w < i % w ? 6 : 8)
+      [:tp_swap, at, { :tile => i + 1, :dir => dir }]
+    end
+
+    # Games 3, 6 and 7 from their search, advanced one slice this frame: nil while it runs, :none when it found
+    # nothing. Game 7 presses where the cursor is when that square needs presses, else on the first one that does.
+    def self.tp_plan_search(scene, game, w, h, tiles, angles, pos)
+      job = tp_job(scene, game, w, h, tiles, angles)
+      return :none if job.nil?
+      job.advance(Time.now.to_f + TP_FRAME_BUDGET) unless job.done?
+      return nil unless job.done?
+      found = job.result
+      return :none if found.nil?
+      n = w * h
+      case game
+      when 3
+        q = tp_step(w, h, tiles.index(n - 1), found)
+        [:tp_slide, nil, { :dir => found, :tile => tiles[q] + 1 }]
+      when 6
+        dir, line = found
+        row = dir == 4 || dir == 6
+        [row ? :tp_shift_row : :tp_shift_col, [row ? :row : :col, line], { :n => line + 1, :dir => dir }]
+      else
+        cell = pos < n && found[pos] > 0 ? pos : (0...n).find { |sq| found[sq] > 0 }
+        cell && [:tp_spin, cell, { :n => found[cell] }]
+      end
+    end
+
+    # The next move as [phrase key, where the cursor acts (a square, [:row or :col, index] for a line, nil for
+    # anywhere), the phrase's values], :none when the search found none, nil while it runs or for a game it does not
+    # know.
+    def self.tp_plan(scene, pos)
+      game = scene.instance_variable_get(:@game).to_i
+      w = tp_board_w(scene)
+      h = tp_board_h(scene)
+      tiles = scene.instance_variable_get(:@tiles) || []
+      angles = scene.instance_variable_get(:@angles) || []
+      held = scene.instance_variable_get(:@heldtile)
+      case game
+      when 1, 2 then tp_plan_place(game == 2, w * h, tiles, angles, held.nil? ? -1 : held.to_i)
+      when 4, 5 then tp_plan_swap(game == 5, w, w * h, tiles, angles)
+      when 3, 6, 7 then tp_plan_search(scene, game, w, h, tiles, angles, pos)
+      end
+    end
+
+    # Where the cursor goes for a move acting at at, as said, or nil when it is already there.
+    def self.tp_go(scene, pos, at)
+      w = tp_board_w(scene)
+      h = tp_board_h(scene)
+      if at.is_a?(Array)
+        return nil if pos < w * h && (at[0] == :row ? pos / w : pos % w) == at[1]
+        return PokeAccess::I18n.t(at[0] == :row ? :tp_go_row : :tp_go_col, :n => at[1] + 1)
+      end
+      return nil if at.nil? || at == pos
+      PokeAccess::I18n.t(:tp_go, :where => tp_where(w, h, at))
+    end
+
+    # With the puzzle help on, the next move toward the solution as said (where the cursor goes, then what to do
+    # there and with which key), or that the search found none; nil otherwise and while the search runs.
+    def self.tp_hint(scene, pos)
+      return nil unless PokeAccess::Puzzles.assist?
+      plan = tp_plan(scene, pos)
+      return nil if plan.nil?
+      return PokeAccess::I18n.t(:tp_no_hint) if plan == :none
+      verb, at, vars = plan
+      key = verb == :tp_turn ? PokeAccess::KeyHints.key(:a, "Z") : PokeAccess::KeyHints.key(:c, "C")
+      vars = vars.dup.merge!(:key => key)
+      vars[:arrow] = PokeAccess::I18n.t(TP_ARROWS[vars[:dir]]) if vars[:dir]
+      parts = [tp_go(scene, pos, at), PokeAccess::I18n.t(verb, vars)].compact
+      PokeAccess::I18n.t(:tp_next, :move => parts.join(", "))
+    end
+
+    # The board as it stands, to tell a move from a cursor step.
+    def self.tp_state(scene)
+      [(scene.instance_variable_get(:@tiles) || []).hash, (scene.instance_variable_get(:@angles) || []).hash,
+       scene.instance_variable_get(:@heldtile)]
+    end
+
     # Voices the Tile Puzzle: the win once solved, else the cursor cell, the piece in hand with its turn and the legal
-    # moves whenever that text changes (picking up and turning the piece in hand do not move the cursor).
+    # moves whenever that text changes (picking up and turning the piece in hand do not move the cursor). With the
+    # puzzle help, the next move joins that line when it is new or the board moved, or comes queued on its own once
+    # the search ends.
     def self.tile_puzzle(scene)
       cur = (scene.instance_variable_get(:@sprites)["cursor"] rescue nil)
       return unless cur
@@ -619,10 +1064,16 @@ module PokeAccess
         dirs = tp_arrows(cur)
         text += ", " + PokeAccess::I18n.t(:tp_moves, :dirs => dirs) if dirs
       end
-      sig = [pos, solved, text]
-      return unless PokeAccess::Cursor.changed?(scene, :tp_cell, sig)
-      PokeAccess.speak(text, true, :menu)
-      publish(scene, tp_board(scene))
+      hint = solved ? nil : tp_hint(scene, pos)
+      moved = PokeAccess::Cursor.changed?(scene, :tp_cell, [pos, solved, text])
+      fresh = !hint.nil? && PokeAccess::Cursor.changed?(scene, :tp_hint, [hint, tp_state(scene)])
+      return unless moved || fresh
+      if moved
+        PokeAccess.speak(fresh ? "#{text}, #{hint}" : text, true, :menu)
+      else
+        PokeAccess.speak(hint, false, :menu)
+      end
+      publish(scene, tp_board(scene, hint))
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil

@@ -11,17 +11,20 @@ module PokeAccess
   #   { :kind => :dismount, :face, :x, :y }       off the bike at (x,y), then on toward :face
   #   { :kind => :control, :label, :ev, :step, :x, :y } a puzzle's control at (x,y), stepped onto (:step) or faced
   #                                               and pressed with the action button (Routes::Controls)
+  #   { :kind => :lens, :label, :ev, :x, :y, :show } the Lens of Truth used before the event at (x,y): a HIDE one to
+  #                                               cross, or with :show the SHOW one the route ends at (World::Lens)
   module Pathfinder
     # What an assisted step costs a route beyond its own press, in steps: a detour this long is preferred to
     # stopping to clear something, and one obstacle to two.
     GATE_COST = 8
 
     # True when anything could open a route walking cannot: an obstacle to clear, a boulder to push, an event to act
-    # at, a registered assist, a waterfall while surfing or the bike to get off.
+    # at, a registered assist that counts on this map (Routes::Moves.assist_here?: on every map but where its owner
+    # names :maps), the Lens of Truth to use, a waterfall while surfing or the bike to get off.
     def self.assist_possible?
       fx = Routes::Effects
       return true unless fx.gate_index.empty? && fx.boulder_index.empty? && fx.act_index.empty?
-      return true if Routes::Moves.assist_registered?
+      return true if Routes::Moves.assist_here? || PokeAccess::World::Lens.assisting?
       (($PokemonGlobal.surfing rescue false) || ($PokemonGlobal.bicycle rescue false)) ? true : false
     end
 
@@ -44,7 +47,8 @@ module PokeAccess
     end
 
     # Runs a block as an assisted search: assisted steps allowed and each cuttable or smashable obstacle lent through
-    # (World::Probe.lend_through), put back afterwards whatever happens. The action events are read first, from the
+    # (World::Probe.lend), and the Lens of Truth's events as it in use leaves them (World::Lens.lent), put back
+    # afterwards whatever happens. The action events are read first, from the
     # world as it stands, since nothing read while events are lent is kept; a plain walk's indexes read themselves
     # (Effects.read_ahead).
     def self.with_gates_open
@@ -54,7 +58,8 @@ module PokeAccess
           c.assisting = true
           fx = Routes::Effects
           fx.act_index
-          PokeAccess::World::Probe.lend_through(fx.gate_index.values.map { |g| g[2] }) { yield }
+          lent = fx.gate_index.values.map { |g| [g[2], true] } + PokeAccess::World::Lens.lent
+          PokeAccess::World::Probe.lend(lent) { yield }
         ensure
           c.assisting = was
         end

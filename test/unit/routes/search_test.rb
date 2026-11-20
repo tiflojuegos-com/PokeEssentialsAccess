@@ -405,14 +405,15 @@ class SearchTest < PokeAccessTest
 
   private
 
-  # The routes of the three styles to every tile brute force reaches on the map loaded, searched with the search's own
-  # estimate (Search.bound_for), that differ from brute force: [mismatches, routes checked].
+  # The routes of the three styles to every tile brute force gets to on the map loaded (brute_reach: a pad by the press
+  # onto it), searched with the search's own estimate (Search.bound_for), that differ from brute force: [mismatches,
+  # routes checked].
   def mismatches(mode, tag)
     bad = []
     checked = 0
     STYLES.each do |style|
       cost = Routes::CostModel.new(style)
-      brute_best(style, mode).each do |(tx, ty), want|
+      brute_reach(style, mode).each do |(tx, ty), want|
         next if tx == $game_player.x && ty == $game_player.y
         goal = Routes::Goal.onto(tx, ty)
         r = searching { Routes::Search.run(goal, cost, mode, :astar, Routes::Search.bound_for(goal, mode)) }

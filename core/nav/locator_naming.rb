@@ -342,7 +342,7 @@ module PokeAccess
     end
 
     # True if an event is a sign: no sprite, examined with the action button, shows text and does not transfer; one
-    # whose live page gives an item is that item until it is taken.
+    # whose live page gives an item is that item until it is taken, and a PC drawn on the map is that PC.
     def self.sign_event?(ev)
       verdict(ev, :sign) { sign_event_uncached?(ev) }
     end
@@ -353,7 +353,7 @@ module PokeAccess
       return false unless examinable?(ev)
       return false if transfers?(ev)
       return false if gives_item?(PokeAccess.ivar(ev, :@list))
-      shows_text?(ev)
+      shows_text?(ev) && !pc_terminal?(ev)
     rescue StandardError => e
       PokeAccess.swallowed(e)
       false
@@ -739,9 +739,9 @@ module PokeAccess
       false
     end
 
-    # True if an event belongs to the Eye/Lens of Truth plugin, whose events carry "#EOT" in their name.
+    # True if the Eye/Lens of Truth plugin hides or shows the event (World::Lens.kind).
     def self.lens_tile?(ev)
-      (ev.name.to_s rescue "") =~ /#EOT/ ? true : false
+      PokeAccess::World::Lens.kind(ev) ? true : false
     rescue StandardError => e
       PokeAccess.swallowed(e)
       false
@@ -785,8 +785,8 @@ module PokeAccess
       PokeAccess::I18n.t(:loc_passage)
     end
 
-    # A map's name: the player's rename, else the game's own (game_map_name), else the MapInfos one (loaded once,
-    # failure cached too), cleaned for speech.
+    # A map's name: the player's rename, else the game's own (game_map_name), else the MapInfos one (loaded once; a
+    # failure is kept until the next map change, clear_targets), cleaned for speech.
     def self.map_name(mapid)
       ov = (PokeAccess::MapNames.get(mapid) rescue nil)
       return ov if ov && !ov.to_s.empty?
@@ -817,12 +817,13 @@ module PokeAccess
     end
 
     # MapInfos (id => RPG::MapInfo) through the engine's loader: those an engine's data provider keeps loaded,
-    # pbLoadMapInfos from v19, pbLoadRxData on gen-6.
+    # pbLoadMapInfos from v19, pbLoadRxData on gen-6, else the file itself through RGSS's load_data, which every engine
+    # has (Reborn's family with no profile of its own).
     def self.load_mapinfos
       kept = PokeAccess::Data.optional(:map_infos)
       return kept if kept
-      return (pbLoadMapInfos rescue nil) if respond_to?(:pbLoadMapInfos, true)
-      (pbLoadRxData("Data/MapInfos") rescue nil)
+      got = respond_to?(:pbLoadMapInfos, true) ? (pbLoadMapInfos rescue nil) : (pbLoadRxData("Data/MapInfos") rescue nil)
+      got || (load_data("Data/MapInfos.rxdata") rescue nil)
     end
 
     # An event's name as said: less the editor's flags after a slash and its notes (EDITOR_NOTE_RE), a trainer's sight
@@ -853,7 +854,9 @@ module PokeAccess
 
     # A name and where its event takes the player ("<name>, leads to <map>"), toward a map named like this one what it
     # leads to (same_place_taken); the name alone toward a map with no name or the one the player is on.
+    # A fighting page keeps the name alone because its transfer may be battle recovery.
     def self.taken_to(ev, name)
+      return name if fights?(PokeAccess.ivar(ev, :@list))
       dmap = (transfer_command_dest(ev) || transfer_script_dest(ev) rescue nil)
       return name if dmap.nil? || dmap == ($game_map.map_id rescue nil)
       d = transfer_dest_name(ev)
@@ -892,9 +895,10 @@ module PokeAccess
       return lever_name(ev, n) if kind == :lever
       return container_name(ev, n) if kind == :container
       return n unless placeholder_name?(n) || n =~ /\Asize\(/i
+      return PokeAccess::I18n.t(:loc_healing_attendant) if healing_attendant?(ev)
       return sign_name(ev) if sign_event?(ev)
       g = ev.character_name.to_s
-      if (PokeAccess::Config.name_items rescue true) && (g.empty? || !live_talks?(ev))
+      if (PokeAccess::Config.name_items rescue true) && (g.empty? || !live_talks?(ev) || item_ball?(ev))
         it = item_name(ev)
         return PokeAccess::I18n.t(:loc_object_named, :name => it) if it
       end
@@ -905,10 +909,13 @@ module PokeAccess
       sprite_trainer_class(g) || g
     end
 
-    # True if the event's live page shows text or choices: a person who talks, not an item ball's own message.
+    # True if the live page speaks or starts a battle, by event text or a recognized script call.
+    # A pickup's own pbItemBall message is not a conversation with its giver.
     def self.live_talks?(ev)
       list = PokeAccess.ivar(ev, :@list)
-      list.is_a?(Array) && list.any? { |c| TEXT_CODES.include?((c.code rescue 0)) }
+      return false unless list.is_a?(Array)
+      return true if list.any? { |c| TEXT_CODES.include?((c.code rescue 0)) }
+      !!script_call_find(ev, [list]) { |script| script =~ PokeAccess::EventPages::TALK_SCRIPT }
     end
 
     # True when a door leads from outdoors into an interior: going in there is an entrance.
@@ -954,15 +961,27 @@ module PokeAccess
       false
     end
 
-    # The species an overworld sprite named by national number shows ("025", "025s" shiny), or nil; only where
-    # species are keyed by number (gen-6, Infinite Fusion).
+    # The species an overworld sprite named by national number shows, in the engine's file names ("025", then "f" for a
+    # female, "s" for a shiny and "_1" for a form), or nil; on GameData only where the data tells the number's species
+    # (DataV21.national_species), and where only the load order tells it (a symbol), only if the game has that sheet:
+    # Revival keeps numbered names whose sheets it no longer ships.
     def self.sprite_species(g)
-      return nil unless g.to_s =~ /\A(\d{3})s?\z/
+      return nil unless g.to_s =~ /\A(\d{3})f?s?(?:_\d+)?\z/
       n = $1.to_i
       return nil if n <= 0
-      return nil unless PokeAccess::Engine.gen6? || (::GameData::Species::DATA.key?(n) rescue false)
-      nm = (PokeAccess::Data.species_name(n) rescue nil)
+      id = PokeAccess::Engine.gen6? ? n : PokeAccess::Data.optional(:national_species, n)
+      return nil if id.nil? || (id.is_a?(Symbol) && !sheet_file?(g.to_s))
+      nm = (PokeAccess::Data.species_name(id) rescue nil)
       (nm && !nm.to_s.strip.empty?) ? nm.to_s : nil
+    end
+
+    # Whether the game has the character sheet named g, as one it lacks draws nothing (Revival's numbered ones); true
+    # where the engine has no pbResolveBitmap to ask. Kept per sheet.
+    def self.sheet_file?(g)
+      return true unless respond_to?(:pbResolveBitmap, true)
+      @sheet_files ||= {}
+      @sheet_files[g] = !pbResolveBitmap("Graphics/Characters/#{g}").nil? unless @sheet_files.key?(g)
+      @sheet_files[g]
     end
 
     # The trainer class a trainer charset is named after: trchar065 or trcharHIKER on gen-6, trainer_AQUAGRUNT_M from
@@ -1161,11 +1180,23 @@ module PokeAccess
     # The uncached item ball test (see item_ball?).
     def self.item_ball_uncached?(ev)
       list = PokeAccess.ivar(ev, :@list)
-      return false unless list.is_a?(Array) && !live_talks?(ev)
-      !!script_call_find(ev, [list]) { |s| s =~ /pbItemBall|pbEventItem/ }
+      return false unless list.is_a?(Array)
+      return false if list.any? { |c| TEXT_CODES.include?((c.code rescue 0)) }
+      script_call_find(ev, [list]) { |s| item_or_word(s) } == :item
     rescue StandardError => e
       PokeAccess.swallowed(e)
       false
+    end
+
+    ITEM_BALL_CALL = /pbItemBall|pbEventItem/
+
+    # Which a script call does first, hand over an item ball (:item) or say something (:word), or nil for neither: a
+    # pickup's own message after it, or a battle before it, is no word of a giver's.
+    def self.item_or_word(script)
+      item = script.index(ITEM_BALL_CALL)
+      word = script.index(PokeAccess::EventPages::SPEECH_SCRIPT)
+      return nil unless item || word
+      word && (item.nil? || word < item) ? :word : :item
     end
 
     # Classifies a graphic event: the category a profile or plugin forces (ruled_category); else a hazard, an item
@@ -1190,12 +1221,48 @@ module PokeAccess
       (ev.tile_id rescue 0).to_i > 0
     end
 
-    # True if an event runs the Essentials PC script.
+    # An Essentials call that opens the PC, as a whole word: pbChoosePokemonPC, which picks a Pokemon from the boxes, is
+    # not one.
+    PC_CALL_RE = /\b(?:pbPokeCenterPC|pbPokemonPC|pbTrainerPC|PokemonPC)\b/
+
+    # True if any page of the event opens the PC.
     def self.pc_event?(ev)
-      !!script_call_find(ev) { |s| s =~ /pbPokeCenterPC|pbPokemonPC|pbTrainerPC|PokemonPC/ }
-    rescue StandardError => e
-      PokeAccess.swallowed(e)
-      false
+      verdict(ev, :pc) { !!script_call_find(ev) { |s| s =~ PC_CALL_RE } }
+    end
+
+    # True if a PC the map's tiles draw stands at this event: it has no sprite, the player uses it with the action key,
+    # its page does something, and one of its pages opens the PC before it says anything (the counter of a person, who
+    # talks first, is not one).
+    def self.pc_terminal?(ev)
+      return false unless ev.character_name.to_s.empty? && PokeAccess.ivar(ev, :@trigger) == 0
+      verdict(ev, :pc_terminal) { has_commands?(ev) && event_command_lists(ev).any? { |l| opens_pc_first?(l) } }
+    end
+
+    # True if the command list opens the PC before any Show Text or Show Choices.
+    def self.opens_pc_first?(list)
+      talk = list.index { |c| TEXT_CODES.include?((c.code rescue 0)) } || list.length
+      script_calls(list[0, talk]).any? { |s| s =~ PC_CALL_RE }
+    end
+
+    # The call that makes a Pokemon Centre the player's return point, as a statement of its own.
+    CENTER_CALL_RE = /\A[ \t]*(?:(?:::)?Kernel\.)?pbSetPokemonCenter\b/
+
+    # True for an unnamed attendant of a Pokemon Centre, a map with a healing spot (MapMeta.pokecenter?): an
+    # action-button event with a sprite whose live page sets the centre and recovers the whole party (Recover All on
+    # everyone, or EventPages::HEAL_SCRIPT). Who heals anywhere else (an inn, a healing kit, a mother, a Leader who sets
+    # the return point after her battle) keeps the name it has.
+    def self.healing_attendant?(ev)
+      return false if PokeAccess.ivar(ev, :@trigger) != 0 || ev.character_name.to_s.empty?
+      verdict(ev, :healing_attendant) do
+        list = PokeAccess.ivar(ev, :@list)
+        next false unless list.is_a?(Array) && PokeAccess::MapMeta.pokecenter?(($game_map.map_id rescue nil))
+        scripts = script_calls(list)
+        everyone = list.any? do |c|
+          (c.code rescue 0) == PokeAccess::EventPages::RECOVER_ALL && (c.parameters[0] rescue 1) == 0
+        end
+        heals = everyone || scripts.any? { |s| s =~ PokeAccess::EventPages::HEAL_SCRIPT }
+        heals && scripts.any? { |s| s =~ CENTER_CALL_RE }
+      end
     end
 
     # True if an event is a service desk used across a counter (nurse, PC, mart clerk), by sprite or script; it stays
@@ -1304,9 +1371,10 @@ module PokeAccess
     end
 
     # True if the player can do something with this event: a transfer, an examinable event, a container (an open one
-    # too), or a touch event with text, a script or goods.
+    # too), a PC drawn on the map, a healing spot, or a touch event with text, a script or goods.
     def self.interactable?(ev)
-      return true if transfer_event?(ev) || examinable?(ev) || container?(ev)
+      return true if transfer_event?(ev) || examinable?(ev) || container?(ev) || pc_terminal?(ev)
+      return true if PokeAccess::HealingFloors.event?(ev)
       trig = PokeAccess.ivar_i(ev, :@trigger)
       return false unless trig == 1 || trig == 2
       list = PokeAccess.ivar(ev, :@list)

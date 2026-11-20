@@ -1,4 +1,4 @@
-# Vitro's trades by code (0388_CodeTrade_BaseUI to 0392_CodeTrade_LogUI, from the event pbTradeMenu): the offer and receive screens
+# Vitro's trades by code (0392_CodeTrade_BaseUI to 0396_CodeTrade_LogUI, from the event pbTradeMenu): the offer and receive screens
 # paint a title, the Pokemon, the code and a menu that MenuHandlers fills under @selected; the manual entry a grid of twelve boxes
 # and two commands; the log two lists of trades turned with left and right, and a page for each. Each code is long and random: it is
 # left to the info key, and the screen's own option copies it. Everything else they say goes through the game's messages.

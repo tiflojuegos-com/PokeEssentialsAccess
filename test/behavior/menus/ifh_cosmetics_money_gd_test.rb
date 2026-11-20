@@ -1,4 +1,4 @@
-# Infinite Fusion 2's Glimmer Coins window (games/infinitefusion_hoenn/cosmetics_money.rb): its label and balance said,
+# Infinite Fusion 2's Glimmer Coins window (games/infinitefusion_common/cosmetics_money.rb): its label and balance said,
 # queued, as it opens; a payout counts it to the new balance, which is said once as the payout ends, not on each step
 # of the count, whether the payout made the window or was handed the dye-kit shop's; the window and the payout's value
 # handed back to the game.
@@ -50,7 +50,7 @@ def pbReceiveMoney(amount, _show_message = true, msgwindow = nil, goldwindow = n
 end
 
 class IfhCosmeticsMoneyGdTest < PokeAccessTest
-  PATH = File.join(Harness::ROOT, "games", "infinitefusion_hoenn", "cosmetics_money.rb")
+  PATH = File.join(Harness::ROOT, "games", "infinitefusion_common", "cosmetics_money.rb")
 
   class << self
     # The player's Glimmer Coins ($Trainer.cosmetics_money) and money ($Trainer.money), as the game keeps them.

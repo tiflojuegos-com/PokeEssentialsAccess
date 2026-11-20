@@ -181,11 +181,16 @@ module PokeAccess
       out.uniq
     end
 
-    # True when the event on (tx,ty) is an action-button one that fires on arrival (Routes::Effects.fires_on_arrival?:
-    # no sprite, on ground anyone stands on), which the engine's check_event_trigger_there skips from beside it.
+    # True when the first action-button event on (tx,ty) whose page runs something (Locator.has_commands?) fires on
+    # arrival (Routes::Effects.fires_on_arrival?: no sprite, on ground anyone stands on), which the engine's
+    # check_event_trigger_there skips from beside it. A page that runs nothing, as a character's left on a door after
+    # its scene, never starts, and a touch or parallel one is not what the action key starts: neither counts.
     def self.underfoot?(tx, ty)
-      ev = PokeAccess::Control.event_at(tx, ty)
-      !ev.nil? && PokeAccess.ivar(ev, :@trigger) == 0 && Routes::Effects.fires_on_arrival?(ev)
+      return false unless $game_map
+      r = PokeAccess::World::Events.at(tx, ty).find do |e|
+        PokeAccess.ivar(e.ev, :@trigger) == 0 && PokeAccess::Locator.has_commands?(e.ev)
+      end
+      !r.nil? && Routes::Effects.fires_on_arrival?(r.ev)
     end
 
     # The tiles of the widest event standing on (tx,ty), as the game reaches it from any of them (its size(w,h) area,

@@ -1,4 +1,4 @@
-# Infinite Fusion 2's Pokedex search by name (games/infinitefusion_hoenn/dex_search.rb): the stock keyboard naming
+# Infinite Fusion 2's Pokedex search by name (games/infinitefusion_common/dex_search.rb): the stock keyboard naming
 # screen under its own name, read as that screen is, its question and the text the box starts with.
 
 # The search box's opener, down to its arguments; the rest of the screen is the stock one's.
@@ -7,7 +7,7 @@ class PokedexTextEntry
 end
 
 class IfhDexSearchGdTest < PokeAccessTest
-  PATH = File.join(Harness::ROOT, "games", "infinitefusion_hoenn", "dex_search.rb")
+  PATH = File.join(Harness::ROOT, "games", "infinitefusion_common", "dex_search.rb")
 
   # Evaluates the profile file once, as boot does, its hook bound to the stand-in above.
   def self.load_profile

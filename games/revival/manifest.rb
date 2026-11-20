@@ -7,12 +7,19 @@
     constants
     passability
     field_moves
+    character_obstacles
     phase_menu
     character_select
     pause_menu
     world_map
     splashes
     cards
+    centers
+    puzzles/avalon_castle
+    puzzles/ranger_base
+    puzzles/tunia_hack
+    puzzles/sun_palace
+    puzzles/black_rose_dungeon
   ],
   :plugins => %w[bag_screen_party bag_search_entry better_summary dbk_battle dbk_enhanced_ui encounter_list_ui
                  enhanced_pokemon_ui fl_pokegear_watch hatcher item_find modular_title pokegear_themes quest_ui

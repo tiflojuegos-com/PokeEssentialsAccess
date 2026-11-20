@@ -4,28 +4,33 @@
   :imports => %w[infinitefusion_common],
   :modules => %w[
     starters
-    dex_search
-    fusion_moves
     color_door
-    pokenav
-    quests
     pokeblocks
-    cursor_modes
     floor_holes
     acro_rails
     contests
     overworld
     market
+    rival
     secret_base
     chair_clock
-    cosmetics_money
-    region_map
     weather
     title
-    fusion_quiz
     hall_of_fame
-    fusion_family
+    clefairy_board
+    time_trial
+    bike_color
+    wild_notice
+    safari
     passability
+    puzzles/mauville_gym
+    puzzles/trick_house
+    puzzles/illusion_grove
+    puzzles/mud_slopes
+    puzzles/side_stairs
+    puzzles/route109_beach_ball
+    puzzles/granite_cave
+    puzzles/nest_hats
   ],
   :plugins => %w[berrydex multi_save better_region_map luka_title]
 }

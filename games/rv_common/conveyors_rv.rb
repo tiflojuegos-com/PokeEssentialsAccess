@@ -35,11 +35,18 @@ module PokeAccess
       [x, y]
     end
 
-    # Registers the belts the engine names as terrain the routes follow.
+    # What the free camera says of a belt tile: the belt and the way it carries; nil off the belts.
+    def self.tile_line(x, y)
+      d = @ways[PokeAccess::World::Terrain.number(x, y)]
+      d ? PokeAccess::I18n.t(:rv_belt, :dir => PokeAccess::Routes::Text.dir(d)) : nil
+    end
+
+    # Registers the belts the engine names as terrain the routes follow and the free camera names.
     def self.bind
       @ways = named_ways
       return if @ways.empty?
       PokeAccess::Routes::Moves.arrival_rule(:tags => @ways.keys) { |x, y, _d| PokeAccess::ConveyorsRV.carry(x, y) }
+      PokeAccess::Camera.tile_reader(:tags => @ways.keys) { |x, y| PokeAccess::ConveyorsRV.tile_line(x, y) }
     end
   end
 end

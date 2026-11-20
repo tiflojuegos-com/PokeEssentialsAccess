@@ -4,7 +4,7 @@
 # call an exit. A Holed boulder shows where a boulder fell from above (puzzles/rock_holes.rb). A torch with glowswitch(A) in its name is
 # lit by common event 31, which turns its self switch A on through pbUseEmber (0318_MO Mejoradas), and nothing but its light
 # depends on it (0338_Dark Maps). A CaveMon is a dust cloud that fights when touched, turned into a Pokemon as the scene starts
-# (wild_map.rb). A Poke 0 or Poke 1, in the Day Care and its yard, wears the sprite of the Pokemon left there (pbDaycareGraphic in
+# while the options show Pokemon on the map (wild_map.rb). A Poke 0 or Poke 1, in the Day Care and its yard, wears the sprite of the Pokemon left there (pbDaycareGraphic in
 # 0360_Poke Ranch, with each event's slot as the map's script calls it). The rest wear names the scripts read to draw them: aspas
 # (0035_Spriteset_Map) says nothing, so they go by their sprite, and the lights and decoration, with nothing to run, stay out of
 # the list.

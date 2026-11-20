@@ -20,13 +20,13 @@ module PokeAccess
 
     # Plays a one-shot sound toward a direction (opts :dir, :vol, its family's volume if none) through the engine where
     # its place allows, sound navigation is on and it starts, else the catalog's flat stand-in: :engine or :flat for
-    # what played, else false.
+    # what played, else false. With opts :at [x, y], it plays from that tile in place of the player's (the camera's).
     def self.cue(id, opts = {})
       e = Catalog.entry(id)
       d = opts[:dir]
       vol = opts[:vol] || Mixer.volume(id)
       return false if e.nil? || vol.nil? || vol <= 0
-      at = Scheduler.nav_off? ? nil : engine_tile(e, d)
+      at = Scheduler.nav_off? ? nil : engine_tile(e, d, opts[:at])
       if at && Pa3d.channel(id)
         Pa3d.tone(id, (100 * Mixer.flat_factor(id)).round) if e.place == :side
         return :engine if Pa3d.start(id, at[0], at[1], vol)
@@ -34,11 +34,11 @@ module PokeAccess
       flat(e, d, vol) ? :flat : false
     end
 
-    # The tile a sound plays on through the engine toward d, or nil where its place leaves it flat: a side sound ahead
-    # or behind, as stereo headphones cannot place front and back.
-    def self.engine_tile(e, d)
+    # The tile a sound plays on through the engine toward d from the player's tile, or from origin [x, y], or nil where
+    # its place leaves it flat: a side sound ahead or behind, as stereo headphones cannot place front and back.
+    def self.engine_tile(e, d, origin = nil)
       return nil unless $game_player
-      px = $game_player.x; py = $game_player.y
+      px, py = origin || [$game_player.x, $game_player.y]
       dx, dy = PokeAccess::DIR_DELTA[d] || [0, 0]
       case e.place
       when :side then (d == 4 || d == 6) ? [px + dx * guide_distance, py + dy * guide_distance] : nil
@@ -121,7 +121,7 @@ module PokeAccess
     # when the engine is down or the sound has no channel.
     def self.preview(id, vol, pitch)
       return false unless $game_player && Pa3d.channel(id)
-      follow_player
+      Pa3d.listener($game_player.x, $game_player.y)
       Pa3d.master((PokeAccess::Config.audio3d_volume rescue 80).to_i)
       Pa3d.tone(id, pitch)
       Pa3d.occlude(id, 0)
@@ -140,19 +140,21 @@ module PokeAccess
       e ? e.role == :loop : false
     end
 
-    # Whether the mod's bump would be heard: sound navigation on, the wall volume above zero and, when the engine would
-    # play it, its master volume above zero.
+    # Whether the mod's bump would be heard: sound navigation on, the volume of its sound (the bump into something to
+    # interact with, or the wall's) above zero and, when the engine would play it, its master volume above zero.
     def self.bump_audible?(interact = false)
       return false if Scheduler.nav_off?
-      return false if (Mixer.volume(:wall) || 0) <= 0
-      return true unless Pa3d.channel(interact ? :interact : :wall)
+      id = interact ? :interact : :wall
+      return false if (Mixer.volume(id) || 0) <= 0
+      return true unless Pa3d.channel(id)
       (PokeAccess::Config.audio3d_volume rescue 80).to_i > 0
     end
 
-    # Puts the listener on the player's tile at once, so what the map frame places from a new tile (the step, the
-    # guide's chime) is heard from where the player stands; true if set.
-    def self.follow_player
-      $game_player ? Pa3d.listener($game_player.x, $game_player.y) : false
+    # Puts the listener on the focus (Camera.focus: the player's tile, or the camera's while open) at once, so what the
+    # map frame places from a new tile (the step, the guide's chime) is heard from there; true if set.
+    def self.follow_focus
+      at = PokeAccess::Camera.focus
+      at ? Pa3d.listener(at[0], at[1]) : false
     end
   end
 end

@@ -133,13 +133,13 @@ BitmapSprite#draw_plain_text | anil royal worldfrontier | text plumbing (a windo
 BitmapSprite#draw_shadowed_text | anil royal worldfrontier | text plumbing (a window's own setter or a drawing helper): what it paints is read where the screen using it is read
 BoundedPokemonEntryScene#pbEntry | rejuvenation | read by games/rejuvenation/text_entry.rb: the question, matches and help
 ChallengeModes#select_custom_rules | anil emerald | read by plugins/challenge_rules.rb: each rule, its state and description
-ContactsAppTrainerButton#draw_text | infinitefusion_hoenn | read by games/infinitefusion_hoenn/pokenav.rb: the button and its marks
+ContactsAppTrainerButton#draw_text | infinitefusion_hoenn | read by games/infinitefusion_common/pokenav.rb: the button and its marks
 DiegoWTsStarterSelection#pbOpenScene | darkhorizon vitro | read by each profile's starter_selection.rb: the textbox and keys
 EnemyBuffs_Scene#pbOptions | fireash | the rows by the options reader; games/fireash/enemy_buffs.rb watches the textbox
 EnemyBuffs_Scene#showBuffDescription | fireash | sets the textbox games/fireash/enemy_buffs.rb watches
 FrentePWTBracket#draw_board | worldfrontier | read by games/worldfrontier/pwt.rb: title, round, who is in and who is out
 FrentePWTBracket#draw_slot | worldfrontier | read by games/worldfrontier/pwt.rb with the bracket
-FusionMovesOptionsScene#updateCounter | infinitefusion_hoenn | read by games/infinitefusion_hoenn/fusion_moves.rb from the counter
+FusionMovesOptionsScene#updateCounter | infinitefusion_hoenn | read by games/infinitefusion_common/fusion_moves.rb from the counter
 FusionQuiz#refresh_score_display | infinitefusion_hoenn | the quiz's dialogue says the score; fusion_quiz.rb says the streak
 GachaScene#actualizarTiradas | royal | read by plugins/magic_gachapon.rb: the pulls and coins
 Glosario_Historia_Secciones#iniciar_ventana | awakening | the rows are read by games/awakening/glossary.rb; the title is the tab already said

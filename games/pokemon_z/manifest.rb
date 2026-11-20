@@ -23,6 +23,12 @@
     puzzles/talasia_cave
     puzzles/pokeball_factory
     puzzles/ancient_forge
+    puzzles/old_library
+    puzzles/gym1
+    puzzles/gym2
+    puzzles/gym6
+    puzzles/le_chonk
+    puzzles/desenlace_cave
     battle_bag
     pokedex
     picture_cues

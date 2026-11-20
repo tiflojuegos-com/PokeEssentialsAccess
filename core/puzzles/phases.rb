@@ -202,6 +202,19 @@ module PokeAccess
       nil
     end
 
+    # The id of the event a mechanic's spot (of its own or of a phase's) is declared on that stands at x, y, or nil.
+    def self.spot_event_at(x, y)
+      PokeAccess::World::Mechanics.instances.each do |inst|
+        lists = [inst.spec[:spots]] + (inst.spec[:phases] || []).map { |s| s[:spots] }
+        lists.compact.flatten.each do |sp|
+          next if sp[:at] || !sp[:event]
+          ev = ($game_map.events[sp[:event]] rescue nil)
+          return ev.id if ev && ev.x == x && ev.y == y
+        end
+      end
+      nil
+    end
+
     # Named points as targets, while they are listed: a fixed tile, or where an event stands.
     def self.spot_targets(spots)
       (spots || []).map do |sp|

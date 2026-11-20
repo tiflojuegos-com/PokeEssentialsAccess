@@ -37,9 +37,9 @@ module PokeAccess
         seq ? way_to(seq) : nil
       end
 
-      # The tiles walkable from (x, y) with every wall set aside, each with the tiles one step leads to: key =>
-      # [[key, x, y], ...] (nil past TILES); nil once the route limit's deadline passes, the stop counted. A tile on both
-      # levels of a bridge keeps the moves of the level reached first.
+      # The tiles walkable from (x, y) with every wall set aside, each with the tiles one step leads to and the step's
+      # entry (Moves::Step#entry): key => [[key, x, y, entry], ...] (nil past TILES); nil once the route limit's deadline
+      # passes, the stop counted. A tile on both levels of a bridge keeps the moves of the level reached first.
       def self.floor_from(x, y)
         pf = PokeAccess::Pathfinder
         lim = pf.limits
@@ -55,7 +55,7 @@ module PokeAccess
             t = step_at(cx, cy, lvl, dir, mode)
             next unless t
             k = Routes.pkey(t.x, t.y)
-            out.push([k, t.x, t.y])
+            out.push([k, t.x, t.y, t.entry])
             next if floor.key?(k)
             floor[k] = nil
             queue.push([t.x, t.y, t.level])
@@ -66,13 +66,15 @@ module PokeAccess
       end
 
       # The floor tiles reachable from key start, the blocked ones never entered and the stops entered but never left
-      # (a plate stepped onto is pressed), as key => true.
-      def self.region(floor, start, blocked, stops = {})
+      # (a plate stepped onto is pressed), as key => true; aim's too, unblocked, where a move onto it takes the player on
+      # elsewhere (Goal#entry).
+      def self.region(floor, start, blocked, stops = {}, aim = nil)
         seen = { start => true }
         queue = [start]
         until queue.empty?
           k = queue.shift
-          (floor[k] || []).each do |nk, _x, _y|
+          (floor[k] || []).each do |nk, _x, _y, entry|
+            seen[aim] = true if aim && entry == aim && !blocked[aim]
             next if seen[nk] || blocked[nk]
             seen[nk] = true
             queue.push(nk) unless stops[nk]
@@ -81,8 +83,9 @@ module PokeAccess
         seen
       end
 
-      # The fewest presses that open the way to goal, in turn, as [piece, key of the tile it is pressed from] each; nil
-      # when the way is open already, when none within DEPTH opens it, or past VISITS tiles or the deadline (a cut).
+      # The fewest presses that open the way to goal (one of its tiles, or a move onto its entry), in turn, as [piece, key
+      # of the tile it is pressed from] each; nil when the way is open already, when none within DEPTH opens it, or past
+      # VISITS tiles or the deadline (a cut).
       def self.presses(inst, ctrls, floor, goal)
         links = PokeAccess::World::Mechanics::Links
         limits = PokeAccess::Pathfinder.limits
@@ -98,7 +101,7 @@ module PokeAccess
             next if seen[sig]
             seen[sig] = true
             return limits.cut! if visits > VISITS || limits.time_spent?
-            reach = region(floor, pos, links.blocked(inst, over), stops)
+            reach = region(floor, pos, links.blocked(inst, over), stops, goal.entry)
             visits += reach.size
             return (done.empty? ? nil : done) if aims.any? { |k| reach[k] }
             ctrls.each do |p|
@@ -179,17 +182,20 @@ module PokeAccess
       end
 
       # The tiles a walk on foot keeps off, as pkey => true: where a step would change the map's puzzle, the plates
-      # some wall reads, what a mechanic asks to avoid while its page can run, and a floor grid's cells while a letter is
-      # being formed on it.
+      # some wall reads, every tile of what a mechanic asks to avoid while its page can run (with the puzzle assist
+      # alone, what it asks to avoid so), and a floor grid's cells while a letter is being formed on it.
       def self.keep_off
         mech = PokeAccess::World::Mechanics
         off = {}
         mech.instances.each do |inst|
           plates(inst).each_key { |k| off[k] = true }
           spec = inst.spec
-          (spec[:avoids] || []).each do |what|
+          avoids = spec[:avoids] || []
+          avoids += spec[:assist_avoids] if spec[:assist_avoids] && PokeAccess::Puzzles.assist?
+          avoids.each do |what|
             ($game_map.events || {}).each_value do |ev|
-              off[Routes.pkey(ev.x, ev.y)] = true if mech.picks?(what, ev) && mech.acts?(ev)
+              next unless mech.picks?(what, ev) && mech.acts?(ev)
+              PokeAccess::World::Events.tiles_of(ev).each { |x, y| off[Routes.pkey(x, y)] = true }
             end
           end
           spec[:cells].each { |x, y| off[Routes.pkey(x, y)] = true } if spec[:cells] && mech::Grid.live?(spec)

@@ -86,7 +86,9 @@ module GameData
 
   # A bag pocket's name is its own id ("Medicine"), undecorated, for readable assertions.
   class BagPocket; def self.get(i); new(i); end; def initialize(i); @i = i; end; def name; @i.to_s; end; def auto_sort; false; end; end
+  # Any species by any id, from a table that lists none, so no national number names one.
   class Species
+    DATA = {}
     def self.get(i); new(i); end
     def initialize(i); @i = i; end
     def name; "Species#{@i}"; end
@@ -1078,6 +1080,7 @@ end
 # the reader collects them there.
 class ButtonEventScene
   def addLabelForScreen(number, x, y, width, text); [number, x, y, width, text]; end
+  def addImageForScreen(number, x, y, file); [number, x, y, file]; end
   def set_up_screen(number); number; end
 end
 

@@ -32,7 +32,9 @@ module PokeAccess
       :desk  => [0, 3, 1, :tiles_unit],
       :msgs  => [100, 2000, 100, :msgs_unit],
       :hpacl => [6, 20, 2, :tiles_unit],
-      :nmaps => [8, 64, 8, :maps_unit]
+      :nmaps => [8, 64, 8, :maps_unit],
+      # A pitch in percent of the recording, 100 leaving it as it is.
+      :pitch => [50, 150, 5, :percent_unit]
     }
 
     # List kinds: their values in the order the menu steps through them (a Proc for values listed elsewhere) and how
@@ -41,7 +43,7 @@ module PokeAccess
       :lang      => [lambda { PokeAccess::I18n.language_choices }, lambda { |v| PokeAccess::I18n.language_name(v) }],
       :verbosity => [lambda { PokeAccess::Verbosity.rotation },
                      lambda { |v| PokeAccess::Verbosity.name_of(PokeAccess::Verbosity.rotation.include?(v) ? v : :full) }],
-      :hide      => [[:off, :unreachable, :room], "hide_"],
+      :hide      => [[:off, :unreachable, :room, :other_rooms], "hide_"],
       :navmode   => [[:off, :basic, :full], "nav_"],
       :output    => [[:binaural, :stereo, :mono, :quad, :surround51, :surround71], "output_"],
       :occ       => [[:hear, :occlude, :hide], "occ_"],
@@ -231,6 +233,8 @@ module PokeAccess
     define(:auto_steps,           false,  :flag,      :pathfinder,     :lbl_auto_steps,       :help_auto_steps)
     define(:hide_unreachable,     :off,   :hide,      :pathfinder,     :lbl_hide_unreachable, :help_hide_unreachable)
     define(:hide_noninteractive,  false,  :flag,      :pathfinder,     :lbl_hide_noninter,    :help_hide_noninter)
+    define(:scene_triggers,       false,  :flag,      :pathfinder,     :lbl_scene_triggers,   :help_scene_triggers)
+    define(:everything_extras,    false,  :flag,      :pathfinder,     :lbl_everything_extras, :help_everything_extras)
     define(:target_order,         :walk,  :tord,      :pathfinder,     :lbl_target_order,     :help_target_order)
     define(:target_numbering,     :dynamic, :tnum,    :pathfinder,     :lbl_target_numbering, :help_target_numbering)
     define(:name_items,           true,   :flag,      :pathfinder,     :lbl_name_items,       :help_name_items)
@@ -240,6 +244,8 @@ module PokeAccess
     define(:surface_cues,         true,   :flag,      :pathfinder,     :lbl_surface_cues,     :help_surface_cues)
     define(:puzzle_assist,        false,  :flag,      :pathfinder,     :lbl_puzzle_assist,    :help_puzzle_assist)
     define(:route_style,          :shortest, :rstyle, :pathfinder_adv, :lbl_route_style,      :help_route_style)
+    define(:avoid_grass,          false,  :flag,      :pathfinder_adv, :lbl_avoid_grass,      :help_avoid_grass)
+    define(:avoid_trainers,       false,  :flag,      :pathfinder_adv, :lbl_avoid_trainers,   :help_avoid_trainers)
     define(:route_reach,          128,    :reach,     :pathfinder_adv, :lbl_reach,            :help_reach)
     define(:route_limit,          :effort, :rlimit,   :pathfinder_adv, :lbl_route_limit,      :help_route_limit)
     define(:astar_max,            2500,   :astar,     :pathfinder_adv, :lbl_astar,            :help_astar,
@@ -262,6 +268,11 @@ module PokeAccess
     define(:sonar_only_locatable, false,  :flag,      :audio,          :lbl_sonar_locatable,  :help_sonar_locatable, SONAR)
     define(:game_bump,            false,  :flag,      :audio,          :lbl_game_bump,        :help_game_bump, NAV_ON)
     define(:audio3d_output,       :binaural, :output, :audio,          :lbl_pos_output,       :help_pos_output, NAV_ENGINE)
+    [[:audio3d_pitch_north, 120], [:audio3d_pitch_south, 80], [:audio3d_pitch_west, 100],
+     [:audio3d_pitch_east, 100]].each do |key, pct|
+      define(key, pct, :pitch, :audio, "lbl_#{key}".to_sym, :help_audio3d_pitch,
+             :show_if => [:audio3d_output, [:stereo, :mono]], :needs => :positional)
+    end
     define(:audio3d_volume,       80,     :vol,       :audio,          :lbl_pos_master,       :help_pos_master, NAV_ENGINE)
     [:on, :vol, :freq, :tone].each do |kind|
       Sound::Catalog.rows(kind).each do |key, default, k, group, label, help, shown|
@@ -287,12 +298,13 @@ module PokeAccess
 
     #--- non-schema defaults ---
 
-    # Mod hotkeys: action => key code (Keyboard). :verbosity ships unbound (every letter is some game's). key_defaults, these
-    # with what the profile moves, let the remap menu restore one key and settings.rb save only the changed ones.
+    # Mod hotkeys: action => key code (Keyboard). :verbosity ships unbound (every letter is some game's); :camera on Alt+K
+    # (0x1200, Keyboard::ALT_HELD, with K). key_defaults, these with what the profile moves, let the remap menu restore
+    # one key and settings.rb save only the changed ones.
     KEY_DEFAULTS = {
       :next => 0x4C, :prev => 0x4A, :where => 0x4B, :route => 0x49,
       :info => 0x54, :hp => 0x48, :coords => 0x4D, :field => 0x47,
-      :config => 0x4F, :shift => 0x10, :ctrl => 0x11,
+      :config => 0x4F, :camera => 0x124B, :shift => 0x10, :ctrl => 0x11,
       :hist_prev => 0x24, :hist_next => 0x23, :verbosity => nil
     }.freeze
     self.key_defaults = KEY_DEFAULTS.dup

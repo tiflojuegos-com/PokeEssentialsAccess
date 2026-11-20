@@ -82,7 +82,8 @@ module PokeAccess
           return
         end
         @basic_silenced = false
-        scan_and_ping($game_player.x, $game_player.y)
+        at = PokeAccess::Camera.focus
+        scan_and_ping(at[0], at[1])
       rescue StandardError => e
         PokeAccess.swallowed(e)
         PokeAccess::Sound.log(:tick, e)
@@ -119,11 +120,12 @@ module PokeAccess
 
       # The frame's reading and ping: on a tile change the scene, the walls, the winds, the water and the shore; else the
       # emitters again when an event that walks changed tile near the player, MOVER_GAP after the last reading at the
-      # soonest; then one ping and the shore's cue. An ice slide is read once, where it stops.
+      # soonest; then one ping and the shore's cue. An ice slide is read once, where it stops, and the free camera once it
+      # stands still (Camera.still?).
       def self.scan_and_ping(px, py)
         key = [px, py, $game_map.map_id]
         now = PokeAccess.clock
-        unless PokeAccess::Control.sliding?
+        unless PokeAccess::Control.sliding? || !PokeAccess::Camera.still?
           if @scan_pos != key
             @scan_pos = key
             step(:rescan) { Scene.scan(px, py) }
@@ -181,11 +183,13 @@ module PokeAccess
         end
       end
 
-      # Muffles an emitter before it pings when a wall stands between, in the "occlude" mode; clear otherwise.
+      # Muffles an emitter before it pings when a wall stands between it and the focus (Camera.focus), in the "occlude"
+      # mode; clear otherwise.
       def self.occlude(id, pos)
-        return unless $game_player
+        at = PokeAccess::Camera.focus
+        return unless at
         occ = 0
-        if Scene.occlusion_mode == :occlude && !Scene.line_clear?($game_player.x, $game_player.y, pos[0], pos[1])
+        if Scene.occlusion_mode == :occlude && !Scene.line_clear?(at[0], at[1], pos[0], pos[1])
           occ = OCCLUDE_AMOUNT
         end
         Pa3d.occlude(id, occ)

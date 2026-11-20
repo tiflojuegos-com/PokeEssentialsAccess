@@ -55,6 +55,21 @@ class PuzzleAutoTest < PokeAccessTest
     end
   end
 
+  test "a grouped name of levers on an auto map is one target, with none of its levers listed again on its own" do
+    on_map(:medium) do
+      reader_of(SWITCH, 30)
+      lever_at(5, 5, 20)
+      lever_at(6, 5, 21)
+      lever_at(7, 5, 22)
+      PokeAccess::World::Mechanics.define(:state, MAP) do
+        auto
+        name 20..22, "Panel", :grouped => true
+      end
+      PokeAccess::World::Events.sync(true)
+      assert_equal [["Panel", 6]], PokeAccess::Puzzles.category_targets.map { |tg| [tg.name, tg.x] }
+    end
+  end
+
   test "something that flickers and ends as it was is no change" do
     on_map(:medium) do
       reader_of(SWITCH, 30)
@@ -360,6 +375,18 @@ class PuzzleAutoTest < PokeAccessTest
       running(true, silly) { assert_nil answers.expected, "it does not tell where it keeps it" }
       kept = [TestCmd.new(355, ["pbSet(1,pbEnterText('Code',0,4))"]), TestCmd.new(111, [12, 'pbGet(1)=="31"']), TestCmd.new(0, [])]
       running(true, kept) { assert_equal "31", answers.expected }
+      two = [TestCmd.new(355, ["$game_variables[4] = pbGetPokemon(1)"]), TestCmd.new(655, ["$game_variables[5] = pbEnterText('Code',0,4)"]),
+             TestCmd.new(111, [12, '$game_variables[5]=="31"']), TestCmd.new(0, [])]
+      running(true, two) do
+        $game_system.map_interpreter.instance_variable_set(:@index, 1)
+        assert_equal "31", answers.expected, "the variable the entry is assigned to, not one the script set before it"
+      end
+      last = [TestCmd.new(355, ["pbSet(4,0)"]), TestCmd.new(655, ["pbTextEntry('Code',0,4,5); pbSet(9, 2)"]),
+              TestCmd.new(111, [12, '$game_variables[5]=="31"']), TestCmd.new(0, [])]
+      running(true, last) do
+        $game_system.map_interpreter.instance_variable_set(:@index, 1)
+        assert_equal "31", answers.expected, "pbTextEntry keeps it in its last argument"
+      end
     end
   end
 
@@ -471,6 +498,74 @@ class PuzzleAutoTest < PokeAccessTest
                     TestCmd.new(111, [1, 1, 0, -1, 0]), TestCmd.new(412, [])]
       assert_equal [0, 1, 2], PokeAccess::Puzzles::Answers.text_branches(two, 1, 1).map { |place, _cmds| place }, "stops at the next menu"
       assert_equal [0], PokeAccess::Puzzles::Answers.text_branches(two, 14, 1).map { |place, _cmds| place }, "cancelling is no option"
+    end
+  end
+
+  test "a menu in a message reaches its comparisons nested in another's else, each nested menu its own" do
+    on_map(:medium) do
+      PokeAccess::Config.puzzle_assist = true
+      event_at(5, 5, 20)
+      list = seal_page
+      assert_equal [2, 1], PokeAccess::Puzzles::Answers.text_branches(list, 0, 1).map { |place, _cmds| place }
+      assert_equal [0], PokeAccess::Puzzles::Answers.text_branches(list, 2, 1).map { |place, _cmds| place }
+      assert_equal [2], PokeAccess::Puzzles::Answers.text_branches(list, 13, 1).map { |place, _cmds| place }
+      assert_equal "One", option_for({ :takes => { :switch => 147 } }, list), "the second sequence starts in the else"
+      assert_equal "Two", option_for({ :takes => { :switch => 147 } }, list, 13)
+      assert_equal "Two", option_for({ :takes => { :switch => 146 } }, list)
+      assert_equal "Zero", option_for({ :takes => { :switch => 146 } }, list, 2)
+      assert_nil option_for({ :takes => { :switch => 147 } }, list, 29), "a menu whose answer nothing compares"
+      reset = [list[0], TestCmd.new(122, [1, 1, 0, 0, 2]), TestCmd.new(111, [1, 1, 0, 2, 0]), TestCmd.new(0, [], 1), TestCmd.new(412, [])]
+      assert_equal [], PokeAccess::Puzzles::Answers.text_branches(reset, 0, 1), "a comparison after the variable is set again"
+    end
+  end
+
+  test "right_choice counts what a branch's jump to a label runs, up to an exit, a menu or a jump back" do
+    on_map(:medium) do
+      PokeAccess::Config.puzzle_assist = true
+      event_at(5, 5, 20)
+      list = koan_page
+      assert_equal "Leviathao", option_for({ :takes => { :self => "B" } }, list, 1), "a nested menu's jump"
+      assert_equal "Krakanao", option_for({ :takes => { :self => "B" } }, list, 3), "the jump back to the menu is no win"
+      assert_equal "Baitatao", option_for({ :takes => { :self => "C" } }, list, 1), "the win's exit keeps the failure out"
+      looping = [TestCmd.new(102, [%w[Stay Go], 1]), TestCmd.new(402, [0, "Stay"]), TestCmd.new(119, ["loop"], 1),
+                 TestCmd.new(0, [], 1), TestCmd.new(402, [1, "Go"]), TestCmd.new(123, ["A", 0], 1), TestCmd.new(0, [], 1),
+                 TestCmd.new(404, []), TestCmd.new(118, ["loop"]), TestCmd.new(119, ["loop"]), TestCmd.new(0, [])]
+      assert_equal "Go", option_for({ :takes => { :self => "A" } }, looping), "a label that jumps to itself"
+    end
+  end
+
+  test "from a label inside a branch the game leaves the block at the branch's end, past its other branches" do
+    on_map(:medium) do
+      PokeAccess::Config.puzzle_assist = true
+      event_at(5, 5, 20)
+      options = [TestCmd.new(102, [%w[A B C], 1]), TestCmd.new(402, [0, "A"]), TestCmd.new(118, ["fail"], 1),
+                 TestCmd.new(101, ["Oops."], 1), TestCmd.new(0, [], 1), TestCmd.new(402, [1, "B"]), TestCmd.new(119, ["fail"], 1),
+                 TestCmd.new(0, [], 1), TestCmd.new(402, [2, "C"]), TestCmd.new(123, ["A", 0], 1), TestCmd.new(0, [], 1),
+                 TestCmd.new(404, []), TestCmd.new(0, [])]
+      assert_equal "C", option_for({ :takes => { :self => "A" } }, options), "the label's option is not the others'"
+      branch = [TestCmd.new(102, [%w[Go Stay], 1]), TestCmd.new(402, [0, "Go"]), TestCmd.new(119, ["in"], 1), TestCmd.new(0, [], 1),
+                TestCmd.new(402, [1, "Stay"]), TestCmd.new(0, [], 1), TestCmd.new(404, []), TestCmd.new(111, [12, "x"]),
+                TestCmd.new(118, ["in"], 1), TestCmd.new(101, ["Inside."], 1), TestCmd.new(0, [], 1), TestCmd.new(411, []),
+                TestCmd.new(123, ["B", 0], 1), TestCmd.new(0, [], 1), TestCmd.new(412, []), TestCmd.new(123, ["C", 0]),
+                TestCmd.new(0, [])]
+      assert_nil option_for({ :takes => { :self => "B" } }, branch), "nor is the else of the branch it is in"
+      assert_equal "Go", option_for({ :takes => { :self => "C" } }, branch), "what follows the block runs"
+    end
+  end
+
+  test "a place a message's menu compares twice is one option, doing what both comparisons hold" do
+    on_map(:medium) do
+      PokeAccess::Config.puzzle_assist = true
+      event_at(5, 5, 20)
+      lit = lambda { TestCmd.new(121, [80, 80, 0], 1) }
+      list = [TestCmd.new(101, ["Which?\\ch[1,-1,Zero,One]"]), TestCmd.new(111, [1, 1, 0, 1, 0]), lit.call, TestCmd.new(0, [], 1),
+              TestCmd.new(412, []), TestCmd.new(111, [1, 1, 0, 1, 0]), lit.call, TestCmd.new(0, [], 1), TestCmd.new(412, []),
+              TestCmd.new(111, [1, 1, 0, 0, 0]), TestCmd.new(101, ["Nothing."], 1), TestCmd.new(0, [], 1), TestCmd.new(412, []),
+              TestCmd.new(0, [])]
+      branches = PokeAccess::Puzzles::Answers.text_branches(list, 0, 1)
+      assert_equal [1, 0], branches.map { |place, _cmds| place }
+      assert_equal 4, branches[0][1].length, "both comparisons' commands"
+      assert_equal "One", option_for({ :takes => { :switch => 80 } }, list)
     end
   end
 
@@ -627,14 +722,43 @@ class PuzzleAutoTest < PokeAccessTest
   # What a wrong option does in a riddle: adds to a variable.
   def wrong(var); TestCmd.new(122, [var, var, 1, 0, 1], 1); end
 
-  # The option a rule picks of a menu on event 20, with no text.
-  def option_for(rule, list)
+  # The option a rule picks of the menu at list[i] on event 20.
+  def option_for(rule, list, i = 0)
     PokeAccess::World::Mechanics.forget
     PokeAccess::World::Mechanics.define(:state, MAP, :part => :quiz) { right_choice(20, rule) }
     running(true, list) do
       $game_system.map_interpreter.instance_variable_set(:@event_id, 20)
-      PokeAccess::Puzzles::Answers.right_option($game_system.map_interpreter, list, 0)
+      PokeAccess::Puzzles::Answers.right_option($game_system.map_interpreter, list, i)
     end
+  end
+
+  # A Show Text with a menu of three symbols, as Uranium's seafloor seal asks five in a row (two here): a right first
+  # answer nests the next menu in its branch, the other sequence starts in the first comparison's else, a wrong one
+  # jumps to a label whose menu nothing compares. Menus at 0, 2, 13 and 29.
+  def seal_page
+    ask = lambda { |indent| TestCmd.new(101, ["Which?\\ch[1,-1,Zero,One,Two]"], indent) }
+    is = lambda { |value, indent| TestCmd.new(111, [1, 1, 0, value, 0], indent) }
+    lit = lambda { |switch, indent| TestCmd.new(121, [switch, switch, 0], indent) }
+    miss = lambda { |indent| [TestCmd.new(119, ["dummy"], indent), TestCmd.new(0, [], indent)] }
+    [ask.call(0), is.call(2, 0), ask.call(1), is.call(0, 1), lit.call(146, 2), TestCmd.new(0, [], 2), TestCmd.new(411, [], 1)] +
+      miss.call(2) + [TestCmd.new(412, [], 1), TestCmd.new(0, [], 1), TestCmd.new(411, []), is.call(1, 1), ask.call(2), is.call(2, 2),
+                       lit.call(147, 3), TestCmd.new(0, [], 3), TestCmd.new(411, [], 2)] +
+      miss.call(3) + [TestCmd.new(412, [], 2), TestCmd.new(0, [], 2), TestCmd.new(411, [], 1)] + miss.call(2) +
+      [TestCmd.new(412, [], 1), TestCmd.new(0, [], 1), TestCmd.new(412, []), TestCmd.new(118, ["dummy"]), ask.call(0),
+       TestCmd.new(119, ["dummy"]), TestCmd.new(0, [])]
+  end
+
+  # A riddle of Show Choices as Uranium's koan of the Lost Seas asks it: the right answers jump to the win, which sets
+  # self switch B and ends the event before the failure's label, which sets C; one option jumps back to the start, before
+  # the first menu. Menus at 1 and 3.
+  def koan_page
+    [TestCmd.new(118, ["start"]), TestCmd.new(102, [["Leviathao", "Baitatao", "Give up"], 1]), TestCmd.new(402, [0, "Leviathao"]),
+     TestCmd.new(102, [%w[Krakanao Baitatao], 1], 1), TestCmd.new(402, [0, "Krakanao"], 1), TestCmd.new(119, ["victory"], 2),
+     TestCmd.new(0, [], 2), TestCmd.new(402, [1, "Baitatao"], 1), TestCmd.new(119, ["start"], 2), TestCmd.new(0, [], 2),
+     TestCmd.new(404, [], 1), TestCmd.new(0, [], 1), TestCmd.new(402, [1, "Baitatao"]), TestCmd.new(119, ["fail"], 1),
+     TestCmd.new(0, [], 1), TestCmd.new(402, [2, "Give up"]), TestCmd.new(0, [], 1), TestCmd.new(404, []),
+     TestCmd.new(118, ["victory"]), TestCmd.new(123, ["B", 0]), TestCmd.new(115, []), TestCmd.new(118, ["fail"]),
+     TestCmd.new(123, ["C", 0]), TestCmd.new(101, ["Wrong."]), TestCmd.new(0, [])]
   end
 
   # A control that writes a switch and says nothing.

@@ -1,5 +1,6 @@
 # Terrain that moves the player on arriving or leaving, as each game or plugin plays it (slides, spin arrows, currents,
-# slopes, floor traps, cracked floors, rails), the climbs some games add, and the held key the guides call for there.
+# slopes, floor traps, cracked floors, rails), the climbs some games add, the held key the guides call for there, and
+# what the free camera says of those tiles.
 class RouteTerrainTest < PokeAccessTest
   PF = PokeAccess::Pathfinder
   Moves = PokeAccess::Routes::Moves
@@ -171,6 +172,21 @@ class RouteTerrainTest < PokeAccessTest
     end
   end
 
+  test "the free camera names an Infinite Fusion current by the way it pushes, and a current alone where it pushes nowhere" do
+    with_profile("infinitefusion_common/water_current") do
+      $PokemonGlobal.surfing = true
+      cam = PokeAccess::Camera
+      way = lambda { |d| T.t(:solar_current, :dir => T.t(d)) }
+      got = [[], [8], [8, 4], [8, 4, 6], [8, 4, 6, 2]].map do |shut|
+        grid(POOL, { [3, 2] => current })
+        shut.each { |s| $game_map.block_step(3, 2, s) }
+        cam.tile_lines(3, 2)
+      end
+      assert_equal [[way[:dir_up]], [way[:dir_left]], [way[:dir_right]], [way[:dir_down]], [T.t(:if_current)]], got
+      assert_equal [], cam.tile_lines(2, 2), "still water"
+    end
+  end
+
   test "an Infinite Fusion current carries no one on foot" do
     with_profile("infinitefusion_common/water_current") do
       grid(["#####",
@@ -233,6 +249,18 @@ class RouteTerrainTest < PokeAccessTest
     end
   end
 
+  test "the free camera names Realidea's slope with its way, and each current with its own while water walking is on" do
+    with_profile("realidea/slides") do
+      cam = PokeAccess::Camera
+      grid(current_room, { [2, 2] => 42, [3, 3] => 44, [4, 3] => 47 })
+      off = [cam.tile_lines(2, 2), cam.tile_lines(3, 3), cam.tile_lines(2, 3)]
+      $game_switches[182] = true
+      on = [cam.tile_lines(3, 3), cam.tile_lines(4, 3)]
+      assert_equal [[T.t(:rea_slope, :dir => T.t(:dir_down))], [], []], off, "no current pushes with water walking off"
+      assert_equal [[T.t(:solar_current, :dir => T.t(:dir_up))], [T.t(:solar_current, :dir => T.t(:dir_down))]], on
+    end
+  end
+
   test "Realidea's slope runs on down a column of slopes to the first tile that is no slope" do
     with_profile("realidea/slides") do
       grid(["#####",
@@ -288,6 +316,14 @@ class RouteTerrainTest < PokeAccessTest
   ensure
     $PokemonGlobal.sliding = was
     $game_player.singleton_class.send(:remove_method, :moving?) if $game_player.singleton_methods(false).include?(:moving?)
+  end
+
+  test "the free camera names each tile of Awakening's trap, a drawn fall that drags the player down" do
+    with_profile("awakening/floor_trap", TRAP_OVERRIDES) do
+      grid(trap_room, { [2, 2] => 17 })
+      cam = PokeAccess::Camera
+      assert_equal [[T.t(:awk_drag_fall)], []], [cam.tile_lines(2, 2), cam.tile_lines(1, 2)]
+    end
   end
 
   test "Awakening's trap carries a step down onto it to its end, and leaves any other step where it lands" do
@@ -391,20 +427,32 @@ class RouteTerrainTest < PokeAccessTest
     end
   end
 
-  test "routes go round Opalo's trap floor" do
+  test "routes cross Opalo's trap floor as seen, and with the puzzle assist go round it" do
     with_profile("opalo/floor_traps") do
       grid(opalo_room, { [2, 1] => 4, [3, 1] => 4 })
-      assert_equal [2, 6, 6, 6], walk_route(4, 1)
+      PokeAccess::Pathfinder.invalidate_cache(true)
+      seen = walk_route(4, 1).to_a
+      PokeAccess::Config.set(:puzzle_assist, true)
+      assert_equal [[6, 6], [2, 6, 6, 6]], [seen, walk_route(4, 1).to_a]
     end
+  ensure
+    PokeAccess::Config.set(:puzzle_assist, false)
   end
 
-  test "the surfaces call Opalo's trap floor a trap and leave other terrain its own name" do
+  test "the surfaces call Opalo's trap floor a trap with the puzzle assist alone and leave other terrain its own name" do
     with_profile("opalo/floor_traps") do
       grid(opalo_room, { [2, 1] => 4, [1, 2] => 7 })
       label = PokeAccess::World::Terrain
-      got = { [2, 1] => label.label(2, 1), [1, 2] => label.label(1, 2), [1, 1] => label.label(1, 1) }
-      assert_equal({ [2, 1] => :op_trap, [1, 2] => :surf_water, [1, 1] => nil }, got)
+      got = [false, true].map do |assist|
+        PokeAccess::Config.set(:puzzle_assist, assist)
+        { [2, 1] => label.label(2, 1), [1, 2] => label.label(1, 2), [1, 1] => label.label(1, 1) }
+      end
+      assert_equal [{ [2, 1] => nil, [1, 2] => :surf_water, [1, 1] => nil },
+                    { [2, 1] => :op_trap, [1, 2] => :surf_water, [1, 1] => nil }], got,
+                   "the trap looks like the floor round it"
     end
+  ensure
+    PokeAccess::Config.set(:puzzle_assist, false)
   end
 
   test "Emerald's cracked floor is ground to hold the key on, on the bike alone, and getting off it is seen at once" do
@@ -558,6 +606,16 @@ class RouteTerrainTest < PokeAccessTest
     end
   end
 
+  test "the free camera names climbable rock as a wall to climb, Añil's and Rock Climb EX's, and plain ground as nothing" do
+    rock_room([[2, 2], [2, 3]])
+    climb = PokeAccess::I18n.t(:loc_rock_climb)
+    assert_equal [true, false], [PokeAccess::Camera.tile_lines(2, 2).include?(climb), PokeAccess::Camera.tile_lines(1, 1).include?(climb)]
+    with_ex_settings(true) do
+      ex_rock_room([[2, 2], [2, 3]])
+      assert_includes PokeAccess::Camera.tile_lines(2, 3), climb
+    end
+  end
+
   test "Rock Climb EX's rock is climbed straight along to past its end, up and down" do
     with_ex_settings(true) do
       ex_rock_room([[2, 2], [2, 3]])
@@ -648,6 +706,8 @@ class RouteTerrainTest < PokeAccessTest
       right = [2, 2, 1, :assist, { :kind => :act, :face => 6, :x => 1, :y => 2 }]
       assert_equal [up, right, [], []], got,
                    "on the bike from below it and from beside its end; on foot; along it from a rail tile"
+      $game_map.map_id = 1
+      assert_equal [], shape(Moves.step(3, 3, 0, DIR_OF[8], Moves::ASSIST)), "on a map with no rails"
     end
   end
 
@@ -678,6 +738,16 @@ class RouteTerrainTest < PokeAccessTest
       hop = lambda { |x, y| [x, y, 1, :jump, nil] }
       assert_equal [[hop[3, 1], hop[3, 3], hop[5, 2], hop[1, 2]], [hop[2, 1], hop[2, 4]]], [across, down],
                    "a rail across the room: up, down and off either end; one down the room: off either end"
+    end
+  end
+
+  test "IF Hoenn's free camera names each rail tile, on the maps with rails alone" do
+    with_profile("infinitefusion_hoenn/acro_rails") do
+      rail_across
+      rail_line = [PokeAccess::I18n.t(:if_ho_acro_rail)]
+      assert_equal [rail_line, rail_line, []], [[2, 2], [4, 2], [1, 2]].map { |x, y| PokeAccess::Camera.tile_lines(x, y) }
+      $game_map.map_id = 1
+      assert_equal [], PokeAccess::Camera.tile_lines(3, 2), "on a map with no rails"
     end
   end
 
@@ -779,8 +849,9 @@ class RouteTerrainTest < PokeAccessTest
     World.touch(:id => 122, :x => 3, :y => 1, :list => World.cracked_floor(999))
   end
 
-  # IF Hoenn's rail along the wall row between two floors, from wall to wall.
+  # IF Hoenn's rail along the wall row between two floors, from wall to wall, on Route 110 (map 71).
   def rail_between_floors
+    $game_map.map_id = 71
     grid(["#######",
           "#.....#",
           "#######",
@@ -788,8 +859,9 @@ class RouteTerrainTest < PokeAccessTest
           "#######"], (1..5).map { |x| [[x, 2], rail] })
   end
 
-  # IF Hoenn's rail across a room, on the wall tiles between floor at either end.
+  # IF Hoenn's rail across a room, on the wall tiles between floor at either end, on Route 110 (map 71).
   def rail_across
+    $game_map.map_id = 71
     grid(["#######",
           "#.....#",
           "#.###.#",
@@ -887,13 +959,14 @@ class RouteTerrainTest < PokeAccessTest
     added
   end
 
-  # The registries a profile adds to, as they stand: Routes::Moves' rule lists, the surface labels, the field-move
-  # items, the profile names, the overrides listed and the wrappers Hooks.rebind would put back, the toolkit's
-  # constants and, for each overridden method, the method with the singleton's own method names.
+  # The registries a profile adds to, as they stand: Routes::Moves' rule lists, the surface labels, the free camera's
+  # tile readers, the field-move items, the profile names, the overrides listed and the wrappers Hooks.rebind would put
+  # back, the toolkit's constants and, for each overridden method, the method with the singleton's own method names.
   def registries(overridden)
     game = PokeAccess::Game
     { :rules => RULE_LISTS.map { |iv| Moves.instance_variable_get(iv).dup },
       :labels => PokeAccess::World::Terrain.instance_variable_get(:@label_rules).dup,
+      :readers => PokeAccess::Camera.instance_variable_get(:@readers).dup,
       :items => Hash[PokeAccess::FieldMoves.instance_variable_get(:@items).map { |move, list| [move, list.dup] }],
       :profiles => [game.profiles.dup, game.instance_variable_get(:@profile_name)],
       :overrides => PokeAccess::Hooks.overrides.dup,
@@ -905,12 +978,13 @@ class RouteTerrainTest < PokeAccessTest
       end }
   end
 
-  # What a profile registered between two registries: the new rules, labels, items, profile names, overrides and
-  # constants, and each overriding method with the aliases it calls.
+  # What a profile registered between two registries: the new rules, labels, tile readers, items, profile names,
+  # overrides and constants, and each overriding method with the aliases it calls.
   def additions(before, now)
     fresh = lambda { |was, list| list.reject { |r| was.any? { |w| w.equal?(r) } } }
     { :rules => RULE_LISTS.each_index.map { |i| fresh.call(before[:rules][i], now[:rules][i]) },
       :labels => fresh.call(before[:labels], now[:labels]),
+      :readers => fresh.call(before[:readers], now[:readers]),
       :items => now[:items].map { |move, list| [move, list - (before[:items][move] || [])] },
       :profiles => now[:profiles][0] - before[:profiles][0],
       :overrides => now[:overrides] - before[:overrides],
@@ -925,6 +999,7 @@ class RouteTerrainTest < PokeAccessTest
     RULE_LISTS.each_with_index { |iv, i| Moves.instance_variable_get(iv).concat(added[:rules][i]) }
     Moves.forget_map
     PokeAccess::World::Terrain.instance_variable_get(:@label_rules).concat(added[:labels])
+    PokeAccess::Camera.instance_variable_get(:@readers).concat(added[:readers])
     added[:items].each { |move, list| list.each { |it| PokeAccess::FieldMoves.register_item(move, it) } }
     PokeAccess::Game.profiles.concat(added[:profiles])
     PokeAccess::Game.instance_variable_set(:@profile_name, nil)
@@ -941,6 +1016,7 @@ class RouteTerrainTest < PokeAccessTest
     RULE_LISTS.each_with_index { |iv, i| Moves.instance_variable_set(iv, saved[:rules][i]) }
     Moves.forget_map
     PokeAccess::World::Terrain.instance_variable_set(:@label_rules, saved[:labels])
+    PokeAccess::Camera.instance_variable_set(:@readers, saved[:readers])
     PokeAccess::FieldMoves.instance_variable_set(:@items, saved[:items])
     PokeAccess::Game.profiles.replace(saved[:profiles][0])
     PokeAccess::Game.instance_variable_set(:@profile_name, saved[:profiles][1])

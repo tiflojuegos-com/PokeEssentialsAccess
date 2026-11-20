@@ -27,6 +27,7 @@ class RealideaPuzzlesTest < PokeAccessTest
 
   def setup
     super
+    @readers = PokeAccess::Camera.instance_variable_get(:@readers).dup
     load_zones
     inject_texts
   end
@@ -41,7 +42,20 @@ class RealideaPuzzlesTest < PokeAccessTest
     VARIABLES.each { |i| $game_variables[i] = 0 }
     $game_self_switches = @was_selfs if @was_selfs
     $game_map.map_id = @was_map if @was_map
+    PokeAccess::Camera.instance_variable_set(:@readers, @readers) if @readers
     super
+  end
+
+  test "loading the puzzles again leaves one camera reader per declaration where it stood, the newest" do
+    readers = PokeAccess::Camera.instance_variable_get(:@readers)
+    Harness.load_puzzles("realidea")
+    first = readers.map { |_own, blk| blk.source_location }
+    ids = readers.map { |e| e.object_id }
+    Harness.load_puzzles("realidea")
+    assert_equal first, readers.map { |_own, blk| blk.source_location }, "no reader stacked, none moved"
+    renewed = readers.each_with_index.select { |e, i| e.object_id != ids[i] }.map { |e, _i| e[1].source_location[0] }
+    refute_empty renewed
+    assert renewed.all? { |path| path.include?("games/realidea/puzzles") }, "only the reloaded files' readers are new"
   end
 
   test "the water gym names its jets and tiles by colour and state and counts the colours on" do
@@ -141,6 +155,19 @@ class RealideaPuzzlesTest < PokeAccessTest
     assert_includes PokeAccess::Puzzles.info_line, t(:rea_agate_black), "the two tiles behind are black"
     step(1, 1)
     assert_includes PokeAccess::Puzzles.info_line, around.call(1, 1)
+  end
+
+  test "the free camera names each tile of a tile room: white, black, or off the white floor where it can be stood on" do
+    on_map(118)
+    tiles = PokeAccess::RealideaAgate.tiles(PokeAccess::RealideaAgate::ROUTES[118])
+    $game_map.load_grid(["#" * 20] + ["." * 20] * 19)
+    lay_floor(tiles)
+    place(100, tiles[0][0], tiles[0][1], :tile_id => 392)
+    lines = lambda { |x, y| PokeAccess::Camera.tile_lines(x, y).uniq }
+    got = [lines[*tiles[1]], lines[*tiles[0]], lines[1, 1], lines[1, 0]]
+    assert_equal [[t(:rea_agate_white)], [t(:rea_agate_black)], [t(:rea_agate_out)], []], got
+    on_map(1)
+    assert_equal [], lines[*tiles[1]], "another map"
   end
 
   test "the tile rooms say with the assist where to begin and the next legs, and nothing once the door is open" do

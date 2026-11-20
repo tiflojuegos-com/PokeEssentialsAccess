@@ -29,7 +29,7 @@ A mod that makes **Pokémon Essentials** fangames running on **mkxp-z** accessib
 It does not change the game's scripts. It loads through mkxp-z's `preloadScript`, so uninstalling it leaves the game
 as it was.
 
-Some games still run on the original RPG Maker XP player, such as Pokémon Insurgence and Pokémon Uranium. When the mod
+Some games still run on the original RPG Maker XP player, such as Pokémon Insurgence, Pokémon Uranium and Pokémon Solar Light & Lunar Dark. When the mod
 is installed, the launcher **converts** them: it leaves the original executable alone and adds
 `<game name> (PokeAccess).exe` next to it, a build of mkxp-z made for the mod. That is the one to open to play with
 accessibility, and the launcher's **Play** button already uses it.
@@ -72,6 +72,10 @@ options".
 
 - A binaural 3D sonar (Steam Audio) places people, objects, doors, warps, water and walls around you.
 - The **proximity radar** gives a short beep when something you can interact with is right in front of you.
+- Bumping into something you can use, such as a sign, a person or an object, sounds different from a wall, with its
+  own switch, volume and pitch.
+- In stereo and mono, which cannot place a sound in front or behind, the pitch tells the direction: higher to the
+  north, lower to the south. "Audio options" sets the pitch of each direction.
 - Under "Sounds on" you can turn each sound off on its own.
 - The **sound glossary**, in the mod's menu, lets you hear every sound and read what it means.
 
@@ -86,8 +90,14 @@ options".
 
 Under "Navigation and pathfinder options" you decide how the target list works:
 
-- **Hide targets**: none, those with no route, or also those in other rooms when a map joins several.
+- **Hide targets**: none, those with no route, those with no route or in other rooms, or only those in other rooms,
+  when a map joins several.
 - **Hide non-interactable objects**: leaves out the decoration you cannot do anything with.
+- **Scene triggers**: off by default. Finds the invisible tiles that start a scene when you step on or touch them, in
+  a category of their own and with their own sound. It is off because knowing where a scene waits gives part of it
+  away.
+- **Everything includes puzzles, surfaces and markers**: off by default. Adds those targets to the "everything"
+  category.
 - **Target order**: by straight distance, by walking distance, or fixed.
 - **Target numbering**: off (the place in the list is said), dynamic (each target keeps its number while you stay on
   the map) or static (it also counts the hidden ones, so numbers can skip).
@@ -106,12 +116,28 @@ Under "Navigation and pathfinder options" you decide how the target list works:
 - Each list is imported and exported on its own. Every file carries the game it belongs to, so they never get mixed
   up.
 
+### Free camera
+
+- `Alt` + `K` opens the **free camera** on your tile: a point you move over the map while your character stays where
+  it is. The game's walk keys move it one tile at a time. It stops where your character would stop and says what is on
+  each tile, and the sonar is heard from it. While it is open, the game does not get your keys.
+- `J`, `L` and `K` count from the camera, and `I` says the way on foot from it to the selected target.
+- `Enter` fixes the camera's tile as a **destination**. `Shift` + `Enter` starts a **trail**: move the camera along the
+  way you want and press `Enter` to fix it. Either way the camera closes, the target is selected and the guides take
+  you there. The mod never walks for you.
+- The destination and the trail last until you change map, and they show up in the markers category.
+- Its keys are listed under [Keys](#in-the-free-camera).
+
 ### Puzzles
 
 - The route counts on the standard mechanics, such as boulders pushed with Strength, in any game.
-- Puzzles of a game's own are prepared one game at a time. So far there is support in Pokémon Z and Pokémon Ópalo.
+- Puzzles of a game's own are prepared one game at a time. So far there is support in Pokémon Z, Pokémon Ópalo,
+  Pokémon Armonía, Pokémon Realidea, Pokémon Africanus, Pokémon Edas, Pokémon Perseida, Pokémon GS Vitro, Pokémon
+  Insurgence, Pokémon Uranium, Pokémon Solar Light & Lunar Dark, Pokémon Añil, Pokémon Royal, Pokémon Infinite Fusion,
+  Pokémon Infinite Fusion 2 Hoenn, Pokémon Fire Ash, Pokémon Dark Horizon, Pokémon Keishou and Pokémon Ashen Frost.
   Inside a puzzle, `T` says its state.
-- The "Puzzle assist" option, off by default, gives the hints and routes that solve them.
+- The "Puzzle assist" option, off by default, gives the hints and routes that solve them. In the tile puzzle
+  minigame it also says the next move.
 
 ### Other tools
 
@@ -186,7 +212,8 @@ Each game has its profile in `games/`. The list the launcher uses to recognise g
 
 - **Gen-6 era** (Essentials v16 and v17): Pokémon Z, Pokémon Ópalo, Pokémon Reminiscencia, Pokémon Armonía, Pokémon
   Realidea, Pokémon Africanus, Pokémon Awakening, Pokémon Soulstones, Pokémon HGSS: Sevii Islands, Pokémon Edas, Pokémon
-  Perseida and Pokémon GS Vitro, plus the ones converted on install: Pokémon Insurgence and Pokémon Uranium.
+  Perseida, Pokémon GS Vitro and Pokémon Xenoverse (through its `snGame_n.exe`), plus the ones converted on install:
+  Pokémon Insurgence, Pokémon Uranium and Pokémon Solar Light & Lunar Dark.
 - **Reborn's engine** (based on Essentials v16, running Ruby 3): Pokémon Reborn, Pokémon Rejuvenation and Pokémon
   Desolation.
 - **GameData era** (Essentials v18 onwards): Pokémon Añil, Pokémon Royal, Pokémon Relict, Pokémon Eternal Emerald,
@@ -231,8 +258,9 @@ its key and the game's action moves to another:
 | Uranium | None | `O` closed the key item list, and cancel still does | `O`: the mod's menu |
 
 To use another key, assign it to that action under "Remap game controls", where you can also choose combinations with
-`Alt`. In the games with combinations, the game's own `Alt`, which changes the speed in several of them, answers when you
-let it go, and not if you used it in a combination.
+`Alt`. Since the free camera is on `Alt` + `K`, outside battle the game's own `Alt`, which changes the speed in several
+games, answers when you let it go, and not if you used it in a combination. In battle this happens only in the games
+with combinations.
 
 A few details:
 
@@ -282,13 +310,37 @@ A few details:
 | `Ctrl` + `T` | Repeats the whole focused row, as the Full level would say it |
 | `Shift` + `H` | The opposing team's HP |
 | `Shift` + `M` | Names the current map |
-| `Ctrl` + `M` | Changes which targets are hidden: none, those with no route, or also those in other rooms |
+| `Ctrl` + `M` | Changes which targets are hidden: none, those with no route, those with no route or in other rooms, or only those in other rooms |
 | `Ctrl` + `G` | Sets a marker where you stand and asks for its name. Escape or a blank name cancels. Delete it with `Ctrl` + `K` or from the marker list |
 | `Ctrl` + `Home` / `End` | First or last message in the history |
 | `Shift` + `Home` / `End` | Changes the history's category: all, dialogue, battle, menus, navigation, information or system |
 
 The key to **change the verbosity** (Brief, Medium, Full and your schemes) comes unassigned, because some game uses
 every letter. Assign it under "Remap game controls", like any other mod key.
+
+The game's button on `Shift` (the one mkxp-z puts there, or the one you gave it in `F1`) answers when you let `Shift`
+go, and not when you used it in one of the mod's combinations.
+
+### In the free camera
+
+| Key | What it does |
+|-----|--------------|
+| `Alt` + `K` | Opens the camera on your tile, or closes it |
+| The game's walk keys | Move the camera one tile. It stops where your character would stop, with the sound of a wall or of something you can use |
+| `Shift` + a direction | Moves on to the next tile where something changes, at most 10 |
+| `Ctrl` + a direction | Moves one tile even through what stops your character |
+| `Enter` | Fixes the destination there, or fixes the trail you are drawing, and closes the camera |
+| `Shift` + `Enter` | Starts a trail there, or drops the one you are drawing |
+| `Backspace` | Takes the trail's last step back |
+| `Space` | Brings the camera back to your character |
+| `Shift` + `Space` | Takes the camera to the selected target |
+| `Escape` | Closes the camera |
+| `T` | Describes the camera's tile: what is on it, whether you can stand there and get there on foot, and where it is from your character |
+| `M` | Where the camera is, and where from your character |
+| `Ctrl` + `G` | Sets a marker on the camera's tile |
+
+"Free camera steps", among the readings of your verbosity schemes, chooses how much each step says. `Backspace` cannot
+be given to any action under "Remap game controls", since the camera uses it.
 
 For following the guides: after a change of direction, or after letting go of the key and pressing it again, the first
 short press only turns the character. Hold the key a moment to take the step.
@@ -312,6 +364,7 @@ The menu runs on the arrows and the game's Confirm and Cancel. Left and Right ch
 | `Ctrl` + `Alt` + `F8` | Turns the mod on or off. Off also silences the sonar; turning it on rebuilds it and reconnects to the screen reader |
 | `Ctrl` + `Alt` + `F9` | Writes a diagnostic to a file, useful when you find a screen, puzzle or map that is not accessible |
 | `Ctrl` + `Alt` + `F10` | A quick spoken diagnostic, useful when something goes quiet |
+| `F12` | Restarts the game: it closes and opens again, with the mod |
 
 ## Repository layout
 

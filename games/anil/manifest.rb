@@ -14,6 +14,7 @@
     diploma
     damage_numbers
     passability
+    pokemon_healer
     puzzles/blaine_gym
     puzzles/vermilion_gym
     puzzles/saffron_gym
@@ -21,6 +22,13 @@
     puzzles/viridian_gym
     puzzles/secret_warehouse
     puzzles/guardian_altars
+    puzzles/route8_graveyard
+    puzzles/rocket_lab
+    puzzles/lost_cave
+    puzzles/silph
+    puzzles/ice_floors
+    puzzles/rocket_floors
+    puzzles/fuchsia_gym
   ],
   :plugins => %w[advanced_items bag_screen_party better_summary challenge_rules encounter_list_ui enhanced_pokemon_ui hall_of_fame_bw storage_utilities item_find misc_scripts_anil multi_save photo_album party_picture sv_summary_screen sv_summary_prompts pokegear_themes fl_pokegear_watch hatcher dbk_battle dbk_enhanced_ui dp_pausemenu hgss_trainer_card bag_search_entry sky_bag bw_key_items modular_title marin_side_stairs fancy_badges cable_club sky_base sky_trainer_sensor sky_animated_pokemon]
 }

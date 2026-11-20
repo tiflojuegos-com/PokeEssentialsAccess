@@ -137,8 +137,10 @@ module PokeAccess
     # One map frame, unless the engine carries the player on (Control.carried?) or its answers cannot be kept (partway
     # up a side stair): keeps the route current (follow), then arrives, holds where it stops short, says there is no
     # way, says a jump ahead, says the leg and chimes; what has been said by its end is the next frame's fresh? mark.
+    # Held, silent, while the free camera is open.
     def self.tick
       return unless @cane || @steps
+      return stop_tone if PokeAccess::Camera.active?
       return unless PokeAccess::Control.free?
       return if PokeAccess::Control.carried? || !PokeAccess::World::Probe.stable?
       loc = PokeAccess::Locator
@@ -161,7 +163,8 @@ module PokeAccess
     end
 
     # Keeps the route current: plans again for a new target, the target moved (at most every RECHECK_SEC, at once when
-    # the route runs out), the player off the track, a lapsed "no way" (recheck_none), and the rest failing to replay
+    # the route runs out), the player off the track or, on a puzzle's own way (Puzzles.way_plan), on any tile new, what
+    # the watchers see changed (Routes::Sight.stamp), a lapsed "no way" (recheck_none), and the rest failing to replay
     # after a tiles or events change (event_epoch), or every RECHECK_SEC through the next step or WINDOW presses.
     def self.follow(t, now)
       id = PokeAccess::Locator.identity(t)
@@ -170,10 +173,10 @@ module PokeAccess
         @target_id = id
       end
       st = player_state
-      return plan(t, st, now) if @plan.nil?
+      return plan(t, st, now) if @plan.nil? || @sight != PokeAccess::Routes::Sight.stamp
       if st != @state
         @state = st
-        return plan(t, st, now) unless locate(st)
+        return plan(t, st, now) unless locate(st) && !(@plan.stats && @plan.stats[:puzzle_way])
       end
       return plan(t, st, now) if @goal != [t.x, t.y] && (due?(@planned_at, now) || (remaining || [0]).empty?)
       return recheck_none(t, st, now) unless @track
@@ -210,6 +213,7 @@ module PokeAccess
       @planned_at = now
       @goal = [t.x, t.y]
       @state = st
+      @sight = PokeAccess::Routes::Sight.stamp
       return if verdict?(st, now)
       made = PokeAccess::Locator.route_plan(t)
       @plan = made
@@ -350,8 +354,9 @@ module PokeAccess
     end
 
     # The end of the route: where it stops short (an obstacle, a shore) the guides stay on and say what to do once per
-    # tile, a push kept up the same way only once; on a puzzle goal holding its piece they end with the piece's line
-    # unless just told; else they end with Locator.arrived_line (a dive spot's action, a map edge's way off).
+    # tile, a push kept up the same way only once, and on a shore the first leg afloat is said afresh; on a puzzle goal
+    # holding its piece they end with the piece's line unless just told; else they end with Locator.arrived_line (a dive
+    # spot's action, a map edge's way off).
     def self.arrive(t)
       stop_tone
       line = hold_line
@@ -364,6 +369,7 @@ module PokeAccess
       here = [$game_player.x, $game_player.y, line]
       return if @hold_said == here
       @hold_said = here
+      @leg = nil if @plan.kind == :surf
       PokeAccess.speak(line, false) unless pushing_on?(line)
     end
 
@@ -383,7 +389,7 @@ module PokeAccess
     # them; nil for any other gate.
     def self.carry_way
       g = @plan && @plan.kind == :assisted ? @plan.gate : nil
-      return nil if g.nil? || [:act, :dismount, :control].include?(g[:kind])
+      return nil if g.nil? || [:act, :dismount, :control, :lens].include?(g[:kind])
       return (g[:face] ? 10 - g[:face] : nil) if g[:kind] == :pull
       return nil unless g[:move].nil? && g[:item].nil? && g[:x] && g[:y]
       dx = g[:x] - $game_player.x

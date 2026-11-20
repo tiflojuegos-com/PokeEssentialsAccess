@@ -244,7 +244,7 @@ class VitroScreensTest < ProfileProcessTest
       def cleanup_on_exit; :left; end
     end
 
-    # WalkerScene as 0382_Walker UI leaves it: each piece of paint calls the next one down.
+    # WalkerScene as 0386_Walker UI leaves it: each piece of paint calls the next one down.
     class WalkerScene
       def text(str, x, y, align = 0, base = nil, shadow = nil); pbDrawTextPositions(nil, [[str, x, y, align]]); end
       def fit_text(str, x, y, width, base = nil, shadow = nil); str; end
@@ -274,7 +274,7 @@ class VitroScreensTest < ProfileProcessTest
     end
 
     TradeMon = Struct.new(:name, :item)
-    # TradeUI_Base as 0388_CodeTrade_BaseUI leaves it: refreshOverlay paints all it shows; MenuHandlers fill the menu.
+    # TradeUI_Base as 0392_CodeTrade_BaseUI leaves it: refreshOverlay paints all it shows; MenuHandlers fill the menu.
     class TradeUI_Base
       attr_accessor :frames, :options, :info, :code, :mon, :selected
       def initialize
@@ -331,7 +331,7 @@ class VitroScreensTest < ProfileProcessTest
       def itemCount; @entries.length; end
     end
 
-    # TradeLog_Scene as 0392_CodeTrade_LogUI leaves it: its page paints first, then runs its own loop.
+    # TradeLog_Scene as 0396_CodeTrade_LogUI leaves it: its page paints first, then runs its own loop.
     class TradeLog_Scene
       attr_accessor :frames
       attr_reader :sprites

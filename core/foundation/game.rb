@@ -201,6 +201,22 @@ module PokeAccess
       # (see Routes::Moves.arrival_rule and owns?).
       def terrain_rule(owner = nil, &rule); PokeAccess::Routes::Moves.arrival_rule(owner, &rule); end
 
+      # Declares tiles of this game a route goes round while that costs fewer presses than they would: the block gets
+      # x and y and answers the presses of more that stepping on or across the tile counts as, 0 or nil for none,
+      # owned by the tiles of owner (see Routes::Moves.tile_cost_rule and owns?).
+      def tile_cost(owner = nil, &rule); PokeAccess::Routes::Moves.tile_cost_rule(owner, &rule); end
+
+      # Declares watchers on maps (a map id, a list of them, nil for every map): events that see the tiles ahead of
+      # them, which walks keep off while another way exists and the free camera says (see Routes::Sight). opts:
+      # :events picks them (ids, a Regexp of the name or a block of the event; those named for their sight,
+      # "Trainer(n)", by default), :range says how far they see (a number or a block of the event; the name's number
+      # by default) and :through whether their sight passes walls and events (by default, when they walk through).
+      def watchers(maps = nil, opts = {}); PokeAccess::Routes::Sight.declare(maps, opts); end
+
+      # Adds what the free camera says of the tiles of owner as it steps there and with the info key (see
+      # Camera.tile_reader): the block gets x and y and answers a line, a list of them, or nil.
+      def camera_tile(owner = nil, &blk); PokeAccess::Camera.tile_reader(owner, &blk); end
+
       # Declares tiles of this game where the direction key has to be kept held (see Routes::Moves.held_key_rule).
       def held_key_ground(owner = nil, &rule); PokeAccess::Routes::Moves.held_key_rule(owner, &rule); end
 

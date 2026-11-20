@@ -95,13 +95,8 @@ module PokeAccess
       nil
     end
 
-    # An item's name: the rewards table holds symbols, resolved to this game's numeric ids first.
-    def self.item_label(item)
-      pair = (PokeAccess::Data.item_id(item) rescue nil)
-      name = pair.is_a?(Array) ? pair[1] : nil
-      return name.to_s if name && !name.to_s.empty?
-      (PokeAccess::Data.item_name(item) rescue nil).to_s
-    end
+    # An item's name, given by the rewards table as a symbol or a number.
+    def self.item_label(item); PokeAccess::Data.item_name(item).to_s; end
 
     # The zone a reward's EncounterTypes value names in DEXNAV_ZONES, by the name the encounter page says it with;
     # nil for a zone the table does not list.

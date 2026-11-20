@@ -357,6 +357,16 @@ class GameBumpTest < PokeAccessTest
     end
   end
 
+  test "bumps into something to interact with at its own switch, walls silenced or not" do
+    heard = [[:sound_wall, false], [:wall_volume, 0], [:sound_interact, false], [:interact_volume, 0]].map do |key, v|
+      with_walk_state do
+        World.event(:kind => :sign, :id => 901, :x => 5, :y => 6)
+        with_setting(key, v) { [flat_cues { Feedback.wall_cue }, game_bump] }
+      end
+    end
+    assert_equal [[["pa3d_interact"], SWALLOWED]] * 2 + [[[], PLAYS]] * 2, heard
+  end
+
   test "runs the mod's bump and the radar on a map frame with control free" do
     with_walk_state do
       World.event(:kind => :sign, :id => 901, :x => 5, :y => 6)

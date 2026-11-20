@@ -28,19 +28,13 @@ module RouteHelpers
     (1...path.length).count { |i| path[i] != path[i - 1] }
   end
 
-  # The best [presses, turns] to each tile from the player by brute force: a Dijkstra over (tile, last direction) with the
-  # style's order (the shortest: presses then turns; balanced: presses plus turns, then turns; the straightest: turns
-  # then presses), over the same moves the search makes. { [x, y] => [presses, turns] }.
-  def brute_best(style, mode)
+  # The best [presses, turns] to each tile from the player by brute force: a Dijkstra over (tile, last direction) in
+  # the style's order (brute_order), over the same moves the search makes. { [x, y] => [presses, turns] }; with
+  # entered, it gets the best move onto each tile its touch event takes the player on from (Step#entry) the same way.
+  def brute_best(style, mode, entered = nil)
     pf = PokeAccess::Pathfinder
     mv = PokeAccess::Routes::Moves
-    key = lambda do |p, t|
-      case style
-      when :balanced then [p + t, t]
-      when :straightest then [t, p]
-      else [p, t]
-      end
-    end
+    key = lambda { |p, t| brute_order(style, p, t) }
     best = {}
     pf.searching do
       lvl = pf.bridge_level
@@ -62,12 +56,37 @@ module RouteHelpers
           ns = [n.x, n.y, dir[2]]
           np = p + n.presses
           nt = t + ((s[2] && s[2] != dir[2]) ? 1 : 0)
+          if entered && n.entry
+            et = [n.entry / PokeAccess::Routes::PKEY_STRIDE, n.entry % PokeAccess::Routes::PKEY_STRIDE]
+            entered[et] = [np, nt] if entered[et].nil? || (key.call(np, nt) <=> key.call(*entered[et])) < 0
+          end
           old = dist[ns]
           next unless old.nil? || (key.call(np, nt) <=> key.call(*old)) < 0
           dist[ns] = [np, nt]
           open.push(ns)
         end
       end
+    end
+    best
+  end
+
+  # What a route of p presses and t turns weighs in style: the shortest, presses then turns; balanced, presses plus
+  # turns, then turns; the straightest, turns then presses.
+  def brute_order(style, p, t)
+    case style
+    when :balanced then [p + t, t]
+    when :straightest then [t, p]
+    else [p, t]
+    end
+  end
+
+  # The best [presses, turns] to get to each tile as a route to stand on it does (Goal.onto): standing on it, or the
+  # move onto it where its touch event takes the player on, whichever weighs less in style (brute_best).
+  def brute_reach(style, mode)
+    entered = {}
+    best = brute_best(style, mode, entered)
+    entered.each do |tile, pt|
+      best[tile] = pt if best[tile].nil? || (brute_order(style, *pt) <=> brute_order(style, *best[tile])) < 0
     end
     best
   end

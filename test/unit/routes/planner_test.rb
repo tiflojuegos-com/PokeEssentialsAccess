@@ -149,6 +149,40 @@ class PlannerTest < PokeAccessTest
     assert_equal [[[3, 3], [4, 2]], nil], [Planner.doorways(3, 2).sort, Planner.doorways(2, 2)]
   end
 
+  test "an empty action page on a usable door does not make its tile the only route goal" do
+    corridor
+    empty_page = World.touch(:id => 40, :x => 4, :y => 1, :trigger => 0)
+    empty_page.define_singleton_method(:over_trigger?) { true }
+    door = World.touch(:id => 41, :x => 4, :y => 1, :sprite => "door",
+                       :list => [TestCmd.new(201, [0, 55, 1, 1])])
+    door.blocking = true
+    $game_player.x = 2
+    plan = Planner.plan(4, 1)
+    assert_equal [:walk, [6]], [plan.kind, plan.route]
+    $game_player.x = 3
+    plan = Planner.plan(4, 1)
+    assert_equal [:walk, []], [plan.kind, plan.route]
+  end
+
+  test "an empty page does not hide an action the player must stand on" do
+    corridor
+    World.touch(:id => 40, :x => 4, :y => 1, :trigger => 0, :sprite => "npc")
+    action = World.touch(:id => 41, :x => 4, :y => 1, :trigger => 0,
+                         :list => [TestCmd.new(101, ["A note on the floor"])])
+    action.define_singleton_method(:over_trigger?) { true }
+    assert_equal [[4, 1]], Planner.goal_for(4, 1, false).tiles
+  end
+
+  test "a parallel page sharing the tile does not hide an action the player must stand on" do
+    corridor
+    World.touch(:id => 40, :x => 4, :y => 1, :trigger => 0)
+    World.touch(:id => 41, :x => 4, :y => 1, :trigger => 4, :list => [TestCmd.new(121, [5, 5, 0])])
+    action = World.touch(:id => 42, :x => 4, :y => 1, :trigger => 0,
+                         :list => [TestCmd.new(101, ["A note on the floor"])])
+    action.define_singleton_method(:over_trigger?) { true }
+    assert_equal [[4, 1]], Planner.goal_for(4, 1, false).tiles
+  end
+
   test "a doorway walked into from two sides is reached on the nearer" do
     doorway_room
     { [5, 2] => [4, 2], [2, 4] => [3, 3] }.each do |(x, y), side|
@@ -436,18 +470,19 @@ class PlannerTest < PokeAccessTest
 
   test "HPA* answers a target acted on, when chosen, on a map whose moves are all plain steps" do
     [
-      ["chosen, a target acted on", :hpa, false, false, false, :hpa],
-      ["A* chosen", :astar, false, false, false, :astar],
-      ["a spot to stand on", :hpa, true, false, false, :astar],
-      ["a terrain rule registered", :hpa, false, true, false, :astar],
-      ["a ledge to hop", :hpa, false, false, true, :astar]
+      ["chosen, a target acted on", :hpa, false, nil, false, :hpa],
+      ["A* chosen", :astar, false, nil, false, :astar],
+      ["a spot to stand on", :hpa, true, nil, false, :astar],
+      ["a terrain rule for any tile", :hpa, false, {}, false, :astar],
+      ["a terrain rule for tiles the map has not", :hpa, false, { :tags => [88] }, false, :hpa],
+      ["a ledge to hop", :hpa, false, nil, true, :astar]
     ].each do |what, chosen, onto, rule, ledge, want|
       Config.path_algorithm = chosen
       $game_map.clear_ledges
       corridor
       $game_map.place_ledge(3, 1, 6) if ledge
       w = without_terrain_rules do
-        PokeAccess::Routes::Moves.arrival_rule(:tags => [88]) { |_x, _y, _d| nil } if rule
+        PokeAccess::Routes::Moves.arrival_rule(rule.empty? ? nil : rule) { |_x, _y, _d| nil } if rule
         Planner.walk(5, 1, onto)
       end
       assert_equal [:found, want], [w.status, w.algo], what

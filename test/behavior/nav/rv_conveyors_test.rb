@@ -1,6 +1,6 @@
 # The conveyor belts of the engine Reborn, Rejuvenation and Desolation share (games/rv_common/conveyors_rv.rb): a step
 # onto a belt ends where the belts carry the player, each tile its own way, until off them or blocked; a closed loop
-# of belts is no step, since the game would never let go.
+# of belts is no step, since the game would never let go. The free camera names each belt with the way it carries.
 Harness.load_common("rv_common")
 
 class RvConveyorsTest < PokeAccessTest
@@ -34,11 +34,22 @@ class RvConveyorsTest < PokeAccessTest
     end
   end
 
+  test "the free camera names each belt tile with the way it carries, and nothing off the belts" do
+    on_belts(["######", "#@...#", "######"], [2, 1, RIGHT], [3, 1, UP]) do
+      cam = PokeAccess::Camera
+      t = PokeAccess::I18n
+      belt = lambda { |d| t.t(:rv_belt, :dir => t.t(d)) }
+      assert_equal [[belt[:dir_right]], [belt[:dir_up]], []], [cam.tile_lines(2, 1), cam.tile_lines(3, 1), cam.tile_lines(4, 1)]
+    end
+  end
+
   private
 
   def on_belts(rows, *belts)
     rules = PokeAccess::Routes::Moves.instance_variable_get(:@arrival_rules)
     saved = rules.dup
+    readers = PokeAccess::Camera.instance_variable_get(:@readers)
+    kept = readers.dup
     names = { :DownConveyor => DOWN, :LeftConveyor => LEFT, :RightConveyor => RIGHT, :UpConveyor => UP }
     added = names.keys.reject { |n| PBTerrain.const_defined?(n) }
     added.each { |n| PBTerrain.const_set(n, names[n]) }
@@ -50,6 +61,7 @@ class RvConveyorsTest < PokeAccessTest
     yield
   ensure
     rules.replace(saved)
+    readers.replace(kept)
     added.each { |n| PBTerrain.send(:remove_const, n) } if added
     PokeAccess::ConveyorsRV.instance_variable_set(:@ways, {})
     $game_map.clear_grid

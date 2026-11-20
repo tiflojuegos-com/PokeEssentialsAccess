@@ -10,22 +10,23 @@ module PokeAccess
                11 => :underwater_grass, 12 => :ice, 13 => :neutral, 14 => :soot_grass,
                15 => :bridge, 16 => :puddle }
       # GameData id or PBTerrain name => kind, tried first, as games may renumber the standard tags; the only way to
-      # lava, which has no standard number.
+      # lava, snow, mud and cliffs, which have no standard number.
       IDS = { :Ledge => :ledge, :Grass => :grass, :Sand => :sand, :Rock => :rock,
               :DeepWater => :deep_water, :StillWater => :still_water, :Water => :water,
               :Waterfall => :waterfall, :WaterfallCrest => :waterfall_crest,
               :TallGrass => :tall_grass, :UnderwaterGrass => :underwater_grass, :Ice => :ice,
               :Neutral => :neutral, :SootGrass => :soot_grass, :Bridge => :bridge, :Puddle => :puddle,
-              :Lava => :lava }
+              :Lava => :lava, :Snow => :snow, :Mud => :mud, :Cliff => :cliff }
       # Kind => the surface's localization key.
       LABEL = { :tall_grass => :surf_tallgrass, :grass => :surf_grass, :sand => :surf_sand,
                 :rock => :surf_rock, :water => :surf_water, :still_water => :surf_water,
                 :deep_water => :surf_deepwater, :waterfall => :surf_waterfall,
                 :waterfall_crest => :surf_waterfall, :ice => :surf_ice, :bridge => :surf_bridge,
                 :puddle => :surf_puddle, :soot_grass => :surf_sootgrass, :underwater_grass => :surf_seaweed,
-                :lava => :surf_lava }
+                :lava => :surf_lava, :snow => :surf_snow, :mud => :surf_mud, :cliff => :surf_cliff }
       GRASS_KINDS = [:grass, :tall_grass, :soot_grass]
       FALLING_KINDS = [:waterfall, :waterfall_crest]
+      LIQUID_KINDS = [:water, :still_water, :deep_water, :waterfall, :waterfall_crest, :lava]
       SURF_NUMBERS = [5, 6, 7, 8, 9]
 
       # The tag tests a class answers, as bits of its cell.
@@ -35,6 +36,7 @@ module PokeAccess
       DEEP = 8
       GRASS = 16
       FALLING = 32
+      WILD = 64
 
       # Tile ids below this share their kind of tile's tag; a higher one, past any tileset's, is asked on its own.
       ID_SPAN = 8192
@@ -45,8 +47,8 @@ module PokeAccess
       @label_rules = []
       @surf_rules = []
 
-      # Registers a game's own surface labels: the block gets (x, y) and answers a label key for its tiles, nil for
-      # the rest; the first rule that answers wins over the standard label.
+      # Registers a game's own surface labels: the block gets (x, y) and answers a label key for its tiles, false for
+      # tiles to name as no surface at all, nil for the rest; the first rule that answers wins over the standard label.
       def self.label_rule(&blk); @label_rules.push(blk); end
 
       # Registers a game's own surf test for the map it is on: the block gets a tag number and answers true where the
@@ -179,6 +181,8 @@ module PokeAccess
       def self.deep?(x, y); (cell(x, y) & DEEP) != 0; end
       # True on walkable grass (plain, tall or soot).
       def self.grass?(x, y); (cell(x, y) & GRASS) != 0; end
+      # True where the game's own test puts land encounters (its grass, and what else it counts, as Desolation's sand).
+      def self.wild?(x, y); (cell(x, y) & WILD) != 0; end
       # True on a waterfall or its crest.
       def self.falling?(x, y); (cell(x, y) & FALLING) != 0; end
 
@@ -198,7 +202,7 @@ module PokeAccess
         Epoch.settle
         @label_rules.each do |rule|
           v = (rule.call(x, y) rescue nil)
-          return v if v
+          return v || nil unless v.nil?
         end
         i = index(x, y, true)
         LABEL[@kinds[i]] || ((@bits[i] & SURF) != 0 ? :surf_water : nil)
@@ -213,6 +217,13 @@ module PokeAccess
         return v unless v.nil?
         lbl = label(x, y)
         row[x] = !lbl.nil? && !lbl.to_s.index("water").nil?
+      end
+
+      # True on water or lava of any kind, or a tag the game lets the player surf on: the one ground a tile nobody can
+      # stand on is said as (sludge, a lake out of reach); any other surface there is the tag of a wall (a cliff's face,
+      # snow under a house).
+      def self.liquid?(x, y)
+        LIQUID_KINDS.include?(kind(x, y)) || (cell(x, y) & SURF) != 0
       end
 
       # The class index of (x,y), read on first sight (read_class).
@@ -312,6 +323,7 @@ module PokeAccess
         b |= DEEP if probe(t, :can_dive, :isDeepWater?) { |n| n == 5 }
         b |= GRASS if GRASS_KINDS.include?(k)
         b |= FALLING if FALLING_KINDS.include?(k)
+        b |= WILD if GRASS_KINDS.include?(k) || probe(t, :land_wild_encounters, :isGrass?, :pbIsGrassTag?) { |_n| false }
         b
       end
 
@@ -372,13 +384,15 @@ module PokeAccess
         @named = {}
       end
 
-      # number => kind for [constant name, value] pairs, in whatever order the engine lists them (see named_kinds).
+      # number => kind for [constant name, value] pairs, in whatever order the engine lists them (see named_kinds): the
+      # standard kind of the number first, then the first kind named.
       def self.kinds_of_names(pairs)
         out = {}
         pairs.each do |c, n|
           next unless n.is_a?(Integer)
           k = IDS[c.to_sym]
-          out[n] = k if k || !out.key?(n)
+          next if out.key?(n) && (k.nil? || (!out[n].nil? && k != KIND[n]))
+          out[n] = k
         end
         out
       end

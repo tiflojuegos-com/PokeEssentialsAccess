@@ -39,18 +39,19 @@ module HpaHelpers
     rows
   end
 
-  # Runs a block as in a game with no terrain rules registered, which the grid searches (JPS, HPA*) need, putting the
-  # registered ones back afterwards; returns the block's value.
+  # Runs a block as in a game with no terrain rules nor tile costs registered, which the grid searches (JPS, HPA*)
+  # need, putting the registered ones back afterwards; returns the block's value.
   def without_terrain_rules
-    pf = PokeAccess::Pathfinder
-    saved = [PokeAccess::Routes::Moves.instance_variable_get(:@arrival_rules), PokeAccess::Routes::Moves.instance_variable_get(:@leave_rules)]
-    PokeAccess::Routes::Moves.instance_variable_set(:@arrival_rules, [])
-    PokeAccess::Routes::Moves.instance_variable_set(:@leave_rules, [])
+    mv = PokeAccess::Routes::Moves
+    lists = [:@arrival_rules, :@leave_rules, :@cost_rules]
+    saved = lists.map { |v| mv.instance_variable_get(v) }
+    lists.each { |v| mv.instance_variable_set(v, []) }
+    mv.forget_map
     yield
   ensure
     if saved
-      PokeAccess::Routes::Moves.instance_variable_set(:@arrival_rules, saved[0])
-      PokeAccess::Routes::Moves.instance_variable_set(:@leave_rules, saved[1])
+      lists.each_with_index { |v, i| mv.instance_variable_set(v, saved[i]) }
+      mv.forget_map
     end
   end
 end

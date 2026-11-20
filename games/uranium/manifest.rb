@@ -17,11 +17,53 @@
     berry_mart
     controls
     field
+    bingo
     summary
     trainer_card
     pokepod
     passability
     field_moves
+    puzzles/burole_gym
+    puzzles/vinoville_gym
+    puzzles/amatree_gym
+    puzzles/venesi_gym
+    puzzles/snowbank_gym
+    puzzles/tsukinami_gym
+    puzzles/zeta_plant
+    puzzles/victory_road
+    puzzles/lanthanite_cave
+    puzzles/labyrinth_cave
+    puzzles/larkspur_lab
+    puzzles/ripley_route8
+    puzzles/dream_world
+    puzzles/abyssal_venesi
+    puzzles/dream_mountain
+    puzzles/mt_tamaranch
+    puzzles/route16
+    puzzles/virtual_dimension
+    puzzles/urayne_wires
+    puzzles/aotius_temple
+    puzzles/mutios_temple
+    puzzles/forgotten_span
+    puzzles/lava_vent
+    puzzles/once_per_visit
+    puzzles/palace_of_dreams
+    puzzles/sunken_ship
+    puzzles/shattered_seas
+    puzzles/urayne_levers
+    puzzles/route15_seal
+    puzzles/tsukinami_foundation
+    puzzles/angelure
+    puzzles/shattered_caves
+    puzzles/route18_lotad
+    puzzles/ranger_missions
+    puzzles/memory_quiz
+    puzzles/tides
+    puzzles/lighthouse_rooms
+    puzzles/angelure_shoals
+    puzzles/route19_trap
+    puzzles/baykal_rainforest
+    puzzles/lost_seas
   ],
   :plugins => %w[ebs_scene ebs_ui hall_of_fame_bw_gen6 punch_bag]
 }

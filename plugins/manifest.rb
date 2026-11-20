@@ -9,7 +9,7 @@
   :item_crafting     => "ItemCraft_Scene",
   :gender_selection  => "PokemonGenderSelection",
   :bw_gender_selector => "GenderSelectorScene",
-  :text_log          => "Log",
+  :text_log          => "Log#update",
   :incubator         => "Incubadora",
   :challenge_rules   => "Window_CommandPokemon_Challenge",
   :hall_of_fame_bw   => "HallOfFameViewerScene",
@@ -144,6 +144,8 @@
   # A top-level function probe: the script copies bring no class, and the v20+ plugin's FancyBadges module holds only
   # the names.
   :fancy_badges      => "Object#renderBadgeAnimation",
+  # A method probe: other badge cases may take the same class name; this one draws its front with this method.
+  :easy_badge_case   => "PokemonBadgecase_Scene#pbDrawBadgecaseFront",
   # A method probe: the radar adds its methods to the engine's Game_Screen and brings no class of its own.
   :item_radar        => "Game_Screen#aUpdateRadar",
   # A method probe: Relict ships the older 1.1.1, edited (its own visibility rule, an "itemGive" marker), which lacks

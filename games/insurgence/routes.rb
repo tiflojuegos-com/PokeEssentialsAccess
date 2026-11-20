@@ -121,4 +121,5 @@ PokeAccess::Game.define("insurgence") do
   assisted_step(:front_tags => [PokeAccess::InsurgenceRockClimb::TAG]) do |x, y, dir, lvl|
     PokeAccess::InsurgenceRockClimb.step(x, y, dir, lvl)
   end
+  camera_tile(:tags => [PokeAccess::InsurgenceRockClimb::TAG]) { |_x, _y| PokeAccess::I18n.t(:ins_rock_climb) }
 end

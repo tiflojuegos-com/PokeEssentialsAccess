@@ -8,6 +8,11 @@
     egg_relearner
     new_dexnav
     mission_log
+    puzzles/violet_gym
+    puzzles/ruins_of_alph
+    puzzles/cianwood_gym
+    puzzles/ice_floors
+    puzzles/rocket_hideout
   ],
   :plugins => %w[berry_pots dbk_battle dbk_enhanced_ui encounter_list_ui enhanced_pokemon_ui essentials_deluxe
                  hm_catalogue item_find marin_side_stairs modular_title quest_ui]

@@ -1,5 +1,5 @@
-# Vitro's Walker (WalkerScene, 0382_Walker UI, the Pokegear's link with the phone app, listed only under $DEBUG for now; its other
-# calls are the game's messages): every screen starts at title_bar, paints with text, fit_text and wrap, lists its options with
+# Vitro's Walker (WalkerScene, 0386_Walker UI, the Pokegear's link with the phone app, an entry of every player's Pokegear; its
+# other calls are the game's messages): every screen starts at title_bar, paints with text, fit_text and wrap, lists its options with
 # option_list and ends at hint_bar, whose A and B are not the keys it reads. What a screen paints is said when it changes, then the
 # option under the cursor; the QR is an image, whose code the screen also paints as text.
 module PokeAccess

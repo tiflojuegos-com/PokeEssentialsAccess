@@ -20,6 +20,7 @@
     berry_pots
     teleport
     title
+    text_entry
     controls
     hall_of_fame
     starter_selection
@@ -48,6 +49,11 @@
     puzzles/olivine_gym
     puzzles/mahogany_gym
     puzzles/blackthorn_gym
+    puzzles/ecruteak_gym
+    puzzles/alph_ruins
+    puzzles/hidden_tower
+    puzzles/sinjoh_ruins
+    puzzles/ilex_forest
     credits
     bug_contest
   ],

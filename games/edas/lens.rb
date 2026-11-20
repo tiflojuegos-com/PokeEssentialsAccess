@@ -1,6 +1,5 @@
-# Edas' Eye of Truth (0192_Eye of Truth) takes any event whose name carries EOT, the hash left out too.
+# Edas' Eye of Truth (0192_Eye of Truth) is the Dark Gem's power, which no item works: L on the map (0058_Scene_Map) and the
+# clock's Joya Oscura (0193_MenuReloj, openEye) raise and lower it once switch 231 says the gem was given.
 PokeAccess::Game.define("edas") do
-  override("PokeAccess::Locator", :lens_tile?) do |_mod, _original, args|
-    (args[0].name.to_s rescue "") =~ /EOT/ ? true : false
-  end
+  PokeAccess::World::Lens.declare(:name => :edas_lens_name, :usable => lambda { $game_switches[231] ? true : false })
 end

@@ -8,7 +8,7 @@ class EventPagesTest < PokeAccessTest
 
   test "a plain carry walks its steps and nothing else" do
     want = EP::Outcome.new([-2, -1], [[-1, 0, 4], [-2, 0, 4], [-2, -1, 8]], nil, nil, false, false, false, false, false,
-                           false, false, false, false, false, nil, [], [[-2, -1, 8]], [])
+                           false, false, false, false, false, nil, [], [[-2, -1, 8]], [], false)
     assert_equal want, walk([World.move_player([2, 2, 4])], 2)
   end
 
@@ -89,6 +89,21 @@ class EventPagesTest < PokeAccessTest
   test "a move route script that moves no one is walked past" do
     o = walk([World.move_player([[45, ["pbSEPlay('Door')"]], 4])], 2)
     assert_equal [[0, -1], false], [o.move, o.unknown]
+  end
+
+  test "a move route script that moves another character, or sets how the route moves, is walked past" do
+    ["$PokemonTemp.dependentEvents.remove_sprite", "$PokemonTemp.dependentEvents.getMew.move_up",
+     "$PokemonTemp.dependentEvents.getMew.jump(0,0)", "@move_speed=6", "@move_frequency = 3", "@x == 3",
+     "jumping?"].each do |script|
+      o = walk([World.move_player([[45, [script]], 4])], 2)
+      assert_equal [[0, -1], false], [o.move, o.unknown], script
+    end
+  end
+
+  test "a move of its own a move route script makes stops the walk, bare, on self or on the player" do
+    ["self.move_up", "$game_player.moveto(1, 2)", "jumpForward", "@x += 1", "a = 1; move_left"].each do |script|
+      assert_equal true, walk([World.move_player([[45, [script]], 4])], 2).unknown, script
+    end
   end
 
   test "a malformed move command is passed over, and a route with no list moves no one" do
@@ -266,6 +281,66 @@ class EventPagesTest < PokeAccessTest
     $game_variables[32] = 2
     $game_variables[33] = 6
     assert_equal [8, 2, 6], walk([TestCmd.new(201, [1, 31, 32, 33])], 2).transfer, "by variables"
+  end
+
+  test "a transfer by variables the page sets lands where it sets them, and setting them changes nothing" do
+    $game_variables[31] = 99
+    o = walk([TestCmd.new(122, [31, 31, 0, 0, 12]), TestCmd.new(122, [32, 33, 0, 0, 4]),
+              TestCmd.new(122, [33, 33, 1, 0, 3]), TestCmd.new(201, [1, 31, 32, 33])], 2)
+    assert_equal [[12, 4, 7], false], [o.transfer, o.changes], "set, then added to"
+    o = walk([TestCmd.new(122, [31, 31, 0, 7, 0]), TestCmd.new(122, [32, 32, 0, 0, 6]),
+              TestCmd.new(122, [33, 33, 0, 1, 32]), TestCmd.new(201, [1, 31, 32, 33])], 2)
+    assert_equal [[$game_map.map_id, 6, 6], false], [o.transfer, o.changes], "the map's id, a variable copied"
+    o = walk([TestCmd.new(122, [34, 34, 0, 0, 1]), TestCmd.new(201, [0, 12, 3, 4])], 2)
+    assert_equal [[12, 3, 4], true], [o.transfer, o.changes], "a variable no transfer reads stays set"
+  end
+
+  test "a variable the page sets is read so by its branches, and one it cannot tell stops them as unknown" do
+    $game_variables[40] = 1
+    set = walk([TestCmd.new(122, [40, 40, 0, 0, 1]), TestCmd.new(111, [1, 40, 0, 1, 0]), World.move_player([1], 1),
+                World.end_], 2)
+    random = walk([TestCmd.new(122, [40, 40, 0, 2, 1, 5]), TestCmd.new(111, [1, 40, 0, 1, 0]),
+                   World.move_player([1], 1), World.end_], 2)
+    assert_equal [[0, 1], [nil, true]], [set.move, [random.move, random.unknown]]
+  end
+
+  test "a transfer by variables the page sets at random lands nowhere known, and the page changes what stays" do
+    $game_variables[93] = 1
+    $game_variables[94] = 1
+    rows = [TestCmd.new(122, [95, 95, 0, 0, $game_map.map_id])]
+    [93, 94].each do |v|
+      rows.push(TestCmd.new(122, [v, v, 0, 2, 0, 2]), TestCmd.new(122, [v, v, 3, 0, 26]), TestCmd.new(122, [v, v, 1, 0, 12]))
+    end
+    o = walk(rows + [TestCmd.new(201, [1, 95, 93, 94])], 2)
+    assert_equal [nil, true, true], [o.transfer, o.unknown, o.changes], "Uranium's Map212, page 2"
+  end
+
+  test "a transfer by variables set to where the player stands lands there, the page walked from each tile" do
+    rows = [TestCmd.new(122, [293, 293, 0, 6, -1, 0]), TestCmd.new(122, [294, 294, 0, 6, -1, 1]),
+            TestCmd.new(122, [295, 295, 0, 0, 512]), TestCmd.new(201, [1, 295, 293, 294])]
+    $game_variables[293] = 9
+    $game_variables[294] = 9
+    at = walk(rows, 2, [55, 35])
+    blind = walk(rows, 2)
+    assert_equal [[512, 55, 35], false, true, nil, true], [at.transfer, at.changes, EP.varies_by_tile?(rows),
+                                                          blind.transfer, blind.unknown], "Awakening's Map513"
+  end
+
+  test "a variable set to where the event stands reads it, unless the page moved the event first" do
+    rows = [TestCmd.new(122, [31, 32, 0, 0, 1]), TestCmd.new(122, [31, 31, 0, 6, 0, 0]),
+            TestCmd.new(122, [32, 32, 0, 6, 0, 1]), TestCmd.new(201, [1, 33, 31, 32])]
+    $game_variables[33] = $game_map.map_id
+    moved = [TestCmd.new(209, [0, TestMoveRoute.new([TestMoveCmd.new(4)])])] + rows
+    assert_equal [[$game_map.map_id, 5, 5], nil], [walk(rows, 2).transfer, walk(moved, 2).transfer]
+  end
+
+  test "an action-button page that sets the variables of its transfer within the map is a warp, as Uranium's Quantum Leap" do
+    leap = [TestCmd.new(122, [1, 1, 0, 7, 0]), TestCmd.new(122, [2, 2, 0, 0, 6]), TestCmd.new(122, [3, 3, 0, 0, 30]),
+            TestCmd.new(102, [["Yes", "No"], 2]), TestCmd.new(402, [0, "Yes"]), TestCmd.new(101, ["Quantum Leap!"], 1),
+            TestCmd.new(201, [1, 1, 2, 3], 1), TestCmd.new(122, [1, 1, 0, 0, 1], 1), TestCmd.new(402, [1, "No"]),
+            TestCmd.new(122, [1, 1, 0, 0, 0], 1), TestCmd.new(404, [])]
+    o = walk(leap, 2, nil, true)
+    assert_equal [:warp, 6, 30], PokeAccess::Routes::Effects.act_effect_of(o, $game_map.map_id)
   end
 
   test "a transfer whose map cannot be read is unknown, a transfer lying there" do

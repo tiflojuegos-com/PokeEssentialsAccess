@@ -1,6 +1,7 @@
 # Awakening's floor traps (terrain 17, "TrampaPiso"): with none of right, left or up held, each step on one is followed
 # by a tile down, so only walking down slides, to the trap's end; the guides say to hold the key. The game leaves
-# $PokemonGlobal.sliding on until the player is off the trap, so sliding? holds there only while moving down.
+# $PokemonGlobal.sliding on until the player is off the trap, so sliding? holds there only while moving down. The traps
+# are drawn falls (the sandfall, Cascada_1 and Cascada_2 autotiles), so the free camera names them.
 PokeAccess::Game.define("awakening_floor_trap") do
   trap = lambda { |x, y| PokeAccess::World::Terrain.number(x, y) == 17 }
   held_key_ground(:tags => [17]) { |x, y| trap.call(x, y) }
@@ -15,6 +16,7 @@ PokeAccess::Game.define("awakening_floor_trap") do
     end
     steps > cap ? false : [x, y]
   end
+  camera_tile(:tags => [17]) { |_x, _y| PokeAccess::I18n.t(:awk_drag_fall) }
   override("PokeAccess::Control", :sliding?) do |_mod, original, _args|
     p = $game_player
     next original.call unless p && trap.call(p.x, p.y)

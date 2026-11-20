@@ -8,6 +8,8 @@
                  summary_ivs encounter_cursor intro_gender bag_sort raid_adventure styled_box
                  hall_of_fame chapters showcase battle_marks midbattle
                  passability naming
+                 puzzles/academy puzzles/facility_lab puzzles/forgotten_tombs puzzles/eridanus puzzles/indus
+                 puzzles/field_secrets puzzles/sand_and_lava puzzles/power_plant puzzles/turnstiles
   ],
   :plugins => %w[
     voltseon_pausemenu

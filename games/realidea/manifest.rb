@@ -22,6 +22,19 @@
     puzzles/power_plant
     puzzles/electruby_cave
     puzzles/anatasa_gym
+    puzzles/purrloin_chase
+    puzzles/lionel_world
+    puzzles/jade_gym
+    puzzles/amberino_gym
+    puzzles/amatista_library
+    puzzles/route12_desert
+    puzzles/mesprit_temple
+    puzzles/azelf_temple
+    puzzles/snow_field
+    puzzles/adamantite_mine
+    puzzles/farm_maze
+    puzzles/desert_island
+    puzzles/daruma_rooms
     scenes
     hall_of_fame
     pause_overlay

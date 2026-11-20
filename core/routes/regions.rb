@@ -22,6 +22,7 @@ module PokeAccess
       OPPOSITE = [1, 0, 3, 2]
       UNKNOWN = [:unknown].freeze
       NO = [:no].freeze
+      EMPTY = {}.freeze
 
       @sets = {}
       @calm = 0
@@ -118,6 +119,7 @@ module PokeAccess
         @to = []
         @warp = []
         @moves = []
+        @entered = {}
         @head = 0
         @version = 0
         @graph = nil
@@ -138,23 +140,23 @@ module PokeAccess
       # True once the walk has begun and every state reached has been walked.
       def done?; !@keys.empty? && @head >= @keys.length; end
 
-      # Whether the player can get to any of tiles (on either bridge level): [:yes, rooms away], [:no] once every
-      # state reached is walked and none of theirs is, else [:unknown]; what the walk does not tell yet it walks on
-      # for, within the question's allowance.
-      def status(tiles)
-        return Regions.for(@variant).status(tiles) if @dropped
+      # Whether the player can get to any of tiles (on either bridge level), or step onto entry's tile and be taken on
+      # elsewhere (Goal#entry): [:yes, rooms away], [:no] once every state reached is walked and none of theirs is,
+      # else [:unknown]; what the walk does not tell yet it walks on for, within the question's allowance.
+      def status(tiles, entry = nil)
+        return Regions.for(@variant).status(tiles, entry) if @dropped
         src = root
         return UNKNOWN unless src
-        a = answer(src, tiles)
+        a = answer(src, tiles, entry)
         return a unless a.equal?(UNKNOWN) && ask > 0
-        answer(src, tiles)
+        answer(src, tiles, entry)
       end
 
       # status as the walk tells it now, without walking on.
-      def known(tiles)
-        return Regions.for(@variant).known(tiles) if @dropped
+      def known(tiles, entry = nil)
+        return Regions.for(@variant).known(tiles, entry) if @dropped
         src = root
-        src ? answer(src, tiles) : UNKNOWN
+        src ? answer(src, tiles, entry) : UNKNOWN
       end
 
       # Every tile the player can get to as [x, y], the walk gone on within the question's allowance first; kept until
@@ -211,8 +213,9 @@ module PokeAccess
         @id[k] || add(k, lvl)
       end
 
-      # [:yes, rooms away] when one of tiles lies in a region reached from src's, NO once all is walked, else UNKNOWN.
-      def answer(src, tiles)
+      # [:yes, rooms away] when one of tiles, or a state that steps onto entry's tile (entering), lies in a region
+      # reached from src's, NO once all is walked, else UNKNOWN.
+      def answer(src, tiles, entry = nil)
         rooms = rooms_from(find(src))
         pf = PokeAccess::Pathfinder
         best = nil
@@ -223,8 +226,33 @@ module PokeAccess
             best = r if r && (best.nil? || r < best)
           end
         end
+        entering(entry).each_key do |i|
+          r = rooms[find(i)]
+          best = r if r && (best.nil? || r < best)
+        end
         return [:yes, best] if best
         done? && sure_no? ? NO : UNKNOWN
+      end
+
+      # The states whose move steps onto entry's tile and is taken on elsewhere (Moves::Step#entry), each with those
+      # moves as [index in DIRS, presses, landing state, ...]; empty without entry or such moves.
+      def entering(entry)
+        (entry && @entered[entry]) || EMPTY
+      end
+
+      # The fewest presses of a move onto entry's tile from each state that makes one (entering): index => presses.
+      def entry_presses(entry)
+        ways = entering(entry)
+        return EMPTY if ways.empty?
+        out = {}
+        ways.each do |i, ins|
+          k = 1
+          while k < ins.length
+            out[i] = ins[k] if out[i].nil? || ins[k] < out[i]
+            k += 3
+          end
+        end
+        out
       end
 
       # True when a whole walk that reaches none of the tiles tells they cannot be got to: not in the assisted variant
@@ -288,7 +316,9 @@ module PokeAccess
 
       # Walks the states in the order reached until all are, max are or the deadline passes; the states walked. A plain
       # step sets its bit in the state's mask and its target in @step (four slots a state), uniting both if it steps
-      # back plainly too; any other move is an edge in @moves (from, to, direction, presses, warp) for the router.
+      # back plainly too; any other move is an edge in @moves (from, to, direction, presses, and as bits a transfer (1)
+      # and a move that puts the player down without a walk (2), see Moves.relocated?) for the router, and one that steps
+      # onto a tile and is taken on elsewhere is kept by that tile too (entering).
       def walk(max, deadline)
         pf = PokeAccess::Pathfinder
         mv = Moves
@@ -315,17 +345,18 @@ module PokeAccess
             f = mv.fast(x, y, dir, mode)
             next if f.nil?
             if f == true
-              nx = x + dir[0]; ny = y + dir[1]; nl = l; plain = true; warp = 0
+              nx = x + dir[0]; ny = y + dir[1]; nl = l; plain = true; warp = 0; entry = nil
             else
               s = mv.step(x, y, l, dir, mode)
               next if s.nil?
-              nx = s.x; ny = s.y; nl = s.level; warp = s.warp ? 1 : 0
+              nx = s.x; ny = s.y; nl = s.level; warp = s.warp ? 1 : 0; entry = s.entry
               plain = (s.kind == :walk || s.kind == :surf) && s.presses == 1 && s.gate.nil? && warp == 0 && nl == l &&
                       nx == x + dir[0] && ny == y + dir[1]
             end
             nk = pf.skey(nx, ny, nl)
             j = id[nk] || add(nk, nl)
-            @moves.push(i, j, dir[2], s.presses, warp) unless plain
+            ((@entered[entry] ||= {})[i] ||= []).push(b - 1, s.presses, j) if entry
+            @moves.push(i, j, dir[2], s.presses, warp | (mv.relocated?(s) ? 2 : 0)) unless plain
             if plain
               mask[i] |= 1 << (b - 1)
               @step[i * 4 + b - 1] = j

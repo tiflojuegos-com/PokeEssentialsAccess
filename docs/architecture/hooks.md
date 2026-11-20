@@ -87,7 +87,9 @@ should be a container.
 
 ## Game resets
 
-An F12 reset runs the game's scripts again, and their definitions replace the mod's wrappers. `Hooks.keep_bound`
+F12 starts the game anew in a process of its own, where the boot runs from the start
+([F12 reset](loading.md#f12-reset)). Where no process can be started, the reset goes on in the same process: the game's
+scripts run again, and their definitions replace the mod's wrappers. `Hooks.keep_bound`
 records each wrapper as installed, with the block that installs it. After the reset, `Hooks.rebind` installs again
 every wrapper whose method changed, over the game's new method, and `Hooks.after_reset` clears the caches kept for the
 previous run.

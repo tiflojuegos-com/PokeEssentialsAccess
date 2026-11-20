@@ -51,11 +51,19 @@ page that explains it.
   that gives the text of the focused option ([Readers](../architecture/readers.md#command-windows)).
 - **facet**: a meaning of a map event, such as `:touch` or `:gate`, computed from its record on first use and kept
   while the state it read holds ([World and routes](../architecture/world-and-routes.md#events-and-facets)).
+- **event row**: neighbouring events of one kind that run the same page, such as the tiles of one scene trigger,
+  listed as one target and sounding from the middle one (`EventRows`)
+  ([Guide and sound](../architecture/guide-and-sound.md#targets-and-categories)).
 - **flat channel**: `Sound::Flat`, which plays panned files through the game's sound effect channel, for the earcons
   and for the cues while the positional engine is down
   ([Guide and sound](../architecture/guide-and-sound.md#the-flat-channel)).
 - **focus reader**: a reader declared with `FocusReader.define`, or `focus_reader` in a profile, for a screen whose
   cursor is an index on the scene ([Readers](../architecture/readers.md#command-windows)).
+- **focus**: the tile the mod listens and tells directions from, `Camera.focus`: the player's, or the free camera's
+  while it is open ([Guide and sound](../architecture/guide-and-sound.md#stages-of-the-map-frame)).
+- **free camera**: `PokeAccess::Camera`, a tile moved over the map with the player standing still, from which the mod
+  listens and reads and the player fixes a destination or draws a trail; Alt+K by default
+  ([Guide and sound](../architecture/guide-and-sound.md#free-camera)).
 - **function wrapper**: the wrapper that `Hooks.wrap_global`, `Hooks.wrap_kernel` or `Hooks.wrap_singleton` installs
   over a top-level function or a module's singleton method
   ([Hooks](../architecture/hooks.md#functions-module-methods-and-overrides)).
@@ -154,6 +162,8 @@ page that explains it.
   ([World and routes](../architecture/world-and-routes.md#rules-a-profile-adds)).
 - **runner check**: a check that `test/run.rb` makes on a whole pass, such as `ArityNet` or the test census
   ([Static checks](static-checks.md#runner-checks)).
+- **scene trigger**: an invisible event that starts a scene when the player steps on or touches it, located only with
+  `scene_triggers` on ([Settings](settings.md#navigation-and-pathfinder-options)).
 - **scene watcher**: `PokeAccess::SceneWatcher`, which reads a screen that runs its own input loop: an around-hook
   holds the scene and a poller reads it on every pulse ([Readers](../architecture/readers.md#scene-watchers)).
 - **scheme**: the set of levels that verbosity gives the readings, a built-in level or a player's own scheme
@@ -175,7 +185,7 @@ page that explains it.
   `Engine.fork` answers `:sky` there ([Engine eras](../architecture/engine-eras.md#eras)).
 - **slot**: a symbol that names a reader's change-detection record on its holder, so readers that share a holder keep
   their records apart ([Readers](../architecture/readers.md#change-detection)).
-- **sonar**: the positional pings of the emitters near the player, played in full sound navigation
+- **sonar**: the positional pings of the emitters near the focus, played in full sound navigation
   ([Guide and sound](../architecture/guide-and-sound.md#sonar)).
 - **sound family**: a group of sounds in `Sound::Catalog` that share a volume, a frequency, a tone and an on switch
   ([Guide and sound](../architecture/guide-and-sound.md#the-sound-catalog)).
@@ -197,6 +207,9 @@ page that explains it.
   selected one ([Guide and sound](../architecture/guide-and-sound.md#targets-and-categories)).
 - **track**: the states that the presses of the guides' route reach, by which the guides find the player on the route
   ([Guide and sound](../architecture/guide-and-sound.md#the-route-both-guides-follow)).
+- **trail**: the tiles the free camera walked from Shift+Enter, fixed with Enter as a target the guides lead along,
+  converted to the player's presses by `Routes::Trail`
+  ([World and routes](../architecture/world-and-routes.md#the-free-cameras-trail)).
 - **transfer**: an event that moves the player elsewhere, a `:warp` within the map or an `:exit` off it
   ([World and routes](../architecture/world-and-routes.md#transfers)).
 - **verbosity**: the levels (brief, medium and full) and the readings that decide how much of a row the mod says

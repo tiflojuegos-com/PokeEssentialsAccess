@@ -30,11 +30,13 @@ module PokeAccess
       kb.chord_pressed?(kb::VK_CONTROL, kb::VK_ALT, fkey)
     end
 
-    # Toggles the whole mod with Ctrl+Alt+F8, polled even while disabled; re-enabling retries a failed speech init.
+    # Toggles the whole mod with Ctrl+Alt+F8, polled even while disabled; re-enabling retries a failed speech init, and
+    # disabling shuts the free camera.
     def self.toggle_poll
       return unless hotkey?(PokeAccess::Keyboard::VK_F8)
       @enabled = !@enabled
       (PokeAccess.retry_init! rescue nil) if @enabled
+      PokeAccess::Camera.close(nil) unless @enabled
       PokeAccess.speak(PokeAccess::I18n.t(@enabled ? :mod_on : :mod_off), true, :system)
     end
 

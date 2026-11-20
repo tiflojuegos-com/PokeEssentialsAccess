@@ -54,7 +54,8 @@ class MtsMutatorGuardTest < PokeAccessTest
   ALLOW = {
     "core/field/minigames.rb" => ["VF_W + col", "VF_W + c"],
     "core/routes/routes.rb"   => ["PKEY_STRIDE + y"],
-    "core/world/events.rb"    => ["STRIDE + y"]
+    "core/world/events.rb"    => ["STRIDE + y"],
+    "games/soulstones1/puzzles/ishizu.rb" => ["POT_SWITCH + ish"]
   }
 
   test "check187.py skips the same modern-only paths as this guard" do

@@ -7,11 +7,11 @@
 #
 #
 # format: Class#method = <profile>, <profile>...
-# surveyed sources (35): africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier
+# surveyed sources (37): africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, solarlight, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier, xenoverse
 # A row marked NO-DUMP is one no surveyed game defines: it was not checked and found clean, it
 # could not be checked at all. The two used to print identically, which made a sixth of the file
 # read as evidence it was not.
-# after-style hook sites: 459 / blocking somewhere: 1 / no dump defines it: 2
+# after-style hook sites: 461 / blocking somewhere: 1 / no dump defines it: 2
 # after-style sites the extractor cannot resolve (computed class or method): 44
 AdvancedPokedexScene#displayPage = 
 AdvancedPokedexScene#pbStartScene = 
@@ -62,6 +62,7 @@ BossPokemonDataBox#appear =
 BossPokemonDataBox#refresh = 
 BoundedPokemonEntryScene#pbStartScene = 
 ButtonEventScene#addImage = 
+ButtonEventScene#addImageForScreen = 
 ButtonEventScene#addLabel = 
 ButtonEventScene#addLabelForScreen = 
 ButtonEventScene#set_up_screen = 
@@ -132,6 +133,7 @@ FightMenuDisplaySpecial#setIndex =
 FightWindowEBDX#battler= = 
 FishingMinigame#createGraphics = 
 FishingMinigame#refresh = 
+Fullbox_Choice#setSelection = 
 FusionQuiz#refresh_streak_ui = 
 FusionQuizAppScene#pbStartScene = 
 GachaScene#dispose = 
@@ -142,13 +144,6 @@ Game_Picture#show =
 Game_Screen#aUpdateRadar = 
 Game_Temp#in_battle= = 
 Game_Temp#in_menu= = 
-GenCustomStyle#initialize = 
-GenFiveStyle#initialize = 
-GenFourStyle#initialize = 
-GenOneStyle#initialize = 
-GenSevenStyle#initialize = 
-GenSixStyle#initialize = 
-GenThreeStyle#initialize = 
 Glosario_Historia#draw_commands = 
 Glosario_Historia#update_cursor = 
 Glosario_Historia_Secciones#dibujar_lista = 
@@ -214,16 +209,21 @@ Mission_Overlay#pbShow =
 ModularTitleScreen#initialize = 
 MonotypeMenu::MonotypeMenu_Scene#pbRedrawList = 
 MostrarPokemonAnimado#mostrar_poke_animado = 
+MoveRelearnerScene#drawMoveInfo = 
 MoveRelearnerScene#pbDrawMoveList = 
 MoveRemember_Scene#pbDrawMoveList = 
 MultiBerrySelection_Scene#pbRefresh = 
+MultiSelectOptionsScene#refreshList = 
 NewBattleBag#drawPocket = 
 NewBattleBag#update = 
 NewCommandWindow#text= = 
+NewCommandWindow#update = 
 NewFightWindow#battler= = 
 NewFightWindow#megaButtonSet = 
+NewFightWindow#megaButtonTrigger = 
 NewFightWindow#update = 
 NextGenCommandWindow#text= = 
+NextGenCommandWindow#update = 
 NextGenFightWindow#battler= = 
 NextGenFightWindow#megaButtonTrigger = 
 NextGenFightWindow#update = 
@@ -330,6 +330,7 @@ PokemonStorageScene#pbMarkingSetArrow =
 PokemonStorageScene#pbSetArrow = 
 PokemonStorageScene#pbSetQuickSwap = 
 PokemonStorageScene#pbUpdateOverlay = 
+PokemonStorageScene#pbUpdateSelectionRect = 
 PokemonStorageScene#setFusing = 
 PokemonSummaryScene#drawInfoZodiac = 
 PokemonSummaryScene#drawPageContestMoves = 
@@ -380,6 +381,7 @@ RadioInterface#update_display =
 RentalChooseScene#refresh_top_slots = 
 ResultPanelScene#pbStartScene = 
 ResultPanelScene#pbUpdateCursor = 
+SafariCaughtIcons_UI#initialize = 
 Scene_Glosario#refresh = 
 Scene_Map#addSprite = 
 Scene_MoveTutor#refreshMoveList = 
