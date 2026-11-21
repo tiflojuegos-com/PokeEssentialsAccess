@@ -215,6 +215,28 @@ class ExitNamingTest < PokeAccessTest
     assert_equal [[t(:loc_arrived), true]], SpeakCapture.log
   end
 
+  test "applies the route prefix preference to step-off directions without changing arrival notices" do
+    edge_map(["#.###", "#@..#", "#####"])
+    saved = PokeAccess::Config.route_prefix
+    with_edges([[1, 1, 4]]) do
+      target = edge(1, 1)
+      Loc.instance_variable_set(:@target, target)
+      direction = t(:loc_exit_out, :out => t(:loc_out_left))
+      PokeAccess::Config.set(:route_prefix, false)
+      SpeakCapture.clear
+      Loc.announce_route
+      assert_equal [direction], SpeakCapture.lines
+      assert_equal t(:loc_arrived_exit, :exit => direction), Loc.arrived_line(target)
+      PokeAccess::Config.set(:route_prefix, true)
+      SpeakCapture.clear
+      Loc.announce_route
+      assert_equal [t(:loc_route, :steps => direction)], SpeakCapture.lines
+    end
+  ensure
+    PokeAccess::Config.set(:route_prefix, saved)
+  end
+
+
   test "on a corner leading off two ways, each map-edge exit's route key says its own way off the map" do
     edge_map(["#.###", "#@..#", "#####"])
     Loc.instance_variable_set(:@conn_edges, 3 => [[1, 1, 8]], 4 => [[1, 1, 4]])

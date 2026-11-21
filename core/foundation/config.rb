@@ -231,6 +231,7 @@ module PokeAccess
     define(:verbosity,            :full,  :verbosity, :verbosity,      :lbl_scheme_in_use,    :help_verbosity)
     define(:auto_guide,           false,  :flag,      :pathfinder,     :lbl_auto_guide,       :help_auto_guide)
     define(:auto_steps,           false,  :flag,      :pathfinder,     :lbl_auto_steps,       :help_auto_steps)
+    define(:route_prefix,         true,   :flag,      :pathfinder,     :lbl_route_prefix,     :help_route_prefix)
     define(:hide_unreachable,     :off,   :hide,      :pathfinder,     :lbl_hide_unreachable, :help_hide_unreachable)
     define(:hide_noninteractive,  false,  :flag,      :pathfinder,     :lbl_hide_noninter,    :help_hide_noninter)
     define(:scene_triggers,       false,  :flag,      :pathfinder,     :lbl_scene_triggers,   :help_scene_triggers)
