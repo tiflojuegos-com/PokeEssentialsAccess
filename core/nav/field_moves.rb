@@ -65,10 +65,19 @@ module PokeAccess
       gate[:item] ? bag_has?(gate[:item]) : can?(gate[:move])
     end
 
-    # What clears a gate's obstacle, as the game spells it: its item, the item its move was handed to, else its move.
+    # Name the tool the player can use, or the move and its registered alternatives when none is ready.
     def self.clearer(gate)
-      item = gate[:item] || plugin_item(gate[:move])
-      item ? item_name(item) : name(gate[:move])
+      move = gate[:move]
+      item = gate[:item] || hm_items_item(move) || plugin_item(move)
+      return item_name(item) if item
+      alternatives = @items[move] || []
+      held = alternatives.find { |candidate| bag_has?(candidate) }
+      return item_name(held) if held
+      move_name = name(move)
+      return move_name if alternatives.empty? || can?(move) != false
+      names = ([move_name] + alternatives.map { |candidate| item_name(candidate) }).uniq
+      return move_name if names.length == 1
+      PokeAccess::I18n.t(:list_or, :rest => names[0...-1].join(", "), :last => names[-1])
     end
 
     # The spelling Marin's HM Items script gives a move in its constants, where it differs from ours.
