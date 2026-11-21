@@ -9,7 +9,7 @@
 # there because a name can be present in the game and still sit on the WRONG OBJECT, which is a
 # silent nil just the same, and this turns finding out into one grep.
 # surveyed profiles (37): africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, solarlight, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier, xenoverse
-# names read: 741 / never found: 15
+# names read: 742 / never found: 15
 @HELPTEXT = uranium  |  PokemonOptionScene
 @Items = sevii  |  Drawer
 @PokemonOptions = africanus, armonia, awakening, edas, fireash, goldencrown, infinitefusion, infinitefusion_hoenn, insurgence, opalo, perseida, pokemon_z, realidea, reminiscencia, sevii, solarlight, soulstones1, uranium, xenoverse  |  AutosaveOptionsScene, ChallengeOptionsScene, FusionMovesOptionsScene, FusionSelectOptionsScene, GameplayOptionsScene, PokemonOptionScene, PokemonOption_Scene, PokemonRulesetScene, +6 more
@@ -638,6 +638,7 @@
 @simonRunning = uranium  |  SimonGameHandler
 @size = fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, keishou, reminiscencia, royal, sevii, uranium, vanilla, worldfrontier, xenoverse  |  AkiEventScene, BerryData, Challenge_Scene, HTTP, LairMapScene, MaxLairEventScene, MaxRaidScene, OnlinePartySelection, +6 more
 @skinTone = infinitefusion, infinitefusion_hoenn  |  CharacterSelectMenuPresenter
+@skip = africanus, anil, armonia, awakening, darkhorizon, decades, edas, emerald, gruelinggold, infinitefusion, infinitefusion_hoenn, opalo, perseida, pokemon_z, realidea, reminiscencia, revival, royal, sevii, uranium, vitro, worldfrontier, xenoverse  |  ClassicIntro, EssentialsTitleScreen, FirstIntro, GenCustomStyle, GenFiveStyle, GenFourStyle, GenOneStyle, GenSevenStyle, +15 more
 @sortIndex = africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, solarlight, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier, xenoverse  |  Window_PokemonBag, Window_PokemonItemStorage
 @sortItems = soulstones2  |  PokemonBox_Scene, PokemonStorage
 @sortShiny = soulstones2  |  PokemonBox_Scene, PokemonStorage

@@ -1,6 +1,5 @@
-# Kanto's title draws between reading a key in the style's wait and reading it
-# again in the scene.
-class InfiniteFusionStartupGdTest < ProfileProcessTest
+# Kanto's title (games/infinitefusion/title.rb): a confirm key taken by the style's wait reaches the title loop once.
+class InfiniteFusionTitleGdTest < ProfileProcessTest
   WORLD = <<-'RUBY'
     def continueKeyPressed?
       $start_key
