@@ -144,19 +144,26 @@ module PokeAccess
         list = cluster_exits(list, at[0], at[1])
         list = cluster_rows(list, cat == :scenes ? :scene : :heal, at[0], at[1])
         list.concat(connection_targets.map { |t| aim_connection(t) }.compact) if cat == :exits || cat == :all
-        cat == :all && (PokeAccess::Config.everything_extras rescue false) ? with_extras(list) : list
+        cat == :all && extra_targets? ? with_extras(list) : list
       end
     end
 
-    # The all category's targets with the puzzles', the surfaces' and the marks' (everything_extras), each once: a puzzle
-    # spot on an event stands for that event.
+    # Whether Everything includes synthetic targets.
+    def self.extra_targets?
+      PokeAccess::Config.puzzle_assist || PokeAccess::Config.everything_extras
+    end
+
+    # The all category's targets with puzzles and, when requested, surfaces and marks. A puzzle spot on an event
+    # stands for that event.
     def self.with_extras(events)
       puzzles = candidates(:puzzles).reject { |t| (ev = puzzle_event_of(t)) && tag_hidden?(ev) }
       replaced = {}
       puzzles.each { |t| ev = puzzle_event_of(t); replaced[ev.id] = true if ev }
       list = events.reject { |t| !t.is_a?(SurfaceTarget) && replaced[t.id] }
+      list += puzzles
+      list += candidates(:surfaces) + candidates(:marks) if PokeAccess::Config.everything_extras
       seen = {}
-      (list + puzzles + candidates(:surfaces) + candidates(:marks)).select do |t|
+      list.select do |t|
         id = identity(t)
         fresh = !seen[id]
         seen[id] = true
@@ -244,12 +251,12 @@ module PokeAccess
 
     # The fixed-order ranks the static numbers count (number_of), as { identity => rank_key }: of an event category,
     # every target of it seen since the map was entered, so a number keeps its gap when its target goes or is hidden;
-    # of a synthetic one, and of all while it takes in the synthetic ones (everything_extras), whose ranks change with
+    # of a synthetic one, and of all while it takes in synthetic targets, whose ranks change with
     # each list, those it has now.
     def self.static_ranks(cat, all)
       now = {}
       all.each { |t| now[identity(t)] = @rank[identity(t)] }
-      return now if SYNTHETIC.include?(cat) || (cat == :all && (PokeAccess::Config.everything_extras rescue false))
+      return now if SYNTHETIC.include?(cat) || (cat == :all && extra_targets?)
       seen = ((@seen ||= {})[cat] ||= {})
       seen.merge!(now)
     end

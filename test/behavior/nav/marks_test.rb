@@ -45,6 +45,23 @@ class NavMarksTest < PokeAccessTest
     PokeAccess::World::Mechanics.instance_variable_get(:@defs).delete($game_map.map_id) rescue nil
   end
 
+  test "Puzzle assist includes its targets once in Everything with the extra surfaces and marks off" do
+    with_marks do
+      Marks.set(1, 7, 5, "Tienda")
+      World.event(:id => 31, :x => 4, :y => 4, :sprite => "boulder", :list => [TestCmd.new(355, ["pbPushThisBoulder"])])
+      PokeAccess::World::Mechanics.define(:state, $game_map.map_id) { spot :event => 31, :label => "Rock" }
+      World.next_frame
+      PokeAccess::Config.everything_extras = false
+      PokeAccess::Config.puzzle_assist = true
+      targets = Locator.candidates(:all)
+      at_rock = targets.select { |t| [t.x, t.y] == [4, 4] }
+      assert_equal [[Locator::SurfaceTarget, "Rock"]], at_rock.map { |t| [t.class, Locator.target_name(t)] }
+      refute targets.any? { |t| Locator.mark_target?(t) }
+    end
+  ensure
+    PokeAccess::World::Mechanics.instance_variable_get(:@defs).delete($game_map.map_id) rescue nil
+  end
+
   test "a puzzle spot stands for the event on its tile, and for none elsewhere" do
     ev = World.event(:id => 30, :x => 4, :y => 4)
     spot = Locator::SurfaceTarget
