@@ -158,7 +158,7 @@ module PokeAccess
       d = edge_out(t)
       return PokeAccess::I18n.t(dive_key(t) || :loc_arrived) if d.nil?
       way = PokeAccess::Routes::Text.exit_out(d)
-      route ? PokeAccess::I18n.t(:loc_route, :steps => way) : PokeAccess::I18n.t(:loc_arrived_exit, :exit => way)
+      route ? PokeAccess::Routes::Text.route_line(way) : PokeAccess::I18n.t(:loc_arrived_exit, :exit => way)
     end
 
     # True when the game lets the player come up from anywhere underwater, so no surfacing spot is listed.

@@ -27,7 +27,7 @@ class ConfigMenuTest < PokeAccessTest
 
   test "lists the pathfinder's settings, then its advanced screen, then back" do
     on_screen(:pathfinder) do
-      assert_equal [:auto_guide, :auto_steps, :hide_unreachable, :hide_noninteractive, :scene_triggers, :everything_extras,
+      assert_equal [:auto_guide, :auto_steps, :route_prefix, :hide_unreachable, :hide_noninteractive, :scene_triggers, :everything_extras,
                     :target_order, :target_numbering, :name_items, :name_trainers, :name_species, :name_signs,
                     :surface_cues, :puzzle_assist, [:enter, :pathfinder_adv], :back],
                    rows(:pathfinder)
