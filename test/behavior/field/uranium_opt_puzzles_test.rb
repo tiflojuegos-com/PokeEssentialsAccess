@@ -28,6 +28,7 @@ class UraniumOptPuzzlesTest < PokeAccessTest
   end
 
   test "Zeta's yard hint lists the pushes of a sequence that moves the boulders from where they stand and opens the way" do
+    on_map(190)
     PokeAccess::Config.puzzle_assist = true
     squares = [[25, 17], [23, 22], [24, 22], [25, 22], [23, 20], [25, 20], [24, 19], [24, 18], [26, 19], [25, 18], [22, 19]]
     PokeAccess::UraniumZetaPatio.pushes.each do |x, y, dir, times|
