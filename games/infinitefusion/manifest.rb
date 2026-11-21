@@ -15,6 +15,6 @@
                  puzzles/ruins_of_alph puzzles/cerulean_cave puzzles/berry_forest puzzles/old_shipwreck
                  puzzles/ruby_chamber puzzles/kindle_road puzzles/moonlit_forest
                  puzzles/ilex_forest puzzles/saffron_nightclub puzzles/cyberspace puzzles/chrono_warehouse
-                 puzzles/nest_hats puzzles/sky_pillar puzzles/deep_sea],
+                 puzzles/nest_hats puzzles/sky_pillar puzzles/deep_sea kanto_title_input],
   :plugins => %w[berrydex multi_save better_region_map luka_title]
 }
