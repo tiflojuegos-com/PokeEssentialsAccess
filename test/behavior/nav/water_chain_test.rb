@@ -110,6 +110,31 @@ class WaterChainTest < PokeAccessTest
     end
   end
 
+  test "a waterfall can lead to a shore and another crossing" do
+    chain = ["############",
+             "#@~~..~~...#",
+             "###V########",
+             "###W########",
+             "###~########",
+             "###~########",
+             "############"]
+    with_tile_world(chain) do
+      $game_player.x = 3
+      $game_player.y = 5
+      $PokemonGlobal.surfing = true
+      field = PokeAccess::FieldMoves
+      original_check = field.method(:can?)
+      field.define_singleton_method(:can?) { |_move| true }
+      begin
+        plan = Planner.plan(10, 1, true)
+        expected = { :kind => :field, :label => :surf_waterfall, :move => :WATERFALL, :x => 3, :y => 3 }
+        assert_equal [:assisted, [8], expected], [plan.kind, plan.route && plan.route.to_a, plan.gate]
+      ensure
+        field.define_singleton_method(:can?, original_check)
+      end
+    end
+  end
+
   test "afloat the camera and the trail may push off only from ground they came ashore on" do
     with_tile_world(CHAIN) do
       dry = PF.may_surf?(6, 1)

@@ -17,19 +17,20 @@ module PokeAccess
 
     # The first launch on the way to (tx,ty) as [shore x, shore y, facing], afloat the first past coming ashore, or nil
     # when surfing gets nowhere near it or the party may not surf here (surf_allowed?). One its search finished is kept
-    # while what it depends on stands (launch_key): a walker's step leaves it.
-    def self.surf_plan(tx, ty)
+    # while what it depends on stands (launch_key): a walker's step leaves it. Include a required waterfall climb before
+    # a later push-off when asked for field actions and the player is afloat.
+    def self.surf_plan(tx, ty, include_field = false)
       return nil unless surf_allowed?
       return nil if World::Terrain.water_on_map?(PokeAccess.clock + WATER_READ) == false
       tiles = SURF_AROUND.map { |dx, dy| [tx + dx, ty + dy] }
       return nil if Routes::Regions.water.status(tiles)[0] == :no
       foot = Routes::Regions.foot
-      key = launch_key(tx, ty, foot)
+      key = launch_key(tx, ty, foot) + [include_field]
       hit = @launches.assoc(key)
       return hit[1] && hit[1].dup if hit
       searching do |op|
         cuts = op.cuts
-        l = launch(Routes::Goal.new(tiles, tx, ty), foot)
+        l = launch(Routes::Goal.new(tiles, tx, ty), foot, include_field)
         keep_launch(key, l) if op.cuts == cuts
         l
       end
@@ -57,12 +58,12 @@ module PokeAccess
     # regions on foot (afloat, the water and the ground it comes ashore on), walked whole, reach it, else when it is no
     # water; afloat, only dry ground (World::Probe.dry?), so water a surfer moves on to by other means, as up a
     # waterfall, is never a push-off.
-    def self.launch(goal, foot)
+    def self.launch(goal, foot, include_field = false)
       cost = Routes::CostModel.new((PokeAccess::Config.route_style rescue :shortest))
       whole = foot.done?
       afloat = ($PokemonGlobal.surfing rescue false)
       PokeAccess::World::Probe.lend_through(Routes::Regions.lendable_walkers) do
-        Routes::Launch.toward(goal, cost) do |x, y|
+        Routes::Launch.toward(goal, cost, include_field && afloat) do |x, y|
           next false if afloat && !PokeAccess::World::Probe.dry?(x, y)
           whole ? foot.known([[x, y]])[0] == :yes : !Routes::Moves.surf_water?(x, y)
         end
