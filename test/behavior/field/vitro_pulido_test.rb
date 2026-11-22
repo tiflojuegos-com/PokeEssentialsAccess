@@ -35,6 +35,7 @@ class VitroPulidoTest < PokeAccessTest
   end
 
   test "the room of doors names its reset switch" do
+    Harness.load_puzzles("vitro")
     $game_map.map_id = 128
     ev = TestGameEvent.new(:id => 46, :x => 18, :y => 4)
     assert_equal t(:vitro_doors_reset), PokeAccess::VitroDoorPuzzle.name(ev)
