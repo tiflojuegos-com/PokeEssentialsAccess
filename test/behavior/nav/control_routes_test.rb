@@ -53,6 +53,14 @@ class ControlRoutesTest < PokeAccessTest
     assert_equal t(:loc_route_gate, :what => t(:gym3_red), :steps => steps), Text.line(Planner.plan(6, 1))
   end
 
+  test "at brief the route's line starts with the steps and ends with what it leads up to" do
+    gym_room
+    PokeAccess::Config.puzzle_assist = true
+    PokeAccess::Config.verbosity = :brief
+    steps = "#{t(:loc_next_to)}; #{t(:loc_control_route, :what => t(:gym3_red))}"
+    assert_equal t(:loc_route_gate_brief, :what => t(:gym3_red), :steps => steps), Text.line(Planner.plan(6, 1))
+  end
+
   test "seeks no press while the rays are down already" do
     gym_room
     $game_switches[142] = true
