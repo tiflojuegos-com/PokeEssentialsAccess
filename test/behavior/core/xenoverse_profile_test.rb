@@ -37,6 +37,12 @@ class XenoverseProfileTest < ProfileProcessTest
     def pbEnterPokemonName(*_args); ""; end
     def pbGetMapNameFromId(id); "Bosco Ombroso #{id}"; end
 
+    module MessageTypes
+      def self.getFromMapHash(map_id, name)
+        map_id == $game_map.map_id && name == "Aster" ? "Professor Aster" : name
+      end
+    end
+
     # 0000_Settings: Surf asks the fifth badge, by index.
     HIDDENMOVESCOUNTBADGES = false
     BADGEFORSURF = 4
@@ -643,6 +649,26 @@ class XenoverseProfileTest < ProfileProcessTest
       probe(:naming) { PokeAccess::Locator.game_map_name(12) }
     end
 
+    require File.join(Harness::ROOT, "test", "support", "world_builder")
+
+    def mugshot_target_name(commands, sprite = "Ezio", name = "EV001")
+      list = commands.map { |code, text| TestCmd.new(code, [text]) }
+      page = TestPage.new(:sprite => sprite, :list => list)
+      event = TestGameEvent.new(:name => name, :pages => [page])
+      PokeAccess::Locator.target_name(event)
+    end
+
+    def mugshot_naming_play
+      probe(:mugshot_naming) do
+        single = [[355, 'fbNewMugshot("Aster","ludopoli/Ezio","default",:left)']]
+        continued = single + [[355, 'fbNewMugshot\\'], [655, '("Aster","ludopoli/Ezio",\\'],
+                              [655, '"stupito",:left)']]
+        dynamic = [[355, 'fbNewMugshot\\'], [655, '("#{raise :must_not_run}","ludopoli/Ezio","default",:left)']]
+        [mugshot_target_name(single), mugshot_target_name(continued), mugshot_target_name(dynamic),
+         mugshot_target_name(continued, "Other"), mugshot_target_name(continued, "Ezio", "Guide")]
+      end
+    end
+
     def compat_play
       load File.join(Harness::ROOT, "games", "xenoverse", "compat.rb")
       FontInstaller.module_eval("def self.install; :installed; end")
@@ -665,6 +691,7 @@ class XenoverseProfileTest < ProfileProcessTest
     game_modes_play
     mart_play
     naming_play
+    mugshot_naming_play
     compat_play
     gender_play
     starter_play
@@ -734,6 +761,10 @@ class XenoverseProfileTest < ProfileProcessTest
 
   test "a map takes the name the game translates for it" do
     assert_equal "Bosco Ombroso 12", played(:naming)
+  end
+
+  test "an active literal mugshot continues across event script lines and keeps the name and portrait guards" do
+    assert_equal ["Professor Aster", "Professor Aster", "Ezio", "Other", "Guide"], played(:mugshot_naming)
   end
 
   test "the preload script turns the font installer the game defines later into a no-op" do
