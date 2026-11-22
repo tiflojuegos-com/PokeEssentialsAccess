@@ -9,7 +9,7 @@ module PokeAccess
 
       # [x, y, facing] of the last tile walked on the cheapest way to goal, where it takes to water (the block tells a
       # walked tile); nil when it crosses no water or none is found within NODES (effort mode) or the deadline.
-      def self.toward(goal, cost, &walked)
+      def self.toward(goal, cost, include_field = false, &walked)
         mode = Moves::LEDGE | Moves::SURF_PLAN
         PokeAccess::Pathfinder.searching do |op|
           lim = op.mode == :effort ? Limits.new(:effort, NODES, 0) : op
@@ -17,7 +17,7 @@ module PokeAccess
           r = Search.run(goal, cost, mode, :astar, Search.bound_for(goal, mode), nil, t)
           op.cut! if r.status == :cut && !lim.equal?(op)
           s = r.status == :found ? reached(t, goal) : nil
-          s ? push_off(t, s, &walked) : nil
+          s ? push_off(t, s, include_field, &walked) : nil
         end
       end
 
@@ -35,8 +35,9 @@ module PokeAccess
         es && t.came[es] ? es : nil
       end
 
-      # The first move on the way to state s from a tile walked to into water not walked to, as [x, y, facing], or nil.
-      def self.push_off(t, s)
+      # First push-off from reachable shore, or a waterfall climb earlier in the route when returning field actions.
+      # A push-off stays [x, y, facing]; a climb adds :waterfall.
+      def self.push_off(t, s, include_field)
         links = []
         while (link = t.came[s])
           links.push([link[0], s, link[1]])
@@ -46,6 +47,10 @@ module PokeAccess
           px, py = tile_of(p)
           cx, cy = tile_of(c)
           return [px, py, d] if yield(px, py) && !yield(cx, cy) && Moves.surf_water?(cx, cy)
+          if include_field && d == 8 && px == cx && cy < py - 1 && Moves.surf_water?(px, py) &&
+             Moves.waterfall_ascent(px, py - 1) == [cx, cy]
+            return [px, py, d, :waterfall]
+          end
         end
         nil
       end
