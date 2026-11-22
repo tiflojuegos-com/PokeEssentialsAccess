@@ -5740,6 +5740,7 @@ tdn_nothing=Rien trouvé
 decades_key_t=Touche T du jeu : table des types, en combat
 decades_key_ctrl=Touche Ctrl du jeu : recherche du DexNav, capture assurée et combats de défi passés
 if_bubble_from=Depuis %{where}
+if_type_expert=Spécialiste des Pokémon de type %{type}
 if_bubble_tag_from=%{tag}, depuis %{where}
 vb_if_bubble_place=Bulles de dialogue
 vbh_if_bubble_place=D'où parle le personnage que montre une bulle, comme depuis 2 à droite, avant sa réplique. Bref ne le dit pas ; Moyen et Complet, si. Ton étiquette pour ce personnage est toujours dite.

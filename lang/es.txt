@@ -5738,6 +5738,7 @@ tdn_nothing=No se encontró nada
 decades_key_t=Tecla T del juego: tabla de tipos, en combate
 decades_key_ctrl=Tecla Control del juego: búsqueda del DexNav, captura segura y saltar combates de desafío
 if_bubble_from=Desde %{where}
+if_type_expert=Especialista en Pokémon de tipo %{type}
 if_bubble_tag_from=%{tag}, desde %{where}
 vb_if_bubble_place=Bocadillos de diálogo
 vbh_if_bubble_place=Desde dónde habla el personaje al que señala un bocadillo, como desde 2 a la derecha, antes de su frase. Breve no lo dice; Media y Completa, sí. Tu etiqueta para ese personaje se dice siempre.

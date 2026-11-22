@@ -2,7 +2,7 @@
 # (GameData, but still $Trainer and PokeBattle_Scene). What it shares with Hoenn comes from infinitefusion_common.
 {
   :imports => %w[infinitefusion_common],
-  :modules => %w[title locked_doors ss_anne_waiter surf_race cloud_path magikarp_ride
+  :modules => %w[title type_experts locked_doors ss_anne_waiter surf_race cloud_path magikarp_ride
                  puzzles/azalea_gym puzzles/goldenrod_gym puzzles/violet_gym
                  puzzles/slowpoke_well puzzles/rocket_hideout puzzles/blackthorn_gym puzzles/mahogany_gym
                  puzzles/burned_tower puzzles/ecruteak_gym puzzles/vermilion_gym puzzles/celadon_sewers

@@ -5752,6 +5752,7 @@ tdn_nothing=Nada encontrado
 decades_key_t=Tecla T do jogo: tabela de tipos, em batalha
 decades_key_ctrl=Tecla Ctrl do jogo: busca do DexNav, captura garantida e pular batalhas de desafio
 if_bubble_from=De %{where}
+if_type_expert=Especialista em Pokémon do tipo %{type}
 if_bubble_tag_from=%{tag}, de %{where}
 vb_if_bubble_place=Balões de fala
 vbh_if_bubble_place=De onde fala o personagem que um balão aponta, como de 2 à direita, antes da fala. Breve não diz; Média e Completa, sim. Sua etiqueta para esse personagem é sempre dita.
