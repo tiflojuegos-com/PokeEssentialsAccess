@@ -786,6 +786,20 @@ module PokeAccess
       PokeAccess.speak(said, true)
     end
 
+    # The planner stops at the approach to a doorway. Say the press that actually enters it.
+    def self.doorway_step_line(target, at)
+      return nil if PokeAccess::Camera.active? || target.is_a?(SurfaceTarget) || !transfer_event?(target)
+      delta = [target.x - at[0], target.y - at[1]]
+      direction = PokeAccess::DIR_DELTA.keys.find { |facing| PokeAccess::DIR_DELTA[facing] == delta }
+      return nil unless direction
+      effects = PokeAccess::Routes::Effects
+      effect = effects.touch_at(target.x, target.y, direction, true) ||
+               effects.touch_at(target.x, target.y, direction, false)
+      return nil unless effect && effect[0] == :exit
+      text = PokeAccess::Routes::Text
+      text.route_line(text.leg(direction, 1))
+    end
+
     # Speaks the route to the current target (Routes::Text.line, or why there is none), the piece's line on a puzzle
     # goal holding it (Puzzles.carried_line), or arrived_line on a target the player stands on (onto?); with route_stats
     # on, how its search went too. While the free camera is open, the way on foot from it (Planner.plan_from).
@@ -800,9 +814,11 @@ module PokeAccess
                route_plan(@target)
              end
       kinds = plan.route && PokeAccess::Routes::Moves.one_way(at[0], at[1], lvl, plan.route)
-      here = plan.kind == :walk && plan.route && plan.route.empty? && onto?(@target)
-      line = PokeAccess::Puzzles.carried_line(@target) ||
-             (here ? arrived_line(@target, true) : PokeAccess::Routes::Text.line(plan, at, kinds))
+      line = PokeAccess::Puzzles.carried_line(@target)
+      if !line && plan.kind == :walk && plan.route && plan.route.empty?
+        line = onto?(@target) ? arrived_line(@target, true) : doorway_step_line(@target, at)
+      end
+      line ||= PokeAccess::Routes::Text.line(plan, at, kinds)
       stats = (PokeAccess::Config.route_stats rescue false) ? PokeAccess::Routes::Text.stats(plan) : nil
       PokeAccess.speak(stats ? "#{line}. #{stats}" : line, true)
     end
