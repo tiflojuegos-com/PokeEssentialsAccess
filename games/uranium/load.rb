@@ -85,7 +85,7 @@ end
 
 PokeAccess::Game.define("uranium") do
   after("GenCustomStyle", :intro, :hook_container => true) do |_s, _r, _a|
-    PokeAccess.speak(PokeAccess::TitleScreen.prompt, true)
+    PokeAccess.speak(PokeAccess::TitleScreen.prompt(:title_screen, :key_space), true)
   end
   around("PokemonLoadPanel", :refresh) { |panel, nxt, _a| PokeAccess::UraniumLoad.capture(panel) { nxt.call } }
   read_on_open("PokemonLoadScene", :pbStartScene2, :hook_container => true) { |scene| PokeAccess::UraniumLoad.summary(scene) }
