@@ -2,7 +2,8 @@ module PokeAccess
   # Xenoverse's names for maps, people, torches, chests and its Pokemon Centers, from the game's own data.
   module XenoverseNaming
     # A literal fbNewMugshot(name, portrait, ...) call: its name and portrait path. Event Ruby is never evaluated.
-    MUGSHOT = /\A\s*fbNewMugshot\s*\(\s*(["'])([^"'\\#\r\n]+)\1\s*,\s*(["'])([^"'\\#\r\n]+)\3\s*,/
+    MUGSHOT_GAP = /(?:\s|\\\r?\n)*/
+    MUGSHOT = /\A\s*fbNewMugshot#{MUGSHOT_GAP}\(#{MUGSHOT_GAP}(["'])([^"'\\#\r\n]+)\1#{MUGSHOT_GAP},#{MUGSHOT_GAP}(["'])([^"'\\#\r\n]+)\3#{MUGSHOT_GAP},/
 
     # Overworld sheets whose portrait has another file name, by sheet: the portrait path the events pair with it.
     PORTRAIT_ALIASES = {

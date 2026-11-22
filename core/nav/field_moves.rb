@@ -65,10 +65,38 @@ module PokeAccess
       gate[:item] ? bag_has?(gate[:item]) : can?(gate[:move])
     end
 
-    # What clears a gate's obstacle, as the game spells it: its item, the item its move was handed to, else its move.
+    # What clears a gate's obstacle, as the game spells it: the item that is the whole rule (the gate's, Marin's HM
+    # Items' or the Advanced Items plugin's); else what the player has ready, a registered item or set of tools before
+    # the move, the move while a held one still wants its badge; else every way the game takes, the move left out where
+    # tools are the one way.
     def self.clearer(gate)
-      item = gate[:item] || plugin_item(gate[:move])
-      item ? item_name(item) : name(gate[:move])
+      move = gate[:move]
+      sole = gate[:item] || hm_items_item(move) || plugin_item(move)
+      return item_name(sole) if sole
+      sets = stand_ins(move)
+      usable = can?(move) != false
+      ready = sets.find { |set| set.all? { |it| bag_has?(it) } }
+      return set_name(ready) if ready && usable
+      only = tools_only?(move)
+      return name(move) if ready || sets.empty? || (!only && usable)
+      listed(:list_or, (only ? [] : [name(move)]) + sets.map { |set| set_name(set) })
+    end
+
+    # The registered items and sets of tools that stand in for a move, each a set of items wanted whole.
+    def self.stand_ins(move)
+      (@items[move] || []).map { |it| [it] } + (@tools[move] ? @tools[move][0] : [])
+    end
+
+    # A set of items as the game names them, joined as a list.
+    def self.set_name(set)
+      listed(:list_and, set.map { |it| item_name(it) })
+    end
+
+    # Names said as one list (list_and or list_or), each once; a single one alone.
+    def self.listed(key, names)
+      names = names.uniq
+      return names[0] if names.length == 1
+      PokeAccess::I18n.t(key, :rest => names[0...-1].join(", "), :last => names[-1])
     end
 
     # The spelling Marin's HM Items script gives a move in its constants, where it differs from ours.

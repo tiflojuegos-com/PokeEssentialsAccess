@@ -127,6 +127,11 @@ module PokeAccess
         end
       end
 
+      # A route's directions as said, after "Route:" but at brief (the route_prefix reading).
+      def self.route_line(text)
+        PokeAccess::Verbosity.keep?(:route_prefix, :medium) ? PokeAccess::I18n.t(:loc_route, :steps => text) : text
+      end
+
       # The route key's line for a plan: the steps (kinds marks the presses that cannot be undone the same way); for an
       # assisted route as assisted_line says; those to the shore (afloat, over the water and ashore to the next one), the
       # way by water and which way to push off, only the last on the shore; why there is none (see none); that no route
@@ -134,12 +139,12 @@ module PokeAccess
       def self.line(plan, at = nil, kinds = nil)
         t = PokeAccess::I18n
         case plan.kind
-        when :walk then t.t(:loc_route, :steps => steps(plan.route, kinds))
+        when :walk then route_line(steps(plan.route, kinds))
         when :assisted then assisted_line(plan, at, kinds)
         when :surf
           toward = surf_hold(plan.launch)
-          return t.t(:loc_route, :steps => toward) if plan.route.empty?
-          t.t(:loc_route, :steps => steps(plan.route, kinds) + ", " + t.t(:loc_surf_way, :toward => toward))
+          return route_line(toward) if plan.route.empty?
+          route_line(steps(plan.route, kinds) + ", " + t.t(:loc_surf_way, :toward => toward))
         when :cut, :far, :company then t.t(:loc_route, :steps => none(plan.kind))
         else t.t(:loc_route_none)
         end
@@ -153,12 +158,13 @@ module PokeAccess
         tail = past(g)
         if g[:back]
           back = t.t(:loc_control_step, :what => obstacle(g), :dir => side(g[:back]))
-          return t.t(:loc_route, :steps => steps(plan.route, kinds)) + "; " + back + tail
+          return route_line(steps(plan.route, kinds)) + "; " + back + tail
         end
         return hold(g, at[0], at[1]) + tail if at && plan.route.empty?
         e = at && route_end(plan.route, at)
         there = e ? "; " + hold(g, e[0], e[1]) : ""
-        t.t(:loc_route_gate, :what => gate_what(g), :steps => steps(plan.route, kinds) + there + tail)
+        key = PokeAccess::Verbosity.keep?(:route_prefix, :medium) ? :loc_route_gate : :loc_route_gate_brief
+        t.t(key, :what => gate_what(g), :steps => steps(plan.route, kinds) + there + tail)
       end
 
       # The tile a route from at ends on, replayed as the search made it (Moves.trace); nil when it cannot be replayed

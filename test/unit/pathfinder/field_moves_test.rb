@@ -48,6 +48,54 @@ class FieldMovesTest < PokeAccessTest
     end
   end
 
+  test "a planned field gate names an available registered item or the missing alternatives" do
+    gate = { :move => :WATERFALL }
+    move_name = FM.name(:WATERFALL)
+    item_name = FM.item_name(:BOARDMOTOR)
+    with_registered_item(:WATERFALL, :BOARDMOTOR) do
+      with_finder(nil) do
+        with_bag([:BOARDMOTOR]) { assert_equal item_name, FM.clearer(gate) }
+        with_bag([]) do
+          assert_equal PokeAccess::I18n.t(:list_or, :rest => move_name, :last => item_name), FM.clearer(gate)
+        end
+      end
+      with_finder(:pk) do
+        with_bag([]) { assert_equal move_name, FM.clearer(gate) }
+      end
+    end
+    assert_equal move_name, FM.clearer(gate)
+  end
+
+  test "a gate whose move tools stand in for names the tools ready, else them beside the move, alone where they are the one way" do
+    provider = Object.new
+    def provider.item_id(sym)
+      [sym, { :GOLDENAXE => "Golden Axe", :HM01 => "HM01", :SURFMONTURA => "Montura Surf" }[sym]]
+    end
+    Harness.with_provider(provider) do
+      gate = { :move => :CUT }
+      move_name = FM.name(:CUT)
+      tools = PokeAccess::I18n.t(:list_and, :rest => "Golden Axe", :last => "HM01")
+      FM.register_tool(:CUT, [:GOLDENAXE, :HM01])
+      with_finder(nil) do
+        with_bag([:GOLDENAXE, :HM01]) { assert_equal tools, FM.clearer(gate) }
+        with_bag([:GOLDENAXE]) do
+          assert_equal PokeAccess::I18n.t(:list_or, :rest => move_name, :last => tools), FM.clearer(gate)
+        end
+      end
+      with_finder(:pk) { with_bag([]) { assert_equal move_name, FM.clearer(gate) } }
+      FM.register_tool(:SURF, [:SURFMONTURA], true)
+      with_finder(:pk) do
+        with_bag([]) { assert_equal "Montura Surf", FM.clearer(:move => :SURF) }
+        with_bag([:SURFMONTURA]) { assert_equal "Montura Surf", FM.clearer(:move => :SURF) }
+      end
+      with_constants(:BADGEFORCUT => 0) do
+        with_badges([false]) do
+          with_finder(nil) { with_bag([:GOLDENAXE, :HM01]) { assert_equal move_name, FM.clearer(gate) } }
+        end
+      end
+    end
+  end
+
   test "with Marin's HM Items switched on for a move, its item is the whole rule" do
     with_constants(:USING_SURF_ITEM => true, :SURF_ITEM => :SPECSURFITEM) do
       with_finder(:pk) do
