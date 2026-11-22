@@ -9,7 +9,9 @@ class BlockingHooksTest < PokeAccessTest
   # The rows no dump can corroborate, by name so a new one needs its reason here: royal's Puntos scene defines
   # pbChangeSelection but not updateDescription, hence both bound :optional. update_clock belongs to a generic-only
   # reader whose script only reference copies hold (_refmods), checked by hand there: it places sprites and returns.
-  KNOWN_NO_DUMP = ["PokemonOptionPuntos_Scene#updateDescription", "WallClockScene#update_clock"].freeze
+  # Movie inherits the engine's bounded frame wait instead of defining it in the film class. Its
+  # return during playback is confirmed by the Kanto and Hoenn traces, before the next picture.
+  KNOWN_NO_DUMP = ["Movie#pbWait", "PokemonOptionPuntos_Scene#updateDescription", "WallClockScene#update_clock"].freeze
   # The DSL's own definitions as core/foundation/game.rb writes them: a computed class and method on each.
   GAME_DSL_AFTER = "def after(cname, meth, opts = {}, &blk); PokeAccess::Hooks.after_hook(cname, meth, opts, &blk); end"
   GAME_DSL_READ_ON_OPEN = "def read_on_open(cname, meth = :pbStartScene, opts = {}, &blk); " \
