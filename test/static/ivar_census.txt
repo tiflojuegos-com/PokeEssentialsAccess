@@ -353,6 +353,7 @@
 @mapWarpPoint = fireash, goldencrown  |  LairMapScene
 @mapWidth = decades, herolegacy, royal  |  PokemonPokedexInfo_Scene, PokemonRegionMap_Scene
 @map_descs = awakening  |  Teleport, Teleport_Scene
+@map_id = infinitefusion  |  Game_Event
 @map_name = keishou, worldfrontier  |  BattleRecord, DynamaxAdventure, LairMapScene
 @map_sprites = keishou, soulstones2  |  AdventureMapEditor, AdventureMapScene, LairMapScene
 @mapdata = africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, solarlight, soulstones1, soulstones2, uranium, vitro, worldfrontier, xenoverse  |  BetterRegionMap, Cache_Game, DexNest, HabitatDetailScene, PokemonNestMapScene, PokemonPokedexInfo_Scene, PokemonRegionMapScene, PokemonRegionMap_Scene, +1 more
