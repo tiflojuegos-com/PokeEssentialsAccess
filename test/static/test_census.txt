@@ -403,6 +403,7 @@ behavior/menus/ifh_screens_gd_test.rb
 behavior/menus/ifh_title_quiz_gd_test.rb
 behavior/menus/infinitefusion_hoenn_mini_gd_test.rb
 behavior/menus/infinitefusion_mini_gd_test.rb
+behavior/menus/infinitefusion_startup_cache_gd_test.rb
 behavior/menus/infinitefusion_title_gd_test.rb
 behavior/menus/info_window_gd_test.rb
 behavior/menus/info_window_test.rb
