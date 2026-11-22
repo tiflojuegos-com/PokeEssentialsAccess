@@ -31,7 +31,8 @@ class RouteWaterTest < PokeAccessTest
 
   test "the planned way walks onto that shore and pushes off the way the search did" do
     with_tile_world(TWO_PONDS) do
-      assert_equal [[2, 2, 2, 6, 6, 6, 6, 6, 6], 6], PokeAccess::Routes::Planner.surf(10, 1)
+      plan = PokeAccess::Routes::Planner.by_water(10, 1, false)
+      assert_equal [[2, 2, 2, 6, 6, 6, 6, 6, 6], 6], [plan.route, plan.launch]
     end
   end
 

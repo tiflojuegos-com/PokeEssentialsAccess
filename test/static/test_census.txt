@@ -862,6 +862,7 @@ unit/speech/speech_test.rb
 unit/speech/verbosity_test.rb
 unit/util/capitalized_test.rb
 unit/util/paint_recent_test.rb
+unit/util/rgss_memory_test.rb
 unit/world/epoch_fingerprint_test.rb
 unit/world/events_test.rb
 unit/world/first_sync_index_test.rb

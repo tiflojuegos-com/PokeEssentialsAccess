@@ -407,12 +407,6 @@ module PokeAccess
         Plan.new(made.kind, made.route && made.route.dup, made.gate, made.stats, made.launch)
       end
 
-      # The route and direction at the next shore, or a company restriction, for callers asking for a push-off.
-      def self.surf(tx, ty)
-        plan = by_water(tx, ty, false)
-        plan && [plan.route, plan.launch]
-      end
-
       # Follow the proven water route up to the first action the player must take. Climb a waterfall before
       # trying to direct the player to a shore only reachable beyond it.
       def self.by_water(tx, ty, include_field = true)

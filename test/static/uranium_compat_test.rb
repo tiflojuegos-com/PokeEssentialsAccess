@@ -32,8 +32,8 @@ class UraniumCompatTest < PokeAccessTest
                  ["Francais", "intl_french.dat"], ["Portugues", "intl_portuguese.dat"], ["Chinese", "intl_chinese.dat"],
                  ["Korean", "intl_korean.dat"], ["Nederlands", "intl_dutch.dat"]]
     def pbLoadMessages(file); $loaded = file; end
-    def picker_section(name = "168:Language Selection")
-      nil.eval("class LanguageSelection; def main(first = false); :picker; end; end", nil, name)
+    def picker_section(name = "Section168", source = "class LanguageSelection; def main(first = false); :picker; end; end")
+      nil.eval(source, nil, name)
     end
     def pick
       $PokemonSystem = ProbeSystem.new
@@ -281,15 +281,39 @@ class UraniumCompatTest < PokeAccessTest
     assert_equal({ "first" => 1, "later" => "picker" }, got)
   end
 
-  test "finds the picker's section by its name after the number" do
+  test "finds the picker's section by the class it defines, whatever name the engine gives it" do
     got = probe(<<~'RUBY')
       load ARGV[0]
-      $report["picks"] = ["Language Selection", "168: Language Selection ", "168:Language Selection Old"].map do |name|
+      $report["picks"] = ["Section168", "168:Language Selection", "Other"].map do |name|
         picker_section(name)
         pick.first
       end
+      picker_section("Section168", "class LanguageSelectionOld; end\nclass LanguageSelection; def main(f = false); :picker; end; end")
+      $report["later_class"] = pick.first
     RUBY
-    assert_equal({ "picks" => [1, 1, "picker"] }, got)
+    assert_equal({ "picks" => [1, 1, 1], "later_class" => 1 }, got)
+  end
+
+  test "keeps one wrapper when a later section reopens the picker without redefining main" do
+    got = probe(<<~'RUBY')
+      load ARGV[0]
+      picker_section
+      picker_section("Section169", "class LanguageSelection; def extra; :extra; end; end")
+      $report["later"] = LanguageSelection.new.main(false)
+      $report["first"] = pick.first
+    RUBY
+    assert_equal({ "later" => "picker", "first" => 1 }, got)
+  end
+
+  test "leaves the picker alone after a section that defines only a class of a longer name" do
+    got = probe(<<~'RUBY')
+      load ARGV[0]
+      picker_section
+      picker_section("Section169", "class LanguageSelectionOld; def main(f = false); :old; end; end")
+      $report["later"] = LanguageSelection.new.main(false)
+      $report["first"] = pick.first
+    RUBY
+    assert_equal({ "later" => "picker", "first" => 1 }, got)
   end
 
   test "notes a step that fails after its section with the top of its backtrace, and the boot goes on" do

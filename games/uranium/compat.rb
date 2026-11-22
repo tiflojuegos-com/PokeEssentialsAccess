@@ -92,8 +92,9 @@ module UraniumCompat
   # Those codes by Windows primary language id (the low ten bits of a LANGID).
   LANGIDS = { 0x0a => "es", 0x16 => "pt", 0x04 => "zh", 0x0c => "fr", 0x07 => "de", 0x12 => "ko", 0x13 => "nl" }
 
-  # What runs right after the script section of that name has been evaluated.
-  AFTER_SECTION = { "Language Selection" => :auto_first_language }
+  # What runs right after a script section that defines the class named has been evaluated. A section is told by its
+  # source, not its name: mkxp-z names it SectionNNN unless the game's mkxp.json sets useScriptNames.
+  AFTER_SECTION = { "LanguageSelection" => :auto_first_language }
 
   # The script sections skipped for not compiling, by the name mkxp-z gave them.
   def self.skipped
@@ -105,7 +106,7 @@ module UraniumCompat
   # instead of ending the boot. The public line goes as line 0, so the section keeps its own line numbers.
   def self.eval_section(src, scope, file)
     r = Kernel.eval("public\n" + src.to_s, scope || TOPLEVEL_BINDING, file || "(eval)", 0)
-    after_section(file)
+    after_section(src, file)
     r
   rescue SyntaxError => e
     skipped.push(file.to_s)
@@ -113,23 +114,25 @@ module UraniumCompat
     nil
   end
 
-  # Runs the AFTER_SECTION step of the section mkxp-z named file ("168:Language Selection"), if it has one; a failing
-  # step is noted in accessibility/compat_error.txt and the boot goes on.
-  def self.after_section(file)
-    step = AFTER_SECTION[file.to_s.sub(/\A\d+:/, "").strip]
-    send(step) if step
+  # Runs the AFTER_SECTION step of each class the section's source defines; a failing step is noted in
+  # accessibility/compat_error.txt under the name mkxp-z gave the section (file), and the boot goes on.
+  def self.after_section(src, file)
+    AFTER_SECTION.each { |klass, step| send(step) if src.to_s =~ /^\s*class\s+#{klass}\b/ }
   rescue StandardError => e
     note("accessibility/compat_error.txt", ["#{file}: #{e.class}: #{e.message}"] + (e.backtrace || [])[0, 5], "a")
   end
 
   # Makes LanguageSelection#main answer the first-boot call with first_language instead of the picker; every other
-  # call opens it as before. Rewrapped each time the section is evaluated, since that redefines main.
+  # call opens it as before. Rewrapped when a section redefines main, never over its own wrapper, which would then
+  # call itself.
   def self.auto_first_language
     return unless defined?(::LanguageSelection)
+    return if @wrapped_main && ::LanguageSelection.instance_method(:main) == @wrapped_main
     ::LanguageSelection.send(:alias_method, :main__uranium_compat, :main)
     ::LanguageSelection.send(:define_method, :main) do |*args|
       args[0] ? UraniumCompat.first_language : main__uranium_compat(*args)
     end
+    @wrapped_main = ::LanguageSelection.instance_method(:main)
   end
 
   # Sets and loads the game language matching the player's, as the picker would, and answers its index.
