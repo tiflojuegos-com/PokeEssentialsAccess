@@ -9,7 +9,24 @@ class Movie
     @maxFrame = maxFrame
     @canStopEarly = canStopEarly
   end
-  def playInViewPort(_viewport); :played; end
+  attr_accessor :waits
+  attr_reader :frames_after_wait
+
+  def playInViewPort(_viewport)
+    @currentFrame = 1
+    @frames_after_wait = []
+    @waits.to_i.times do
+      pbWait(1)
+      @frames_after_wait << @currentFrame
+      @currentFrame += 1
+      break if @currentFrame > @maxFrame
+    end
+    :played
+  end
+
+  private
+
+  def pbWait(_frames); end
 end
 
 class IfIntroMovieGdTest < PokeAccessTest
@@ -35,7 +52,39 @@ class IfIntroMovieGdTest < PokeAccessTest
     assert_equal [[t(:if_intro_movie), false]], SpeakCapture.log
   end
 
+  test "a held confirm ends a skippable movie through its normal loop even if the trigger is gone" do
+    self.class.bind
+    movie = Movie.new("INTRO-%03d", "intro", 10, true)
+    movie.waits = 4
+    with_confirm_states(false, true) { assert_equal :played, movie.playInViewPort(nil) }
+    assert_equal [10], movie.frames_after_wait
+  end
+
+  test "confirm held when the movie starts must be released before it can skip" do
+    self.class.bind
+    movie = Movie.new("INTRO-%03d", "intro", 10, true)
+    movie.waits = 4
+    with_confirm_states(true, true, false, true) { movie.playInViewPort(nil) }
+    assert_equal [1, 2, 10], movie.frames_after_wait
+  end
+
+  test "a movie that cannot be skipped plays on when confirm is held" do
+    self.class.bind
+    movie = Movie.new("INTRO-%03d", "intro", 10)
+    movie.waits = 3
+    with_confirm_states(true, true, true, true) { movie.playInViewPort(nil) }
+    assert_equal [1, 2, 3], movie.frames_after_wait
+  end
+
   private
+
+  def with_confirm_states(*states)
+    original = Input.method(:press?)
+    Input.define_singleton_method(:press?) { |button| button == Input::C && states.shift }
+    yield
+  ensure
+    Input.define_singleton_method(:press?, original)
+  end
 
   def t(key, args = {})
     PokeAccess::I18n.t(key, args)
