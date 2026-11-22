@@ -1,5 +1,6 @@
 require "rbconfig"
 require "json"
+require "tmpdir"
 
 # Uranium's language picker, driven through a loop shaped as its own in a gen-6 process of its own (its hooks bind to
 # the class as the profile loads): the painted title and language names, then the painted question with its two
@@ -190,7 +191,12 @@ class UraniumLanguageTest < PokeAccessTest
              "require #{File.join(support, 'arity_net').inspect}\n" \
              "SpeakCapture.install\nPokeAccess::Config.language = :es\n" \
              "RUNS = #{RUNS.inspect}\n#{RUNNER}"
-    out = IO.popen([{ "PA_ENGINE" => "gen6" }, RbConfig.ruby, "-e", script], :err => [:child, :out]) { |io| io.read }
+    out = nil
+    Dir.mktmpdir("pa_uranium_language") do |dir|
+      path = File.join(dir, "language.rb")
+      File.binwrite(path, script)
+      out = IO.popen([{ "PA_ENGINE" => "gen6" }, RbConfig.ruby, path], :err => [:child, :out]) { |io| io.read }
+    end
     line = out.to_s[/^RESULT (.*?)\r?$/, 1]
     flunk "the picker process printed no result: #{out.to_s[0, 400]}" unless line
     JSON.parse(line)

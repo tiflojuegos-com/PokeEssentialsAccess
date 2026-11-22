@@ -36,7 +36,9 @@ class ProfileLoadTest < PokeAccessTest
   test "reports a load that ends before it counts its errors, with what it printed" do
     Dir.mktmpdir("pa_profile_load") do |dir|
       File.write(File.join(dir, "planted_exit.rb"), "puts 'planted early exit'\nexit(3)\n")
-      failures = load_failures(["uranium"], "RUBYOPT" => "-I#{dir} -rplanted_exit")
+      failures = Dir.chdir(dir) do
+        load_failures(["uranium"], "RUBYOPT" => "-r./planted_exit")
+      end
       assert_equal ["uranium (gen6): planted early exit", "uranium (gamedata): planted early exit"], failures
     end
   end
