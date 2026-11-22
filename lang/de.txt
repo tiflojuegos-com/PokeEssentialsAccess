@@ -14,6 +14,7 @@ msv_gift=Geheimgeschenk
 # System
 mod_on=Mod aktiviert
 mod_off=Mod deaktiviert
+rgss_memory_missing=%{method} liest den Speicher des ursprünglichen RPG-Maker-XP-Players, den mkxp-z nicht hat.
 audio3d_unavailable=Positionsaudio nicht verfügbar: Sonar, Wasser und Wind sind nicht zu hören; Schritte, Wände und Führung klingen weiter in Stereo.
 audio3d_output_short=Ausgabe %{output} auf diesem Gerät nicht verfügbar: Sie klingt wie %{used}. Kanäle des Geräts: %{channels}.
 audio3d_output_failed=Das Positionsaudio konnte nicht geöffnet werden: Es bleibt stumm. Versuche eine andere Ausgabe.

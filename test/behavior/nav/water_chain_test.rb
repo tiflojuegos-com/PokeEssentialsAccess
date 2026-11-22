@@ -23,6 +23,14 @@ class WaterChainTest < PokeAccessTest
           "###~###",
           "###~###",
           "#######"]
+  # Afloat below a waterfall (fall at (3,3)) whose top pond lands at (4,1), then a second pond toward (10,1).
+  FALL_CHAIN = ["############",
+                "#@~~..~~...#",
+                "###V########",
+                "###W########",
+                "###~########",
+                "###~########",
+                "############"]
 
   test "from the ground the way goes to the first shore, its search crossing both ponds" do
     with_tile_world(CHAIN) do
@@ -106,8 +114,19 @@ class WaterChainTest < PokeAccessTest
       $PokemonGlobal.surfing = true
       foot = PokeAccess::Routes::Regions.foot
       5.times { foot.status([[1, 1]]) }
-      assert_equal [true, nil, nil], [foot.done?, PF.surf_plan(4, 1), Planner.surf(4, 1)]
+      assert_equal [true, nil, nil], [foot.done?, PF.surf_plan(4, 1), Planner.by_water(4, 1, false)]
     end
+  end
+
+  test "a waterfall can lead to a shore and another crossing" do
+    plan = below_fall_chain(true)
+    expected = { :kind => :field, :label => :surf_waterfall, :move => :WATERFALL, :x => 3, :y => 3 }
+    assert_equal [:assisted, [8], expected], [plan.kind, plan.route && plan.route.to_a, plan.gate]
+  end
+
+  test "a waterfall the party cannot climb leads to no shore beyond it" do
+    plan = below_fall_chain(false)
+    assert_equal [:none, nil], [plan.kind, plan.gate]
   end
 
   test "afloat the camera and the trail may push off only from ground they came ashore on" do
@@ -128,6 +147,25 @@ class WaterChainTest < PokeAccessTest
   end
 
   private
+
+  # The plan to (10,1) from afloat at the foot of FALL_CHAIN's waterfall, every field move usable or none.
+  def below_fall_chain(usable)
+    plan = nil
+    with_tile_world(FALL_CHAIN) do
+      $game_player.x = 3
+      $game_player.y = 5
+      $PokemonGlobal.surfing = true
+      field = PokeAccess::FieldMoves
+      original_check = field.method(:can?)
+      field.define_singleton_method(:can?) { |_move| usable }
+      begin
+        plan = Planner.plan(10, 1, true)
+      ensure
+        field.define_singleton_method(:can?, original_check)
+      end
+    end
+    plan
+  end
 
   # One leg of n presses to the right, as the guides say it.
   def leg(n)

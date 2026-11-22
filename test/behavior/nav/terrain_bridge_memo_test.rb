@@ -102,10 +102,10 @@ class TerrainBridgeMemoTest < PokeAccessTest
     with_tile_world(SHORE) do
       regions = PokeAccess::Routes::Regions
       unwalked = regions.foot.done?
-      fresh = PokeAccess::Routes::Planner.surf(10, 1)
+      fresh = PokeAccess::Routes::Planner.by_water(10, 1, false)
       regions.foot.tiles
       walked = regions.foot.done?
-      again = PokeAccess::Routes::Planner.surf(10, 1)
+      again = PokeAccess::Routes::Planner.by_water(10, 1, false)
       assert_equal [false, [[7, 4], 6], true, [[7, 4], 6]], [unwalked, launch(fresh), walked, launch(again)],
                    "the shore (7, 4), pushing off to the right, both times"
     end
@@ -138,7 +138,7 @@ class TerrainBridgeMemoTest < PokeAccessTest
   end
 
   # Where a surf plan has the player push off: [the tile its route ends on, the way it pushes off].
-  def launch(surf)
-    [traced($game_player.x, $game_player.y, 0, surf[0]).last.tile, surf[1]]
+  def launch(plan)
+    [traced($game_player.x, $game_player.y, 0, plan.route).last.tile, plan.launch]
   end
 end

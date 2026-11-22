@@ -41,6 +41,7 @@
   speech/verbosity
   speech/verbosity_schemes
   input/hooks
+  util/rgss_memory
   util/paint_capture
   input/keyboard
   input/focus

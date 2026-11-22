@@ -14,6 +14,7 @@ msv_gift=Tajemniczy Prezent
 # system
 mod_on=Mod włączony
 mod_off=Mod wyłączony
+rgss_memory_missing=%{method} odczytuje pamięć oryginalnego odtwarzacza RPG Maker XP, której mkxp-z nie ma.
 audio3d_unavailable=Dźwięk pozycyjny niedostępny: sonar, woda i wiatr nie zabrzmią; kroki, ściany i przewodnik nadal brzmią w stereo.
 audio3d_output_short=Wyjście %{output} niedostępne na tym urządzeniu: gra jako %{used}. Kanały urządzenia: %{channels}.
 audio3d_output_failed=Nie udało się otworzyć dźwięku pozycyjnego: pozostaje wyciszony. Spróbuj innego wyjścia.

@@ -245,7 +245,7 @@ module PokeAccess
         o.push("target_route: to #{tg.x},#{tg.y} manhattan=#{md} over_reach=#{md > (c.route_reach rescue 0)} plan=#{plan.kind} steps=#{plan.route ? plan.route.length : '-'} stats=#{plan.stats.inspect}")
         o.push("  target_reachable=#{dv { l.reach_status(tg).inspect }}")
         o.push("  route=#{cut(dv { PokeAccess::Routes::Text.line(plan) }.to_s, 220)}")
-        o.push("  gate=#{dv { g = plan.gate; g ? "#{g[:kind]}:#{g[:label] || g[:face]} at #{g[:x]},#{g[:y]}" : 'nil' }} surf_plan=#{dv { pf.surf_plan(tg.x, tg.y).inspect }} door_sides=#{dv { fx.door_facings(tg.x, tg.y).inspect }}")
+        o.push("  gate=#{dv { g = plan.gate; g ? "#{g[:kind]}:#{g[:label] || g[:face]} at #{g[:x]},#{g[:y]}" : 'nil' }} surf_plan=#{dv { pf.surf_plan(tg.x, tg.y, true).inspect }} door_sides=#{dv { fx.door_facings(tg.x, tg.y).inspect }}")
       end
     end
 

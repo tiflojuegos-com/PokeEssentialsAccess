@@ -14,6 +14,7 @@ msv_gift=Mystery Gift
 # system
 mod_on=Mod on
 mod_off=Mod off
+rgss_memory_missing=%{method} reads the memory of RPG Maker XP's original player, which mkxp-z does not have.
 audio3d_unavailable=Positional audio not available: the sonar, water and wind will not sound; steps, walls and the guide still play in stereo.
 audio3d_output_short=%{output} output not available on this device: it plays as %{used}. Device channels: %{channels}.
 audio3d_output_failed=Could not open positional audio: it stays silent. Try another output.

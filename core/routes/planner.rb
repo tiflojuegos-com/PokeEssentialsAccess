@@ -151,7 +151,7 @@ module PokeAccess
                  elsif beyond?(tx, ty) then Plan.new(:far)
                  elsif r.status != :cut && (g = assisted(tx, ty, onto)) then Plan.new(:assisted, g[0], g[1])
                  elsif (c = through_controls(tx, ty, onto)) then Plan.new(:assisted, c[0], c[1])
-                 elsif (s = surf(tx, ty)) then s[0] ? Plan.new(:surf, s[0], nil, nil, s[1]) : Plan.new(:company)
+                 elsif (s = by_water(tx, ty)) then s
                  else Plan.new(limits.cuts > told ? :cut : :none)
                  end
           made.stats = { :algo => r.algo, :expanded => r.expanded, :cuts => limits.cuts,
@@ -407,14 +407,20 @@ module PokeAccess
         Plan.new(made.kind, made.route && made.route.dup, made.gate, made.stats, made.launch)
       end
 
-      # The route onto the shore to push off from toward (tx,ty), on foot (afloat, over the water and ashore first), with
-      # the way to push off, as [route, direction]; [nil, direction] when someone walks along and the game will not let
-      # the player surf so (Pathfinder.surf_with_company?); nil when surfing does not reach it (Pathfinder.surf_plan).
-      def self.surf(tx, ty)
-        pl = PokeAccess::Pathfinder.surf_plan(tx, ty)
-        r = pl && walk(pl[0], pl[1], true).route
-        return nil unless r
-        PokeAccess::Pathfinder.surf_with_company? ? [r, pl[2]] : [nil, pl[2]]
+      # Follow the proven water route up to the first action the player must take. Climb a waterfall before
+      # trying to direct the player to a shore only reachable beyond it.
+      def self.by_water(tx, ty, include_field = true)
+        pf = PokeAccess::Pathfinder
+        action = pf.surf_plan(tx, ty, include_field)
+        return nil unless action
+        x, y, d, field = action
+        route = walk(x, y, true).route
+        return nil unless route
+        if field == :waterfall
+          step = Moves.waterfall_step(x, y, DIR_OF[d], pf.bridge_level)
+          return step && Plan.new(:assisted, route, step.gate)
+        end
+        pf.surf_with_company? ? Plan.new(:surf, route, nil, nil, d) : Plan.new(:company, nil, nil, nil, d)
       rescue StandardError => e
         PokeAccess.log_once("route_surf", e)
         nil
