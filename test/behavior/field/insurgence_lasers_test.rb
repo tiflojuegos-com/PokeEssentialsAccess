@@ -217,6 +217,35 @@ class InsurgenceLasersTest < PokeAccessTest
     assert_equal "#{lost}. #{todo_line(2, :ins_mirror_tr, 1)}", facing(9, 9, 2) { Lasers.assist_line }
   end
 
+  test "the next hint follows a reachable mirror before one across a closed partition" do
+    PokeAccess::Config.puzzle_assist = true
+    PokeAccess::Config.edge_relax = false
+    grid = Array.new(24) { "." * 13 + "#" + "." * 6 }
+    $game_map.load_grid(grid)
+    path_room
+
+    closed = facing(16, 19, 2) { Lasers.assist_line }
+    assert_includes closed, todo_line(3, :ins_mirror_bl, 3)
+
+    grid[18][13] = "."
+    $game_map.load_grid(grid)
+    path_room
+    PokeAccess::Caches.reset_all
+    opened = facing(16, 19, 2) { Lasers.assist_line }
+    assert_includes opened, todo_line(2, :ins_mirror_tr, 1)
+  end
+
+  test "a blocked mirror hint does not claim that the puzzle has no solution" do
+    PokeAccess::Config.puzzle_assist = true
+    PokeAccess::Config.edge_relax = false
+    $game_map.load_grid(Array.new(24) { "." * 13 + "#" + "." + "#" + "." * 4 })
+    path_room
+
+    line = facing(16, 19, 2) { Lasers.assist_line }
+    assert_includes line, t(:loc_route_none)
+    refute_includes line, t(:ins_laser_none)
+  end
+
   test "with the assist, a beam cut at a mirror is said to be cut there" do
     path_room
     PokeAccess::Config.puzzle_assist = true

@@ -152,15 +152,26 @@ module PokeAccess
       PokeAccess::I18n.t(:ins_laser_end)
     end
 
-    # The next mirror to set, with the quarter turns it still needs: the first one a beam meets that stands wrong,
-    # else the first wrong one in reading order; that all stand right; or that no turns light every receiver.
+    # Prefer a wrong mirror the player can reach, in beam order and then reading order. A receiver can unlock
+    # the part of the room around an earlier mirror, so beam order alone can send the player to a closed door.
     def self.next_step(r, beams)
       goal = solution(r)
       return PokeAccess::I18n.t(:ins_laser_none) unless goal
       wrong = r[:mirrors].select { |id| goal[id] && goal[id] != turn(id) }
       return PokeAccess::I18n.t(:ins_laser_ready) if wrong.empty?
       met = beams.map { |b| b[1].map { |h| h[0] } }.flatten
-      id = met.find { |m| wrong.include?(m) } || wrong[0]
+      uncertain = nil
+      id = PokeAccess::Pathfinder.searching do
+        ((met & wrong) | wrong).find do |candidate|
+          mirror = event(candidate)
+          next false unless mirror
+          reach = PokeAccess::Locator.reach_status(mirror)[0]
+          uncertain ||= candidate if reach == :unknown
+          reach == :yes
+        end
+      end
+      id ||= uncertain
+      return PokeAccess::I18n.t(:loc_route_none) unless id
       todo = PokeAccess::I18n.t(:ins_laser_todo, :n => number(id), :sides => PokeAccess::I18n.t(SIDES[goal[id]]))
       "#{todo}, #{turns_left(id, goal[id])}"
     end
