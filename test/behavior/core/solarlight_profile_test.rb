@@ -120,6 +120,24 @@ class SolarlightProfileTest < ProfileProcessTest
       $game_switches[Following_Activated_Switch] = false
       [kind.to_s, on, lets.call]
     end
+    probe(:keira_room_name) do
+      event = Struct.new(:id, :name, :character_name).new(3, "Keira Room", "BWKeira")
+      event.instance_variable_set(:@map_id, 242)
+      locator = PokeAccess::Locator
+      named = locator.ruled_name(event)
+      event.character_name = ""
+      inactive = locator.ruled_name(event)
+      event.character_name = "BWKeira"
+      event.id = 4
+      another_event = locator.ruled_name(event)
+      event.id = 3
+      event.instance_variable_set(:@map_id, 9)
+      another_map = locator.ruled_name(event)
+      event.instance_variable_set(:@map_id, 242)
+      event.name = "Another person"
+      renamed_event = locator.ruled_name(event)
+      [named, inactive, another_event, another_map, renamed_event]
+    end
     probe(:waytide) do
       maps = [288, 289, 290, 291, 293, 294, 295]
       defs = PokeAccess::World::Mechanics.instance_variable_get(:@defs)
@@ -179,6 +197,10 @@ class SolarlightProfileTest < ProfileProcessTest
 
   test "surfing lets the following Pokemon along, by the game's switch, and no other dependent" do
     assert_equal ["dependents", true, false], played(:surf_company)
+  end
+
+  test "the active person in Keira's room has her name, with other events and inactive pages left to core" do
+    assert_equal ["Keira", nil, nil, nil, nil], played(:keira_room_name)
   end
 
   test "Waytide's floor switch is kept off the walks, its rule said on the first arrival alone, on its seven maps" do
