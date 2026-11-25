@@ -172,6 +172,7 @@ behavior/field/infinitefusion_opt3_puzzles_gd_test.rb
 behavior/field/infinitefusion_puzzles_gd_test.rb
 behavior/field/infinitefusion_quest_npcs_gd_test.rb
 behavior/field/infinitefusion_repaso_gd_test.rb
+behavior/field/infinitefusion_silph_navigation_gd_test.rb
 behavior/field/infinitefusion_type_experts_gd_test.rb
 behavior/field/infinitefusion_unc_puzzles_gd_test.rb
 behavior/field/insurgence_hm7_test.rb

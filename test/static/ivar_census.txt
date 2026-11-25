@@ -9,7 +9,7 @@
 # there because a name can be present in the game and still sit on the WRONG OBJECT, which is a
 # silent nil just the same, and this turns finding out into one grep.
 # surveyed profiles (37): africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, solarlight, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier, xenoverse
-# names read: 742 / never found: 15
+# names read: 743 / never found: 15
 @HELPTEXT = uranium  |  PokemonOptionScene
 @Items = sevii  |  Drawer
 @PokemonOptions = africanus, armonia, awakening, edas, fireash, goldencrown, infinitefusion, infinitefusion_hoenn, insurgence, opalo, perseida, pokemon_z, realidea, reminiscencia, sevii, solarlight, soulstones1, uranium, xenoverse  |  AutosaveOptionsScene, ChallengeOptionsScene, FusionMovesOptionsScene, FusionSelectOptionsScene, GameplayOptionsScene, PokemonOptionScene, PokemonOption_Scene, PokemonRulesetScene, +6 more
@@ -353,6 +353,7 @@
 @mapWarpPoint = fireash, goldencrown  |  LairMapScene
 @mapWidth = decades, herolegacy, royal  |  PokemonPokedexInfo_Scene, PokemonRegionMap_Scene
 @map_descs = awakening  |  Teleport, Teleport_Scene
+@map_id = africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, solarlight, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier, xenoverse  |  BattleRecord, CarubanMapExporter, Contact, GCVariables, Game_Event, Game_Map, Game_PokeEvent, InteriorWallLayer, +10 more
 @map_name = keishou, worldfrontier  |  BattleRecord, DynamaxAdventure, LairMapScene
 @map_sprites = keishou, soulstones2  |  AdventureMapEditor, AdventureMapScene, LairMapScene
 @mapdata = africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, solarlight, soulstones1, soulstones2, uranium, vitro, worldfrontier, xenoverse  |  BetterRegionMap, Cache_Game, DexNest, HabitatDetailScene, PokemonNestMapScene, PokemonPokedexInfo_Scene, PokemonRegionMapScene, PokemonRegionMap_Scene, +1 more
