@@ -5731,6 +5731,7 @@ tdn_nothing=Nichts gefunden
 decades_key_t=T-Taste des Spiels: Typentabelle, im Kampf
 decades_key_ctrl=Strg-Taste des Spiels: DexNav-Suche, sicherer Fang und Herausforderungskämpfe überspringen
 if_bubble_from=Von %{where}
+if_type_expert=Experte für Pokémon vom Typ %{type}
 if_bubble_tag_from=%{tag}, von %{where}
 vb_if_bubble_place=Sprechblasen
 vbh_if_bubble_place=Von wo die Figur spricht, auf die eine Sprechblase zeigt, etwa von 2 nach rechts, vor ihrem Satz. Kurz lässt es weg; Mittel und Vollständig sagen es. Dein Etikett für diese Figur wird immer gesagt.
