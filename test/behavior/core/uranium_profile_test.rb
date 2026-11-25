@@ -496,7 +496,7 @@ class UraniumProfileTest < PokeAccessTest
 
   scenario :title, "s = GenCustomStyle.new; built = SpeakCapture.log.dup; [built, s.intro, SpeakCapture.log]"
   test "says the title prompt once the custom title's skippable intro is over, interrupting, not as it is built" do
-    prompt = "#{t(:title_screen)}. #{t(:title_press, :key => t(:key_enter))}"
+    prompt = "#{t(:title_screen)}. #{t(:title_press, :key => t(:key_space))}"
     built, shown, said = outcome(:title)
     assert_equal [[], :shown, [[prompt, true]]],
                  [built.select { |_text, cut| cut }, shown, said.select { |_text, cut| cut }]

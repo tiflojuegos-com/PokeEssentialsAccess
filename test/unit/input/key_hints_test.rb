@@ -136,6 +136,14 @@ class InputKeyHintsTest < PokeAccessTest
     assert_equal "#{t(:title_screen)}. #{t(:title_press, :key => t(:key_enter))}", PokeAccess::TitleScreen.prompt
   end
 
+  test "a title can say the confirm key painted by its game" do
+    expected = "#{t(:title_screen)}. #{t(:title_press, :key => t(:key_space))}"
+    assert_equal expected, PokeAccess::TitleScreen.prompt(:title_screen, :key_space)
+    PokeAccess::Config.rebinds = { :c => K }
+    assert_equal "#{t(:title_screen)}. #{t(:title_press, :key => "K")}",
+                 PokeAccess::TitleScreen.prompt(:title_screen, :key_space)
+  end
+
   test "another picture that waits for the key says its own text before the prompt" do
     want = "#{t(:rcr_notice)}. #{t(:title_press, :key => t(:key_enter))}"
     assert_equal want, PokeAccess::TitleScreen.prompt(:rcr_notice)
