@@ -1,5 +1,13 @@
-# Pokemon Solar Light & Lunar Dark 1.0.1: its field moves, by 0116_PField_FieldMoves.rb and 0216_Following Pokemon.rb.
+# Pokemon Solar Light & Lunar Dark 1.0.1: its field moves and locator labels. Field mechanics from 0116_PField_FieldMoves.rb and 0216_Following Pokemon.rb.
 PokeAccess::Game.define("solarlight") do
+  # The person in Keira's room carries the room's label in the editor.
+  event_name do |event|
+    if PokeAccess.ivar(event, :@map_id) == 242 && event.id == 3 && event.character_name == "BWKeira" &&
+       PokeAccess::Locator.own_name(event) == "Keira Room"
+      "Keira"
+    end
+  end
+
   # Each field function takes its tool from the bag, with no badge and no Pokemon that knows the move; Flash and Fly take
   # theirs in the party's and the bag's handlers (0127_PItem_ItemEffects.rb).
   field_move_item(:CUT, :CLIPPERS)
