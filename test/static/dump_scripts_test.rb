@@ -156,7 +156,7 @@ class DumpScriptsTest < PokeAccessTest
 
   test "takes the tree from the folder under Data with the most scripts, widened to the top of its script folders" do
     with_game do |game, out|
-      loose(game, "Aux/helper.rb" => "AUX = 1", "Scripts/001_Core.rb" => "CORE = 1",
+      loose(game, "Auxiliary/helper.rb" => "AUX = 1", "Scripts/001_Core.rb" => "CORE = 1",
                   "Scripts/Battle/002_A.rb" => "A = 1", "Scripts/Battle/003_B.rb" => "B = 1")
       dump(game, out)
       assert_equal ["001_Core.rb", "Battle/002_A.rb", "Battle/003_B.rb"], files(out).keys
