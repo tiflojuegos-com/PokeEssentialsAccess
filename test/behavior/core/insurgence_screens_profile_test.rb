@@ -7,6 +7,13 @@ require "tempfile"
 class InsurgenceScreensProfileTest < PokeAccessTest
   # The Insurgence-shaped classes, declared before the toolkit loads so its hooks find them.
   WORLD = <<-'RUBY'
+    class Font
+      def self.exist?(name); ($ins_available_fonts || []).include?(name); end
+    end
+    module FontInstaller
+      Names = ["Power Green", "Power Clear"]
+      def self.install; $ins_install_count += 1; end
+    end
     module Mouse
       def self.getMousePos(catch_anywhere = false)
         raise "Can't find RGSS player window" if $ins_no_window
@@ -585,6 +592,19 @@ class InsurgenceScreensProfileTest < PokeAccessTest
         { :inside => inside, :back => Stage.heard }
       end
 
+      def self.local_fonts
+        $ins_install_count = 0
+        $ins_available_fonts = FontInstaller::Names.dup
+        FontInstaller.install
+        all_available = $ins_install_count
+        $ins_available_fonts.pop
+        FontInstaller.install
+        one_missing = $ins_install_count
+        FontInstaller::Names.clear
+        FontInstaller.install
+        { :all_available => all_available, :one_missing => one_missing, :no_names => $ins_install_count }
+      end
+
       def self.intro_cards
         intro = IntroEventScene.new(["intro0", "intro1"])
         intro.openPic(nil, nil)
@@ -987,6 +1007,13 @@ class InsurgenceScreensProfileTest < PokeAccessTest
   test "the opening cards are said, then the title prompt, all queued" do
     prompt = "#{t(:title_screen)}. #{t(:title_press, :key => t(:key_enter))}"
     assert_equal [[t(:ins_intro0), false], [t(:ins_intro1), false], [prompt, false]], observed(:intro_cards)[:heard]
+  end
+
+  test "the original font installer runs when required font families are unavailable" do
+    calls = observed(:local_fonts)
+    assert_equal 0, calls[:all_available]
+    assert_equal 1, calls[:one_missing]
+    assert_equal 2, calls[:no_names]
   end
 
   test "an opening picture with no transcription says nothing" do
