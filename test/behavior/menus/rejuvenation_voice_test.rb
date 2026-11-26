@@ -53,10 +53,26 @@ class Scene_FieldNotes
   def sortMenu(_sorttype); tts("Sorted by type"); end
 end
 
+# The summary's opening, which hints its line by line reading before the page says its first line (Summary.rb:1963).
+class PokemonSummary
+  def pbStartScreen
+    tts("Summary Screen: Use Ctrl + Up or Down keys to navigate between lines.")
+    tts("Pikachu's Summary")
+  end
+end
+
+# The summary's loop: a page's first line as it is drawn, then Ctrl+Down's next line, cutting in (Summary.rb:1676-1680).
+class PokemonSummaryScene
+  def pbScene
+    tts("Pikachu's Summary")
+    tts("Pikachu (Normal)", true)
+  end
+end
+
 class RejuvenationVoiceTest < PokeAccessTest
   V = PokeAccess::OwnVoiceRV
   # The relay's state, kept from the profile's install and put back around each test.
-  STATE = [:@live, :@last_frame, :@always, :@always_frame, :@active]
+  STATE = [:@live, :@only, :@last_frame, :@always, :@always_frame, :@active]
   # The private-use character that starts shaking text in the game's messages.
   SHAKE = [0xE003].pack("U")
   # The game's TextPlaceholders, which strips the private-use characters its messages carry.
@@ -200,6 +216,24 @@ class RejuvenationVoiceTest < PokeAccessTest
       PokeAccess.say_dialogue("Una nota fuera de las pantallas.")
     end
     assert_equal [["Una nota fuera de las pantallas.", false]], SpeakCapture.log
+  end
+
+  test "the summary says only its Ctrl hint as it opens, and in its loop only the lines Ctrl+Up and Down cut in with" do
+    with_relay do
+      PokemonSummary.allocate.pbStartScreen
+      PokemonSummaryScene.allocate.pbScene
+    end
+    assert_equal ["Summary Screen: Use Ctrl + Up or Down keys to navigate between lines.", "Pikachu (Normal)"],
+                 SpeakCapture.lines
+  end
+
+  test "a screen relayed for its hints says them alone, and none while key hints are off" do
+    hint = "Advanced Dex: Use Ctrl + Up or Down keys to navigate between lines."
+    entry = lambda { V.relayed(false, :hint) { tts(hint); tts("Typing: Grass") } }
+    with_relay(&entry)
+    PokeAccess::Config.verbosity = :brief
+    with_relay(&entry)
+    assert_equal [hint], SpeakCapture.lines
   end
 
   test "the nest page stays the mod's to read, the region map being the game's nest" do

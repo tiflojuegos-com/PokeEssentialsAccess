@@ -40,9 +40,11 @@ module PokeAccess
     # Speaks the info page on each species change, as painted (painted_entry), else composed from the dummy pokemon;
     # browsing the entries, arriving at it from the list or another page adds its key hint.
     # param pairs the page's capture, taken around pbChangeToDexEntry, or nil
-    # param species the species changed to, for pre-v16 copies (Insurgence's) that keep no dummy pokemon
+    # param species the species changed to, for pre-v16 copies (Insurgence's) that keep no dummy pokemon, or the dummy
+    # pokemon itself where a fork hands it over and keeps none (Rejuvenation 14's)
     def self.gen6_info(scene, pairs = nil, species = nil)
       pk = PokeAccess.ivar(scene, :@dummypokemon)
+      pk ||= species if species.respond_to?(:species)
       sp = pk ? (pk.species rescue nil) : species
       return if sp.nil?
       owned = PokeAccess::Util.dex_owned?(sp) ? true : false

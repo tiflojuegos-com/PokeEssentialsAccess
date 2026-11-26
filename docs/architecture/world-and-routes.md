@@ -224,12 +224,27 @@ Foundation are warps within the map. A page that sets a variable to where the pl
 | `:exit` | A transfer off the map, or to a spot of it the page does not name |
 | `:barrier` | A page that talks, sets nothing and moves the player back or aside |
 | `:ramp` | A bridge ramp, which changes the bridge level |
+| `:floor` | A stair that sets the map's floor switch as the player steps on it ([Floors](#floors)) |
 | `:run` | Presses across impassable tiles, armed on arrival (side stairs) |
 | `:hold` | Ground the player stays on only with the direction key held |
 
 A reader a plugin or profile registers (`Effects.touch_source`) answers an event's effect before the outcome is walked. It
 may answer `:unseen` for one a sighted player cannot see, such as the gusts of Realidea's Temple of Mesprit, hidden by a
 sandstorm: without the puzzle assist the walks step on it as plain ground and the player meets it as anyone would.
+
+An event the engine starts by sight (`Sight.trainer?`) acts where it sees the player stop, not on its own tile
+(`Effects.sight_facet`). Each tile of its line (`Sight.line`) gets the effect of its page walked from there, when the page
+says nothing, fights no one and is read to its end: a `:carry`, a `:warp` or an `:exit`. Realidea's sea currents push
+the player through rock that way, and Pokémon Awakening's streets end in such exits. These entries come first in
+`Effects.touch_index`, as the engine looks for a watcher before the tile's own events, and name the watcher's tile
+(`Effects.sight_watcher`). A step the line takes over enters the watcher's tile (`Moves::Step#entry`), so a way to the
+watcher ends with the press into its line, and an exit into it leaves the player where they pressed
+(`Moves.sight_exit`), so no other way goes past it. A bump moves the player through such a watcher only from the tile
+in front of it, where `pbEventCanReachPlayer?` finds the player; its exit stays on every side, so a way to a guard that
+throws the player out still ends beside it. The guide says the press onto a line that carries as one of its own,
+as it says a jump or a slide (`Moves.one_way`'s `:swept`), and one that warps as any transfer. A self switch the page turns on and its own
+autorun or parallel page turns off at once is no lasting change (`EventPages.reset_at_once?`), as the currents do to
+fire again.
 
 Action-button events that carry the player (a climb) or move them within the map, field-move obstacles and pushables
 are indexed apart (`Effects.act_index`, `gate_index`, `boulder_index`). Each index is built from the facets and kept
@@ -251,8 +266,8 @@ A press resolves in the game's order:
    jump asks it.
 4. An open step lands on the next tile. Ice slides the player on, a surfer moving down onto a waterfall's crest is
    carried down the fall, and a rule that owns the tile moves the player as it says.
-5. The touch event on the landing tile fires: an exit or a barrier refuses the move, a ramp changes the level, and a
-   carry or a warp lands the player elsewhere. The Step then keeps the tile stepped on (`Step#entry`). A route to a
+5. The touch event on the landing tile fires: an exit or a barrier refuses the move, a ramp or a floor stair changes
+   the level, and a carry or a warp lands the player elsewhere, a carry that sets the floor switch on the other floor. The Step then keeps the tile stepped on (`Step#entry`). A route to a
    target on that very tile (`Goal#entry`) ends on that press, in every search: A*, the flood, the regions and their
    router, and the pushes.
 6. A closed step bumps the event in front, which may carry or warp the player. With `ASSIST`, an assisted step may get
@@ -265,8 +280,8 @@ asks (`EventPages.every_step_fires?`, `Outcome#stops`): Z's diagonal stairs carr
 that brings them back. A page that waits for its route asks on none of them.
 
 `Moves.trace` replays a route press by press with the same moves, and `Moves.one_way` marks the presses that cannot be
-undone the same way: a jump, a slide, or a landing afloat (`:land`, a press from water onto dry ground,
-`Probe.dry?`). The guide follows a route through `trace`, and route text names those presses.
+undone the same way: a change of floor (`:floor`), a jump, a slide, or a landing afloat (`:land`, a press from water onto
+dry ground, `Probe.dry?`), each read on the floor the press starts from. The guide follows a route through `trace`, and route text names those presses.
 
 `Moves.try(x, y, lvl, d, mode)` answers the `Step` one press from any tile and bridge level makes now, or nil where it
 cannot be taken, in a search of its own with the engine pointed at that level. `Moves.ok?`, the free camera's moves
@@ -322,6 +337,40 @@ On a bridge map the same tile is a floor on one level and a wall on the other. A
 with whether the bridge is up (`Pathfinder.skey`). The level is carried only on a map with a ramp
 (`Effects.ramp_map?`). Before expanding a state the search points the engine at that state's level
 (`Pathfinder.use_level`), and `Pathfinder.with_level_kept` puts the player's own level back whatever happens.
+
+### Floors
+
+Some maps draw two floors on one map and tell them apart with a switch, Reborn's Lower Level (410). The events of the
+other floor stand on the same tiles with other pages: blank pages that make a tile under a platform walkable, jump
+stones that go blank below, an item picked up from below alone.
+
+- `Effects.level_switches` lists the switches stairs set: turned on by a quiet touch page (one that talks to no one and
+  sets nothing that stays but single switches) and off by another, unless every event that reads it is one that sets
+  it. `Effects.level_switch` is the floor switch: of those, the one the most other events show a page by or branch on.
+- A search level is the bridge height plus `Pathfinder::FLOOR` (1024) while the floor switch is on, and the state key
+  keeps both bits (`Pathfinder.skey`: the tile's key times four). `Pathfinder.bridge_level` is the player's level so
+  counted; `flat_level` keeps a bridge as 1, as the guide and the free camera do.
+- A stair that only sets the switch is a `:floor` effect, and a carry that sets it keeps the value it leaves
+  (`Effects.carry_effect`, index 8): the move's Step ends on the other floor, a carry's landing asked there
+  (`Pathfinder.on_level`).
+- `Pathfinder.use_level` points the world at a state's floor through `World::Floors.view`. On the floor that does not
+  stand, each event whose page the switch turns has a stand-in: a copy of the engine's event set up on the page the
+  engine would show (`Floors.copy`, the conditions read as `Game_Event#refresh` reads them). The records, the facets
+  and the summaries are that floor's (`Events.records`, `at`, `facet`, `summary`), a switch read through `World::Flags`
+  gives the floor's value, the probe keeps that floor's answers apart (`Probe.slot`) and shows the engine the stand-ins
+  only for the step it asks (`Probe.ask_near`, `Floors.engine`), and `Moves.fast` keeps each floor's tile classes
+  (`Moves.floor_classes`). A step with no stand-in within a tile of its two tiles, asked while the engine is shown only
+  the events around a step (`near_events`), is shown the very same events on both floors, so it takes and keeps the
+  standing floor's answer (`Probe.memo_for`, `Floors.near_stand_in?`). A record whose page the switch does not turn
+  keeps its facets, unless what they read includes the switch. Nothing of the game's changes.
+- What a floor kept goes with the events' generation, and as a search starts when a read it was made from has changed
+  (`Floors.check`).
+- A target acted on from one floor alone (`Effects.target_floor`: an action page that runs something there and not on
+  the other, or what a profile's `Effects.floor_source` says) is got to on that floor (`Goal#floor`,
+  `Goal#floor_ok?`); JPS gives way to A* for such a goal.
+- The estimate takes the shortcuts of both floors (`Search.bound_for`).
+- The guide's state keeps the floor, so a route that changes floor is followed through the stairs without planning
+  again: the press that does it is said as `loc_floor_leg`.
 
 ## Searches
 
@@ -877,11 +926,12 @@ it joins, so a trail is converted again only when the player, the world or the s
 |---|---|---|
 | Terrain classes (`World::Terrain`) | Kind of tile, bridge height | New tiles, a reset |
 | Water on the map (`World::Terrain`) | Map | New tiles, a reset |
-| Passability answers (`World::Probe`) | Mode, step, bridge bit | New tiles, a reset, an event's change or end |
+| Passability answers (`World::Probe`) | Mode, floor, step, bridge bit | New tiles, a reset, an event's change or end |
 | Neighbouring maps (`World::Neighbours`) | Map id | The oldest past `neighbour_cache_size`; pages taken afresh once a frame |
 | Event records (`World::Events`) | Event | A new map, a reset |
 | Event facets | Record, the reads noted | A change of the record or of a read |
-| Tile classes (`Routes::Moves`) | Tile | New tiles, a reset, any event change |
+| A floor's stand-ins, facets and summaries (`World::Floors`) | Events' generation, the floor looked at | A reset, a read changed as a search starts |
+| Tile classes (`Routes::Moves`) | Tile, floor | New tiles, a reset, any event change |
 | Regions (`Routes::Regions`) | Variant, `vehicle_state` | New tiles, a reset, an event's change or end |
 | Floods (`Routes::Flood`) | Events, player's tile, style, moves, limit | New tiles, a reset, an event's end |
 | HPA* graph | Map, mode, cluster side | A reset, an event's end; clusters rebuilt around a change |

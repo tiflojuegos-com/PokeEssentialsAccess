@@ -7,7 +7,7 @@ module PokeAccess
     # read off its cursor (in_context); the message box's help line follows while descriptions are said, and fills
     # the info key.
     def self.list(scene)
-      win = PokeAccess.dedicate(PokeAccess.sprite(scene, "searchlist"))
+      win = PokeAccess.dedicate(sprite(scene, "searchlist"))
       return unless win
       txt = PokeAccess.clean(PokeAccess::Menus.focused_text(win).to_s)
       return if txt.empty?
@@ -29,13 +29,13 @@ module PokeAccess
       g = (win.indexToCommand(win.index)[0] rescue nil)
       head = (g && PokeAccess::Cursor.changed?(scene, :dex_search_group, g)) ? PokeAccess.clean((win.commands[g * 2] rescue "").to_s) : ""
       row = head.empty? ? txt : "#{head}, #{txt}"
-      title = first ? PokeAccess.clean((PokeAccess.sprite(scene, "searchtitle").text rescue "").to_s) : ""
+      title = first ? PokeAccess.clean((sprite(scene, "searchtitle").text rescue "").to_s) : ""
       PokeAccess::Util.join_parts([title, row])
     end
 
     # The older screen's help line, as its message box holds it now, or "".
     def self.help_text(scene)
-      box = PokeAccess.sprite(scene, "messagebox")
+      box = sprite(scene, "messagebox")
       box ? PokeAccess.clean((box.text rescue "").to_s) : ""
     rescue StandardError => e
       PokeAccess.swallowed(e)

@@ -13,9 +13,11 @@ module PokeAccess
     # sent: net [dx, dy] of the first route the event runs on itself with Through on (through_net); sets: the switch ids
     # and self switch letters it turned on; stops: the steps of path on which the engine asks for a touch event (route);
     # own: the routes the event runs on itself; heals: it restored the whole party (Recover All on everyone, or a
-    # known healing call standing alone).
+    # known healing call standing alone); menu: the options of the first menu the walk met with no answer for it, as
+    # [[index, text as painted], ...] (menu_options), else nil: a Show Choices stops the walk there, a message's own
+    # menu does not; switched: what it left each switch it set at, switch id => on.
     Outcome = Struct.new(:move, :path, :transfer, :bridge, :jump, :talks, :changes, :waits, :unknown, :maybe_transfer,
-                         :battle, :through, :held, :pressed, :sent, :sets, :stops, :own, :heals)
+                         :battle, :through, :held, :pressed, :sent, :sets, :stops, :own, :heals, :menu, :switched)
 
     DIAGONAL = { 5 => [-1, 1], 6 => [1, 1], 7 => [-1, -1], 8 => [1, -1] }
     TURN_RIGHT = { 2 => 4, 4 => 8, 6 => 2, 8 => 6 }
@@ -47,6 +49,11 @@ module PokeAccess
     BATTLE = 301
     # Switches, variables, self switches, money, items and party: what a page sets that stays set.
     CHANGE = [121, 122, 123, 125, 126, 127, 128, 129]
+    SELF_SWITCH = 123
+    # The triggers of a page the engine runs as soon as it shows: autorun and parallel.
+    AT_ONCE = [3, 4]
+    # Commands that do nothing: the list's end and comments.
+    NO_OPS = [0, 108, 408]
     # The calls that heal the whole party, as a statement of their own.
     HEAL_SCRIPT = /\A\s*(?:(?:Kernel\.)?pbHealAll|(?:\$Trainer|\$player)\.heal_party)\s*(?:\(\s*\))?\s*;?\s*\z/
     BATTLE_SCRIPT = /pb\w*Battle|TrainerBattle|WildBattle/
@@ -70,10 +77,12 @@ module PokeAccess
     # The outcome of touching event ev (its active page) with the player facing d, or nil.
     # param at the player's [x, y] when the page starts; without it a condition on their position is unknown
     # param act the page is started with the action button and answered yes (first option, confirmation accepted)
-    def self.outcome(ev, d, at = nil, act = false)
+    # param pick the index of the option taken at the first menu the page opens (a Show Choices or a message's own);
+    #   without it, and without act, the walk notes its options (Outcome#menu)
+    def self.outcome(ev, d, at = nil, act = false, pick = nil)
       list = PokeAccess.ivar(ev, :@list)
       return nil unless list.is_a?(Array)
-      walk(list, d, ev, at, act)
+      walk(list, d, ev, at, act, pick)
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
@@ -98,11 +107,11 @@ module PokeAccess
     end
 
     # Walks the command list of event ev for facing d as the interpreter would run it.
-    def self.walk(list, d, ev, at = nil, act = false)
+    def self.walk(list, d, ev, at = nil, act = false, pick = nil)
       o = blank
       st = { :x => 0, :y => 0, :face => d, :fix => false, :moved => false, :steps => 0, :at => at,
-             :act => act, :vars => {}, :chosen => {}, :through => false, :held => false, :pressed => false, :set => {},
-             :shifted => {} }
+             :act => act, :pick => pick, :vars => {}, :chosen => {}, :through => false, :held => false, :pressed => false,
+             :set => {}, :notes => {}, :shifted => {} }
       run(list, o, st, ev, 0)
       o.changes = true unless st[:set].empty?
       o.move = [st[:x], st[:y]] unless st[:x] == 0 && st[:y] == 0
@@ -117,7 +126,7 @@ module PokeAccess
     # An outcome with nothing found yet.
     def self.blank
       Outcome.new(nil, [], nil, nil, false, false, false, false, false, false, false, false, false, false, nil, [], [], [],
-                  false)
+                  false, nil, {})
     end
 
     # Runs a list on paper against the walk's state. Returns :stop when the walk is over (a transfer, the end
@@ -146,8 +155,9 @@ module PokeAccess
             next
           end
         elsif code == CHOICES
-          return stuck(o, list, i) unless st[:act]
-          st[:chosen][ind] = 0
+          k = answer(st)
+          return stuck(o, list, i, menu_options(list, i)) if k.nil?
+          st[:chosen][ind] = k
           o.talks = true
         elsif code == WHEN || code == WHEN_CANCEL
           unless code == WHEN && st[:chosen][ind] == pars[0]
@@ -161,13 +171,25 @@ module PokeAccess
         elsif code == RECOVER_ALL
           o.heals = true if pars[0].to_i == 0
         elsif TALK.include?(code)
+          menu = code == BATTLE ? nil : PokeAccess::Puzzles::Answers.text_menu(list, i)
+          if menu
+            k = answer(st)
+            if k.nil?
+              o.menu ||= menu_options(list, i)
+            else
+              st[:vars][menu[0]] = k
+            end
+          end
           o.talks = true
           o.battle = true if code == BATTLE
         elsif code == CONTROL_VARIABLES
           control_variables(pars, st, ev)
         elsif CHANGE.include?(code)
-          o.changes = true
-          o.sets.concat(turned_on(code, pars))
+          unless code == SELF_SWITCH && pars[1].to_i == 0 && reset_at_once?(ev, pars[0].to_s)
+            o.changes = true
+            o.sets.concat(turned_on(code, pars))
+            (pars[0].to_i..pars[1].to_i).each { |id| o.switched[id] = pars[2].to_i == 0 } if code == 121
+          end
         elsif code == COMMON_EVENT
           sub = common_list(pars[0])
           return stuck(o, list, i) if sub.nil? || depth >= COMMON_DEPTH
@@ -217,6 +239,35 @@ module PokeAccess
       end
     end
 
+    # True when turning on self switch letter of event ev hands it to a page that runs at once (autorun or parallel) and
+    # only turns it off again, so the switch never stays on (a current that fires once per step).
+    def self.reset_at_once?(ev, letter)
+      pages = (PokeAccess.ivar(ev, :@event).pages rescue nil)
+      return false unless pages.is_a?(Array)
+      page = pages.reverse.find { |pg| shown_with?(pg.condition, ev, letter) }
+      return false unless page && AT_ONCE.include?((page.trigger rescue 0).to_i)
+      c = page.condition
+      return false unless (c.self_switch_valid rescue false) && c.self_switch_ch.to_s == letter
+      body = ((page.list rescue nil) || []).reject { |k| NO_OPS.include?((k.code rescue 0)) }
+      return false unless body.length == 1 && body[0].code == SELF_SWITCH
+      body[0].parameters[0].to_s == letter && body[0].parameters[1].to_i == 1
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      false
+    end
+
+    # True when a page's conditions hold with ev's self switch letter on, the rest read live through World::Flags.
+    def self.shown_with?(c, ev, letter)
+      return true unless c
+      f = PokeAccess::World::Flags
+      return false if (c.switch1_valid rescue false) && !f.switch(c.switch1_id)
+      return false if (c.switch2_valid rescue false) && !f.switch(c.switch2_id)
+      return false if (c.variable_valid rescue false) && f.variable(c.variable_id).to_i < c.variable_value.to_i
+      return true unless (c.self_switch_valid rescue false)
+      ch = c.self_switch_ch.to_s
+      ch == letter || f.self_switch([($game_map.map_id rescue 0), (ev.id rescue 0), ch])
+    end
+
     # Where a route takes the event running it, read like the player's (route): its net [dx, dy], or nil for one that
     # is not more than one step with Through on or ends where it began.
     def self.through_net(mr)
@@ -234,11 +285,37 @@ module PokeAccess
       l.is_a?(Array) ? l : nil
     end
 
-    # Marks an outcome as stopped at list[i], noting whether a transfer lies past that point.
-    def self.stuck(o, list, i)
+    # Marks an outcome as stopped at list[i], noting whether a transfer lies past that point and, at a menu, its options.
+    def self.stuck(o, list, i, menu = nil)
       o.unknown = true
       o.maybe_transfer = transfer_after?(list, i)
+      o.menu ||= menu
       :stop
+    end
+
+    # The option a walk takes at a menu: the first when it answers yes (act), else the one asked for (pick), for the
+    # first menu alone; nil when it has none.
+    def self.answer(st)
+      return 0 if st[:act]
+      k = st[:pick]
+      st[:pick] = nil
+      k
+    end
+
+    # The options of the menu at list[i], a Show Choices or a Show Text holding one, as [[index, its text as painted],
+    # ...].
+    def self.menu_options(list, i)
+      names = list[i].code == CHOICES ? list[i].parameters[0] : PokeAccess::Puzzles::Answers.text_menu(list, i)[1]
+      out = []
+      names.each_with_index { |n, k| out.push([k, option_text(n)]) }
+      out
+    end
+
+    # A menu option's text as the game paints it: put through the map's translation, its control codes cleaned.
+    def self.option_text(raw)
+      text = raw.to_s
+      text = (respond_to?(:_MAPINTL, true) ? _MAPINTL($game_map.map_id, text) : text) rescue text
+      PokeAccess.clean(text)
     end
 
     # True if a transfer (the command or a script one) appears at or after list[i].
@@ -297,12 +374,14 @@ module PokeAccess
 
     # A Control Variables command (pars: first and last variable, operation, operand kind, operand, its detail) as the
     # walk runs it for event ev: each variable set is noted in st[:set], and its value kept in st[:vars], UNKNOWN when
-    # the walk cannot tell it (a random number, a character it cannot place, a value worked out of an unknown one).
+    # the walk cannot tell it (a random number, a character it cannot place, a value worked out of an unknown one). A
+    # variable set from what the game reads (operand kind 3 on) is kept in st[:notes], not st[:set], from there on.
     def self.control_variables(pars, st, ev)
       vars = st[:vars]
       v = operand(pars, st, ev)
       (pars[0].to_i..pars[1].to_i).each do |id|
-        st[:set][id] = true
+        st[:notes][id] = true if pars[3].to_i >= 3
+        st[:set][id] = true unless st[:notes][id]
         n = worked(pars[2].to_i, variable(id, vars), v)
         vars[id] = n.is_a?(Integer) ? n : UNKNOWN
       end
@@ -344,6 +423,45 @@ module PokeAccess
     # starts from.
     def self.player_place?(pars)
       pars[3].to_i == 6 && pars[4].to_i == -1 && pars[5].to_i < 2
+    end
+
+    # A script's comparison of where the player stands with a number: "$game_player.x == 56", "get_character(-1).y > 54".
+    PLACE_COMPARE = /(?:\$game_player|get_character\(\s*-1\s*\))\.([xy])\b\s*(==|>=|<=|>|<)\s*(\d+)/
+    # The comparisons of a conditional branch on a variable (111 [1, ...]) by their code, but "not equal".
+    VARIABLE_OPS = { 0 => "==", 1 => ">=", 2 => "<=", 3 => ">", 4 => "<" }
+
+    # The lines [axis (0 x, 1 y), value] where a page's comparisons of the player's place with a number first hold
+    # (boundary): a script condition's (PLACE_COMPARE) or one on a variable set to the player's x or y; [] for none.
+    def self.place_lines(list)
+      axis_of = {}
+      out = []
+      list.each do |c|
+        code = (c.code rescue 0)
+        pars = (c.parameters rescue nil) || []
+        if code == CONTROL_VARIABLES && player_place?(pars) && pars[2].to_i == 0
+          (pars[0].to_i..pars[1].to_i).each { |v| axis_of[v] = pars[5].to_i }
+        elsif code == BRANCH && pars[0] == 12
+          pars[1].to_s.scan(PLACE_COMPARE) { |a, op, n| out.push(boundary(a == "x" ? 0 : 1, op, n.to_i)) }
+        elsif code == BRANCH && pars[0] == 1 && pars[2].to_i == 0 && axis_of.key?(pars[1]) && VARIABLE_OPS[pars[4].to_i]
+          out.push(boundary(axis_of[pars[1]], VARIABLE_OPS[pars[4].to_i], pars[3].to_i))
+        end
+      end
+      out.uniq
+    end
+
+    # The line [axis, value] where a comparison of the player's place with n first holds: n itself, or the next one past
+    # it for > and <.
+    def self.boundary(axis, op, n)
+      [axis, op == ">" ? n + 1 : (op == "<" ? n - 1 : n)]
+    end
+
+    # True when a page's branches ask the player's facing or a held key, so each facing is walked on its own.
+    def self.reads_facing?(list)
+      list.any? do |c|
+        pars = (c.parameters rescue nil) || []
+        next false unless (c.code rescue 0) == BRANCH
+        (pars[0] == 6 && pars[1].to_i == -1) || pars[0] == 11 || (pars[0] == 12 && pars[1].to_s =~ /direction|Input\./)
+      end
     end
 
     # A variable's value once operation op (set, add, subtract, multiply, divide, remainder) works v into it, or nil
@@ -552,6 +670,7 @@ module PokeAccess
         [/\Aget_character\(\s*(-1|0)\s*\)\.(x|y)\b/, lambda { |m, c| ScriptCondition.character_at(m[1], m[2], c) }],
         [/\A\$PokemonGlobal\.visitedMaps\[\s*(\d+)\s*\]/, lambda { |m, _c| PokeAccess::World::Flags.visited(m[1].to_i) }],
         [/\A\$game_map\.map_id\b/, lambda { |_m, _c| $game_map.map_id }],
+        [/\A(?:Kernel\.)?pbRockClimb(?:\s*\(\s*\))?(?![\w(])/, lambda { |_m, c| ScriptCondition.field_move(:ROCKCLIMB, c) }],
         [/\A(?:true|false|nil)\b/, lambda { |m, _c| { "true" => true, "false" => false }[m[0]] }],
         [/\A-?\d+/, lambda { |m, _c| m[0].to_i }]
       ]
@@ -739,6 +858,13 @@ module PokeAccess
       def self.holds?(sym)
         n = quantity(sym)
         n == :unknown ? n : n > 0
+      end
+
+      # A field move's own check (Kernel.pbRockClimb): in a walk that says yes, whether the player can use the move, an
+      # unreadable answer taken for a yes as FieldMoves takes it; :unknown otherwise.
+      def self.field_move(move, ctx)
+        return :unknown unless ctx[:act]
+        PokeAccess::World::Flags.field_move(move) != false
       end
     end
   end

@@ -200,7 +200,7 @@ class SolarlightProfileTest < ProfileProcessTest
   end
 
   test "the active person in Keira's room has her name, with other events and inactive pages left to core" do
-    assert_equal ["Keira", nil, nil, nil, nil], played(:keira_room_name)
+    assert_equal [t(:solar_keira), nil, nil, nil, nil], played(:keira_room_name)
   end
 
   test "Waytide's floor switch is kept off the walks, its rule said on the first arrival alone, on its seven maps" do

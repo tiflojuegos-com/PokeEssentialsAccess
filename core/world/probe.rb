@@ -14,6 +14,7 @@ module PokeAccess
       STRIDE = Events::STRIDE
 
       @memos = {}
+      @floor_memos = {}
       @order = []
       @memo = nil
       @sig = nil
@@ -58,10 +59,33 @@ module PokeAccess
         sig = signature
         return if sig == @sig && @memo
         @sig = sig
-        @memo = (@memos[sig] ||= {})
         @order.delete(sig)
         @order.push(sig)
-        @memos.delete(@order.shift) while @order.length > MODES_KEPT
+        while @order.length > MODES_KEPT
+          old = @order.shift
+          @memos.delete(old)
+          @floor_memos.delete(old)
+        end
+        @memo = slot
+      end
+
+      # The answers kept for the mode and the floor looked at (Floors).
+      def self.slot; slot_for(@sig); end
+
+      # The answers kept for mode signature sig on the floor looked at.
+      def self.slot_for(sig)
+        k = Floors.key
+        return (@memos[sig] ||= {}) if k.nil?
+        (@floor_memos[sig] ||= {})[k] ||= {}
+      end
+
+      # Takes the answers of the floor now looked at (Floors.on_view).
+      def self.floor_changed; @memo = slot if @memo; end
+
+      # Drops the answers kept for the floors that do not stand (Floors.on_stale).
+      def self.forget_floors
+        @floor_memos = {}
+        @memo = slot if @memo
       end
 
       # Runs the block as one session of questions: the world is brought level once as it opens (tiles compared,
@@ -82,30 +106,33 @@ module PokeAccess
       # Drops every answer kept.
       def self.forget
         @memos = {}
+        @floor_memos = {}
         @order = []
         @memo = nil
         @sig = nil
       end
 
       # The answers kept, for Visits to keep with the map left: [answers by mode, the modes' order].
-      def self.saved; [@memos, @order]; end
+      def self.saved; [@memos, @order, @floor_memos]; end
 
       # Puts back answers saved with a map (saved).
       def self.restore(s)
-        @memos, @order = s
+        @memos, @order, @floor_memos = s
+        @floor_memos ||= {}
         @memo = nil
         @sig = nil
       end
 
       # Drops the answers into and out of each tile given, in every mode kept.
       def self.forget_tiles(tiles)
-        return if @memos.empty?
+        return if @memos.empty? && @floor_memos.empty?
         tiles.each do |x, y|
           [[0, -1, 8], [0, 1, 2], [-1, 0, 4], [1, 0, 6]].each do |dx, dy, d|
             [0, 1].each do |b|
               k1 = memo_key(x - dx, y - dy, d, b)
               k2 = memo_key(x, y, d, b)
               @memos.each_value { |m| m.delete(k1); m.delete(k2) }
+              @floor_memos.each_value { |f| f.each_value { |m| m.delete(k1); m.delete(k2) } }
             end
           end
         end
@@ -229,6 +256,30 @@ module PokeAccess
         end
       end
 
+      # Runs the block with event ev standing on (x,y), Through off, the game shown all its events and its tiles there
+      # and where it stood kept out of the memo: a platform as it rests on a stop, asked about before it comes. The
+      # event is put back whatever happens.
+      def self.grounding(ev, x, y)
+        outer = @lent
+        @before_lending.each { |blk| blk.call } if outer.nil?
+        tiles = outer ? outer.dup : {}
+        tiles[key(x, y)] = true
+        Events.tiles_of(ev).each { |tx, ty| tiles[key(tx, ty)] = true }
+        spot = [ev.x, ev.y, (ev.through rescue false)]
+        begin
+          @lent = tiles
+          assign(ev, :x=, :@x, x)
+          assign(ev, :y=, :@y, y)
+          (ev.through = false) rescue nil
+          all_events { yield }
+        ensure
+          assign(ev, :x=, :@x, spot[0])
+          assign(ev, :y=, :@y, spot[1])
+          (ev.through = spot[2]) rescue nil
+          @lent = outer
+        end
+      end
+
       # True while events are lent through (the world's events are as before, whatever the engine now says).
       def self.lending?; !@lent.nil?; end
 
@@ -279,7 +330,7 @@ module PokeAccess
         sig[0] = afloat ? 1 : 0
         g.surfing = afloat
         @sig = sig
-        @memo = (@memos[sig] ||= {})
+        @memo = slot_for(sig)
         yield
       ensure
         if keep
@@ -303,7 +354,6 @@ module PokeAccess
         Events.sync if @open == 0
         refresh if @memo.nil? || (@open == 0 && signature != @sig)
         return with_surf(false) { answer(x, y, d) } if ashore?(x, y)
-        memo = @memo
         dd = PokeAccess::DIR_DELTA[d]
         return engine(x, y, d) if dd.nil?
         nx = x + dd[0]
@@ -311,24 +361,37 @@ module PokeAccess
         return all_events { Neighbours.lending(nx, ny) { clear(x, y, d, nx, ny) } } if Terrain.outside?(nx, ny)
         return all_events { engine(x, y, d) } unless @stable
         return clear(x, y, d, nx, ny) if @lent && (@lent[key(x, y)] || @lent[key(nx, ny)])
+        memo = memo_for(x, y, nx, ny)
         k = memo_key(x, y, d, height_bit(x, y, nx, ny))
         v = memo[k]
-        v.nil? ? fill(k, x, y, d, nx, ny) : v
+        v.nil? ? fill(memo, k, x, y, d, nx, ny) : v
       end
 
       # step? for a step between two tiles of the map, neither a bridge's (as Routes::Moves.fast knows them): the same
       # answer, without the checks such tiles need not.
       def self.flat_step?(x, y, d, nx, ny)
         return step?(x, y, d) if @open == 0 || @memo.nil? || !@stable || @lent || ashore?(x, y)
+        memo = memo_for(x, y, nx, ny)
         k = ((y + x * STRIDE) * 16 + d) * 2
-        v = @memo[k]
-        v = fill(k, x, y, d, nx, ny) if v.nil?
+        v = memo[k]
+        v = fill(memo, k, x, y, d, nx, ny) if v.nil?
         v == OPEN
       end
 
-      # The answer for a step not yet kept (clear), kept under k.
-      def self.fill(k, x, y, d, nx, ny)
-        @memo[k] = clear(x, y, d, nx, ny)
+      # The answers a step from (x,y) to (nx,ny) is kept with: on the floor that does not stand (Floors), the standing
+      # floor's while the engine is shown only the events around the step and no stand-in is among them, as it is then
+      # shown the very same events.
+      def self.memo_for(x, y, nx, ny)
+        return @memo unless Floors.active?
+        return @memo if @all_events || !(PokeAccess::Config.near_events rescue false) || !Events.near_only?
+        return @memo unless ($game_map.instance_variable_get(:@events) rescue nil).instance_of?(Hash)
+        return @memo if Floors.near_stand_in?(key(x, y)) || Floors.near_stand_in?(key(nx, ny))
+        @memos[@sig] ||= {}
+      end
+
+      # The answer for a step not yet kept (clear), kept in memo under k.
+      def self.fill(memo, k, x, y, d, nx, ny)
+        memo[k] = clear(x, y, d, nx, ny)
       end
 
       # The engine's answer for a step into (nx,ny); one refused into the player's own tile is asked again with the
@@ -373,20 +436,22 @@ module PokeAccess
         ERROR
       end
 
-      # The game's own answer for a step, shown only the events around it (Events.near_step), far fewer to go over: not for
-      # one with no direction, off the map or with the answers unstable (all_events), or with near_events off. The list is
-      # put back whatever happens.
+      # The game's own answer for a step, shown only the events around it (Events.near_step): not for one with no
+      # direction, off the map or with the answers unstable (all_events), or with near_events off. The list is put back
+      # whatever happens; on another floor (Floors) it holds that floor's events, the stand-ins in their places.
       def self.ask_near(pl, x, y, d)
         dd = PokeAccess::DIR_DELTA[d]
         map = $game_map
-        all = map && dd && !@all_events && (PokeAccess::Config.near_events rescue false) ? map.instance_variable_get(:@events) : nil
-        shown = all && Events.near_step(all, x, y, x + dd[0], y + dd[1])
-        return pl.passable?(x, y, d) unless shown
+        live = map ? map.instance_variable_get(:@events) : nil
+        seen = live && Floors.active? ? Floors.engine_events(live) : live
+        near = seen && dd && !@all_events && (PokeAccess::Config.near_events rescue false)
+        shown = (near && Events.near_step(seen, x, y, x + dd[0], y + dd[1])) || seen
+        return pl.passable?(x, y, d) if shown.equal?(live)
         map.instance_variable_set(:@events, shown)
         begin
           pl.passable?(x, y, d)
         ensure
-          map.instance_variable_set(:@events, all)
+          map.instance_variable_set(:@events, live)
         end
       end
 
@@ -473,6 +538,8 @@ module PokeAccess
 end
 
 PokeAccess::World::Epoch.on(:tiles) { PokeAccess::World::Probe.forget }
+PokeAccess::World::Floors.on_view { |_k| PokeAccess::World::Probe.floor_changed }
+PokeAccess::World::Floors.on_stale { PokeAccess::World::Probe.forget_floors }
 PokeAccess::World::Epoch.on(:reset) { PokeAccess::World::Probe.forget }
 PokeAccess::World::Epoch.on(:frame) { PokeAccess::World::Probe.refresh }
 PokeAccess::World::Events.on_change { |tiles, _r, _how| PokeAccess::World::Probe.forget_tiles(tiles) }

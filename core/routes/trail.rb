@@ -41,7 +41,6 @@ module PokeAccess
         index = {}
         tiles.each_with_index { |t, i| index[PokeAccess::Pathfinder.skey(t[0], t[1], t[2].to_i)] = i }
         route = PokeAccess::Pathfinder::Route.new
-        warps = []
         breaks = []
         s = from
         i = 0
@@ -67,12 +66,10 @@ module PokeAccess
             break
           end
           breaks.push(Break.new(i, k, :detour, way.length))
-          way.warps.each { |w| warps.push(w + route.length) }
-          route.concat(way)
+          route.append(way)
           s = ends
           i = k
         end
-        route.warps = warps
         Conversion.new(route, breaks, i, s, surf)
       end
 
@@ -135,6 +132,7 @@ module PokeAccess
       # Why the press from state s toward d is not taken as the camera went: a teleport or a carry off the trail, an exit
       # or barrier, else what stops a step.
       def self.why(s, d, st)
+        return :exit if st && st.kind == :exit
         return(st.warp || st.kind == :warp ? :warp : :carried) if st
         dd = PokeAccess::DIR_DELTA[d]
         e = (Effects.touch_at(s[0] + dd[0], s[1] + dd[1], d, true) rescue nil)
@@ -196,14 +194,8 @@ module PokeAccess
       # is not to be kept (:cut_short).
       def self.joined(head, conv, offset)
         route = PokeAccess::Pathfinder::Route.new
-        warps = []
-        if head
-          route.concat(head)
-          warps.concat(head.warps)
-        end
-        conv.route.warps.each { |w| warps.push(w + route.length) }
-        route.concat(conv.route)
-        route.warps = warps
+        route.append(head) if head
+        route.append(conv.route)
         cut = conv.breaks.reverse.detect { |b| b.to.nil? }
         stats = { :trail_reached => offset + conv.reached, :trail_cut => cut && cut.kind,
                   :trail_detours => conv.breaks.select { |b| b.kind == :detour }.length,

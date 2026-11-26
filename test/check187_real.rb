@@ -6,7 +6,8 @@
 MODERN =["games/anil/", "games/ashenfrost/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
           "games/infinitefusion_hoenn/", "games/infinitefusion/", "games/infinitefusion_common/",
           "games/emerald/", "games/gruelinggold/", "games/goldencrown/",
-          "games/decades/", "games/herolegacy/", "games/keishou/", "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/"]
+          "games/decades/", "games/herolegacy/", "games/keishou/", "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/",
+          "games/slld_anime/"]
 
 root = (ARGV[0] || File.expand_path(File.join(File.dirname(__FILE__), ".."))).gsub("\\", "/")
 files = Dir[File.join(root, "core", "**", "*.rb")] +

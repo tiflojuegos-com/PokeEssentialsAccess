@@ -1,6 +1,5 @@
-# What Ashen Frost adds to stock screens and the map: the region map's sheets (009_UI_RegionMap.rb, one group of regions on
-# several maps, swapped with JUMPUP and JUMPDOWN), the bag's sorting (007_UI_Bag.rb) and the protagonist it switches to
-# (Multiple Protagonists, pbSwitchCharacter), which only its sprite shows.
+# What Ashen Frost adds to stock screens: the region map's sheets (009_UI_RegionMap.rb, one group of regions on several
+# maps, swapped with JUMPUP and JUMPDOWN) and the bag's sorting (007_UI_Bag.rb).
 module PokeAccess
   module AshenField
     # The sheet the map swapped to, by the name its bottom bar paints, behind the square its swap said.
@@ -26,16 +25,6 @@ module PokeAccess
     def self.bag_hint
       return unless PokeAccess::Verbosity.hints?
       PokeAccess.speak(PokeAccess::I18n.t(:ashen_bag_sort, :key => PokeAccess::KeyHints.key(:r, "W")), false)
-    end
-
-    # The protagonist the game has just switched to, queued behind what its event says; a call on the one in play does nothing.
-    def self.switched(was)
-      return if ($player.character_ID rescue nil) == was
-      name = ($player.name rescue nil).to_s
-      PokeAccess.speak(PokeAccess::I18n.t(:ashen_now_playing, :name => name), false) unless name.empty?
-    rescue StandardError => e
-      PokeAccess.swallowed(e)
-      nil
     end
   end
 end
@@ -64,12 +53,5 @@ PokeAccess::Game.define("ashenfrost") do
   # The pause menu's Controls opens mkxp-z's own window (System.show_settings), which only a mouse can use.
   PokeAccess::Hooks.wrap_singleton("System", :show_settings, "ashen_controls", :before) do |_args, _r|
     PokeAccess.speak(PokeAccess::I18n.t(:ashen_controls_window), true)
-  end
-
-  kernel("pbSwitchCharacter", :around) do |_args, nxt|
-    was = ($player.character_ID rescue nil)
-    ret = nxt.call
-    PokeAccess::AshenField.switched(was)
-    ret
   end
 end

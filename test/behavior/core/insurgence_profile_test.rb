@@ -7,6 +7,7 @@ class InsurgenceProfileTest < PokeAccessTest
   # The Insurgence-shaped classes, declared before the profile loads so its hooks find them.
   WORLD = <<-'RUBY'
     class Game_System; attr_accessor :hm7; end
+    module FontInstaller; def self.install; :installed; end; end
     class PokemonSummaryScene; def drawPageSix(pk = nil); (@pokemon = pk) if pk; end; end
     class InsBox; attr_accessor :text; def initialize(t = ""); @text = t; end; end
     class InsList

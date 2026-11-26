@@ -75,11 +75,17 @@ class MechanicLinksTest < PokeAccessTest
     end
   end
 
-  test "a press can change a wall only by the switches and variables its pages test, self switches aside" do
+  test "a press can change a wall only by the switches, variables and own self switches its pages test" do
     condition_walls
     assert_equal({ [:switch, 142] => true, [:switch, 50] => true, [:switch, 51] => true, [:var, 7] => true,
-                   [:var, 8] => true },
+                   [:var, 8] => true, [:self, 6, "A"] => true, [:self, 7, "B"] => true },
                  links.flags(mech.instance))
+  end
+
+  test "a watched self switch keys an override as a wall's own, but for another map's" do
+    assert_equal [:self, 6, "A"], links.key(:self => [6, "A"])
+    assert_equal [:self, 6, "A"], links.key(:self => [6, "A", $game_map.map_id])
+    assert_equal [:self, 6, "A", $game_map.map_id + 1], links.key(:self => [6, "A", $game_map.map_id + 1])
   end
 
   test "a wall drawn from the tileset stands as one with a sprite" do

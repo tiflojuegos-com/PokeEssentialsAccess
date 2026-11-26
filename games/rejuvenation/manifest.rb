@@ -18,6 +18,9 @@
     fight_menu
     encounters
     passwords
+    mart
+    list_sorts
+    move_relearner
     move_tutor
     zygarde
     trainer_card_gbc
@@ -27,6 +30,81 @@
     battle_boxes
     quick_summary
     hall_of_fame
+    puzzles/stolen_cargo
+    puzzles/thief_dungeon
+    puzzles/volcanion_terminal
+    puzzles/amethyst_panels
+    puzzles/edge_of_my_world
+    puzzles/route1_exploud
+    puzzles/griselda_treasures
+    puzzles/excavation_site
+    puzzles/magrodar_crater
+    puzzles/forsaken_lab_crest
+    puzzles/evergreen_cave
+    puzzles/garufa_beacons
+    puzzles/jirukala_cavern
+    puzzles/phasial_cave
+    puzzles/strange_house
+    puzzles/darchlight_labs
+    puzzles/deeper_confines
+    puzzles/wispy_path_espurr
+    puzzles/terajuma_growlithe
+    opportunity_skip
+    puzzles/east_gearen_gym
+    puzzles/altered_dimension
+    puzzles/wispy_ruins
+    puzzles/blacksteeple_night
+    puzzles/tyluric_temple
+    puzzles/axis_factory
+    puzzles/bladestar_lab
+    puzzles/school_of_nightmares
+    puzzles/fort_rystrine
+    puzzles/push_legs
+    puzzles/abandoned_sewers
+    puzzles/goldenwood_briefcase
+    puzzles/chrysalis_passwords
+    puzzles/forsaken_laboratory
+    puzzles/wispy_chasm
+    puzzles/madelis_laboratory
+    puzzles/backstage_theatre
+    puzzles/wispy_tower
+    puzzles/amethyst_cave
+    puzzles/blacksteeple_riddles
+    puzzles/three_trials
+    puzzles/aquamarine_depths
+    puzzles/kakori_gym
+    puzzles/theolia_tower
+    puzzles/valor_mountain
+    puzzles/garufa_ruins
+    puzzles/helojak_factory
+    puzzles/club_stfu
+    puzzles/marble_mansion
+    puzzles/atebit_forest
+    puzzles/school_masked_men
+    puzzles/hiyoshi_city
+    puzzles/darchlight_caves
+    puzzles/heracross_woods
+    puzzles/terajuma_lighthouses
+    puzzles/lost_castle_books
+    puzzles/mirage_woods
+    puzzles/ryland_fires
+    puzzles/celgearn_manufactory
+    puzzles/castle_zygara
+    puzzles/hidden_axis_lab
+    puzzles/angie_escape
+    puzzles/ss_paradise_lasers
+    puzzles/wetlands_lab
+    puzzles/xenpurgis_trampolines
+    puzzles/library_cannon
+    puzzles/nightmare_arrows
+    puzzles/xen_battleship
+    puzzles/chrysalis_pins
+    puzzles/chrysalis_maze
+    puzzles/chrysalis_maids
+    puzzles/west_gearen_pipes
+    puzzles/darchlight_manor
+    puzzles/garufa_zorua
+    puzzles/zorrialyn_labyrinth
   ],
   :plugins => %w[quest_ui fl_roulette]
 }

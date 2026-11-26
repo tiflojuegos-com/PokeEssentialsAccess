@@ -210,5 +210,9 @@
   :enhanced_ui_v1    => "Battle::Scene#pbFightMenu_EnhancedUI",
   :ocarina           => "Object#pbCallFlute",
   :poke_poker        => "Pokepoker",
-  :racecourse        => "RaceGame"
+  :racecourse        => "RaceGame",
+  :multiple_protagonists => "Object#pbSwitchCharacter",
+  # A method probe: Uranium's own Scene_Gameover has no go_to_title.
+  :fl_game_over      => "Object#go_to_title",
+  :roei_badge_case   => "BadgeCase_Scene"
 }

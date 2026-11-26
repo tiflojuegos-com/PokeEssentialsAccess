@@ -1,6 +1,7 @@
 # Rejuvenation's bag (games/rejuvenation/bag_favourites.rb): a starred item's row carries the favourite mark, in its
 # pocket and in the favourites one; a star under a still cursor, with nothing said, says the row again at once, a toss
-# or use queued behind the message the game shows with it.
+# or use queued behind the message the game shows with it; a star taken off is said; a TM's row carries the type of its
+# move, as the bag paints its icon.
 Harness.load_common("rv_common")
 
 # Rejuvenation's bag: pockets of bare ids with their counts in the contents table, Z's stars, and pocket 9 gathering
@@ -23,6 +24,11 @@ class RVEngineFavBagWindow < Window_PokemonBag
   def initialize(bag, pocket); super(); @bag = bag; @pocket = pocket; end
   def itemCount; @bag.getPocketItems(@pocket).length + 1; end
   def item; @bag.getPocketItems(@pocket)[index]; end
+end
+
+# The game's bag, whose removeFavorite takes a star off (Bag.rb:999).
+class PokemonBag
+  def removeFavorite(item); item; end
 end
 
 class RejuvenationBagTest < PokeAccessTest
@@ -119,6 +125,24 @@ class RejuvenationBagTest < PokeAccessTest
       assert_equal [["Pikachu's HP was restored by 20 points.", false], ["Repel: 1, #{list_place(1, 2)}", false]],
                    SpeakCapture.log
     end
+  end
+
+  test "a star taken off is said, cutting in" do
+    with_favourites { PokemonBag.new.removeFavorite(:POTION) }
+    assert_equal [[PokeAccess::I18n.t(:rj_favorite_removed), true]], SpeakCapture.log
+  end
+
+  test "a TM's row carries the type of the move it teaches, and any other item none" do
+    machines = { :pbIsTM? => lambda { |item| item == :TM35 }, :pbGetTM => lambda { |_item| :FLAMETHROWER },
+                 :getTypeName => lambda { |type| type == :FIRE ? "Fire" : "" } }
+    had = $cache
+    $cache = Struct.new(:moves).new({ :FLAMETHROWER => Struct.new(:type).new(:FIRE) })
+    marks = with_favourites do
+      GameFunctions.with(machines) { [:TM35, :POTION].map { |item| PokeAccess::Menus.bag_marks(bag([]), item) } }
+    end
+    assert_equal [[[:bt_type, { :t => "Fire" }]], []], marks
+  ensure
+    $cache = had
   end
 
   private

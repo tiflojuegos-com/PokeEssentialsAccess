@@ -25,6 +25,11 @@ class ControlRoutesTest < PokeAccessTest
             "#@......#",
             "#.#.#####",
             "#########"]
+  # A corridor with an open tile below its start and one below its sixth tile.
+  ROCKS = ["#########",
+           "#@......#",
+           "#.####.##",
+           "#########"]
   # A plate's pages as Pokemon Z's: the switch on and its self switch A on, or with A on both off.
   TOGGLE = [[0, nil, 0], [1, { :self_switch_valid => true, :self_switch_ch => "A" }, 1]].freeze
 
@@ -170,6 +175,20 @@ class ControlRoutesTest < PokeAccessTest
     lever_room
     PokeAccess::Config.puzzle_assist = true
     assert_equal [:assisted, [], :control, [1, 2], false], plan_shape(Planner.plan(6, 1))
+  end
+
+  test "routes to a lever that takes a rock away by script, and on ice with the rock a slide stops on standing" do
+    PokeAccess::Config.puzzle_assist = true
+    [false, true].each do |ice|
+      rock_room(ice)
+      assert_equal [:assisted, [], :control, [1, 2], false], plan_shape(Planner.plan(6, 2)), ice ? "on ice" : "on foot"
+    end
+  end
+
+  test "on ice, rays the lever raises stop the slide in front of them, though they stand down now" do
+    PokeAccess::Config.puzzle_assist = true
+    swap_room
+    assert_equal [:assisted, [], :control, [1, 2], false], plan_shape(Planner.plan(6, 2))
   end
 
   test "says the lever as the one to face and press, below" do
@@ -434,6 +453,32 @@ class ControlRoutesTest < PokeAccessTest
     declare
   end
 
+  # ROCKS with a lever below the start (event 43) that takes the rock across the corridor (event 10, at 3, 1) away and
+  # back by script, its pages turning on and off that rock's self switch A, and a second rock (event 11, at 7, 1) at the
+  # corridor's end; with ice, from x 4 to 6, a slide to the right stops on the second rock, above the goal (6, 2).
+  def rock_room(ice)
+    lay(ROCKS)
+    (4..6).each { |x| $game_map.set_terrain(x, 1, 12) } if ice
+    pages = [["true", 0, {}], ["false", 1, { :self_switch_valid => true, :self_switch_ch => "A" }]].map do |v, own, cond|
+      list = [TestCmd.new(355, ["pbSetSelfSwitch(10,\"A\",#{v})"]), TestCmd.new(123, ["A", own])]
+      TestPage.new(:trigger => 0, :sprite => "lever", :list => list, :condition => cond)
+    end
+    lever = TestGameEvent.new(:id => 43, :x => 1, :y => 2, :pages => pages)
+    lever.blocking = true
+    $game_map.events[43] = lever
+    [[10, 3], [11, 7]].each do |id, x|
+      gone = TestPage.new(:trigger => 0, :sprite => "", :condition => { :self_switch_valid => true, :self_switch_ch => "A" })
+      rock = TestGameEvent.new(:id => id, :x => x, :y => 1, :pages => [TestPage.new(:trigger => 0, :sprite => "rock"), gone])
+      rock.blocking = true
+      $game_map.events[id] = rock
+    end
+    Mech.declare($game_map.map_id, :kind => :state, :controls => true,
+                 :obstacles => [{ :events => Mech.picked([10, 11]), :kind => :wall }],
+                 :watch => [{ :self => [10, "A"], :quiet => true }, { :self => [11, "A"], :quiet => true }])
+    Mech.forget
+    PokeAccess::Pathfinder.invalidate_cache(true)
+  end
+
   # The room with rays raised while switch 142 is on, as it is, and the plate writing it as listed.
   def raised_room(writes)
     lay
@@ -461,6 +506,21 @@ class ControlRoutesTest < PokeAccessTest
                                                        :condition => { :switch1_valid => true, :switch1_id => 142 })])
     raised.blocking = true
     $game_map.events[20] = raised
+  end
+
+  # The rock room's floor on ice with a lever below the start writing switch 142: rays on (3, 1) that go down with it
+  # and rays on (7, 1), down now, that it raises, the stop of the slide east.
+  def swap_room
+    lay(ROCKS)
+    (4..6).each { |x| $game_map.set_terrain(x, 1, 12) }
+    control(43, 1, 2, [[0, nil]], 0, "lever")
+    rays(20, 3, 1)
+    down = TestPage.new(:trigger => 0, :sprite => "")
+    up = TestPage.new(:trigger => 0, :sprite => "rayosRojosV", :condition => { :switch1_valid => true, :switch1_id => 142 })
+    later = TestGameEvent.new(:id => 21, :x => 7, :y => 1, :pages => [down, up], :active_page => down)
+    later.through = true
+    $game_map.events[21] = later
+    declare
   end
 
   # Runs the block with only the self switches listed ([event id, letter] each) on, the game's own put back after.

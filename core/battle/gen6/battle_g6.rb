@@ -51,6 +51,12 @@ PokeAccess::Hooks.around_hook(PokeAccess::BattleG6::SCENE, :pbChooseTarget, :opt
   end
 end
 
+# The Ball's target in doubles (the engine Reborn and Rejuvenation share): B leaves without deselecting, so each
+# choice starts with the target dedup cleared and its first target is said again.
+PokeAccess::Hooks.before_hook(PokeAccess::BattleG6::SCENE, :pbChooseBallTarget, :optional => true) do |scene, _a|
+  PokeAccess::Battle.announce_target(scene, -1)
+end
+
 # Battle prompts with options: the question goes straight onto the message window, not through
 # pbDisplayMessage. The yes/no list itself is a Window_CommandPokemon the generic hook already reads.
 PokeAccess::Hooks.before_hook(PokeAccess::BattleG6::SCENE, :pbShowCommands) do |_s, args|

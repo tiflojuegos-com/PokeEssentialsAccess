@@ -172,6 +172,10 @@ module PokeAccess
       # id. A call that names no map is still a door, to somewhere only the game knows as it runs.
       def transfer_script(pattern, &dest); PokeAccess::Locator.register_transfer_script(pattern, &dest); end
 
+      # Declares map borders the game moves the player across by script, listed as exits: the block gets the map id and
+      # answers nil, or the ways (2, 4, 6, 8) of the sides that lead on now (Locator::SCRIPT_EDGES).
+      def script_edges(&blk); PokeAccess::Locator.register_script_edges(&blk); end
+
       # Declares an item this game hands a field move to (a surfboard for Surf), so the route finder and
       # the guide know the player can use the move without a Pokemon that knows it.
       def field_move_item(move, item); PokeAccess::FieldMoves.register_item(move, item); end
@@ -243,6 +247,9 @@ module PokeAccess
       # none) and, with a block, the condition it moves them under, given the tile a move would leave them on (see
       # Routes::Effects.push_script).
       def push_script(pattern, move = nil, &ready); PokeAccess::Routes::Effects.push_script(pattern, move, &ready); end
+
+      # Declares the facings the action button works an event from where its page cannot tell (Effects.side_rule).
+      def act_sides(&blk); PokeAccess::Routes::Effects.side_rule(&blk); end
 
       # Maps picture file names to spoken text, for screens that light one picture per option.
       def picture_texts(map); PokeAccess::PictureCues::TEXTS.merge!(map); end

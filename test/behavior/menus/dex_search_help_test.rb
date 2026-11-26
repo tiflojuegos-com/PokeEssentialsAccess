@@ -155,6 +155,23 @@ class DexSearchHelpTest < PokeAccessTest
   private
 
   # A search screen with its list on row index and an empty message box.
+  test "a fork that keeps the search's windows apart and hands its redraw a flag for cutting in is read alike" do
+    scene = search_scene(3)
+    title = Struct.new(:text).new("<ac>Search Mode</ac>")
+    apart = World.stub_scene(:@pokedexSprites => PokeAccess.ivar(scene, :@sprites).merge("searchtitle" => title))
+    box = apart.instance_variable_get(:@pokedexSprites)["messagebox"]
+    box.text = HELPS[1][2]
+    PokeAccess::DexSearch.refresh(apart, [[0, 0, 0, 0, 0, 0], false])
+    assert_equal [["Search Mode. Búsqueda, Tipo 1: ----. Listar por tipo. Solamente atrapados.", true]], SpeakCapture.log
+  end
+
+  test "a filter's type icons are said as the types' names" do
+    list = Window_ComplexCommandPokemon.new(["Search", ["Type: <icon=typeFIRE> <icon=typeFLYING>"]])
+    list.index = 1
+    names = [:FIRE, :FLYING].map { |t| PokeAccess::Data.type_name(t) }
+    assert_equal "Type: #{names.join(" ")}", PokeAccess.clean(PokeAccess::Menus.focused_text(list))
+  end
+
   def search_scene(index)
     list = Window_ComplexCommandPokemon.new(ROWS)
     list.index = index

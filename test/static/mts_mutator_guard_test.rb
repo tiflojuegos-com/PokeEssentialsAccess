@@ -11,7 +11,8 @@ class MtsMutatorGuardTest < PokeAccessTest
   MODERN = ["games/anil/", "games/ashenfrost/", "games/fireash/", "games/royal/", "games/relict/", "games/soulstones2/",
             "games/infinitefusion_hoenn/", "games/infinitefusion/", "games/infinitefusion_common/",
             "games/emerald/", "games/gruelinggold/", "games/goldencrown/",
-            "games/decades/", "games/herolegacy/", "games/keishou/", "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/"]
+            "games/decades/", "games/herolegacy/", "games/keishou/", "games/revival/", "games/darkhorizon/", "games/royal_common/", "games/worldfrontier/",
+            "games/slld_anime/"]
 
   # An uppercase constant of 3+ chars: the array constants that get corrupted (BUTTONS, TEXT_CODES, NUMERIC).
   CONST = '[A-Z][A-Z0-9_]{2,}'

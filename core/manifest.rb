@@ -63,6 +63,7 @@
   world/terrain
   world/flags
   world/events
+  world/floors
   world/probe
   world/neighbours
   world/lens
@@ -74,6 +75,7 @@
   world/mechanics/links
   routes/routes
   routes/effects
+  routes/rides
   routes/moves
   routes/moves_terrain
   routes/moves_fast
@@ -86,6 +88,7 @@
   routes/regions
   routes/regions_router
   routes/pushes
+  routes/push_pairs
   routes/controls
   routes/planner
   routes/text

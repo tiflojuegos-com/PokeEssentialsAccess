@@ -8,7 +8,7 @@ class EventPagesTest < PokeAccessTest
 
   test "a plain carry walks its steps and nothing else" do
     want = EP::Outcome.new([-2, -1], [[-1, 0, 4], [-2, 0, 4], [-2, -1, 8]], nil, nil, false, false, false, false, false,
-                           false, false, false, false, false, nil, [], [[-2, -1, 8]], [], false)
+                           false, false, false, false, false, nil, [], [[-2, -1, 8]], [], false, nil, {})
     assert_equal want, walk([World.move_player([2, 2, 4])], 2)
   end
 
@@ -293,6 +293,12 @@ class EventPagesTest < PokeAccessTest
     assert_equal [[$game_map.map_id, 6, 6], false], [o.transfer, o.changes], "the map's id, a variable copied"
     o = walk([TestCmd.new(122, [34, 34, 0, 0, 1]), TestCmd.new(201, [0, 12, 3, 4])], 2)
     assert_equal [[12, 3, 4], true], [o.transfer, o.changes], "a variable no transfer reads stays set"
+  end
+
+  test "a variable first set to what the game reads is a note: neither that nor a later write of it changes what stays" do
+    note = walk([TestCmd.new(122, [1, 1, 0, 6, -1, 1]), TestCmd.new(122, [1, 1, 0, 0, 0])], 2, [4, 7])
+    kept = walk([TestCmd.new(122, [1, 1, 0, 0, 5]), TestCmd.new(122, [1, 1, 0, 6, -1, 1])], 2, [4, 7])
+    assert_equal [false, true], [note.changes, kept.changes], "the player's row noted and cleared; set first, then noted"
   end
 
   test "a variable the page sets is read so by its branches, and one it cannot tell stops them as unknown" do
@@ -628,6 +634,31 @@ class EventPagesTest < PokeAccessTest
       'pbConfirmMessage(_INTL("abierto")' => nil
     }.each { |src, want| assert_answer want, evaluate(src, :act => true), src }
     assert_nil evaluate('pbConfirmMessage(_INTL("¿Seguro?"))'), "a walk that does not answer has no answer"
+  end
+
+  test "Rock Climb's own check holds in a walk that says yes while the player can climb, and the reading notes it" do
+    fm = PokeAccess::FieldMoves
+    can = nil
+    fm.singleton_class.send(:alias_method, :__can_test, :can?)
+    fm.define_singleton_method(:can?) { |move| move == :ROCKCLIMB ? can : nil }
+    {
+      "Kernel.pbRockClimb" => [true, false, true], "pbRockClimb()" => [true, false, true],
+      "pbRockClimb(1, 2)" => [nil, nil, nil], "Kernel.pbRockClimbing" => [nil, nil, nil]
+    }.each do |src, want|
+      got = [true, false, nil].map do |c|
+        can = c
+        PokeAccess::World::Epoch.dirty!
+        evaluate(src, :act => true)
+      end
+      assert_equal want, got, src
+    end
+    assert_nil evaluate("Kernel.pbRockClimb"), "a walk that does not answer has no answer"
+    can = true
+    _v, deps = PokeAccess::World::Flags.reading { evaluate("Kernel.pbRockClimb", :act => true) }
+    assert_equal [[:field_move, :ROCKCLIMB]], deps.map { |k, _v| k }
+  ensure
+    fm.singleton_class.send(:alias_method, :can?, :__can_test)
+    fm.singleton_class.send(:remove_method, :__can_test)
   end
 
   test "a game's own call is answered by the reader it registers, the reading lasting until an event's end" do

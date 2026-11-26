@@ -1,6 +1,6 @@
 # Silph Co. floors 2F-10F: the doors that open with the Card Key, each made of two or three events under one switch,
-# listed with the puzzles while closed. The floor teleports are transfer events the locator already names by where they
-# lead.
+# listed with the puzzles while closed. The floor pads, stairs and elevator entrances are named in silph_navigation.rb,
+# save the pad this file names.
 # The way to the president's office (pad "P" on 7F, map 665, event 4) is shut by an employee (event 35) in a corridor that
 # only the 3F pad "O" (map 661, event 7) leads to. He steps aside once 3 workers are rescued (variable 229) and the player
 # says yes, or at once with all 14. The elevator reaches every floor; on 3F one Card Key door (switch 582) lies between it

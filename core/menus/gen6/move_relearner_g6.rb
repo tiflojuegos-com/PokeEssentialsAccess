@@ -10,7 +10,7 @@ module PokeAccess
 
     # Speaks the focused move's detail at the learn move reading's level, with its row's place after the name and
     # its tag (Pokemon Z's "MT") in front from medium, led once by what the screen paints of its Pokemon; the info key
-    # keeps the move whole.
+    # keeps the move whole. It cuts in, or queues behind a line said for it (Menus.queue_next_read).
     def self.detail(scene)
       id = focused_id(scene)
       return if id.nil?
@@ -22,7 +22,7 @@ module PokeAccess
       s = "#{tag}. #{s}" unless tag.empty? || s.nil?
       head = pokemon_head(scene)
       s = "#{head}. #{s}" if s && head && PokeAccess::Cursor.changed?(scene, :relearn_pokemon, head)
-      PokeAccess.speak(s, true)
+      PokeAccess.speak(s, !PokeAccess::Menus.read_queued?(scene))
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil

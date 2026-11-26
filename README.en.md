@@ -134,7 +134,8 @@ Under "Navigation and pathfinder options" you decide how the target list works:
 - Puzzles of a game's own are prepared one game at a time. So far there is support in Pokémon Z, Pokémon Ópalo,
   Pokémon Armonía, Pokémon Realidea, Pokémon Africanus, Pokémon Edas, Pokémon Perseida, Pokémon GS Vitro, Pokémon
   Insurgence, Pokémon Uranium, Pokémon Solar Light & Lunar Dark, Pokémon Añil, Pokémon Royal, Pokémon Infinite Fusion,
-  Pokémon Infinite Fusion 2 Hoenn, Pokémon Fire Ash, Pokémon Dark Horizon, Pokémon Keishou and Pokémon Ashen Frost.
+  Pokémon Infinite Fusion 2 Hoenn, Pokémon Fire Ash, Pokémon Dark Horizon, Pokémon Keishou, Pokémon Ashen Frost and
+  Pokémon SL & LD - Anime Chronicles.
   Inside a puzzle, `T` says its state.
 - The "Puzzle assist" option, off by default, gives the hints and routes that solve them. In the tile puzzle
   minigame it also says the next move.
@@ -218,7 +219,7 @@ Each game has its profile in `games/`. The list the launcher uses to recognise g
   Desolation.
 - **GameData era** (Essentials v18 onwards): Pokémon Añil, Pokémon Royal, Pokémon Relict, Pokémon Eternal Emerald,
   Pokémon Grueling Gold, Pokémon Infinite Fusion, Pokémon Infinite Fusion 2 Hoenn, Pokémon Fire Ash, Pokémon
-  Soulstones 2, Pokémon Revival, Pokémon Dark Horizon, Pokémon World Frontier, Pokémon Golden Crown, Pokémon Keishou, Pokémon Ashen Frost, Pokémon Decades and Pokémon Hero Legacy.
+  Soulstones 2, Pokémon Revival, Pokémon Dark Horizon, Pokémon World Frontier, Pokémon Golden Crown, Pokémon Keishou, Pokémon Ashen Frost, Pokémon Decades, Pokémon Hero Legacy and Pokémon SL & LD - Anime Chronicles.
 
 Any other Essentials fangame gets a **generic profile**. It gives all the common accessibility (menus, dialogue,
 battle, navigation and pathfinding), without the readers made for one particular game.

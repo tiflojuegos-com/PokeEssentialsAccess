@@ -133,6 +133,7 @@ end
 # Speaks the focused option's new value on left/right. A container: a button row opens its whole submenu inside
 # this update.
 PokeAccess::Hooks.after_hook("Window_PokemonOption", :update, :hook_container => true) do |win, _r, _a|
+  PokeAccess::Menus.read_focus(win)
   PokeAccess::Options.consume_return(win)
   if win.active
     idx = win.instance_variable_get(:@index)

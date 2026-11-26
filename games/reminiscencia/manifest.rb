@@ -24,7 +24,9 @@
     party_panel
     info_screens
     passability
+    dungeon_rooms
     field_moves
+    puzzles/foliodoro_depths
   ],
   :plugins => %w[item_find logros text_log slide_banners bw_key_items]
 }

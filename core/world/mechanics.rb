@@ -157,17 +157,18 @@ module PokeAccess
         @queue = []
       end
 
-      # What a verb's events come as, ready for picks?: an id, a range or a list of them as id => true, a pattern as it
-      # is.
+      # What a verb's events come as, ready for picks?: an id, a range or a list of them as id => true, a pattern or a
+      # test given the event as it is.
       def self.picked(what)
-        return what if what.is_a?(Regexp)
+        return what if what.is_a?(Regexp) || what.is_a?(Proc)
         out = {}
         [what].flatten.each { |x| (x.is_a?(Range) ? x.to_a : [x]).each { |id| out[id] = true } }
         out
       end
 
-      # True when an event is among those picked: by its id, or a pattern on its name or its graphic.
+      # True when an event is among those picked: by its id, a pattern on its name or its graphic, or a test it passes.
       def self.picks?(what, ev)
+        return what.call(ev) ? true : false if what.is_a?(Proc)
         return what[ev.id] ? true : false unless what.is_a?(Regexp)
         !(ev.name.to_s =~ what).nil? || !(ev.character_name.to_s =~ what).nil?
       end
@@ -308,22 +309,37 @@ module PokeAccess
         out
       end
 
-      # True if a page's commands set the switch (121) or variable (122) a watch entry tracks.
+      # True if a page's commands set the switch (121), variable (122) or a self switch (self_write) a watch entry
+      # tracks.
       def self.writes?(pg, w)
         ((pg.list rescue nil) || []).any? { |cmd| writing?(cmd, w) }
       end
 
-      # True if one command sets watch entry w's switch (121) or variable (122).
+      # True if one command sets watch entry w's switch (121), variable (122) or self switch (self_write).
       def self.writing?(cmd, w)
+        return !self_write(cmd, w).nil? if w[:self]
         code = (cmd.code rescue nil)
         pr = (cmd.parameters rescue nil) || []
         id = (code == 121 && w[:switch]) || (code == 122 && w[:var])
         id && pr[0] && pr[1] && id >= pr[0] && id <= pr[1] ? true : false
       end
 
-      # What a page sets watch entry w's switch to, one value per write: true (on) or false (off).
+      # What a script command sets watch entry w's self switch of this map to, by the event's number (pbSetSelfSwitch):
+      # true or false; nil when it does not.
+      def self.self_write(cmd, w)
+        return nil unless [355, 655].include?((cmd.code rescue nil))
+        id, ch, map = w[:self]
+        return nil if map && map != $game_map.map_id
+        letter = Regexp.escape(ch.to_s)
+        re = /(?:pbS|s)etSelfSwitch\(\s*#{id.to_i}\s*,\s*["']#{letter}["']\s*,\s*(true|false)\b/
+        m = (cmd.parameters[0] rescue nil).to_s.match(re)
+        m ? m[1] == "true" : nil
+      end
+
+      # What a page sets watch entry w's switch or self switch to, one value per write: true (on) or false (off).
       def self.written(pg, w)
-        ((pg.list rescue nil) || []).select { |cmd| writing?(cmd, w) }.map { |cmd| cmd.parameters[2] == 0 }
+        cmds = ((pg.list rescue nil) || []).select { |cmd| writing?(cmd, w) }
+        w[:self] ? cmds.map { |cmd| self_write(cmd, w) } : cmds.map { |cmd| cmd.parameters[2] == 0 }
       end
 
       # Watch entry w's variable after a page runs, from value: its one write of a constant as written (set, add or take away),

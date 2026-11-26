@@ -47,9 +47,10 @@ module PokeAccess
           add(:names, opts.dup.merge!(:events => Mechanics.picked(what), :label => label))
         end
 
-        # Events a walk keeps off while there is another way: floor that changes the puzzle when stepped on, though no wall
-        # reads it (plates that change where something leads). A walk that ends on one still goes. :assist => true, with
-        # the puzzle assist alone (tiles that punish, which a walk round them would give away).
+        # Events a walk keeps off while there is another way: floor that changes the puzzle when stepped on, though no
+        # wall reads it (plates that change where something leads); a lambda given the event picks them as things stand.
+        # A walk that ends on one still goes. :assist => true, with the puzzle assist alone (tiles that punish, which a
+        # walk round them would give away).
         def avoid(what, opts = {})
           add(opts[:assist] ? :assist_avoids : :avoids, Mechanics.picked(what))
         end
@@ -130,8 +131,9 @@ module PokeAccess
           @spec[:arrival_once] = opts[:once]
         end
 
-        # A named point for the locator: {:at => [x, y] | :event => id, :label}; :assist => true with the puzzle assist
-        # alone, :when a test for while it is listed, :onto => true when it is stood on rather than faced.
+        # A named point for the locator: {:at => [x, y], or a lambda answering one | :event => id, :label}; :assist =>
+        # true with the puzzle assist alone, :when a test for while it is listed, :onto => true when it is stood on
+        # rather than faced.
         def spot(opts); add(:spots, opts); end
 
         # The info key's line, asked each time; with the assist, the hint follows it.

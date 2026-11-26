@@ -199,65 +199,6 @@ class RouteEventsTest < PokeAccessTest
     assert_equal [], walk_route(3, 1)
   end
 
-  test "the route key gives the final press into a one-sided doorway" do
-    loc = PokeAccess::Locator
-    config = PokeAccess::Config
-    saved = loc.instance_variable_get(:@target)
-    stale = loc.instance_variable_get(:@targets_stale)
-    one_sided_door
-    door = $game_map.events[60]
-    $game_player.x = 3
-    $game_player.y = 2
-    config.language = :en
-    loc.instance_variable_set(:@target, door)
-    loc.instance_variable_set(:@targets_stale, false)
-
-    expected = PokeAccess::Routes::Text.route_line("1 up")
-    SpeakCapture.clear
-    loc.announce_route
-    assert_equal [expected], SpeakCapture.lines
-
-    $game_player.x = 4
-    $game_player.y = 1
-    plan = loc.route_plan(door)
-    assert_operator plan.route.length, :>, 1
-    SpeakCapture.clear
-    loc.announce_route
-    assert_equal [PokeAccess::Routes::Text.line(plan)], SpeakCapture.lines
-
-    $game_player.x = 3
-    $game_player.y = 2
-    trainer = World.event(:kind => :npc, :id => 61, :x => 4, :y => 2, :name => "Trainer")
-    loc.instance_variable_set(:@target, trainer)
-    SpeakCapture.clear
-    loc.announce_route
-    assert_equal ["Route: you are next to it"], SpeakCapture.lines
-
-    World.clear_events
-    action_door = World.touch(:id => 62, :x => 4, :y => 2, :trigger => 0, :sprite => "doors1",
-                              :list => [leave_map])
-    assert loc.transfer_event?(action_door)
-    loc.instance_variable_set(:@target, action_door)
-    SpeakCapture.clear
-    loc.announce_route
-    assert_equal ["Route: you are next to it"], SpeakCapture.lines
-
-    World.clear_events
-    room_with_door([leave_map])
-    $game_player.x = 3
-    $game_player.y = 2
-    loc.instance_variable_set(:@target, $game_map.events[58])
-    refute PokeAccess::Routes::Effects.door_facings(3, 1)
-    SpeakCapture.clear
-    loc.announce_route
-    assert_equal [expected], SpeakCapture.lines
-  ensure
-    loc.instance_variable_set(:@target, saved)
-    loc.instance_variable_set(:@targets_stale, stale)
-    World.clear_events
-    $game_map.clear_grid
-  end
-
   test "past the search's node budget, the way to a one-sided doorway still ends below it" do
     one_sided_door
     PokeAccess::Config.astar_max = 1

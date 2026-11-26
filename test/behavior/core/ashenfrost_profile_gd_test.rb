@@ -1,7 +1,7 @@
 # The Pokemon Ashen Frost profile loaded whole, over doubles with the shape of its scripts: the pause box its loop sets every
 # frame, the case file and its evidence, the documents and pictures, Blackjack, Tutor.net, the remembered moves, the new-game
-# options, the region map's sheets, the bag's sorting, the protagonist's switch, the Well Temple's rocks and the flying game, and the plugin readers
-# it brings along (Ocarina, Racecourse, Poke Poker). In a process of its own, since its overrides would reach every other test here.
+# options, the region map's sheets, the bag's sorting, the Well Temple's rocks and the flying game, and the plugin readers
+# it brings along (Ocarina, Racecourse, Poke Poker, Multiple Protagonists' switch). In a process of its own, since its overrides would reach every other test here.
 class AshenFrostProfileGdTest < ProfileProcessTest
   # The tiles of the flying game's box the waves cross (x) and never cross (.), rows 3 to 9 by columns 10 to 13: the same on the three
   # maps, as the routes of their control events walk them.
@@ -1809,7 +1809,7 @@ class AshenFrostProfileGdTest < ProfileProcessTest
   test "a switch of protagonist is said, and a call on the one in play is not" do
     same, other = played(:switched)
     assert_equal [], same
-    assert_equal [[t(:ashen_now_playing, :name => "Mordecai"), false]], other
+    assert_equal [["Ahora juegas con Mordecai.", false]], other
   end
 
   test "the ocarina says its opening and each note with its place, only while the melody runs" do

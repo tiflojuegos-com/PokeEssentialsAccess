@@ -248,9 +248,13 @@ PokeAccess::Engine.scene_classes("PokemonRegionMapScene", "PokemonRegionMap_Scen
   end
 end
 
-# Pokegear: each option button is (re)selected every frame; read the focused one's name (deduped).
+# Pokegear: each option button is (re)selected every frame; read the focused one's name (deduped), or the name it
+# paints where name is never set (Rejuvenation 14's CyberNav keeps it in @displayname).
 PokeAccess::Hooks.after_hook("PokegearButton", :selected=) do |btn, _r, args|
-  PokeAccess::UIV21.speak_changed(:pokegear, (btn.name rescue nil).to_s) if args[0]
+  next unless args[0]
+  name = (btn.name rescue nil)
+  name = PokeAccess.ivar(btn, :@displayname) if name.nil? || name.to_s.empty?
+  PokeAccess::UIV21.speak_changed(:pokegear, name.to_s)
 end
 
 # Opening the pokegear resets its dedup. The modern scene is PokemonPokegear_Scene, or Scene_Pokegear in a gen-6 fork

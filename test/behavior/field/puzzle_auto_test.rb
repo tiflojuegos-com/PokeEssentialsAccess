@@ -420,6 +420,27 @@ class PuzzleAutoTest < PokeAccessTest
     end
   end
 
+  test "an entry's answer is 0 only when the branch that compares it rewards the player" do
+    on_map(:medium) do
+      PokeAccess::Config.puzzle_assist = true
+      empty = [TestCmd.new(103, [5, 2]), TestCmd.new(111, [1, 5, 0, 0, 0]), TestCmd.new(101, ["Nothing?"], 1), TestCmd.new(0, [], 1),
+               TestCmd.new(412, []), TestCmd.new(111, [1, 5, 0, 7, 0]), TestCmd.new(0, [])]
+      running(true, empty) { assert_equal 7, PokeAccess::Puzzles::Answers.expected, "a 0 that checks an entry left empty" }
+      prized = { "a self switch" => TestCmd.new(123, ["A", 0], 2), "a switch" => TestCmd.new(121, [40, 40, 0], 2),
+                 "an item" => TestCmd.new(111, [12, "pbReceiveItem(:PEARL)"], 2) }
+      prized.each do |what, cmd|
+        list = [TestCmd.new(103, [5, 1]), TestCmd.new(111, [1, 5, 0, 0, 0]), TestCmd.new(101, ["You got it!"], 1),
+                TestCmd.new(111, [12, "true"], 1), cmd, TestCmd.new(0, [], 2), TestCmd.new(412, [], 1), TestCmd.new(0, [])]
+        running(true, list) { assert_equal 0, PokeAccess::Puzzles::Answers.expected, "a 0 whose branch gives #{what}" }
+      end
+      off = [TestCmd.new(103, [5, 1]), TestCmd.new(111, [1, 5, 0, 0, 0]), TestCmd.new(123, ["A", 1], 1), TestCmd.new(0, [])]
+      running(true, off) { assert_nil PokeAccess::Puzzles::Answers.expected, "a 0 whose branch turns a self switch off" }
+      both = [TestCmd.new(103, [5, 1]), TestCmd.new(111, [1, 5, 0, 0, 0]), TestCmd.new(121, [40, 40, 0], 1), TestCmd.new(0, [], 1),
+              TestCmd.new(412, []), TestCmd.new(111, [1, 5, 0, 3, 0]), TestCmd.new(0, [])]
+      running(true, both) { assert_equal 3, PokeAccess::Puzzles::Answers.expected, "a rewarded 0 beside another number" }
+    end
+  end
+
   test "right_choice says the option whose branch avoids a flag, in the game's words, after the text that opens the menu" do
     on_map(:medium) do
       PokeAccess::Config.puzzle_assist = true

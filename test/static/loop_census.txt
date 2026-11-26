@@ -7,11 +7,11 @@
 #
 #
 # format: Class#method = <profile>, <profile>...
-# surveyed sources (37): africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, solarlight, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier, xenoverse
+# surveyed sources (38): africanus, anil, armonia, ashenfrost, awakening, darkhorizon, decades, desolation, edas, emerald, fireash, goldencrown, gruelinggold, herolegacy, infinitefusion, infinitefusion_hoenn, insurgence, keishou, opalo, perseida, pokemon_z, realidea, reborn, rejuvenation, relict, reminiscencia, revival, royal, sevii, slld_anime, solarlight, soulstones1, soulstones2, uranium, vanilla, vitro, worldfrontier, xenoverse
 # A row marked NO-DUMP is one no surveyed game defines: it was not checked and found clean, it
 # could not be checked at all. The two used to print identically, which made a sixth of the file
 # read as evidence it was not.
-# after-style hook sites: 462 / blocking somewhere: 1 / no dump defines it: 3
+# after-style hook sites: 463 / blocking somewhere: 1 / no dump defines it: 2
 # after-style sites the extractor cannot resolve (computed class or method): 44
 AdvancedPokedexScene#displayPage = 
 AdvancedPokedexScene#pbStartScene = 
@@ -212,7 +212,6 @@ MostrarPokemonAnimado#mostrar_poke_animado =
 MoveRelearnerScene#drawMoveInfo = 
 MoveRelearnerScene#pbDrawMoveList = 
 MoveRemember_Scene#pbDrawMoveList = 
-Movie#pbWait = NO-DUMP
 MultiBerrySelection_Scene#pbRefresh = 
 MultiSelectOptionsScene#refreshList = 
 NewBattleBag#drawPocket = 
@@ -261,7 +260,9 @@ PokedexFormScene#pbRefresh =
 PokedexFormScene#pbUpdate = 
 PokedexSearchSelectionSprite#index= = 
 PokegearButton#selected= = 
+PokemonBag#removeFavorite = 
 PokemonBag#sort_pocket_alphabetically = 
+PokemonBag_Scene#pbHandleSort = 
 PokemonBerryMartScene#drawCurrentBerries = 
 PokemonChallenges_Scene#pbEndScene = 
 PokemonChallenges_Scene#pbUpdate = 

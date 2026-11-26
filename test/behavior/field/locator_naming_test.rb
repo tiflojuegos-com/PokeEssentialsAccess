@@ -403,6 +403,13 @@ class LocatorNamingTest < PokeAccessTest
     assert_nil locator.fieldmove_label(rock), "Rock, who talks"
   end
 
+  test "a door named like an obstacle is no obstacle: its page sends the player elsewhere" do
+    door = TestGameEvent.new(:name => "tree", :pages => [TestPage.new(:list => [TestCmd.new(201, [0, 529, 5, 9, 8, 0])])])
+    assert_nil locator.fieldmove_label(door)
+    tree = TestGameEvent.new(:name => "tree", :pages => [TestPage.new(:list => [TestCmd.new(355, ["pbCut"])])])
+    assert_equal :loc_cut_tree, locator.fieldmove_label(tree)
+  end
+
   test "an item ball is something to do, listed and pinged as an object whatever its sprite" do
     ball = event(21, "itemball", item_branch(:REPEL))
     map_settled

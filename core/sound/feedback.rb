@@ -147,7 +147,7 @@ module PokeAccess
         return unless Mixer.on?(:ledge) && !Scheduler.nav_off?
         dir = PokeAccess::Routes::DIRS.find { |d| d[2] == pos[2] }
         return unless dir
-        lvl = PokeAccess::Pathfinder.bridge_level.to_i > 0 ? 1 : 0
+        lvl = PokeAccess::Pathfinder.flat_level
         t = PokeAccess::Routes::Moves.step(pos[0], pos[1], lvl, dir, PokeAccess::Routes::Moves::LEDGE)
         Sound.cue(:ledge, :dir => pos[2]) if t && t.kind == :jump
       rescue StandardError => e

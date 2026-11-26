@@ -30,42 +30,92 @@ module PokeAccess
           @left = left
         end
 
-        def hit?(x, y, moved = nil); @goal.hit?(x, y, moved); end
+        def hit?(x, y, moved = nil, lvl = nil); @goal.hit?(x, y, moved, lvl); end
 
         def entry; @goal.entry; end
+
+        def floor; @goal.floor; end
+
+        def floor_ok?(lvl); @goal.floor_ok?(lvl); end
 
         def bound(x, y, moved = nil, lvl = nil)
           @left[PokeAccess::Pathfinder.skey(x, y, lvl)] || @goal.bound(x, y, moved)
         end
       end
 
-      # A goal for a boulder rather than the player: the one starting on (x, y) (rock that tile's key, info its
-      # boulder_index entry) inside the box [x0, y0, x1, y1], estimated off a field walked back from the box, and off it
-      # by the Manhattan distance where it was cut (else FAR, no way).
+      # A goal for a boulder rather than the player: the one starting on (x, y) (rock its tile's key, info its
+      # boulder_index entry) inside the box [x0, y0, x1, y1], and each of others, events its pushes move along as [key
+      # of its tile, its box, x, y], inside its own; estimated off a field walked back from the box (the Manhattan
+      # distance where it was cut, FAR for no way), with others by the pushes all of them need (Pairs).
       class RockGoal
         FIELD_CAP = 4000
 
-        def initialize(rock, x, y, box, info = nil)
+        def initialize(rock, x, y, box, info = nil, others = [])
           @rock = rock
           @x = x
           @y = y
           @box = box
           @info = info
+          @others = others
         end
 
         # No tile a move steps onto ends it (Goal#entry): its end is where the boulder is.
         def entry; nil; end
 
-        # True when the boulder, where the moved boulders have it, is inside the box.
-        def hit?(_cx, _cy, moved = [])
+        # The boulder's place is got to on either floor (Goal#floor).
+        def floor; nil; end
+
+        def floor_ok?(_lvl); true; end
+
+        # True when the boulder, where the moved boulders have it, is inside the box, and so is each of the others.
+        def hit?(_cx, _cy, moved = [], _lvl = nil)
           bx, by = where(moved)
-          manhattan(bx, by) == 0
+          manhattan(bx, by) == 0 && @others.all? { |k, box, x, y| off_box(box, *placed(k, x, y, moved)) == 0 }
         end
 
-        # The fewest presses the boulder's pushes and pulls into the box may take from where the moved boulders have it;
-        # FAR for a boulder spent out of the box or where the field, walked whole, has no way; one push's price where a
-        # push may take it any number of tiles past what the field tells (field).
-        def bound(_cx, _cy, moved = [], _lvl = nil)
+        # The fewest presses the pushes and pulls into the boxes may take from where the moved boulders have them: the
+        # boulder's (own_bound); with others, the pushes all of them need (Pairs), else at least a push for each tile an
+        # other is still off its box.
+        def bound(cx, cy, moved = [], _lvl = nil)
+          return own_bound(moved) if @others.empty?
+          price = 1 + PokeAccess::Pathfinder::GATE_COST
+          n = pairs ? pairs.left(positions(moved), cx, cy) : nil
+          return FAR if n == Pairs::NEVER
+          return n * price if n
+          own = own_bound(moved)
+          return own if own >= FAR
+          @others.inject(own) { |b, (k, box, x, y)| [b, off_box(box, *placed(k, x, y, moved)) * price].max }
+        end
+
+        # Where the boulder and each of the others stand as the moved boulders have them, in that order.
+        def positions(moved)
+          [where(moved)] + @others.map { |k, _b, x, y| placed(k, x, y, moved) }
+        end
+
+        # The boulder and the others as Pairs takes them, each [key of its tile, event, its Effects.push_pieces entry,
+        # x, y, box]; nil when one is not among the pieces.
+        def members
+          pieces = Effects.push_pieces
+          out = [[@rock, @info[0], @info, @x, @y, @box]]
+          @others.each { |k, box, x, y| out.push(pieces[k] ? [k, pieces[k][0], pieces[k], x, y, box] : nil) }
+          out.include?(nil) ? nil : out
+        end
+
+        # The pushes the boulder and the others need (Pairs), walked once with every piece lent through; nil where it
+        # cannot tell.
+        def pairs
+          return (@pairs == false ? nil : @pairs) unless @pairs.nil?
+          group = @info && !@others.empty? ? members : nil
+          pieces = Effects.push_pieces.values.map { |r| r[0] }
+          pl = $game_player
+          p = group ? PokeAccess::World::Probe.lend_through(pieces) { Pairs.new(group, pl.x, pl.y) } : nil
+          @pairs = p && !p.unknown? ? p : false
+          @pairs || nil
+        end
+
+        # The boulder's own share of bound: FAR for one spent out of the box or where the field, walked whole, has no
+        # way; one push's price where a push may take it any number of tiles past what the field tells (field).
+        def own_bound(moved)
           bx, by = where(moved)
           m = manhattan(bx, by)
           return 0 if m == 0 || @info.nil?
@@ -78,14 +128,24 @@ module PokeAccess
         end
 
         # The tile's Manhattan distance to the box.
-        def manhattan(bx, by)
-          x0, y0, x1, y1 = @box
+        def manhattan(bx, by); off_box(@box, bx, by); end
+
+        # The Manhattan distance from (bx, by) to box.
+        def off_box(box, bx, by)
+          x0, y0, x1, y1 = box
           (bx < x0 ? x0 - bx : (bx > x1 ? bx - x1 : 0)) + (by < y0 ? y0 - by : (by > y1 ? by - y1 : 0))
         end
 
+        # Where the piece starting on (x, y), key k, stands as the moved boulders have it.
+        def placed(k, x, y, moved)
+          m = (moved || []).find { |e| e[0] == k }
+          m ? [m[1], m[2]] : [x, y]
+        end
+
         # The pushes and pulls into the box from each tile, key => count, walked back from the box as the game moves the
-        # boulder (pushed_off?, pulled_off?). Meeting ice where boulders slide, or a cut with slides or long pushes to count,
-        # sets @far_pushes and bound counts one push.
+        # boulder (pushed_off?, pulled_off?). Meeting ice where boulders slide, a cut with slides or long pushes to
+        # count, or pushes its page sends further from some tiles (tile_push), sets @far_pushes and bound counts one
+        # push.
         def field
           return @field if @field
           terrain = PokeAccess::World::Terrain
@@ -114,7 +174,7 @@ module PokeAccess
               queue.push([ax, ay])
             end
           end
-          @far_pushes = (Pushes.sliding? && (iced || @field_cut)) || (@field_cut && !long.empty?) ? true : false
+          @far_pushes = (Pushes.sliding? && (iced || @field_cut)) || (@field_cut && !long.empty?) || @info[8] ? true : false
           @field = dist
         end
 
@@ -154,8 +214,11 @@ module PokeAccess
       # gate]; nil when there is none within the limits. A player's goal takes what the assisted regions tell, as far as
       # they do: its estimate, and no search at all when no boulder can open the way.
       def self.route(goal)
-        rocks = Effects.boulder_index
+        rocks = Effects.push_pieces
         return nil if rocks.empty?
+        if goal.is_a?(RockGoal) && (f = follow(goal))
+          return f
+        end
         walk = goal.is_a?(Goal) && !(PokeAccess::Config.edge_relax rescue false) ? Regions.assisted : nil
         left = walk && walk.presses_back(goal.tiles, {}, 0, goal.entry)
         pf = PokeAccess::Pathfinder
@@ -172,6 +235,30 @@ module PokeAccess
         nil
       end
 
+      # For pieces that move as one (RockGoal#pairs), the way to the first of the fewest pushes that take them into
+      # their boxes, walked to where it is made as a route on foot goes (Planner.walk): [steps, gate]; nil where the
+      # pushes cannot be told so or no way on foot leads to any first one.
+      def self.follow(goal)
+        pairs = goal.pairs
+        return nil unless pairs
+        pos = goal.positions([])
+        px = $game_player.x
+        py = $game_player.y
+        d = pairs.left(pos, px, py)
+        return nil unless d.is_a?(Integer) && d > 0
+        pairs.successors(pos, px, py).each do |i, dir, np|
+          bx, by = pos[i]
+          next unless pairs.left(np, bx - dir[0], by - dir[1]) == d - 1
+          info = pairs.member(i)[2]
+          way = Planner.walk(bx - dir[0], by - dir[1], true)
+          next unless way.status == :found
+          gate = { :kind => :field, :label => label(info), :ev => info[0], :move => move_for(info), :x => bx, :y => by }
+          gate[:act] = true if info[2] == :act
+          return [way.route, gate]
+        end
+        nil
+      end
+
       # The search for goal: a boulder's stays an A* throughout, as its estimate leaves little to hurry past; a player's
       # goes on from the presses left walking to those with the boulders on the way at a push's price.
       def self.searched(goal, rocks, walk, left)
@@ -183,11 +270,11 @@ module PokeAccess
         end
       end
 
-      # True when the walk tells no route can get to goal: with every boulder that can move gone, or where a route may move
-      # only one, with each of them gone in turn, the player still does not get there. It tells nothing where a boulder
-      # may stop a slide (sure_no?) or can be pulled, which lands the player where the walk need not.
+      # True when the walk tells no route can get to goal: with every boulder that can move gone (or, where a route may
+      # move only one, each in turn gone) the player still does not get there. It tells nothing where a boulder may stop
+      # a slide (sure_no?), can be pulled, or moves others along.
       def self.sealed?(walk, goal, rocks)
-        return false unless walk.sure_no? && rocks.values.none? { |r| r[3] }
+        return false unless walk.sure_no? && rocks.values.none? { |r| r[3] || r[7] }
         can = lambda { |rock, x, y, dir| pushes?(x, y, dir, rock, [], { rock => rocks[rock] }) }
         moving = walk.past_boulders(goal.tiles, rocks, {}, limit > 1, goal.entry, &can)
         return false unless moving
@@ -285,22 +372,51 @@ module PokeAccess
           t.presses + extra + (t.gate ? PokeAccess::Pathfinder::GATE_COST : 0), t.entry]]
       end
 
-      # Pushing the boulder rock in front of (cx,cy) along dir, to where that leaves it: the move, or nil where the game
-      # would not move it or the route may move no more boulders.
+      # Pushing the boulder rock in front of (cx,cy) along dir, to where that leaves it, then each event the push moves
+      # along a tile that way (along): the move, or nil where the game moves nothing or the route may move no more
+      # boulders.
       def self.push(cx, cy, dir, rock, moved, rocks, lvl)
-        return nil unless pushes?(cx, cy, dir, rock, moved, rocks)
         info = rocks[rock]
+        twins = info[7] && info[7][dir[2]]
+        rolls = pushes?(cx, cy, dir, rock, moved, rocks)
+        return nil unless rolls || (twins && movable?(rock, moved, rocks))
         nx = cx + dir[0]; ny = cy + dir[1]
         gate = { :kind => :field, :label => label(info), :ev => info[0], :move => move_for(info), :x => nx, :y => ny }
         gate[:act] = true if info[2] == :act
-        bx, by = pushed_to(info, nx, ny, dir, moved, rocks, cx, cy)
-        long = long_push(info, dir)
-        [[cx, cy, moved_to(moved, rock, bx, by, long && !long[3]), lvl], [dir[2], 1, gate], 1 + PokeAccess::Pathfinder::GATE_COST]
+        now = moved
+        if rolls
+          bx, by = pushed_to(info, nx, ny, dir, moved, rocks, cx, cy)
+          long = long_push(info, dir)
+          now = moved_to(moved, rock, bx, by, long && !long[3])
+        end
+        now = along(twins, dir, now, rocks, cx, cy) if twins
+        return nil if now.equal?(moved)
+        [[cx, cy, now, lvl], [dir[2], 1, gate], 1 + PokeAccess::Pathfinder::GATE_COST]
       end
 
-      # Where a push along dir from (cx,cy) leaves boulder info, standing on (nx,ny): where its long push sends it (GONE
-      # when that leaves it stopping nobody), else one tile on, to where it comes to rest (rest).
+      # The moved boulders once each of twins (events a push moves along) takes a tile along dir with the player on
+      # (cx,cy), where the game lets it and no boulder of the state stands; one gone or not tracked stays.
+      def self.along(twins, dir, moved, rocks, cx, cy)
+        probe = PokeAccess::World::Probe
+        twins.each do |tw|
+          k = Routes.pkey(tw.x, tw.y)
+          next unless rocks[k]
+          m = moved.find { |e| e[0] == k }
+          next if m && m[1] == GONE[0] && m[2] == GONE[1]
+          tx, ty = m ? [m[1], m[2]] : [tw.x, tw.y]
+          ax = tx + dir[0]; ay = ty + dir[1]
+          next if rock_at(ax, ay, moved, rocks) || !probe.event_movable?(tw, tx, ty, dir[2], [tx, ty, cx, cy])
+          moved = moved_to(moved, k, ax, ay, m ? m[3] : false)
+        end
+        moved
+      end
+
+      # Where a push along dir from (cx,cy) leaves boulder info, standing on (nx,ny): where its page sends it from that
+      # tile (tile_push), where its long push sends it (GONE when that leaves it stopping nobody), else one tile on, to
+      # where it comes to rest (rest).
       def self.pushed_to(info, nx, ny, dir, moved, rocks, cx, cy)
+        drop = tile_push(info, nx, ny, dir)
+        return [nx + drop[0], ny + drop[1]] if drop
         long = long_push(info, dir)
         return rest(info[0], nx + dir[0], ny + dir[1], dir, moved, rocks, cx, cy) unless long
         long[2] ? GONE : [nx + long[0], ny + long[1]]
@@ -309,6 +425,11 @@ module PokeAccess
       # Boulder info's long push along dir (Effects.long_pushes), or nil.
       def self.long_push(info, dir)
         info[6] && info[6][dir[2]]
+      end
+
+      # Boulder info's push along dir from (x,y) that its page sends further (Effects.tile_pushes), as [dx, dy], or nil.
+      def self.tile_push(info, x, y, dir)
+        info[8] && info[8][[x, y, dir[2]]]
       end
 
       # Declares the game slides a boulder pushed onto ice on as it slides the player (Reborn's engine, whose
@@ -336,13 +457,13 @@ module PokeAccess
 
       # True when the boulder rock in front of (cx,cy) would move along dir: one the route may move, pushed that way (one
       # that moves itself only takes the ways its page has), with no boulder beyond, that the game lets move there; a
-      # long push goes through all that, onto a tile of the map.
+      # long push, or one its page sends further from that tile, goes through all that, onto a tile of the map.
       def self.pushes?(cx, cy, dir, rock, moved, rocks)
         nx = cx + dir[0]; ny = cy + dir[1]
-        return false unless movable?(rock, moved) && ready?(rocks[rock], nx + dir[0], ny + dir[1])
+        return false unless movable?(rock, moved, rocks) && ready?(rocks[rock], nx + dir[0], ny + dir[1])
         ways = rocks[rock][4]
         return false if ways && !ways.include?(dir[2])
-        long = long_push(rocks[rock], dir)
+        long = tile_push(rocks[rock], nx, ny, dir) || long_push(rocks[rock], dir)
         return ($game_map.valid?(nx + long[0], ny + long[1]) rescue true) if long
         return false if rock_at(nx + dir[0], ny + dir[1], moved, rocks)
         PokeAccess::World::Probe.event_movable?(rocks[rock][0], nx, ny, dir[2], [nx, ny, cx, cy])
@@ -352,7 +473,7 @@ module PokeAccess
       # game checks it; nil for one that cannot be pulled, or where turning toward it with the way held would push it.
       def self.pull(cx, cy, dir, rock, moved, rocks, lvl)
         info = rocks[rock]
-        return nil unless info[3] && movable?(rock, moved) && ready?(info, cx, cy)
+        return nil unless info[3] && movable?(rock, moved, rocks) && ready?(info, cx, cy)
         back = 10 - dir[2]
         rx = cx + dir[0]; ry = cy + dir[1]
         bx = cx - dir[0]; by = cy - dir[1]
@@ -374,11 +495,11 @@ module PokeAccess
         false
       end
 
-      # True when the route may move boulder rock: one it moved already and has not spent, or one more within the limit. A
-      # long push that sets anything spends it: what the page it opens does is for the plan made after that push to read.
-      def self.movable?(rock, moved)
+      # True when the route may move boulder rock: one it moved already and has not spent, or one more within the limit,
+      # which the events only moved along (rocks' :along) do not count toward. A long push that sets anything spends it.
+      def self.movable?(rock, moved, rocks)
         m = moved.find { |e| e[0] == rock }
-        m ? !m[3] : moved.length < limit
+        m ? !m[3] : moved.count { |e| rocks[e[0]] && rocks[e[0]][2] != :along } < limit
       end
 
       # The locator's name for a boulder: the Strength boulder, or a pushable object.

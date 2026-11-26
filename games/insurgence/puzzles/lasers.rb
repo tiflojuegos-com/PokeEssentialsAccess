@@ -152,28 +152,44 @@ module PokeAccess
       PokeAccess::I18n.t(:ins_laser_end)
     end
 
-    # Prefer a wrong mirror the player can reach, in beam order and then reading order. A receiver can unlock
-    # the part of the room around an earlier mirror, so beam order alone can send the player to a closed door.
+    # The next mirror to set, with the quarter turns it still needs: the first reachable of those standing wrong, the
+    # beams' own first. Says all stand right when none is wrong, and that none light every receiver when no turns do.
     def self.next_step(r, beams)
       goal = solution(r)
       return PokeAccess::I18n.t(:ins_laser_none) unless goal
       wrong = r[:mirrors].select { |id| goal[id] && goal[id] != turn(id) }
       return PokeAccess::I18n.t(:ins_laser_ready) if wrong.empty?
       met = beams.map { |b| b[1].map { |h| h[0] } }.flatten
-      uncertain = nil
-      id = PokeAccess::Pathfinder.searching do
-        ((met & wrong) | wrong).find do |candidate|
-          mirror = event(candidate)
-          next false unless mirror
-          reach = PokeAccess::Locator.reach_status(mirror)[0]
-          uncertain ||= candidate if reach == :unknown
-          reach == :yes
+      id, reach = first_reachable((met & wrong) | wrong)
+      todo = PokeAccess::I18n.t(:ins_laser_todo, :n => number(id), :sides => PokeAccess::I18n.t(SIDES[goal[id]]))
+      line = "#{todo}, #{turns_left(id, goal[id])}"
+      reach == :no ? PokeAccess.sentences([line, PokeAccess::I18n.t(:loc_route_none)]) : line
+    end
+
+    # Of the mirror ids, the first the player can reach, else the first undecided, else the first, as [id, reach].
+    def self.first_reachable(ids)
+      unsure = nil
+      found = PokeAccess::Pathfinder.searching do
+        ids.find do |id|
+          s = reach(id)
+          unsure ||= id if s == :unknown
+          s == :yes
         end
       end
-      id ||= uncertain
-      return PokeAccess::I18n.t(:loc_route_none) unless id
-      todo = PokeAccess::I18n.t(:ins_laser_todo, :n => number(id), :sides => PokeAccess::I18n.t(SIDES[goal[id]]))
-      "#{todo}, #{turns_left(id, goal[id])}"
+      return [found, :yes] if found
+      unsure ? [unsure, :unknown] : [ids[0], :no]
+    end
+
+    # Whether the player can reach a mirror by Locator.route_plan: :yes on foot, assisted or by water; :unknown when the
+    # search was cut short or the mirror lies beyond its reach; else :no, also for a mirror absent from the map.
+    def self.reach(id)
+      ev = event(id)
+      return :no unless ev
+      case PokeAccess::Locator.route_plan(ev).kind
+      when :walk, :assisted, :surf then :yes
+      when :cut, :far then :unknown
+      else :no
+      end
     end
 
     # With the assist, whether a mirror stands as the turns that light every receiver want it, else the sides it should

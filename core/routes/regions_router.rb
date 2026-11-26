@@ -20,13 +20,15 @@ module PokeAccess
         return SearchResult.new(:exhausted, nil, taken, :regions) if route == :none
         pf = PokeAccess::Pathfinder
         last = Moves.trace($game_player.x, $game_player.y, pf.bridge_level, route, pf.replay_mode).last
-        ends = route.empty? || (last && (goal.hit?(last.x, last.y) || (last.entry && last.entry == goal.entry)))
+        ends = route.empty? || (last && (goal.hit?(last.x, last.y, nil, last.level) ||
+                                         (last.entry && last.entry == goal.entry)))
         ends ? SearchResult.new(:found, route, taken, :regions, g) : nil
       end
 
       # The route from the player's state to goal by cost and est, as [route, states taken, cost], route :none when
       # there is none; nil when the regions cannot tell. Its states close, prune and pay the tiles they cross
-      # (Moves.costed?) as Search.run's, so costs match, and a move onto the goal's entry ends a route as there.
+      # (Moves.costed?) as Search.run's, so costs match, and a move onto the goal's entry ends a route as there
+      # (Search.pressed prices the press through a doorway after its end).
       def route(goal, est, cost)
         return nil if @dropped || !done? || $game_player.nil?
         pf = PokeAccess::Pathfinder
@@ -59,18 +61,28 @@ module PokeAccess
             taken += 1
             settled[i] = g
           end
-          t = @keys[i] >> 1
+          t = @keys[i] >> 2
           x = t / PKEY_STRIDE
           y = t % PKEY_STRIDE
-          return [path_back(came, s), taken, g] if goal.hit?(x, y)
           from = s % 5
+          if goal.hit?(x, y, nil, (@keys[i] & 2) == 0 ? 0 : pf::FLOOR)
+            d = goal.press(x, y)
+            return [path_back(came, s), taken, g] unless d
+            b = DIR_INDEX[d]
+            ng = g + cost.step(1, from != 4 && from != b, false, 0)
+            if least[-1].nil? || ng < least[-1]
+              least[-1] = ng
+              came[-1] = [s, b, 0, false]
+              pf.heap_push(heap, [ng, -ng, -1])
+            end
+          end
           ins = enter[i]
           e = 0
           while ins && e < ins.length
             b = ins[e]; presses = ins[e + 1]; j = ins[e + 2]
             e += 3
             next unless first || b == from
-            tj = @keys[j] >> 1
+            tj = @keys[j] >> 2
             extra = priced ? Moves.crossed_extra(x, y, tj / PKEY_STRIDE, tj % PKEY_STRIDE, DIRS[b], @keys[j] & 1, true) : 0
             ng = g + cost.step(presses, from != 4 && from != b, false, extra)
             next unless least[-1].nil? || ng < least[-1]
@@ -90,8 +102,9 @@ module PokeAccess
               presses = 1
               warp = false
               landed = false
+              pick = nil
             else
-              j, b, presses, warp, landed = specials[k - 4]
+              j, b, presses, warp, landed, pick = specials[k - 4]
               k += 1
               next unless first || b == from
             end
@@ -99,7 +112,7 @@ module PokeAccess
             next if closed[ns]
             extra = 0
             if priced
-              tj = @keys[j] >> 1
+              tj = @keys[j] >> 2
               extra = Moves.crossed_extra(x, y, tj / PKEY_STRIDE, tj % PKEY_STRIDE, DIRS[b], @keys[j] & 1, landed)
             end
             ng = g + cost.step(presses, from != 4 && from != b, false, extra)
@@ -108,7 +121,7 @@ module PokeAccess
             old = least[ns]
             next unless old.nil? || ng < old
             least[ns] = ng
-            came[ns] = [s, b, presses, warp]
+            came[ns] = pick ? [s, b, presses, warp, pick] : [s, b, presses, warp]
             pf.heap_push(heap, [ng + cost.least(presses_left(goal, est, j)), -ng, ns])
           end
         end
@@ -180,7 +193,7 @@ module PokeAccess
         until stack.empty?
           i = stack.pop
           return nil if goals[i]
-          t = @keys[i] >> 1
+          t = @keys[i] >> 2
           shut = 0
           (sides[t] || NONE).each do |rock, way|
             next if open[rock]
@@ -207,7 +220,7 @@ module PokeAccess
           end
           (specials[i] || NONE).each do |to, way, _presses, _warp|
             next if seen[to] || (shut & (1 << way)) != 0
-            tile = @keys[to] >> 1
+            tile = @keys[to] >> 2
             next if rocks[tile] && !open[tile]
             seen[to] = true
             stack.push(to)
@@ -233,7 +246,7 @@ module PokeAccess
         pf = PokeAccess::Pathfinder
         out = []
         tiles.each do |x, y|
-          [0, 1].each do |l|
+          pf::LEVELS.each do |l|
             i = @id[pf.skey(x, y, l)]
             out.push(i) if i
           end
@@ -262,7 +275,7 @@ module PokeAccess
             next unless best[i] == d
             adj = links[i]
             next unless adj
-            base = dear[@keys[i] >> 1] ? d + price : d
+            base = dear[@keys[i] >> 2] ? d + price : d
             e = 0
             while e < adj.length
               j = adj[e]
@@ -310,38 +323,43 @@ module PokeAccess
       # The fewest presses from state i to goal the estimate allows (0 with none).
       def presses_left(goal, est, i)
         return 0 if est.nil?
-        t = @keys[i] >> 1
+        t = @keys[i] >> 2
         x = t / PKEY_STRIDE
         y = t % PKEY_STRIDE
         est.is_a?(Bound) ? est.at(x, y) : (goal.bound(x, y) + est - 1) / est
       end
 
       # The moves other than plain steps, by the state they leave: i => [[to, index in DIRS, presses, transfer, landed
-      # without a walk], ...], kept while the walk stands.
+      # without a walk, the menu option it takes or nil], ...], kept while the walk stands.
       def moves_out
         return @moves_out if @moves_out_version == @version
         out = {}
         m = @moves
         k = 0
         while k < m.length
-          (out[m[k]] ||= []).push([m[k + 1], DIR_INDEX[m[k + 2]], m[k + 3], (m[k + 4] & 1) == 1, (m[k + 4] & 2) != 0])
+          (out[m[k]] ||= []).push([m[k + 1], DIR_INDEX[m[k + 2]], m[k + 3], (m[k + 4] & 1) == 1, (m[k + 4] & 2) != 0,
+                                   @picks[k]])
           k += 5
         end
         @moves_out_version = @version
         @moves_out = out
       end
 
-      # The key presses back to state s along came, with the transfers on the way as its rooms and warps.
+      # The key presses back to state s along came, with the transfers on the way as its rooms and warps, and the menu
+      # options it takes as its choices.
       def path_back(came, s)
         path = PokeAccess::Pathfinder::Route.new
         tails = []
+        picks = []
         while (link = came[s])
           tails.push(path.length) if link[3]
+          picks.push([path.length, link[4]]) if link[4]
           link[2].times { path.unshift(DIRS[link[1]][2]) }
           s = link[0]
         end
         path.rooms = tails.length
         path.warps = tails.reverse.map { |tail| path.length - tail - 1 }
+        path.choices = Search.choices_at(picks, path.length) unless picks.empty?
         path
       end
     end

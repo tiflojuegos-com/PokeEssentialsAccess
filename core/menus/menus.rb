@@ -76,8 +76,10 @@ module PokeAccess
       cap.to_s
     end
 
-    # Stores the shop adapter's description for the info key as the shop shows it, its "???" said as unknown.
+    # Stores the shop adapter's description for the info key as the shop shows it, its "???" said as unknown; a buy or
+    # sell adapter with no descriptions of its own answers through the mart's adapter it wraps (Rejuvenation 14's).
     def self.mart_note_desc(ad, item)
+      ad = PokeAccess.ivar(ad, :@adapter) unless ad.respond_to?(:getDescription)
       return unless ad.respond_to?(:getDescription)
       d = (ad.getDescription(item) rescue nil)
       PokeAccess::Info.note_item_desc(item, PokeAccess::DexEntry.unknown_marks(d.to_s)) if d
@@ -283,9 +285,21 @@ module PokeAccess
     # pocket its last read was keyed on, or nothing was said since that read (:cmd_seq, the player's own change or a
     # silent one); a row that changes after a line was said, the message the game shows with it, is queued behind it.
     def self.read_interrupts?(win, key)
+      return false if read_queued?(win)
       prev = PokeAccess::Cursor.current(win, :cmd_focus)
       return true unless prev.is_a?(Array) && prev[0] == key[0] && prev[1] == key[1]
       PokeAccess::Cursor.current(win, :cmd_seq) == PokeAccess.spoken_seq
+    end
+
+    # Makes a list's next read (a command window's, or the relearner's detail) queue behind the line just said, though
+    # its cursor moves: a sort key's order, said before the list it reorders reads its row again.
+    def self.queue_next_read(holder)
+      PokeAccess::Cursor.store(holder, :read_queued, PokeAccess.spoken_seq) if holder
+    end
+
+    # Whether a list's next read is due to queue: nothing has been said since the line queue_next_read followed.
+    def self.read_queued?(holder)
+      PokeAccess::Cursor.current(holder, :read_queued) == PokeAccess.spoken_seq
     end
 
     # Bag row decorators registered by plugins and profiles: each answers name(adapter, itemid) with a replacement
@@ -489,23 +503,31 @@ end
 # line was said since the window's last read (the message the game shows with the change), else at once; each read
 # that speaks keeps the session's spoken count it left (:cmd_seq). The first active window after an options screen
 # closes (the load screen's commands) takes its return and says its row again.
-PokeAccess::Hooks.after_hook("Window_DrawableCommand", :update) do |win, _r, _a|
-  next if (win.instance_variable_get(:@ignore_input) rescue false)
-  next if PokeAccess.dedicated?(win)
-  idx = win.instance_variable_get(:@index)
-  next unless win.active && idx && idx >= 0
-  next if PokeAccess::Menus.before_start_row?(win, idx)
-  PokeAccess::Options.consume_return(win)
-  pkt = (win.respond_to?(:pocket) ? (win.pocket rescue nil) : nil)
-  wit = pkt ? (PokeAccess::Menus.bag_witness(win, idx) rescue nil) : PokeAccess::Menus.list_witness(win, idx)
-  key = [idx, pkt, wit]
-  said = PokeAccess::Cursor.announce(win, :cmd_focus, key, PokeAccess::Menus.read_interrupts?(win, key), false) do
-    t = PokeAccess::Menus.focused_text(win)
-    PokeAccess::Menus.mark_bag_pocket(win) if pkt && t && !t.to_s.empty?
-    t = PokeAccess::Menus.unknown_row(t)
-    PokeAccess::Menus.placeholder?(t) ? PokeAccess::I18n.t(:row_empty) : PokeAccess::Menus.checkbox_row(t)
+PokeAccess::Hooks.after_hook("Window_DrawableCommand", :update) { |win, _r, _a| PokeAccess::Menus.read_focus(win) }
+
+module PokeAccess
+  module Menus
+    # Says a command window's focused row as the navigation hook above does; a window whose own update never reaches
+    # Window_DrawableCommand's (Rejuvenation 14's options) calls it too.
+    def self.read_focus(win)
+      return if (win.instance_variable_get(:@ignore_input) rescue false)
+      return if PokeAccess.dedicated?(win)
+      idx = win.instance_variable_get(:@index)
+      return unless win.active && idx && idx >= 0
+      return if before_start_row?(win, idx)
+      PokeAccess::Options.consume_return(win)
+      pkt = (win.respond_to?(:pocket) ? (win.pocket rescue nil) : nil)
+      wit = pkt ? (bag_witness(win, idx) rescue nil) : list_witness(win, idx)
+      key = [idx, pkt, wit]
+      said = PokeAccess::Cursor.announce(win, :cmd_focus, key, read_interrupts?(win, key), false) do
+        t = focused_text(win)
+        mark_bag_pocket(win) if pkt && t && !t.to_s.empty?
+        t = unknown_row(t)
+        placeholder?(t) ? PokeAccess::I18n.t(:row_empty) : checkbox_row(t)
+      end
+      PokeAccess::Cursor.store(win, :cmd_seq, PokeAccess.spoken_seq) if said
+    end
   end
-  PokeAccess::Cursor.store(win, :cmd_seq, PokeAccess.spoken_seq) if said
 end
 
 # The classic pause menu reruns pbShowCommands on the same window and index after every option, so each entry

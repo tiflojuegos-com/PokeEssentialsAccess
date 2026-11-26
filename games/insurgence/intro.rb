@@ -15,15 +15,9 @@ module PokeAccess
 end
 
 PokeAccess::Game.define("insurgence") do
-  # The player can already use the fonts in the game's Fonts directory. The original installer checks for copies
-  # in the Windows font directory, so leave it to run only if the player cannot see the requested families.
-  if defined?(::FontInstaller::Names) && ::FontInstaller.respond_to?(:install)
-    override("FontInstaller", :install) do |installer, original, _args|
-      names = installer.const_get(:Names)
-      original.call unless names.is_a?(Array) && !names.empty? && names.all? { |name| Font.exist?(name) }
-    end
-  end
-
+  # The load screen's FontInstaller.install offers to copy the fonts to Windows and restart through Game.exe, which the
+  # mod does not run in; mkxp-z already draws with the game's Fonts folder, so the install is a no-op.
+  override("FontInstaller", :install) { |_m, _original, _a| nil }
 
   before("IntroEventScene", :openPic, :optional => true) do |s, _a|
     k = PokeAccess::InsurgenceIntro.card_key(s)

@@ -135,8 +135,9 @@ module PokeAccess
     end
 
     # One map frame, unless the engine carries the player on (Control.carried?) or its answers cannot be kept (partway
-    # up a side stair): keeps the route current (follow), then arrives, holds where it stops short, says there is no
-    # way, says a jump ahead, says the leg and chimes; what has been said by its end is the next frame's fresh? mark.
+    # up a side stair): ends where the press through the target's doorway took the player (went_through?), else follows
+    # the route, then arrives, holds, says no way, waits on a platform (Routes::Rides.waiting?), says a jump ahead, or
+    # says the leg and chimes; what has been said by its end is the next frame's fresh? mark.
     # Held, silent, while the free camera is open.
     def self.tick
       return unless @cane || @steps
@@ -148,12 +149,14 @@ module PokeAccess
       t = loc.target
       now = PokeAccess.clock
       PokeAccess::World::Events.sync
+      return stop(loc.arrived_line(t)) if went_through?
       follow(t, now)
       left = remaining
       return no_way(t) if left.nil?
       @said_none = nil
       @none_cue_at = nil
       return arrive(t) if left.empty?
+      return if PokeAccess::Routes::Rides.waiting?(left)
       @hold_said = nil
       say_jump(left)
       say_leg(left) if @steps
@@ -273,7 +276,7 @@ module PokeAccess
       pf = PokeAccess::Pathfinder
       i = @index[pf.skey(st[0], st[1], st[2])]
       if i.nil?
-        j = @index[pf.skey(st[0], st[1], 1 - st[2])]
+        j = @index[pf.skey(st[0], st[1], st[2] ^ 1)]
         i = j if j && (j - @at).abs <= 2
       end
       return false if i.nil?
@@ -281,9 +284,9 @@ module PokeAccess
       true
     end
 
-    # The player's state: [x, y, bridge level as 0 or 1].
+    # The player's state: [x, y, level as Pathfinder.flat_level keeps it].
     def self.player_state
-      [$game_player.x, $game_player.y, PokeAccess::Pathfinder.bridge_level.to_i > 0 ? 1 : 0]
+      [$game_player.x, $game_player.y, PokeAccess::Pathfinder.flat_level]
     end
 
     # The presses left of the route, nil without one.
@@ -310,19 +313,44 @@ module PokeAccess
       st = @state
       moves = PokeAccess::Routes::Moves
       mode = PokeAccess::Pathfinder.replay_mode
-      pts = moves.trace(st[0], st[1], st[2], part, mode)
+      picks = moves.picks_of(@plan.route, @at)
+      pts = moves.trace(st[0], st[1], st[2], part, mode, picks)
       if pts.length < part.length && part.length < left.length
         m = part.length
         m += 1 while m < left.length && left[m] == left[m - 1]
         part = left[0, m]
-        pts = moves.trace(st[0], st[1], st[2], part, mode)
+        pts = moves.trace(st[0], st[1], st[2], part, mode, picks)
       end
-      return false unless pts.length == part.length
+      return false unless pts.length == part.length || out_press?(pts, part, left)
       pts.each_with_index do |p, k|
         q = @track[@at + k]
         return false unless q && q.x == p.x && q.y == p.y
       end
       true
+    end
+
+    # True when pts, part of what is left replayed, stop short of the route's last press alone, one through the target's
+    # doorway from where they leave the player (Planner.transfer_press?), which leaves no state.
+    def self.out_press?(pts, part, left)
+      return false unless part.length == left.length && pts.length == part.length - 1
+      s = pts[-1]
+      at = s ? [s.x, s.y, s.level] : @state
+      PokeAccess::Routes::Planner.transfer_press?(at[0], at[1], at[2], left[-1])
+    end
+
+    # True when the player, last seen before the route's last press (a doorway press, see out_press?), is now off the
+    # track where no plain press from there lands: that press took them through, to another spot of the map.
+    def self.went_through?
+      left = remaining
+      return false unless left && left.length == 1 && @state && @track.length == @at
+      st = player_state
+      return false if st == @state || @index[PokeAccess::Pathfinder.skey(st[0], st[1], st[2])]
+      return false unless PokeAccess::Routes::Planner.transfer_press?(@state[0], @state[1], @state[2], left[0])
+      mode = PokeAccess::Pathfinder.replay_mode
+      [2, 4, 6, 8].none? do |d|
+        s = PokeAccess::Routes::Moves.try(@state[0], @state[1], @state[2], d, mode)
+        s && s.x == st[0] && s.y == st[1]
+      end
     end
 
     # No way to the target: said once, unless just told (told?), and the cane chiming straight toward it once per tile

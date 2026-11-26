@@ -235,14 +235,27 @@ class InsurgenceLasersTest < PokeAccessTest
     assert_includes opened, todo_line(2, :ins_mirror_tr, 1)
   end
 
-  test "a blocked mirror hint does not claim that the puzzle has no solution" do
+  test "the next hint counts a mirror reached past an assisted step as reachable" do
+    PokeAccess::Config.puzzle_assist = true
+    PokeAccess::Config.edge_relax = false
+    $game_map.load_grid(Array.new(24) { "." * 13 + "#" + "." * 6 })
+    path_room
+    World.touch(:id => 213, :x => 13, :y => 19, :trigger => 0, :list => [World.move_player([37, 2, 2, 38], 1)])
+    PokeAccess::Caches.reset_all
+
+    line = facing(16, 19, 2) { Lasers.assist_line }
+    assert_includes line, todo_line(2, :ins_mirror_tr, 1)
+    refute_includes line, t(:loc_route_none)
+  end
+
+  test "with no mirror reachable, the next hint still names the beam's first wrong one, then that no route reaches it" do
     PokeAccess::Config.puzzle_assist = true
     PokeAccess::Config.edge_relax = false
     $game_map.load_grid(Array.new(24) { "." * 13 + "#" + "." + "#" + "." * 4 })
     path_room
 
     line = facing(16, 19, 2) { Lasers.assist_line }
-    assert_includes line, t(:loc_route_none)
+    assert line.end_with?("#{todo_line(2, :ins_mirror_tr, 1)}. #{t(:loc_route_none)}"), line
     refute_includes line, t(:ins_laser_none)
   end
 

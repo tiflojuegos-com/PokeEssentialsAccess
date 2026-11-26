@@ -46,6 +46,13 @@ class PokedexEntryGen6Test < PokeAccessTest
                    "#{t(:dex_weight, :w => '6,0', :n => 6.0)}. Almacena electricidad.", true]], SpeakCapture.log
   end
 
+  test "takes the dummy pokemon a fork hands over in the species' place, keeping none, as its own (Rejuvenation 14)" do
+    dummy = Dummy.new(25, "Ratón", 4, 60, "Almacena electricidad.", 13, 13)
+    owning(25) { PokeAccess::DexEntry.gen6_info(PokemonPokedexScene.new, nil, dummy) }
+    assert_equal [["Especie25. #{t(:dex_category, :cat => 'Ratón')}. #{t(:dex_height, :h => '0,4', :n => 0.4)}. " \
+                   "#{t(:dex_weight, :w => '6,0', :n => 6.0)}. Almacena electricidad.", true]], SpeakCapture.log
+  end
+
   test "composes a dummy pokemon's missing height and weight as zero" do
     blank = Struct.new(:species, :kind).new(25, "Ratón")
     owning(25) { PokeAccess::DexEntry.gen6_info(page(blank), nil, 25) }

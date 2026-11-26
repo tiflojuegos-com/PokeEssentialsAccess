@@ -675,7 +675,7 @@ end
 # The options list: options, their values, and drawItem painting each row's name, the last row's being exit_word, and
 # after a NumberOption's name its value in number_format ("Type %d/%d" as v21 paints it); a value set repaints.
 class Window_PokemonOption < Window_DrawableCommand
-  attr_accessor :exit_word, :number_format
+  attr_accessor :exit_word, :number_format, :own_update
   def initialize(options, exit_word = "Close")
     super([])
     @options = options
@@ -687,11 +687,13 @@ class Window_PokemonOption < Window_DrawableCommand
   def []=(i, v); @values[i] = v; refresh; end
   def drawItem(index, _count, _rect)
     o = @options[index]
-    pbDrawShadowText(nil, 0, 0, 0, 0, o.nil? ? @exit_word : o.name, nil, nil)
+    pbDrawShadowText(nil, 0, 0, 0, 0, o.nil? ? @exit_word : (o.is_a?(String) ? o : o.name), nil, nil)
     return unless o.is_a?(NumberOption)
     pbDrawShadowText(nil, 0, 0, 0, 0, format(@number_format, o.lowest_value + self[index], o.highest_value - o.lowest_value + 1), nil, nil)
   end
   def refresh; (@options.length + 1).times { |i| drawItem(i, @options.length + 1, nil) }; end
+  # own_update: moves the cursor without reaching Window_DrawableCommand#update, as Rejuvenation 14's does.
+  def update(*a); own_update ? @index : super; end
 end
 
 # The options screen, reduced to its frame and its closing: a submenu is one of these opened from a row of another.

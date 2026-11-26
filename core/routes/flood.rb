@@ -73,26 +73,41 @@ module PokeAccess
       # The way to goal as a SearchResult: :found to its tile reached at the least cost, :exhausted when the flood
       # closed everything without reaching one, nil while it has not got there yet.
       def route_to(goal)
-        best = cheapest(goal.tiles, goal.entry)
+        best = cheapest(goal)
         return SearchResult.new(:found, Search.path_to(@t.came, best[1]), 0, :flood, best[0]) if best
         @done ? SearchResult.new(:exhausted, nil, 0, :flood) : nil
       end
 
-      # [cost, state] of the least that reaches one of tiles (on either bridge level), or steps onto entry's tile and is
-      # taken on elsewhere (Search.entered); nil for none.
-      def cheapest(tiles, entry = nil)
+      # [cost, state] of the least that reaches one of goal's tiles on a level its floor allows, with the press through
+      # a doorway after it priced (Goal#press), or steps onto its entry's tile and is taken on elsewhere; nil for none.
+      def cheapest(goal)
         pf = PokeAccess::Pathfinder
         best = nil
-        tiles.each do |x, y|
-          [0, 1].each do |l|
+        goal.tiles.each do |x, y|
+          d = goal.press(x, y)
+          pf::LEVELS.each do |l|
+            next unless goal.floor_ok?(l)
             k = pf.skey(x, y, l)
-            c = @t.settled[k]
-            best = [c, @t.first[k]] if c && (best.nil? || c < best[0])
+            got = d ? pressed(k, d) : (@t.settled[k] && [@t.settled[k], @t.first[k]])
+            best = got if got && (best.nil? || got[0] < best[0])
           end
         end
-        es = entry && Search.entry_state(entry)
+        es = goal.entry && Search.entry_state(goal.entry)
         c = es && @t.settled[es]
         c && (best.nil? || c < best[0]) ? [c, es] : best
+      end
+
+      # [cost, state] of the least closed state of tile key k with the press d after it and its turn; nil for none.
+      def pressed(k, d)
+        i = Regions::DIR_INDEX[d]
+        best = nil
+        (0..4).each do |from|
+          s = k * 5 + from
+          next unless @t.closed[s]
+          c = @t.least[s] + @cost.step(1, from != 4 && from != i, nil)
+          best = [c, s] if best.nil? || c < best[0]
+        end
+        best
       end
     end
   end

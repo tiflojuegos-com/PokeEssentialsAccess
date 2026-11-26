@@ -9,9 +9,7 @@ class BlockingHooksTest < PokeAccessTest
   # The rows no dump can corroborate, by name so a new one needs its reason here: royal's Puntos scene defines
   # pbChangeSelection but not updateDescription, hence both bound :optional. update_clock belongs to a generic-only
   # reader whose script only reference copies hold (_refmods), checked by hand there: it places sprites and returns.
-  # Movie inherits the engine's bounded frame wait instead of defining it in the film class. Its
-  # return during playback is confirmed by the Kanto and Hoenn traces, before the next picture.
-  KNOWN_NO_DUMP = ["Movie#pbWait", "PokemonOptionPuntos_Scene#updateDescription", "WallClockScene#update_clock"].freeze
+  KNOWN_NO_DUMP = ["PokemonOptionPuntos_Scene#updateDescription", "WallClockScene#update_clock"].freeze
   # The DSL's own definitions as core/foundation/game.rb writes them: a computed class and method on each.
   GAME_DSL_AFTER = "def after(cname, meth, opts = {}, &blk); PokeAccess::Hooks.after_hook(cname, meth, opts, &blk); end"
   GAME_DSL_READ_ON_OPEN = "def read_on_open(cname, meth = :pbStartScene, opts = {}, &blk); " \
@@ -29,7 +27,8 @@ class BlockingHooksTest < PokeAccessTest
                          Window_DrawableCommand#update Window_DrawableCommandBag#update Window_DrawableCommandDex#update
                          Window_InputNumberPokemon#update Window_PokemonOption_Sky#update],
     # The hook reads or polls the screen itself; the generic readers of its windows would say it again.
-    :screen_reader => %w[DP_PauseMenu#update LuckSwapScene#pbUpdate NewBattleBag#update PickDifficulty#update
+    :screen_reader => %w[BadgeCase_Scene#pbUpdate DP_PauseMenu#update LuckSwapScene#pbUpdate MedalCase_Scene#pbUpdate
+                         NewBattleBag#update PickDifficulty#update
                          PlaceDecoration_Scene#pbUpdate PokeAccess::SummaryGen6::SCENE#pbUpdate
                          PokeAccess::SummaryV21::SCENE#pbUpdate PokedexFormScene#pbUpdate
                          PokemonChallenges_Scene#pbUpdate PokemonCharacterGridEntryScene#pbUpdate

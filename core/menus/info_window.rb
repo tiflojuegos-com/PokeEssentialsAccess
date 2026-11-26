@@ -97,11 +97,16 @@ module PokeAccess
       nil
     end
 
+    # A watched window's text as it holds it; a game whose window tells something only by colour words it here.
+    def self.raw_text(_key, win)
+      win.text
+    end
+
     # Hands a window of the focused row to what Ctrl+T says, every frame, since each new row starts it over.
     def self.to_row(scene, key, slot)
       win = PokeAccess.sprite(scene, key)
       return unless win && (win.visible rescue true) != false
-      PokeAccess::Info.add_to_row(PokeAccess.clean_fields((win.text rescue nil).to_s), slot)
+      PokeAccess::Info.add_to_row(PokeAccess.clean_fields((raw_text(key, win) rescue nil).to_s), slot)
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
@@ -113,7 +118,7 @@ module PokeAccess
       win = PokeAccess.sprite(scene, key)
       return (optional ? nil : note_silent(scene, key)) unless win
       return if (win.visible rescue true) == false
-      raw = (win.text rescue nil)
+      raw = (raw_text(key, win) rescue nil)
       return if raw.nil?
       return unless PokeAccess::Cursor.changed?(scene, slot, raw.to_s)
       t = PokeAccess::KeyHints.gate_sentences(PokeAccess.clean_fields(raw))

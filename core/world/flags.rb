@@ -51,6 +51,9 @@ module PokeAccess
       # Whether a map has been visited.
       def self.visited(id); note([:visited, id], read([:visited, id])); end
 
+      # Whether the player can use a field move now (FieldMoves.can?), asked once a frame.
+      def self.field_move(move); note([:field_move, move], read([:field_move, move])); end
+
       # The facing of event id on this map, or nil; given the event itself, its own facing.
       def self.direction(id, ev = nil)
         note([:direction, id], ev ? (ev.direction rescue nil) : read([:direction, id]))
@@ -59,11 +62,11 @@ module PokeAccess
       # Whether the Lens of Truth is in use (World::Lens.on?).
       def self.lens; note([:lens], read([:lens])); end
 
-      # The live value behind a key. A read that fails raises, as the page reader takes a condition it cannot read
-      # for unknown; only a facing nobody has reads as nil.
+      # The live value behind a key, a switch as the floor looked at has it (Floors). A read that fails raises, as the
+      # page reader takes a condition it cannot read for unknown; only a facing nobody has reads as nil.
       def self.read(k)
         case k[0]
-        when :switch then ($game_switches[k[1]] ? true : false)
+        when :switch then Floors.on?(k[1])
         when :variable then $game_variables[k[1]]
         when :self_switch then ($game_self_switches[k[1]] ? true : false)
         when :vehicle then ($PokemonGlobal.send(k[1]) ? true : false)
@@ -72,7 +75,17 @@ module PokeAccess
         when :direction then ($game_map.events[k[1]].direction rescue nil)
         when :volatile then @volatile
         when :lens then PokeAccess::World::Lens.on?
+        when :field_move then field_move_now(k[1])
         end
+      end
+
+      # FieldMoves.can? for a move, kept for the frame (Epoch.frame): the events' check of their flags asks it every
+      # frame.
+      def self.field_move_now(move)
+        f = PokeAccess::World::Epoch.frame
+        @moves = [f, {}] unless @moves && @moves[0] == f
+        kept = @moves[1]
+        kept.key?(move) ? kept[move] : (kept[move] = PokeAccess::FieldMoves.can?(move))
       end
 
       # Notes a read made inside a reading and answers its value; a String or an Array is kept as it stands now, so a

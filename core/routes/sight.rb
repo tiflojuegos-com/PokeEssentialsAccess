@@ -17,6 +17,10 @@ module PokeAccess
       # anywhere in it, whatever the case; before it, the name "Trainer(n)" alone.
       NAME_RE = /(?:sight|trainer)\((\d+)\)/i
       OLD_NAME_RE = /^Trainer\((\d+)\)$/
+      # The same for a counter, which sees n tiles ahead past whatever stands between (pbEventFacesPlayer?):
+      # "counter(n)" anywhere from the GameData era on, the name "Counter(n)" alone before it.
+      COUNTER_RE = /counter\((\d+)\)/i
+      OLD_COUNTER_RE = /^Counter\((\d+)\)$/
       # How far from where it was read a watcher that moves at random or by the player is taken to roam, in tiles.
       ROAM = 2
       # The keys watchers takes.
@@ -132,9 +136,9 @@ module PokeAccess
         PokeAccess::I18n.t(:sight_in_view, :name => PokeAccess::Locator.target_name(ev))
       end
 
-      # The map's watchers that watch now, kept until any event or declaration changes: each declared one while drawn
-      # (one picked by its name's sight, as the engine, only on a page started by event touch), and with avoid_trainers
-      # each trainer still to battle (trainer?).
+      # The map's watchers that watch now, kept until any event or declaration changes: each declared one while it may
+      # watch (watching?), and with avoid_trainers each trainer still to battle (trainer?). One picked by its name's
+      # sight is a watcher only on a page started by event touch, and a counter sees past what stands between.
       def self.watchers
         trainers = (PokeAccess::Config.avoid_trainers rescue false) ? true : false
         id = ($game_map.map_id rescue nil)
@@ -142,9 +146,10 @@ module PokeAccess
           here = @watches.select { |w| w.maps.nil? || w.maps.include?(id) }
           out = []
           PokeAccess::World::Events.records.each do |r|
-            w = here.find { |h| picks?(h.pick, r) && drawn?(r) && (!h.pick.nil? || r.trigger == 2) }
+            w = here.find { |h| picks?(h.pick, r) && watching?(r) && (!h.pick.nil? || r.trigger == 2) }
             if w
-              out.push(Watcher.new(r, range_of(w.range, r), w.through.nil? ? r.through : w.through))
+              through = w.through.nil? ? (w.pick.nil? && counter?(r)) || r.through : w.through
+              out.push(Watcher.new(r, range_of(w.range, r), through ? true : false))
             elsif trainers && trainer?(r)
               out.push(Watcher.new(r, r.name.to_s[name_re, 1].to_i, r.through))
             end
@@ -156,11 +161,25 @@ module PokeAccess
       # The way the running era reads a watcher's sight from its name (NAME_RE, OLD_NAME_RE).
       def self.name_re; PokeAccess::Engine.gamedata? ? NAME_RE : OLD_NAME_RE; end
 
+      # The way the running era reads a counter's sight from its name (COUNTER_RE, OLD_COUNTER_RE).
+      def self.counter_re; PokeAccess::Engine.gamedata? ? COUNTER_RE : OLD_COUNTER_RE; end
+
+      # True when record r's event is named a counter as the running era reads it.
+      def self.counter?(r); !(r.name.to_s =~ counter_re).nil?; end
+
+      # True when record r's event may watch as the engine starts one by sight: drawn on its page, or with no graphic
+      # where the player cannot stand over it (a statue drawn on the map, Effects.fires_on_arrival?); an invisible event
+      # the player walks onto never does.
+      def self.watching?(r)
+        return false if r.page.nil?
+        drawn?(r) || !PokeAccess::Routes::Effects.fires_on_arrival?(r.ev)
+      end
+
       # True when a declaration's pick takes record r's event: its id among a list, its name matching a Regexp, a yes from
-      # a block of the event; nil takes those named for their sight.
+      # a block of the event; nil takes those named for their sight, a counter's too.
       def self.picks?(pick, r)
         case pick
-        when nil then !(r.name.to_s =~ name_re).nil?
+        when nil then !(r.name.to_s =~ name_re).nil? || counter?(r)
         when Regexp then !(r.name.to_s =~ pick).nil?
         when Proc then pick.call(r.ev) ? true : false
         else [pick].flatten.include?(r.id)
@@ -171,10 +190,10 @@ module PokeAccess
       end
 
       # How far a declared watcher of record r sees: the number given, a block's answer for its event, else the number of
-      # its name; 0 for its own tiles alone.
+      # its name, a trainer's or a counter's; 0 for its own tiles alone.
       def self.range_of(range, r)
         n = range.respond_to?(:call) ? range.call(r.ev) : range
-        (n.nil? ? r.name.to_s[name_re, 1] : n).to_i
+        (n.nil? ? r.name.to_s[name_re, 1] || r.name.to_s[counter_re, 1] : n).to_i
       rescue StandardError => e
         PokeAccess.swallowed(e)
         0
@@ -185,10 +204,10 @@ module PokeAccess
         !r.page.nil? && (!r.char.to_s.empty? || r.tile.to_i > 0)
       end
 
-      # True for a trainer still to battle as the engine starts one by sight: named for its sight, drawn, its page started
-      # by event touch, and not one the player would stand over (over_trigger?).
+      # True for a trainer still to battle as the engine starts one by sight: named for its sight, its page started by
+      # event touch, one that may watch (watching?), and not one the player would stand over (over_trigger?).
       def self.trainer?(r)
-        return false unless r.trigger == 2 && drawn?(r) && !(r.name.to_s =~ name_re).nil?
+        return false unless r.trigger == 2 && !(r.name.to_s =~ name_re).nil? && watching?(r)
         !(r.ev.respond_to?(:over_trigger?) && r.ev.over_trigger?)
       rescue StandardError => e
         PokeAccess.swallowed(e)

@@ -136,7 +136,8 @@ En «Opciones de navegación y del buscador de rutas» decides cómo funciona la
 - Los puzles propios de un juego se preparan uno a uno. De momento hay soporte en Pokémon Z, Pokémon Ópalo, Pokémon
   Armonía, Pokémon Realidea, Pokémon Africanus, Pokémon Edas, Pokémon Perseida, Pokémon GS Vitro, Pokémon Insurgence,
   Pokémon Uranium, Pokémon Solar Light & Lunar Dark, Pokémon Añil, Pokémon Royal, Pokémon Infinite Fusion, Pokémon
-  Infinite Fusion 2 Hoenn, Pokémon Fire Ash, Pokémon Dark Horizon, Pokémon Keishou y Pokémon Ashen Frost. Dentro de un
+  Infinite Fusion 2 Hoenn, Pokémon Fire Ash, Pokémon Dark Horizon, Pokémon Keishou, Pokémon Ashen Frost y Pokémon SL & LD -
+  Anime Chronicles. Dentro de un
   puzle, `T` dice su estado.
 - La opción «Ayuda en puzles», apagada de serie, da las pistas y las rutas que los resuelven. En el minijuego del
   puzle de piezas dice también la jugada siguiente.
@@ -221,7 +222,7 @@ Cada juego tiene su perfil en `games/`. La lista con la que el launcher reconoce
   Desolation.
 - **Era GameData** (Essentials v18 en adelante): Pokémon Añil, Pokémon Royal, Pokémon Relict, Pokémon Eternal
   Emerald, Pokémon Grueling Gold, Pokémon Infinite Fusion, Pokémon Infinite Fusion 2 Hoenn, Pokémon Fire Ash, Pokémon
-  Soulstones 2, Pokémon Revival, Pokémon Dark Horizon, Pokémon World Frontier, Pokémon Golden Crown, Pokémon Keishou, Pokémon Ashen Frost, Pokémon Decades y Pokémon Hero Legacy.
+  Soulstones 2, Pokémon Revival, Pokémon Dark Horizon, Pokémon World Frontier, Pokémon Golden Crown, Pokémon Keishou, Pokémon Ashen Frost, Pokémon Decades, Pokémon Hero Legacy y Pokémon SL & LD - Anime Chronicles.
 
 Para cualquier otro fangame de Essentials hay un **perfil genérico**. Da toda la accesibilidad común (menús,
 diálogos, combate, navegación y rutas), pero sin los lectores hechos para un juego concreto.

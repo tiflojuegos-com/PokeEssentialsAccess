@@ -361,6 +361,24 @@ class MovesTest < PokeAccessTest
     end
   end
 
+  test "a touch event that notes the player's row and hops them on with the arrow held carries, the note no lasting change" do
+    $game_map.load_grid(["#######", "#.....#", "#.....#", "#######"])
+    Pathfinder.invalidate_cache(true)
+    World.touch(:id => 51, :x => 3, :y => 2, :trigger => 2, :list => hop_list(2))
+    assert_equal [[[4, 1, 0]], [[3, 2, 0]]], [spots(traced(2, 2, 0, [6])), spots(traced(3, 3, 0, [8]))],
+                 "from its left it hops up and right, from below the player stays on it"
+  end
+
+  test "a hop that lands on a tile no step leaves stands there while a bump from it hops on" do
+    $game_map.load_grid(["########", "#####..#", "########", "#...####", "########"])
+    Pathfinder.invalidate_cache(true)
+    World.touch(:id => 51, :x => 3, :y => 3, :trigger => 2, :list => hop_list(3))
+    World.touch(:id => 52, :x => 5, :y => 2, :trigger => 2, :list => hop_list(2))
+    assert_equal [[4, 2, 0], [5, 1, 0]], spots(traced(2, 3, 0, [6, 6])), "onto the cliff, then on up by the second hop"
+    World.touch(:id => 51, :x => 3, :y => 3, :trigger => 2, :list => hop_list(3, false))
+    assert_equal [[3, 3, 0]], spots(traced(2, 3, 0, [6, 6])), "a jump without Through that the engine lands nowhere"
+  end
+
   test "an action-button event placed since the tiles were classed is seen by an assisted search" do
     corridor
     before = Pathfinder.searching { Moves.fast(1, 1, DIR_OF[6], ASSIST) }
@@ -552,6 +570,30 @@ class MovesTest < PokeAccessTest
     assert_equal [true, true], Pathfinder.searching { [Moves.relocating?, Moves.relocating?] }, "a warp pad"
   end
 
+  test "whether a rule counts on the map is read once a map, and read again on another" do
+    reads = 0
+    here = $game_map.map_id
+    owner = Moves.owner_of(:maps => lambda { reads += 1; [here] }, :tags => [0])
+    2.times { assert Moves.on_map?(owner) }
+    assert_equal 1, reads, "kept for the map"
+    Moves.forget_map
+    assert Moves.on_map?(owner)
+    assert_equal 2, reads, "read again once the rules or the tiles change, on the same map"
+    $game_map.map_id = here + 1
+    Moves.forget_map
+    refute Moves.on_map?(owner)
+    assert_equal 3, reads, "read again once the map changes"
+  ensure
+    $game_map.map_id = here if here
+    Moves.forget_map
+  end
+
+  test "dropping the other floor's classes drops what was kept about its relocating events too" do
+    Moves.instance_variable_set(:@reloc, [[PokeAccess::World::Events.gen, [410, true]], true])
+    Moves.forget_floor_classes
+    assert_nil Moves.instance_variable_get(:@reloc)
+  end
+
   private
 
   # Every move of the map loaded in mode, fast against step inside a search frame: [the moves fast answered and step
@@ -678,6 +720,14 @@ class MovesTest < PokeAccessTest
   ensure
     $PokemonGlobal.surfing = false
     $PokemonGlobal.bicycle = false
+  end
+
+  # A hop as Ashen Frost's (map 56): with the player on row y and the right arrow held, a jump up and right, with Through
+  # on unless through is false.
+  def hop_list(y, through = true)
+    jump = through ? [37, [14, [1, -1]], 38] : [[14, [1, -1]]]
+    [TestCmd.new(122, [1, 1, 0, 6, -1, 1]), TestCmd.new(111, [1, 1, 0, y, 0]), TestCmd.new(111, [11, 6], 1),
+     World.move_player(jump, 2), World.end_(1), World.end_, TestCmd.new(122, [1, 1, 0, 0, 0])]
   end
 
   # A corridor of four floor tiles with the player at its left end.

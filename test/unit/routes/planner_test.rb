@@ -158,10 +158,10 @@ class PlannerTest < PokeAccessTest
     door.blocking = true
     $game_player.x = 2
     plan = Planner.plan(4, 1)
-    assert_equal [:walk, [6]], [plan.kind, plan.route]
+    assert_equal [:walk, [6, 6]], [plan.kind, plan.route]
     $game_player.x = 3
     plan = Planner.plan(4, 1)
-    assert_equal [:walk, []], [plan.kind, plan.route]
+    assert_equal [:walk, [6]], [plan.kind, plan.route]
   end
 
   test "an empty page does not hide an action the player must stand on" do

@@ -35,6 +35,7 @@
     puzzles/farm_maze
     puzzles/desert_island
     puzzles/daruma_rooms
+    puzzles/seafloor
     scenes
     hall_of_fame
     pause_overlay

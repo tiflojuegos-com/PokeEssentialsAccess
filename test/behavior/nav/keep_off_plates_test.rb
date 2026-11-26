@@ -80,6 +80,22 @@ class KeepOffPlatesTest < PokeAccessTest
     tidy
   end
 
+  test "a walk keeps off what a test given to avoid picks as things stand" do
+    $game_map.load_grid(OPEN)
+    plate = TestPage.new(:trigger => 1, :sprite => "", :list => [TestCmd.new(121, [3300, 3300, 0])])
+    $game_map.events[40] = TestGameEvent.new(:id => 40, :x => 3, :y => 1, :pages => [plate])
+    @defs ||= PokeAccess::World::Mechanics.instance_variable_get(:@defs).dup
+    armed = false
+    PokeAccess::World::Mechanics.define(:state, $game_map.map_id) { avoid lambda { |ev| armed && ev.id == 40 } }
+    settle
+    calm = walk(7, 1).route.to_a
+    armed = true
+    PokeAccess::Pathfinder.invalidate_cache(true)
+    assert_equal [[6, 6, 6, 6, 6, 6], [2, 2, 6, 6, 6, 6, 6, 6, 8, 8]], [calm, walk(7, 1).route.to_a]
+  ensure
+    tidy
+  end
+
   test "a walk keeps off a floor grid's cells only while a letter is formed on it" do
     active = false
     grid(lambda { active }) do

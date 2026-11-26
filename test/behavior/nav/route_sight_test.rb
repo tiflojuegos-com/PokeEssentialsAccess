@@ -205,6 +205,25 @@ class RouteSightTest < PokeAccessTest
     end
   end
 
+  test "a counter with no graphic, on a tile no one stands on, watches and sees past what stands between" do
+    walled = ROOM.dup
+    walled[1] = "#...#...#"
+    room(walled) do
+      watcher(4, 0, 2, "Counter(3)", :sprite => "")
+      Sight.declare(nil)
+      assert_equal [true, true, true], [Sight.seen?(4, 1), Sight.seen?(4, 2), Sight.seen?(4, 3)]
+    end
+  end
+
+  test "an event with no graphic the player walks onto watches not, whatever its name" do
+    room(ROOM) do
+      watcher(4, 3, 8, "Counter(2)", :sprite => "")
+      watcher(6, 3, 8, "Trainer(2)", :sprite => "")
+      Sight.declare(nil)
+      assert_equal [false, false], [Sight.seen?(4, 2), Sight.seen?(6, 2)]
+    end
+  end
+
   test "picked by its name, a battled trainer of a declared map watches no more; picked by id, it does while drawn" do
     room(ROOM) do
       watcher(4, 3, 8, "Trainer(1)", :trigger => 0)
@@ -286,11 +305,11 @@ class RouteSightTest < PokeAccessTest
     $game_map.clear_grid
   end
 
-  # A drawn event at (x,y) facing d, named name, its page started by event touch unless :trigger says, moving as
-  # :move_type and :move_route say.
+  # An event at (x,y) facing d, named name, drawn unless :sprite says, its page started by event touch unless :trigger
+  # says, moving as :move_type and :move_route say.
   def watcher(x, y, d, name, opts = {})
     id = $game_map.events.length + 1
-    page = TestPage.new(:trigger => opts.fetch(:trigger, 2), :sprite => "trainer", :direction => d,
+    page = TestPage.new(:trigger => opts.fetch(:trigger, 2), :sprite => opts.fetch(:sprite, "trainer"), :direction => d,
                         :move_type => opts.fetch(:move_type, 0), :move_route => opts[:move_route])
     ev = TestGameEvent.new(:id => id, :x => x, :y => y, :name => name, :pages => [page])
     ev.direction = d

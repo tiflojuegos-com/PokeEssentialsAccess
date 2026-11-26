@@ -65,15 +65,18 @@ module PokeAccess
         out
       end
 
-      # One leg as said, "3 up", or for a press that cannot be undone the same way its kind, "jump down", "slide
-      # right", "go ashore up"; with held, along ground where the key has to be kept down ("hold 3 up"); with transfer,
-      # ending on one ("3 up, transfer").
+      # One leg as said, "3 up"; kind (a symbol, or [:choice, its text] onto a menu) names a press that cannot be undone
+      # the same way ("jump down", "up and choose «2F»"). With held, the key has to be kept down ("hold 3 up"); with
+      # transfer, the leg ends on one ("3 up, transfer").
       def self.leg(d, presses, held = false, transfer = false, kind = nil)
         t = PokeAccess::I18n
-        s = case kind
+        s = case (kind.is_a?(Array) ? kind[0] : kind)
             when :jump then jump(d)
             when :slide then t.t(:loc_slide_leg, :dir => dir(d))
+            when :swept then t.t(:loc_swept_leg, :dir => dir(d))
             when :land then t.t(:loc_land_leg, :dir => dir(d))
+            when :floor then t.t(:loc_floor_leg, :dir => dir(d))
+            when :choice then t.t(:loc_choose_leg, :dir => dir(d), :option => kind[1])
             else t.t(:loc_leg, :n => presses, :dir => dir(d))
             end
         s = t.t(:loc_leg_held, :leg => s) if held

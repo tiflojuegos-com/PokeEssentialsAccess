@@ -24,17 +24,19 @@ class RejuvenationInspectTest < PokeAccessTest
     attr_reader :report
   end
 
-  # Evaluates the profile file once, as boot does. Its report_text is kept aside and core's put back, so the other
-  # tests of the process keep core's; with_profile_report puts the profile's in for a test.
+  # Evaluates the profile file once, as boot does. Its report_text and button_hints are kept aside and core's put back,
+  # so the other tests of the process keep core's; with_profile_report puts the profile's report_text in for a test.
   def self.load_profile
     meta = PokeAccess::InspectRV.singleton_class
     core = meta.instance_method(:report_text)
+    hints = meta.instance_method(:button_hints)
     profiles = PokeAccess::Game.profiles.dup
     path = File.join(Harness::ROOT, "games", "rejuvenation", "inspect.rb")
     eval(Harness.source(path), TOPLEVEL_BINDING, path)
     @report = meta.instance_method(:report_text)
   ensure
     meta.send(:define_method, :report_text, core)
+    meta.send(:define_method, :button_hints, hints)
     PokeAccess::Game.profiles.replace(profiles)
   end
   load_profile

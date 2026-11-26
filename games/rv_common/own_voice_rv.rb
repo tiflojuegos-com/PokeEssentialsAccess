@@ -4,11 +4,13 @@ module PokeAccess
   # said by the mod. Nothing binds until a profile installs it; Desolation has no such reader.
   module OwnVoiceRV
     @live = []
+    @only = []
     @last_frame = nil
     @cut_first = false
     @always = []
     @always_frame = nil
     @active = false
+    HINT = /\bCtrl\b/
 
     # What $tts holds while muted: nil to whatever asks nil?, deaf to whatever is called on it.
     class Muted
@@ -27,22 +29,34 @@ module PokeAccess
     end
 
     # A relayed screen comes up: what it hands tts is said until leave, its first line queued, or cutting in when
-    # moved (a cursor's move, each its own call).
-    def self.enter(moved = false)
+    # moved (a cursor's move, each its own call); only (see admits?) keeps some of its lines alone.
+    def self.enter(moved = false, only = nil)
       @live.push(PokeAccess.message_depth)
+      @only.push(only)
       @last_frame = nil
       @cut_first = moved
     end
 
-    def self.leave; @live.pop; end
+    def self.leave
+      @only.pop
+      @live.pop
+    end
+
+    # Whether a relayed screen's line is said: all of them; with only :interrupting, those cutting in; with only :hint,
+    # its key hints while hints are said.
+    def self.admits?(only, text, interrupt)
+      return interrupt if only == :interrupting
+      return (text =~ HINT ? true : false) && PokeAccess::Verbosity.hints? if only == :hint
+      true
+    end
 
     # Whether one of those screens is up.
     def self.relaying?; !@live.empty?; end
 
-    # Runs a block as one of those screens (see enter for moved); as it is while no profile installed the relay.
-    def self.relayed(moved = false)
+    # Runs a block as one of those screens (see enter); as it is while no profile installed the relay.
+    def self.relayed(moved = false, only = nil)
       return yield unless @active
-      enter(moved)
+      enter(moved, only)
       begin
         yield
       ensure
@@ -77,6 +91,7 @@ module PokeAccess
         return
       end
       return if PokeAccess.message_depth > @live.last
+      return unless admits?(@only.last, t, interrupt)
       now = (Graphics.frame_count rescue 0)
       cut = interrupt || (@last_frame.nil? ? @cut_first : now != @last_frame)
       @last_frame = now
@@ -99,7 +114,7 @@ module PokeAccess
 
     # Installs a profile's relay: mutes the game's reader, follows its tts and relays the profile's screens.
     # param screens [class name, method] pairs of the game's own screens with no reader of the mod's, a third :moved
-    # on a call that moves a cursor (enter)
+    # on a call that moves a cursor (enter), or :interrupting or :hint to say only some of its lines (admits?)
     # param always patterns of lines said on any screen (Reborn's Blindstep coordinates)
     def self.install(screens = [], always = [])
       @active = true
@@ -108,8 +123,9 @@ module PokeAccess
       follow_tts
       screens.each do |cname, meth, how|
         moved = how == :moved
+        only = [:interrupting, :hint].include?(how) ? how : nil
         PokeAccess::Hooks.around_hook(cname, meth, :optional => true) do |_s, nxt, _a|
-          PokeAccess::OwnVoiceRV.relayed(moved) { nxt.call }
+          PokeAccess::OwnVoiceRV.relayed(moved, only) { nxt.call }
         end
       end
     end

@@ -233,6 +233,17 @@ class DesolationProfileTest < PokeAccessTest
         end
       end
 
+      probe(:card_cap) do
+        Object.const_set(:LEVELCAPS, [20, 30, 40, 50, 60, 65, 65, 70, 75, 100]) unless defined?(LEVELCAPS)
+        had = $Trainer
+        $Trainer = TestTrainer.new
+        SpeakCapture.clear
+        PokemonTrainerCardScene.new(0).pbDrawTrainerCardFront
+        [PokeAccess::TrainerCardRV.level_cap, SpeakCapture.lines.grep(/#{PokeAccess::I18n.t(:rv_level_cap, :n => 20)}/)]
+      ensure
+        $Trainer = had
+      end
+
       probe(:password_rows) { pbSelectPasswordToBeToggled({}, 3) }
       probe(:row_outside_passwords) { PokeAccess::Menus.checkbox_row("> fullivs") }
 
@@ -270,6 +281,10 @@ class DesolationProfileTest < PokeAccessTest
 
   test "loads whole, its files and those of the engine it shares" do
     assert_equal [], played(:load_errors)
+  end
+
+  test "its trainer card says no level cap: it keeps LEVELCAPS, but its card neither paints the cap nor says it" do
+    assert_equal [20, []], played(:card_cap)
   end
 
   test "serves its data through the provider of the engine it shares" do

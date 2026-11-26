@@ -26,7 +26,8 @@ module PokeAccess
       def self.reached(t, goal)
         pf = PokeAccess::Pathfinder
         goal.tiles.each do |x, y|
-          [0, 1].each do |l|
+          pf::LEVELS.each do |l|
+            next unless goal.floor_ok?(l)
             k = pf.skey(x, y, l)
             return t.first[k] if t.settled[k]
           end
@@ -58,7 +59,7 @@ module PokeAccess
       # The [x, y] of a search state (Search.run: the tile's state key times 5 and the way it was arrived from), or of the
       # tile a route's last move steps onto (Search.entry_state).
       def self.tile_of(s)
-        k = s < 0 ? -1 - s : s / 5 / 2
+        k = s < 0 ? -1 - s : s / 5 / 4
         [k / PKEY_STRIDE, k % PKEY_STRIDE]
       end
     end

@@ -5,8 +5,8 @@ module PokeAccess
   module RejuvTutor
     # The sort the key just pressed asked for, or nil when the list was rebuilt for a move bought.
     def self.sort_text
-      return PokeAccess::I18n.t(:rj_tutor_by_name) if Input.trigger?(Input::X)
-      return PokeAccess::I18n.t(:rj_tutor_by_type) if Input.trigger?(Input::A)
+      return PokeAccess::RejuvSorts.text(:name) if Input.trigger?(Input::X)
+      return PokeAccess::RejuvSorts.text(:type) if Input.trigger?(Input::A)
       nil
     end
   end

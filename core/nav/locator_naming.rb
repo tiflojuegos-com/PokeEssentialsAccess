@@ -89,8 +89,9 @@ module PokeAccess
 
     # The field-move obstacle or pickup key for an event, by its name less the editor's "/noShadow/" flags, or nil;
     # never for one the engine left with no page (a felled tree, a smashed rock), nor for one that shows text unless
-    # its live page clears it with a field move (a character named "Rock" matches the gen-6 bare names). A boulder
-    # pushed with no Strength needs none: a pushable object (Routes::Effects.free_push?), whatever it says on the way.
+    # its live page clears it with a field move (a character named "Rock" matches the gen-6 bare names), nor for one
+    # that sends the player elsewhere (a door named "tree"). A boulder pushed with no Strength needs none: a pushable
+    # object (Routes::Effects.free_push?), whatever it says on the way.
     # An event with no name of its own ("EV012") is read by what its script clears it with
     # (Routes::Effects.scripted_gate_label).
     def self.fieldmove_label(ev)
@@ -100,6 +101,7 @@ module PokeAccess
       hit = FIELDMOVES.find { |re, _k| n =~ re }
       return :loc_pushable if hit && hit[1] == :loc_strength_boulder && PokeAccess::Routes::Effects.free_push?(ev)
       return nil if hit && (shows_text?(ev) rescue false) && PokeAccess::Routes::Effects.scripted_gate_label(ev).nil?
+      return nil if hit && transfers?(ev)
       hit ? hit[1] : nil
     rescue StandardError => e
       PokeAccess.swallowed(e)

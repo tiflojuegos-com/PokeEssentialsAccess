@@ -78,7 +78,7 @@ module PokeAccess
         @cover = {}
         @with_deps = {}
         @summaries = {}
-        @shown = nil
+        @shown = @shown_other = nil
         @far = false
         @synced = nil
         @gen = (@gen || 0) + 1
@@ -95,7 +95,7 @@ module PokeAccess
       # Brings the records level with the engine's events: forced as a search starts, else at most once a frame; never
       # while events are lent through, a borrowed state of the engine and no change of the world.
       def self.sync(force = false)
-        return if Probe.lending?
+        return if Probe.lending? || Floors.active?
         Epoch.settle
         f = Epoch.frame
         return if !force && @synced == f
@@ -107,27 +107,40 @@ module PokeAccess
       # The records whose area covers (x,y), in the engine's order.
       def self.at(x, y)
         sync
-        @cover[key(x, y)] || NONE
+        k = key(x, y)
+        list = @cover[k] || NONE
+        Floors.active? ? Floors.cover(k, list) : list
       end
 
       # The map's events as the game is to see them while asked about the step from (x,y) to (nx,ny): those within a tile of
       # it (NearEvents), the tile because an event may stop a step beside where it stands (sizeC); nil to leave it them all,
       # where they are no plain Hash, are not read yet or one of them reaches past that tile (reaches_past?).
       def self.near_step(events, x, y, nx, ny)
-        return nil if @far || @synced.nil?
+        return nil unless near_only?
         shown = @shown
         unless shown && shown.source.equal?(events)
-          return nil unless events.instance_of?(Hash)
-          shown = @shown = NearEvents.new(events)
+          other = @shown_other
+          if other && other.source.equal?(events)
+            @shown_other = shown
+            shown = @shown = other
+          else
+            return nil unless events.instance_of?(Hash)
+            @shown_other = shown
+            shown = @shown = NearEvents.new(events)
+          end
         end
         shown.near = around(x, y, nx, ny)
         shown
       end
 
+      # True when near_step may show a step only the events around it: they are read, and none reaches past its tile.
+      def self.near_only?; !@far && !@synced.nil?; end
+
       # The engine's events covering the tiles within one of the step from (x,y) to (nx,ny), as last read and in the
       # engine's order, which runs where two share a tile.
       def self.around(x, y, nx, ny)
         cover = @cover
+        sub = Floors.active? ? Floors.stand_ins : nil
         col = (x < nx ? x : nx) - 1
         last = (x > nx ? x : nx) + 1
         y0 = (y < ny ? y : ny) - 1
@@ -140,7 +153,7 @@ module PokeAccess
             list = cover[k]
             if list
               out ||= {}
-              list.each { |r| out[r.order] = r.ev }
+              list.each { |r| out[r.order] = sub && (s = sub[r.id]) ? s.ev : r.ev }
             end
             k += 1
           end
@@ -162,13 +175,27 @@ module PokeAccess
       # Every record, in the engine's order.
       def self.records
         sync
-        @list
+        Floors.active? ? Floors.records : @list
       end
 
-      # The record of an engine event, or nil for one not among them.
+      # Every record of the floor that stands (Floors), in the engine's order, without a sync.
+      def self.live_records; @list; end
+
+      # A stand-in's record for record r: the copy ev of its event, set up on page, on r's tiles, with facets of its
+      # own.
+      def self.stand_in_record(r, ev, page)
+        Record.new(ev, r.id, r.order, r.gen, r.x, r.y, r.w, r.h, page, page && page.trigger, ev.character_name,
+                   (ev.tile_id rescue nil), (ev.through rescue false) ? true : false, r.name, r.tiles, {}, r.seen)
+      end
+
+      # The record of an engine event, or nil for one not among them; on another floor (Floors), a stand-in's for its
+      # copy.
       def self.record_of(ev)
         sync
-        r = @records[(ev.id rescue nil)]
+        id = (ev.id rescue nil)
+        s = Floors.stand_in(id)
+        return s if s && s.ev.equal?(ev)
+        r = @records[id]
         r && r.ev.equal?(ev) ? r : nil
       end
 
@@ -179,8 +206,10 @@ module PokeAccess
         area(ev.x, ev.y, PokeAccess.ivar(ev, :@width), PokeAccess.ivar(ev, :@height), (ev.name rescue nil))
       end
 
-      # A facet of a record, computed on first use and kept while the record and the flags it read stand.
+      # A facet of a record, computed on first use and kept while the record and the flags it read stand. On another
+      # floor (Floors), a stand-in's, and a record's whose facet reads the floor's switch, are that floor's own.
       def self.facet(r, name)
+        return floor_facet(r, name) if Floors.active?
         f = r.facets[name]
         return f[0] if f
         prov = @providers[name]
@@ -192,8 +221,23 @@ module PokeAccess
         v
       end
 
-      # A value derived from every record's facets, kept until any event changes; the block computes it.
-      def self.summary(key)
+      # A facet of record r on the floor looked at (see facet): the standing one's unless it is a stand-in or the
+      # standing facet reads the floor's switch.
+      def self.floor_facet(r, name)
+        unless Floors.stand_in?(r)
+          v = Floors.live { facet(r, name) }
+          f = r.facets[name]
+          return v if f && !Floors.reads?(f[1])
+        end
+        prov = @providers[name]
+        return nil unless prov
+        Floors.facet(r, name) { Flags.reading { (prov.call(r) rescue nil) } }
+      end
+
+      # A value derived from every record's facets, kept until any event changes; the block computes it. On another
+      # floor (Floors), that floor's own.
+      def self.summary(key, &blk)
+        return Floors.summary(key, &blk) if Floors.active?
         sync
         hit = @summaries[key]
         g = @gen
@@ -242,7 +286,7 @@ module PokeAccess
         read(r)
         @records[id] = r
         r.tiles.each { |x, y| (@cover[key(x, y)] ||= []).push(r) }
-        @shown = nil
+        @shown = @shown_other = nil
         changed(r.tiles, routed?(r.trigger), r, :come)
         r
       end
@@ -252,7 +296,7 @@ module PokeAccess
         @records.delete(r.id)
         @with_deps.delete(r.id)
         uncover(r)
-        @shown = nil
+        @shown = @shown_other = nil
         changed(r.tiles, routed?(r.trigger), r, :go)
       end
 

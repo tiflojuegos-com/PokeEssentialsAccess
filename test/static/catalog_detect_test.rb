@@ -47,6 +47,17 @@ class CatalogDetectTest < PokeAccessTest
     end
   end
 
+  test "Solar Light & Lunar Dark and its Anime Chronicles keep apart, by declared title and by folder" do
+    { "Pok\u00e9mon SL & LD - Anime Chronicles" => "slld_anime",
+      "Pokemon Solar Light & Lunar Dark" => "solarlight" }.each do |title, key|
+      assert_equal key, by_title(title), "for #{title.inspect}"
+    end
+    { "f:/fangames/slld anime chronicles season 1/game.exe" => "slld_anime",
+      "f:/fangames/pokemon solar light lunar dark 1.0.1/game.exe" => "solarlight" }.each do |path, key|
+      assert_equal key, by_folder(path), "for #{path}"
+    end
+  end
+
   test "the games on Essentials BES go to their own profiles, by declared title and by folder" do
     { "Pokemon Edas" => "edas", "Pokemon Perseida" => "perseida", "Pokemon GS Vitro" => "vitro" }.each do |title, key|
       assert_equal key, by_title(title), "for #{title.inspect}"

@@ -38,9 +38,13 @@ module PokeAccess
           Mechanics.takes?(o, ev, (pg.graphic.character_name.to_s rescue ""), (pg.graphic.tile_id rescue 0))
         end
 
-        # A watch entry's flag as the key of an override: [:switch, id] or [:var, id].
+        # A watch entry's flag as the key of an override: [:switch, id], [:var, id] or [:self, event id, letter], the
+        # map last for another map's self switch.
         def self.key(w)
-          w[:switch] ? [:switch, w[:switch]] : [:var, w[:var]]
+          return [:switch, w[:switch]] if w[:switch]
+          return [:var, w[:var]] unless w[:self]
+          id, ch, map = w[:self]
+          map && map != $game_map.map_id ? [:self, id, ch, map] : [:self, id, ch]
         end
 
         # The events whose pages draw a wall the declaration names (moving obstacles aside), by id, kept per declaration
@@ -67,7 +71,8 @@ module PokeAccess
           out
         end
 
-        # The flags some wall's pages depend on, as key => true: the only ones a press can change a wall by.
+        # The flags some wall's pages depend on, as key => true, its own self switches among them: the only ones a press
+        # can change a wall by.
         def self.flags(inst)
           out = {}
           walls(inst).each do |ev|
@@ -77,6 +82,7 @@ module PokeAccess
               out[[:switch, c.switch1_id]] = true if (c.switch1_valid rescue false)
               out[[:switch, c.switch2_id]] = true if (c.switch2_valid rescue false)
               out[[:var, c.variable_id]] = true if (c.variable_valid rescue false)
+              out[[:self, ev.id, c.self_switch_ch]] = true if (c.self_switch_valid rescue false)
             end
           end
           out

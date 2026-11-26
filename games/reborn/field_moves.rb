@@ -7,4 +7,5 @@ PokeAccess::Game.define("reborn") do
   field_move_tool(:SURF, [:GOLDENSURFBOARD, :HM03])
   field_move_tool(:WATERFALL, [:GOLDENJETPACK, :HM05])
   field_move_tool(:DIVE, [:GOLDENSCUBAGEAR, :HM06])
+  field_move_tool(:ROCKCLIMB, [:GOLDENCLAWS, :TM101])
 end

@@ -3,12 +3,12 @@
 # painting methods its --painters report lists are triaged here too, named Class#method.
 pbButtonInputProcessing | africanvs armonia awakening desolation edas goldencrown insurgence opalo realidea reborn rejuvenation reminiscencia sevii soulstones1 uranium z218 perseida vitro | the event command that waits for a key: no screen
 PokeBattle_DebugScene | africanvs armonia awakening edas insurgence opalo realidea reminiscencia sevii soulstones1 uranium z218 perseida vitro | debug battle scene
-PokemonPokedexMenu_Scene | anil awakening darkhorizon emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn relict revival royal soulstones1 soulstones2 worldfrontier keishou ashenfrost | the regional Pokedex menu: Window_DexesList, read by core's extractor
+PokemonPokedexMenu_Scene | anil awakening darkhorizon emerald fireash goldencrown gruelinggold infinitefusion infinitefusion_hoenn relict revival royal soulstones1 soulstones2 worldfrontier keishou ashenfrost slld_anime | the regional Pokedex menu: Window_DexesList, read by core's extractor
 Scene_PokedexMenu | africanvs armonia desolation edas insurgence opalo realidea reborn reminiscencia sevii z218 perseida vitro | the regional Pokedex menu: Window_DexesList, read by core's extractor
 PokemonLoad | armonia desolation opalo reborn rejuvenation uranium z218 | the load screen's controller: core reads PokemonLoadScene and its panels
 Scene_Intro | anil darkhorizon emerald gruelinggold royal uranium worldfrontier | the title screen: core's title reader, a plugin's (Modular Title Screen) or the profile's (Uranium's GenCustomStyle)
-pbMessageWaitForInput | anil darkhorizon emerald relict revival royal worldfrontier | waits for a key after a message the dialogue reader says
-BattleCreationHelperMethods | anil darkhorizon emerald relict revival royal worldfrontier | battle setup helpers: no screen
+pbMessageWaitForInput | anil darkhorizon emerald relict revival royal worldfrontier slld_anime | waits for a key after a message the dialogue reader says
+BattleCreationHelperMethods | anil darkhorizon emerald relict revival royal worldfrontier slld_anime | battle setup helpers: no screen
 pbListScreen | armonia emerald relict royal worldfrontier vitro | debug list screen
 pbListScreenBlock | armonia emerald relict royal worldfrontier vitro | debug list screen
 Scene_FieldNotes_Info | desolation reborn rejuvenation | read by games/rv_common/field_notes_rv.rb (Window_FieldEffectNotes)
@@ -317,3 +317,6 @@ pbTutorialWindow | ashenfrost | unreachable: its callers, pbQolTutorials and the
 Pokepoker#roundannouncement | ashenfrost | paints the round's number, which the message it shows next says
 RaceGame#coin_box | ashenfrost | the coins, said as the wager's step opens (plugins/racecourse.rb)
 Window_FieldEffectNotes#render_command | reborn | paints one row of the notes: games/rv_common/field_notes_rv.rb reads its rows
+DiegoWTsStarterSelection | slld_anime | unreachable: only common event 10 (Starter Selection) opens it, and no map or common event calls that one
+PokemonDragonSelection | slld_anime | unreachable: Dragon Egg Selection's scene, which no script, map or common event opens
+pbWaterCurrent | slld_anime | unreachable: no script, map or common event calls it

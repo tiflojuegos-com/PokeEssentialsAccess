@@ -120,15 +120,18 @@ module PokeAccess
       end
     end
 
-    # A synthetic target's name in the language chosen now: a surface by its label, a map edge by its destination's
-    # name now (edge_name); any other keeps the name it was built with.
+    # A synthetic target's name in the language chosen now: a surface by its label, a map edge or a place exit by its
+    # destination's name now (edge_name); any other keeps the name it was built with.
     def self.synthetic_name(t)
       return PokeAccess::I18n.t(t.key) if t.ref == :surface
-      edge?(t) ? edge_name(t.ref) : t.name.to_s
+      edge?(t) || t.key == :place_exit ? edge_name(t.ref) : t.name.to_s
     end
 
-    # What a map edge leading to map dest is called: an exit to it by its name, or a bare exit for a map with none.
+    # What a map edge leading to map dest is called: an exit to it by its name, or a bare exit for a map with none; a
+    # script edge (its ref for dest) as an exit its way ("exit to the left").
     def self.edge_name(dest)
+      side = (@script_sides || {})[dest]
+      return PokeAccess::Routes::Text.exit_out(side[2]) if side
       nm = (map_name(dest) rescue nil)
       nm ? PokeAccess::I18n.t(:loc_exit_to, :map => nm) : PokeAccess::I18n.t(:loc_exit)
     end
@@ -140,11 +143,11 @@ module PokeAccess
     end
 
     # The way to step off the map from a map edge's exit, the focus (Camera.focus) on its tile: that border tile's way
-    # out (an open one first, where a corner leads off two ways), else nil.
+    # out (an open one first, where a corner leads off two ways), a script edge's way onto its border, else nil.
     def self.edge_out(t)
       at = edge?(t) ? PokeAccess::Camera.focus : nil
       return nil unless at && at[0] == t.x && at[1] == t.y
-      ways = ((@conn_edges || {})[t.ref] || []).select { |x, y, _w| x == t.x && y == t.y }
+      ways = ((@conn_edges || {})[t.ref] || [(@script_sides || {})[t.ref]].compact).select { |x, y, _w| x == t.x && y == t.y }
       e = ways.find { |w| edge_open?(w) } || ways[0]
       e && e[2]
     end
@@ -170,9 +173,15 @@ module PokeAccess
       false
     end
 
+    # Synthetic exit targets for the map's edges: its connections' (map_connection_targets), then the script edges
+    # open now (script_edge_targets).
+    def self.connection_targets
+      map_connection_targets + script_edge_targets
+    end
+
     # Synthetic exit targets for map-edge connections, one per destination map ("exit to <map>"), cached per map id;
     # none without MapFactoryHelper.
-    def self.connection_targets
+    def self.map_connection_targets
       return [] unless defined?(MapFactoryHelper) && $game_map && $game_player
       id = $game_map.map_id
       return @conn_targets if @conn_targets && @conn_targets_mid == id
@@ -183,8 +192,50 @@ module PokeAccess
     # The border tiles that lead off this map, by destination map id, as [x, y, the way out]; none on a map with no
     # connections.
     def self.connection_edges
-      connection_targets
+      map_connection_targets
       @conn_targets_mid == ($game_map && $game_map.map_id) ? (@conn_edges || {}) : {}
+    end
+
+    # Map borders a game moves the player across by script, declared by its profile (Game#script_edges): blocks given
+    # the map id, each answering nil for a map it does not run, or the ways (2, 4, 6, 8) of the sides that lead on now.
+    SCRIPT_EDGES = []
+
+    # A script edge's ref by its way: negative, ascending clockwise from the top, apart from the destination maps.
+    SCRIPT_EDGE_REFS = { 8 => -4, 6 => -3, 2 => -2, 4 => -1 }
+
+    # Registers a script-edge block (see SCRIPT_EDGES).
+    def self.register_script_edges(&blk); SCRIPT_EDGES.push(blk); end
+
+    # The exit targets of the script edges open now, one per side, on the tile script_edge_tile picks; built anew each
+    # time, each side's [x, y, way] kept in @script_sides under its ref (SCRIPT_EDGE_REFS) for its name and arrival.
+    def self.script_edge_targets
+      @script_sides = {}
+      return [] if SCRIPT_EDGES.empty? || $game_map.nil?
+      id = $game_map.map_id
+      ways = nil
+      SCRIPT_EDGES.each { |blk| break if (ways = blk.call(id)) }
+      return [] unless ways
+      SCRIPT_EDGE_REFS.keys.sort_by { |way| SCRIPT_EDGE_REFS[way] }.map do |way|
+        tile = ways.include?(way) ? script_edge_tile(way) : nil
+        next nil unless tile
+        ref = SCRIPT_EDGE_REFS[way]
+        @script_sides[ref] = [tile[0], tile[1], way]
+        SurfaceTarget.new(tile[0], tile[1], edge_name(ref), nil, ref)
+      end.compact
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      []
+    end
+
+    # The tile just inside the border on side way (2, 4, 6 or 8) nearest the side's middle from which the engine lets
+    # the player step onto the border toward the outside, or nil where no step out is open.
+    def self.script_edge_tile(way)
+      w = $game_map.width; h = $game_map.height
+      dx, dy = { 2 => [0, 1], 4 => [-1, 0], 6 => [1, 0], 8 => [0, -1] }[way]
+      return nil if dx.nil? || w < 2 || h < 2
+      cells = dy == 0 ? (0...h).map { |y| [dx < 0 ? 1 : w - 2, y] } : (0...w).map { |x| [x, dy < 0 ? 1 : h - 2] }
+      open = cells.select { |x, y| PokeAccess::World::Probe.step?(x, y, way) }
+      open.min_by { |x, y| dy == 0 ? [(2 * y - h + 1).abs, y] : [(2 * x - w + 1).abs, x] }
     end
 
     # Builds the per-map exit targets: per destination, the border tile nearest the map centre, with every border tile
@@ -242,6 +293,34 @@ module PokeAccess
     rescue StandardError => e
       PokeAccess.swallowed(e)
       t
+    end
+
+    # Synthetic exit targets where a parallel page sends the player off this map as they step there
+    # (Routes::Effects.place_exits), as a road's end that is no map connection: one per destination map, named as a map
+    # edge's (key :place_exit, ref the map), on its tile place_aim picks; a route to it ends with the press onto it.
+    def self.place_targets
+      PokeAccess::Routes::Effects.place_exits.map do |dest, tiles|
+        x, y = place_aim(tiles)
+        SurfaceTarget.new(x, y, edge_name(dest), :place_exit, dest)
+      end
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      []
+    end
+
+    # The tile of a place exit's tiles a target stands on: the one with a neighbour the regions on foot reach in the
+    # fewest presses (Routes::Regions#presses_to), nearest the focus on a tie; the nearest of all while none is reached.
+    def self.place_aim(tiles)
+      reg = PokeAccess::Routes::Regions.foot
+      px, py = PokeAccess::Camera.focus
+      best = nil
+      tiles.each do |x, y|
+        d = (x - px).abs + (y - py).abs
+        w = reg.presses_to(PokeAccess::Routes::DIRS.map { |dx, dy, _f| [x + dx, y + dy] })
+        k = w ? [0, w, d] : [1, d]
+        best = [k, x, y] if best.nil? || (k <=> best[0]) < 0
+      end
+      [best[1], best[2]]
     end
 
     # True if the engine lets the player step off the map from a border tile [x, y, the way out] (World::Probe, as the

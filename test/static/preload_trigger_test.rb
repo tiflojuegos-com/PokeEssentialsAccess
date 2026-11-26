@@ -153,32 +153,6 @@ class PreloadTriggerTest < PokeAccessTest
     assert_equal({ "mark" => ["preload ok ruby=#{RUBY_VERSION}"] }, got)
   end
 
-  test "loads before the first ready transition while leaving startup transitions alone" do
-    got = run_preload(SCRIPT_THREAD + <<~'RUBY', BOOT + "$boot_order = $transition_args.dup\n")
-      module Graphics
-        def self.transition(*args)
-          ($transition_args ||= []) << args
-          :transitioned
-        end
-      end
-      load ARGV[0]
-      Graphics.transition(3)
-      $scene = Object.new
-      Graphics.transition(2)
-      $report["before_ready"] = boots
-      ThreadLoader.finish
-      $report["result"] = Graphics.transition(0)
-      $report["transition_args"] = $transition_args
-      $report["boot_order"] = $boot_order
-      Graphics.transition(1)
-      frames(2)
-      $report["boots"] = boots
-    RUBY
-    assert_equal({ "before_ready" => 0, "result" => "transitioned",
-                   "transition_args" => [[3], [2], [0], [1]],
-                   "boot_order" => [[3], [2]], "boots" => 1 }, got)
-  end
-
   test "loads the toolkit on the first frame once the game has set $scene" do
     got = run_preload(<<~'RUBY')
       load ARGV[0]

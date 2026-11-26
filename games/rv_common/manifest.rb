@@ -7,9 +7,12 @@
     inspect_rv
     battle_marks_rv
     fight_menu_rv
+    command_menu_rv
     randomizer_rv
     storage_rv
     summary_rv
+    trainer_card_rv
+    save_panel_rv
     own_voice_rv
     online_trade_rv
     field_notes_rv

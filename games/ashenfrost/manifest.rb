@@ -15,8 +15,78 @@
     move_remember
     intro_options
     field_screens
+    assist_answers
     puzzles/well_temple
+    puzzles/morove_plaques
+    puzzles/mirror_path
+    puzzles/morove_mural
+    puzzles/blackthorne_locker
+    puzzles/maze_house
+    puzzles/sixteen_floor_house
+    puzzles/nice_place
+    puzzles/haunted_place
+    puzzles/abandoned_center
+    puzzles/dugtrio_den
+    puzzles/duchampe_house
+    puzzles/rosewell_gallery
+    puzzles/lonardo_fireplace
+    puzzles/lonardo_crypt
+    puzzles/archives_cousins
+    puzzles/theatre_smells
+    puzzles/smuggling_tunnels
+    puzzles/mordecai_cell
+    puzzles/priya_basement
+    puzzles/cascade_logging_camp
+    puzzles/rococo_retreat
+    puzzles/pattersons
+    puzzles/amontillado_factory
+    puzzles/well_temple_pits
+    puzzles/well_temple_candles
+    puzzles/well_temple_depths
+    puzzles/well_temple_hall
+    puzzles/serenity_lab_manager
+    puzzles/peurijya_vents
+    puzzles/nuoh_ferry_windows
+    puzzles/flores_pipes
+    puzzles/flores_ballroom
+    puzzles/flores_rotom_cell
+    puzzles/fogdale_sableye
+    puzzles/fogdale_inn_glasses
+    puzzles/shadebloom_tomb
+    puzzles/shadebloom_chess
+    puzzles/sylvane_hide_seek
+    puzzles/palermo_puzzle_boxes
+    puzzles/flores_basement_switch
+    puzzles/escape_room_mother
+    puzzles/limegate_truffles
+    puzzles/duchampe_stakeout
+    puzzles/evergreen_houndour
+    puzzles/boulder_phase
+    puzzles/timburr_logs
+    puzzles/serenity_labs
+    puzzles/serene_slums_support
+    puzzles/escape_room_jumps
+    puzzles/escape_room_doors
+    puzzles/northallow_lanterns
+    puzzles/power_plant_machines
+    puzzles/spurl_home
+    puzzles/shadebloom_tunnels
+    puzzles/fossil_lab_dark
+    puzzles/penthouse_ghosts
+    puzzles/monty_apartment
+    puzzles/real_estate_scent
+    puzzles/rococo_false_wall
+    puzzles/ice_tiles
+    puzzles/prison_spikes
+    puzzles/flores_west_wing
+    puzzles/amontillado_factory_f1
+    puzzles/city_square_sewers
+    puzzles/mossy_monument
+    puzzles/northallow_ghost
+    puzzles/thistle_targets
+    puzzles/lonardo_warehouse
+    puzzles/fogdale_return
   ],
-  :plugins => %w[enhanced_ui_v1 essentials_deluxe ev_allocator fl_roulette hidden_power_type multi_save ocarina poke_poker
-                 quest_ui racecourse text_log tip_cards]
+  :plugins => %w[enhanced_ui_v1 essentials_deluxe ev_allocator fl_roulette hidden_power_type multi_save multiple_protagonists
+                 ocarina poke_poker quest_ui racecourse text_log tip_cards]
 }

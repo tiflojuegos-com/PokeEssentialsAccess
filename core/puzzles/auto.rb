@@ -379,9 +379,7 @@ module PokeAccess
         names, options = menu_at(list, i)
         right = options.select { |_option, cmds| right?(rule, reached(list, cmds)) }
         return nil unless right.length == 1
-        text = names[right[0][0]].to_s
-        text = (respond_to?(:_MAPINTL, true) ? _MAPINTL($game_map.map_id, text) : text) rescue text
-        PokeAccess.clean(text)
+        PokeAccess::EventPages.option_text(names[right[0][0]])
       end
 
       # The menu at list[i] as [its options' words, [option's index, its commands] each].
@@ -541,7 +539,16 @@ module PokeAccess
         end
         return cmds.any? { |c| c.code == 123 && c.parameters[0] == what[:self] } if what[:self]
         return stores?(cmds, what) if what[:compared_by] || what[:value]
+        return turns?(cmds, what[:switch], what[:to]) if what[:switch] && what.key?(:to)
         Auto.writes_of(cmds).include?(what[:var] ? [:var, what[:var]] : [:switch, what[:switch]])
+      end
+
+      # True when a branch turns switch id on (on true) or off (on false) with a Control Switches command.
+      def self.turns?(cmds, id, on)
+        cmds.any? do |c|
+          pr = c.parameters
+          c.code == 121 && pr[0] <= id && pr[1] >= id && (pr[2] == 0) == (on ? true : false)
+        end
       end
 
       # True when a branch sets a variable to the value a rule asks for: its :value, or the one the event it names takes as
@@ -597,8 +604,8 @@ module PokeAccess
         m ? m.captures.compact.first.to_i : nil
       end
 
-      # The one fixed value the commands after an entry, up to the next one, compare its own variable with, or nil with none
-      # or several (a menu of numbers rather than an answer), or an entry that does not tell where it keeps what is entered.
+      # The one fixed value the commands after an entry, up to the next one, compare its own variable with, a 0 only
+      # with no other; nil with none, several (a menu of numbers) or an entry that gives no variable.
       def self.expected(int = running, i = nil)
         list = int && PokeAccess.ivar(int, :@list)
         i ||= int && PokeAccess.ivar(int, :@index)
@@ -608,10 +615,11 @@ module PokeAccess
         found = []
         ((i + 1)..[i + LOOK, list.length - 1].min).each do |j|
           break if [102, 103].include?((list[j].code rescue 0))
-          v = constant_of(list[j], var)
+          v = constant_of(list, j, var)
           found.push(v) if v
         end
         found = found.uniq
+        found.delete(0) if found.length > 1
         found.length == 1 ? found[0] : nil
       end
 
@@ -626,17 +634,29 @@ module PokeAccess
         end
       end
 
-      # The fixed value a branch compares a variable with: as a command against a number but 0, or in a script that names it
-      # against a text or a number.
-      def self.constant_of(c, var)
+      # The fixed value the branch at list[j] compares a variable with: as a command against a number, or in a script that
+      # names it against a text or a number. A 0 counts only in a branch that rewards the player (rewards?).
+      def self.constant_of(list, j, var)
+        c = list[j]
         return nil unless (c.code rescue 0) == 111
         pr = c.parameters
-        return (pr[1] == var && pr[2] == 0 && pr[4] == 0 && pr[3].to_i != 0 ? pr[3].to_i : nil) if pr[0] == 1
-        return nil unless pr[0] == 12
-        src = pr[1].to_s
-        return nil unless src =~ /(?:game_variables\[\s*|pbGet\(\s*)#{var}\s*[\]\)]/
-        return $1 if src =~ TEXT_RE
-        src =~ NUMBER_RE && $1.to_i != 0 ? $1.to_i : nil
+        if pr[0] == 1
+          return nil unless pr[1] == var && pr[2] == 0 && pr[4] == 0
+          n = pr[3].to_i
+        else
+          return nil unless pr[0] == 12
+          src = pr[1].to_s
+          return nil unless src =~ /(?:game_variables\[\s*|pbGet\(\s*)#{var}\s*[\]\)]/
+          return $1 if src =~ TEXT_RE
+          return nil unless src =~ NUMBER_RE
+          n = $1.to_i
+        end
+        n != 0 || rewards?(body(list, j)) ? n : nil
+      end
+
+      # True when a branch's commands reward the player: give an item, or turn a self switch or a switch on.
+      def self.rewards?(cmds)
+        does?(cmds, :item) || cmds.any? { |c| (c.code == 123 || c.code == 121) && c.parameters[-1] == 0 }
       end
     end
   end

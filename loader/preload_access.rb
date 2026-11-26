@@ -165,11 +165,6 @@ module AccessPreload
     end
   end
 
-  # A ready title can start an intro movie immediately after Graphics.transition, before its first update.
-  def self.try_load_at_transition
-    try_load if !@loaded && ready?
-  end
-
   class << Graphics
     unless method_defined?(:update__access_preload)
       alias_method :update__access_preload, :update
@@ -187,7 +182,6 @@ module AccessPreload
       alias_method "#{name}__access_preload", name
       define_method(name) do |*a|
         begin
-          AccessPreload.try_load_at_transition if name == "transition"
           send("#{name}__access_preload", *a)
         rescue Exception => e
           raise AccessPreload.on_raise(e)

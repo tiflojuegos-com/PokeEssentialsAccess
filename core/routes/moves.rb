@@ -19,14 +19,19 @@ module PokeAccess
 
       # One move of a route as a search makes it and a replay retraces it: the tile and bridge level it ends on, its
       # presses (a run, a ride across), an assisted step's gate (route_gates), mid (passed partway along a run), warp (a
-      # transfer on this map), kind (:walk, :jump, :slide, :carry, :warp, :run, :ramp, :assist or :surf) and entry: the
-      # key of the tile it stepped on when that tile's touch event took the player on elsewhere, a goal for whatever is
-      # acted on by stepping there (Goal#entry).
+      # transfer on this map), kind (:walk, :jump, :slide, :carry, :warp, :run, :ramp, :assist, :surf or :exit) and
+      # entry: the key of the tile stepped on when its touch event took the player elsewhere, a goal for whatever is
+      # acted on by stepping there (Goal#entry), or the watcher whose sight took them on or that an :exit walks into
+      # (sight_exit).
+      # On a menu's tile (Effects::Menu), choice is the option it takes, [index, text as painted], and alts the Steps of
+      # its other options.
       Step = Struct.new(:x, :y, :level, :presses, :gate, :mid, :warp, :kind, :entry)
 
       # Step with the defaults a plain move has: one press, no gate, not partway along a run, no transfer, a walk, no
-      # tile stepped on and left.
+      # tile stepped on and left, no menu.
       class Step
+        attr_accessor :choice, :alts
+
         def initialize(x, y, level, presses = 1, gate = nil, mid = false, warp = false, kind = :walk, entry = nil)
           super
         end
@@ -136,11 +141,15 @@ module PokeAccess
       def self.listed(v); v.respond_to?(:call) ? v.call : v; end
 
       # True when an owner counts on this map: it names no :maps, or this map is one of them; no tile of a map left out
-      # is asked of its other keys.
+      # is asked of its other keys. Kept per owner until the map or the rules change (forget_map).
       def self.on_map?(owner)
         v = owner[:maps]
         return true if v.nil?
-        [listed(v)].flatten.include?(($game_map.map_id rescue 0)) ? true : false
+        mid = ($game_map.map_id rescue 0)
+        @on_map = { :map => mid } unless @on_map && @on_map[:map] == mid
+        hit = @on_map[owner.object_id]
+        return hit unless hit.nil?
+        @on_map[owner.object_id] = [listed(v)].flatten.include?(mid) ? true : false
       rescue StandardError => e
         PokeAccess.log_once("owner_maps", e)
         false
@@ -164,13 +173,26 @@ module PokeAccess
         Effects.touch_index.empty? && !ruled_terrain? && !costed?
       end
 
-      # One move from (cx,cy) at bridge level lvl toward dir ([dx, dy, d], see DIRS) as the game plays it, with the
-      # bits of mode: a Step, or nil when it goes nowhere or off the map (the latter without asking the engine).
+      # One move from (cx,cy) at bridge level lvl toward dir ([dx, dy, d], see DIRS) as the game plays it, with the bits
+      # of mode: a Step, or nil when it goes nowhere or off the map (the latter without asking the engine). A platform's
+      # stop is asked with the platform resting there (Rides).
       def self.step(cx, cy, lvl, dir, mode)
         return nil if PokeAccess::World::Terrain.outside?(cx + dir[0], cy + dir[1])
         return surf_step(cx, cy, lvl, dir, mode) if (mode & SURF_PLAN) != 0
+        idx = Effects.touch_index
+        here = idx[Routes.pkey(cx, cy)]
+        there = idx[Routes.pkey(cx + dir[0], cy + dir[1])]
+        if (here && here[2] == :ride) || (there && there[2] == :ride)
+          return Rides.grounded(here, there) { foot_step(cx, cy, lvl, dir, mode, here) }
+        end
+        foot_step(cx, cy, lvl, dir, mode, here)
+      end
+
+      # One move as step makes it, with the platforms it starts or ends on already laid; here is the touch_index entry
+      # of (cx,cy).
+      def self.foot_step(cx, cy, lvl, dir, mode, here)
         d = dir[2]
-        run = run_from(cx, cy, d)
+        run = run_of(here, d)
         return run_step(cx, cy, d, run, lvl) if run
         dx = dir[0]; dy = dir[1]
         nx = cx + dx; ny = cy + dy
@@ -186,56 +208,124 @@ module PokeAccess
           elsif PokeAccess::World::Probe.step?(cx, cy, d)
             nbr = (c & PokeAccess::World::Terrain::ICE) != 0 ? ice_slide(nx, ny, dx, dy, d) : arrive(nx, ny, d)
             kind = (nbr && !nbr[2] && (nbr[0] != nx || nbr[1] != ny)) ? :slide : :walk
-            return nil if kind == :slide && @passing && slides_past_closed?(nx, ny, nbr, dx, dy)
+            if kind == :slide && @passing == :wall
+              cut = wall_stop(nx, ny, nbr, dx, dy)
+              nbr = cut if cut
+              kind = :walk if cut && cut[0] == nx && cut[1] == ny
+            elsif kind == :slide && @passing && slides_past_closed?(nx, ny, nbr, dx, dy)
+              return nil
+            end
           elsif (mode & RELAX) != 0 && border_tile?(nx, ny) && ($game_map.passable?(nx, ny, 0) rescue false)
             nbr = [nx, ny]
             kind = :walk
           end
         end
-        nbr ? landed(nbr, lvl, d, kind, mode) : bump(cx, cy, lvl, dir, mode)
+        nbr ? landed(nbr, lvl, d, kind, mode, [cx, cy]) : bump(cx, cy, lvl, dir, mode)
       end
 
-      # The Step a move onto nbr facing d ends as once the touch event there fires: the tile, a ramp's other level or a
-      # carry's or warp's landing, nbr's tile then its entry; nil off the map, at an exit or barrier (a carry's chain
-      # too), or on a closed tile. Its presses are nbr's third, if any (ground ridden across, see arrival_rule); a slide
-      # over a touch event (slid_over) gives the entry, kind and transfer of its landing from nbr's fourth on.
-      def self.landed(nbr, lvl, d, kind, mode)
+      # The Step a move onto nbr facing d ends as once the touch event there fires: the tile, a ramp's other level, a
+      # carry's or warp's landing (nbr's tile then its entry), or the watcher's tile where its sight took the player on
+      # (Effects.sight_watcher); a sight that sends the player off the map gives the press into it from from
+      # (sight_exit). nil off the map, at any other exit or barrier (a carry's chain too), or on a closed tile. Its
+      # presses are nbr's third, if any (ground ridden across, see arrival_rule); a slide over a touch event (slid_over)
+      # gives the entry, kind and transfer of its landing from nbr's fourth on.
+      def self.landed(nbr, lvl, d, kind, mode, from = nil)
         x = nbr[0]; y = nbr[1]
         p = nbr[2] || 1
         return nil unless ($game_map.valid?(x, y) rescue true)
         return nil if @closed && @closed[Routes.pkey(x, y)]
         gate = (mode & ASSIST) != 0 ? (Effects.gate_at(x, y) || PokeAccess::World::Lens.gate_at(x, y, d)) : nil
         e = Effects.touch_at(x, y, d, true)
+        return chosen(e) { |o| arrival(o, nbr, lvl, p, gate, kind, from, true) } if e.is_a?(Effects::Menu)
+        arrival(e, nbr, lvl, p, gate, kind, from)
+      end
+
+      # The Step a move onto nbr ends as once touch effect e there fires (see landed); for an option of a menu (menu),
+      # an exit is the press into it. A stair that sets the floor switch leaves the player on its tile on the other
+      # floor, and a carry that sets it lands them as that floor has it.
+      def self.arrival(e, nbr, lvl, p, gate, kind, from, menu = false)
+        x = nbr[0]; y = nbr[1]
         if e.nil? || IN_PLACE.include?(e[0])
           return Step.new(x, y, lvl, p, gate, false, false, kind) unless nbr[3]
           return Step.new(x, y, lvl, p, gate, false, nbr[5], nbr[4], nbr[3])
         end
         case e[0]
-        when :exit, :barrier then nil
+        when :exit then sight_exit(Effects.sight_watcher(x, y) || (menu ? Routes.pkey(x, y) : nil), from, x, y, lvl, kind)
+        when :barrier then nil
         when :ramp then Step.new(x, y, ramp_level(e[1], lvl), p, gate, false, false, :ramp)
+        when :floor then Step.new(x, y, PokeAccess::Pathfinder.with_floor(lvl, e[1]), p, gate, false, false, kind)
         else
           via = []
-          l = e[0] == :carry ? carry_landing(x, y, e, 0, via) : PokeAccess::World::Probe.landing(e[1], e[2])
+          nl = floor_after(e, lvl)
+          l = PokeAccess::Pathfinder.on_level(nl, lvl) do
+            e[0] == :carry ? carry_landing(x, y, e, 0, via) : PokeAccess::World::Probe.landing(e[1], e[2])
+          end
           return nil if l == false
-          return Step.new(x, y, lvl, p, gate, false, false, kind) unless l
-          Step.new(l[0], l[1], lvl, p, gate, false, e[0] == :warp || !via.empty?, e[0], Routes.pkey(x, y))
+          return Step.new(x, y, nl, p, gate, false, false, kind) unless l
+          entry = Effects.sight_watcher(x, y) || Routes.pkey(x, y)
+          Step.new(l[0], l[1], nl, p, gate, false, e[0] == :warp || !via.empty?, e[0], entry)
         end
+      end
+
+      # The level touch effect e leaves the player on from level lvl: a carry's floor (Effects.carry_effect), else lvl.
+      def self.floor_after(e, lvl)
+        e[0] == :carry && !e[8].nil? ? PokeAccess::Pathfinder.with_floor(lvl, e[8]) : lvl
+      end
+
+      # The one step from from onto (x,y) that sends the player off the map, in the sight of the watcher on pkey own or
+      # by an option of the menu on own: an :exit whose entry is own, so a way to that watcher ends with it (Goal#entry)
+      # and no other goes on past it; nil for any other exit or move.
+      def self.sight_exit(own, from, x, y, lvl, kind)
+        return nil unless own && from && kind == :walk && (x - from[0]).abs + (y - from[1]).abs == 1
+        Step.new(from[0], from[1], lvl, 1, nil, false, false, :exit, own)
       end
 
       # A move into what stops a step: the bumped touch event's carry or warp, else with ASSIST what gets the player
       # past it (assisted).
       def self.bump(cx, cy, lvl, dir, mode)
         e = Effects.touch_at(cx + dir[0], cy + dir[1], dir[2], false)
-        via = []
-        l = case (e && e[0])
-            when :carry then carry_landing(cx, cy, e, 0, via)
-            when :warp then PokeAccess::World::Probe.landing(e[1], e[2])
-            end
-        return Step.new(l[0], l[1], lvl, 1, nil, false, e[0] == :warp || !via.empty?, e[0]) if l
+        if e.is_a?(Effects::Menu)
+          front = Routes.pkey(cx + dir[0], cy + dir[1])
+          s = chosen(e) { |o| bumped(o, cx, cy, lvl, front) }
+        else
+          s = bumped(e, cx, cy, lvl)
+        end
+        return s if s
         return nil if (mode & ASSIST) == 0
         s = assisted(cx, cy, dir, lvl)
         s.kind = :assist if s
         s
+      end
+
+      # Where bumping from (cx,cy) into what touch effect e does takes the player: a carry's or a warp's landing, else
+      # nil. With front, the key of a menu's tile, an option's exit is the bump itself: an :exit entering front (see
+      # sight_exit).
+      def self.bumped(e, cx, cy, lvl, front = nil)
+        return Step.new(cx, cy, lvl, 1, nil, false, false, :exit, front) if front && e && e[0] == :exit
+        via = []
+        nl = e ? floor_after(e, lvl) : lvl
+        l = PokeAccess::Pathfinder.on_level(nl, lvl) do
+          case (e && e[0])
+          when :carry then carry_landing(cx, cy, e, 0, via)
+          when :warp then PokeAccess::World::Probe.landing(e[1], e[2])
+          end
+        end
+        l ? Step.new(l[0], l[1], nl, 1, nil, false, e[0] == :warp || !via.empty?, e[0]) : nil
+      end
+
+      # The Step of the first option of a menu (Effects::Menu) a move can take, with its choice and the other options'
+      # Steps as its alts; the block gives the Step an option's effect makes. nil when none can be taken.
+      def self.chosen(menu)
+        steps = []
+        menu.options.each do |k, text, e|
+          s = yield(e)
+          next unless s
+          s.choice = [k, text]
+          steps.push(s)
+        end
+        return nil if steps.empty?
+        steps[0].alts = steps[1..-1] if steps.length > 1
+        steps[0]
       end
 
       # A move with SURF_PLAN: afloat only a water move (water_step); ashore the move on foot and, failing it, pushing
@@ -250,8 +340,10 @@ module PokeAccess
       end
 
       # The run armed on (x,y) that sets off in direction d, or nil.
-      def self.run_from(x, y, d)
-        t = Effects.touch_index[Routes.pkey(x, y)]
+      def self.run_from(x, y, d); run_of(Effects.touch_index[Routes.pkey(x, y)], d); end
+
+      # The run a tile's touch_index entry t arms that sets off in direction d, or nil.
+      def self.run_of(t, d)
         return nil if t.nil?
         r = t[1].values.find { |e| e[0] == :run }
         (r && r[1] == d) ? r : nil
@@ -265,26 +357,51 @@ module PokeAccess
         l ? Step.new(l[0], l[1], lvl, run[2], nil, false, false, :run) : nil
       end
 
-      # Where a carry from (x,y) leaves the player, a touch event fired along its steps taking over; false for a chain
-      # that cannot be taken (off the map, a story block, past CARRY_HOPS), nil when it lands on no tile.
+      # Where a carry from (x,y) leaves the player, a touch event fired along its steps taking over, a ride on the stop
+      # its platform rests on (Rides.landing), or a tile the engine lets no step out of from which a bump carries on
+      # (hop_on?); false for a chain that cannot be taken (off the map, a story block, past CARRY_HOPS), nil when it
+      # lands on no tile.
       # param via an Array that gets an entry when the chain ends through a transfer to another spot of the map
       def self.carry_landing(x, y, e, hops = 0, via = nil)
         return false if hops > CARRY_HOPS
         (e[4] || []).each do |dx, dy, face|
           nxt = face ? Effects.touch_at(x + dx, y + dy, face, true) : nil
-          next if nxt.nil? || nxt[0] == :ramp || IN_PLACE.include?(nxt[0])
+          next if nxt.nil? || nxt[0] == :ramp || nxt[0] == :floor || IN_PLACE.include?(nxt[0])
           return false if nxt[0] == :exit || nxt[0] == :barrier
           return carry_landing(x + dx, y + dy, nxt, hops + 1, via) unless nxt[0] == :warp
           via.push(true) if via
           return PokeAccess::World::Probe.landing(nxt[1], nxt[2])
         end
-        PokeAccess::World::Probe.landing(x + e[1], y + e[2])
+        lx = x + e[1]
+        ly = y + e[2]
+        return Rides.landing(lx, ly) if e[6]
+        land = PokeAccess::World::Probe.landing(lx, ly)
+        return land if land || !hop_on?(lx, ly)
+        e[3] && !e[7] && !PokeAccess::World::Probe.lands?(x, y, jump_facing(e), lx, ly) ? nil : [lx, ly]
       end
 
-      # The bridge level a ramp leaves the player on, from the level they stepped on it at.
+      # The facing a carry's jump turns the player to: along its longer axis, as the engine's jump does.
+      def self.jump_facing(e)
+        return (e[1] < 0 ? 4 : 6) if e[1].abs > e[2].abs
+        e[2] < 0 ? 8 : 2
+      end
+
+      # True when a bump from (x, y) fires a touch event that carries the player on: hops along a cliff, one event a
+      # hop.
+      def self.hop_on?(x, y)
+        return false unless ($game_map.valid?(x, y) rescue false)
+        PokeAccess::DIR_DELTA.any? do |d, delta|
+          t = Effects.touch_at(x + delta[0], y + delta[1], d, false)
+          !t.nil? && t[0] == :carry
+        end
+      end
+
+      # The level a ramp leaves the player on, from the level they stepped on it at: its bridge height on the same
+      # floor.
       def self.ramp_level(ramp, lvl)
-        return (lvl.to_i > 0 ? 0 : 2) if ramp == :toggle
-        ramp.to_i
+        pf = PokeAccess::Pathfinder
+        h = pf.height(lvl)
+        (lvl.to_i - h) + (ramp == :toggle ? (h > 0 ? 0 : 2) : ramp.to_i)
       end
 
       # What the player can do from (cx,cy) toward dir where walking stops, as a Step with its gate, or nil: the
@@ -329,8 +446,8 @@ module PokeAccess
         Step.new(cx + dir[0], cy + dir[1], lvl, 1, { :kind => :dismount, :face => dir[2], :x => cx, :y => cy })
       end
 
-      # Runs the block with the tiles of closed (pkey => true) kept off: no move lands on them, and with passing no slide
-      # passes them either.
+      # Runs the block with the tiles of closed (pkey => true) kept off: no move lands on them; with passing no slide
+      # passes them either (plates), and with passing :wall a slide stops in front of them (walls).
       def self.with_closed(closed, passing = false)
         was = [@closed, @passing]
         @closed = closed
@@ -338,6 +455,22 @@ module PokeAccess
         yield
       ensure
         @closed, @passing = was
+      end
+
+      # Where a slide in (dx,dy) from (x,y) toward nbr stops before a closed wall in its way: the tile in front of the
+      # first closed one, that tile itself when it is the first (no move lands on it), or nil when none is in the way.
+      def self.wall_stop(x, y, nbr, dx, dy)
+        px = nil
+        py = nil
+        loop do
+          return(px ? [px, py] : [x, y]) if @closed[Routes.pkey(x, y)]
+          return nil if x == nbr[0] && y == nbr[1]
+          px = x
+          py = y
+          x += dx
+          y += dy
+          return nil if (x - nbr[0]) * dx > 0 || (y - nbr[1]) * dy > 0
+        end
       end
 
       # True when a slide in (dx,dy) from (x,y) to nbr passes a closed tile before it stops.
@@ -352,9 +485,12 @@ module PokeAccess
       end
 
       # Replays a route from (x,y) at bridge level lvl with the moves of mode, one Step per press (mid Steps, of the
-      # move's kind, for the tiles a run or a ride across passes), stopping at the first that cannot be taken now.
-      def self.trace(x, y, lvl, path, mode)
+      # move's kind, for the tiles a run or a ride across passes), stopping at the first that cannot be taken now. A
+      # move onto a menu takes the option picks gives its last press (press index => option index; the route's own,
+      # picks_of, unless given).
+      def self.trace(x, y, lvl, path, mode, picks = nil)
         pf = PokeAccess::Pathfinder
+        picks ||= picks_of(path)
         out = []
         pf.searching do
           i = 0
@@ -363,6 +499,7 @@ module PokeAccess
             dir = DIR_OF[d]
             pf.use_level(lvl)
             n = dir ? step(x, y, lvl, dir, mode) : nil
+            n = picked(n, picks, i, path.length) if n && n.choice
             break if n.nil?
             presses = n.presses
             break unless path[i, presses].length == presses && path[i, presses].all? { |c| c == d }
@@ -377,27 +514,65 @@ module PokeAccess
         out
       end
 
-      # What each press of a route from (x,y) at bridge level lvl does that cannot be undone the same way: :jump where
-      # the player hops (a ledge, an event that hops them over, as jump? tells the guide), :slide where it slides them
-      # on, :land where it brings them ashore afloat (landing?), else nil; nil from the first press the route cannot take
-      # now.
-      def self.one_way(x, y, lvl, path)
-        steps = trace(x, y, lvl, path, PokeAccess::Pathfinder.replay_mode)
+      # The menu options a route's presses take (Pathfinder::Route#choices) from press from on, as press index (counted
+      # from from) => option index; {} for a route that takes none.
+      def self.picks_of(path, from = 0)
+        all = path.respond_to?(:choices) ? path.choices : {}
+        return all if from == 0 || all.empty?
+        out = {}
+        all.each { |i, k| out[i - from] = k if i >= from }
+        out
+      end
+
+      # The Step, of menu Step n and its alts, that the route's move from press i takes: the option picks gives its last
+      # press, nil when none takes it now. With none given, on the last move (total presses) the first that goes on from
+      # the menu's tile (Step#entry), else n.
+      def self.picked(n, picks, i, total)
+        all = [n] + (n.alts || [])
+        hit = all.find { |s| picks[i + s.presses - 1] == s.choice[0] }
+        return hit if hit
+        return nil if all.any? { |s| picks.key?(i + s.presses - 1) }
+        return n unless i + n.presses >= total
+        all.find { |s| s.entry } || n
+      end
+
+      # What each press of a route from (x,y) at level lvl does that cannot be undone the same way: [:choice, option
+      # text] where it takes a menu option (Step#choice), :floor to the map's other floor, :jump where the player hops
+      # (a ledge, or an event that hops them over, as jump? tells the guide), :slide where it slides them on, :swept
+      # where a watcher's sight takes them on (swept?), :land where it brings them ashore afloat (landing?), else nil;
+      # nil from the first press the route cannot take now. picks as trace's; each press is read on the floor it starts
+      # from.
+      def self.one_way(x, y, lvl, path, picks = nil)
+        pf = PokeAccess::Pathfinder
+        steps = trace(x, y, lvl, path, pf.replay_mode, picks)
         from = [[x, y, lvl]] + steps.map { |s| [s.x, s.y, s.level] }
-        (0...path.length).map do |i|
-          s = steps[i]
-          if s.nil? then nil
-          elsif jump?(from[i][0], from[i][1], path[i]) then :jump
-          elsif s.kind == :slide then :slide
-          elsif landing?(from[i], s) then :land
+        pf.searching do
+          (0...path.length).map do |i|
+            s = steps[i]
+            pf.use_level(from[i][2])
+            if s.nil? then nil
+            elsif s.choice then [:choice, s.choice[1]]
+            elsif pf.floor?(s.level) != pf.floor?(from[i][2]) then :floor
+            elsif jump?(from[i][0], from[i][1], path[i]) then :jump
+            elsif s.kind == :slide then :slide
+            elsif swept?(s) then :swept
+            elsif landing?(from[i], s) then :land
+            end
           end
         end
+      end
+
+      # True for a carry a watcher's sight took over as the player stepped on its line, its entry the watcher's tile
+      # (Effects.watcher?). A warp is told as any transfer.
+      def self.swept?(s)
+        s.entry && s.kind == :carry ? Effects.watcher?(s.entry) : false
       end
 
       # True for a press afloat from water at ground level (from, [x, y, level]) that ends as Step s on dry ground
       # (World::Probe.dry?), where the engine ends the surf.
       def self.landing?(from, s)
-        return false unless ($PokemonGlobal.surfing rescue false) && from[2].to_i == 0 && s.level.to_i == 0
+        pf = PokeAccess::Pathfinder
+        return false unless ($PokemonGlobal.surfing rescue false) && pf.height(from[2]) == 0 && pf.height(s.level) == 0
         probe = PokeAccess::World::Probe
         !probe.dry?(from[0], from[1]) && probe.dry?(s.x, s.y)
       end
@@ -421,14 +596,14 @@ module PokeAccess
       end
 
       # True if the step from (x,y) in direction d is a jump the player makes by walking into it: a ledge, or an event
-      # that hops them over what it stands on.
+      # that hops them over what it stands on, but not by a menu's option (told by the press).
       def self.jump?(x, y, d)
         dd = PokeAccess::DIR_DELTA[d]
         return false if dd.nil?
         nx = x + dd[0]; ny = y + dd[1]
         return true if PokeAccess::World::Terrain.ledge?(nx, ny)
         e = Effects.touch_at(nx, ny, d, false) || Effects.touch_at(nx, ny, d, true)
-        !e.nil? && e[0] == :carry && e[3] ? true : false
+        !e.nil? && e[0] == :carry && e[3] && !e.is_a?(Effects::Menu) ? true : false
       end
 
       # True if the player must hold the direction key down on (x,y): ground a game registers, a touch event there

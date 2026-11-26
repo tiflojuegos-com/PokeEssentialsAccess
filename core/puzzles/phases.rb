@@ -175,7 +175,7 @@ module PokeAccess
     def self.carry_plan(t)
       tr, ev = carried_piece(t)
       return nil unless ev
-      plan = PokeAccess::Routes::Planner.carry(ev, tr[:goal])
+      plan = PokeAccess::Routes::Planner.carry(ev, tr[:goal], tr[:with])
       return plan unless plan.kind == :assisted
       plan.gate = plan.gate.dup
       plan.gate[:listing] = track_phrase(tr, [ev.x, ev.y])
@@ -183,11 +183,17 @@ module PokeAccess
     end
 
     # With the assist, what to say for the route to the current phase's goal (target t) once its piece is inside the
-    # box, the phase still open: the piece's own line (puzzle_track_in), not the empty way there; nil otherwise.
+    # box, and each event it moves along (:with) inside its own, the phase still open: the piece's own line
+    # (puzzle_track_in), not the empty way there; nil otherwise.
     def self.carried_line(t)
       tr, ev = carried_piece(t)
-      return nil unless ev && goal_offset(tr[:goal], [ev.x, ev.y]).empty?
+      return nil unless ev && goal_offset(tr[:goal], [ev.x, ev.y]).empty? && along_in?(tr)
       track_phrase(tr, [ev.x, ev.y])
+    end
+
+    # True when each event a track's piece moves along (:with) stands inside its goal.
+    def self.along_in?(tr)
+      (tr[:with] || {}).all? { |id, box| (tw = ($game_map.events[id] rescue nil)) && goal_offset(box, [tw.x, tw.y]).empty? }
     end
 
     # The tracked piece of the current phase whose goal is target t, as [track, event], with the assist on; nil otherwise.
@@ -215,11 +221,13 @@ module PokeAccess
       nil
     end
 
-    # Named points as targets, while they are listed: a fixed tile, or where an event stands.
+    # Named points as targets, while they are listed: a fixed tile or one a lambda answers as things stand (none: not
+    # listed), or where an event stands.
     def self.spot_targets(spots)
       (spots || []).map do |sp|
         next nil if (sp[:assist] && !assist?) || (sp[:when] && !PokeAccess::World::Mechanics.truth(sp[:when]))
         xy = sp[:at]
+        xy = xy.call if xy.respond_to?(:call)
         unless xy
           ev = ($game_map.events[sp[:event]] rescue nil)
           xy = ev && [ev.x, ev.y]

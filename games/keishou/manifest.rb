@@ -33,6 +33,6 @@
     puzzles/terastal_caves
   ],
   :plugins => %w[bag_screen_party berry_pots charm_case dynamax encounter_list_ui enhanced_ui_v1 essentials_deluxe
-                 fl_tilt_labyrinth hacking_minigame item_crafting item_find multi_save punch_bag_v12 quest_ui
-                 storage_utilities terastal_phenomenon voltseon_pausemenu zud_max_lair zud_raid_database zud_raid_dens]
+                 fl_tilt_labyrinth hacking_minigame item_crafting item_find multi_save multiple_protagonists punch_bag_v12
+                 quest_ui storage_utilities terastal_phenomenon voltseon_pausemenu zud_max_lair zud_raid_database zud_raid_dens]
 }

@@ -67,20 +67,39 @@ module PokeAccess
       @strides = nil
       @crowded = nil
 
-      # Drops the classes and the tile costs taken (the events changed).
+      # Drops the classes and the tile costs taken (the events changed), on every floor.
       def self.forget_classes
         @krows = []
         @arows = []
         @crows = []
+        @floor_rows = {}
         @kgen = nil
         @kw = nil
         @kh = nil
+      end
+
+      # Switches to the classes and tile costs kept for floor key k (World::Floors.on_view); an event's page, and so its
+      # tile's class, may differ on each floor.
+      def self.floor_classes(k)
+        rows = (@floor_rows ||= {})
+        return if k == @floor_key
+        rows[@floor_key] = [@krows, @arows, @crows]
+        @floor_key = k
+        @krows, @arows, @crows = rows[k] || [[], [], []]
+      end
+
+      # Drops the classes and tile costs kept for the floors that do not stand (World::Floors.on_stale).
+      def self.forget_floor_classes
+        @floor_rows = {}
+        @reloc = nil
+        @krows, @arows, @crows = [], [], [] if @floor_key
       end
 
       # Drops the classes, the map's scan, its shortcuts and strides (the tiles, the map or the rules changed).
       def self.forget_map
         forget_classes
         @scan = nil
+        @on_map = nil
         @shortcuts = nil
         @strides = nil
         @crowded = nil
@@ -269,8 +288,9 @@ module PokeAccess
         @strides[1]
       end
 
-      # The moves into this map's carries, warps and runs as step takes them from level lvl with mode, as [from x,
-      # from y, presses, landing x, landing y], kept while the events stand; nil on a map with bridges.
+      # The moves into this map's carries, warps and runs as step takes them from level lvl with mode, each menu option
+      # among them (Step#alts), as [from x, from y, presses, landing x, landing y], kept while the events stand; nil on
+      # a map with bridges.
       def self.shortcuts(lvl, mode)
         return nil if map_scan[2]
         key = [PokeAccess::World::Events.gen, PokeAccess::Pathfinder.event_epoch, lvl, mode]
@@ -282,7 +302,8 @@ module PokeAccess
           DIRS.each do |dir|
             [[ex - dir[0], ey - dir[1]], [ex - 2 * dir[0], ey - 2 * dir[1]], [ex, ey]].each do |fx, fy|
               s = step(fx, fy, lvl, dir, mode)
-              out.push([fx, fy, s.presses, s.x, s.y]) if s && RELOCATING.include?(s.kind)
+              next unless s
+              ([s] + (s.alts || [])).each { |a| out.push([fx, fy, a.presses, a.x, a.y]) if RELOCATING.include?(a.kind) }
             end
           end
         end
@@ -302,10 +323,11 @@ module PokeAccess
         @crowded = [PokeAccess::Pathfinder.event_epoch, lvl, mode]
       end
 
-      # True when a touch event of this map carries, warps or runs the player, kept while the events stand.
+      # True when a touch event of this map carries, warps or runs the player on the floor looked at, kept while the
+      # events stand.
       def self.relocating?
         idx = Effects.touch_index
-        g = PokeAccess::World::Events.gen
+        g = [PokeAccess::World::Events.gen, PokeAccess::World::Floors.key]
         return @reloc[1] if @reloc && @reloc[0] == g
         v = idx.values.any? { |e| e[1].values.any? { |f| RELOCATING.include?(f[0]) } }
         @reloc = [g, v]
@@ -316,6 +338,8 @@ module PokeAccess
 end
 
 PokeAccess::World::Epoch.on(:tiles) { PokeAccess::Routes::Moves.forget_map }
+PokeAccess::World::Floors.on_view { |k| PokeAccess::Routes::Moves.floor_classes(k) }
+PokeAccess::World::Floors.on_stale { PokeAccess::Routes::Moves.forget_floor_classes }
 PokeAccess::World::Epoch.on(:reset) { PokeAccess::Routes::Moves.forget_map }
 PokeAccess::World::Visits.keeper(lambda { PokeAccess::Routes::Moves.saved_scan },
                                  lambda { |s| PokeAccess::Routes::Moves.restore_scan(s) })

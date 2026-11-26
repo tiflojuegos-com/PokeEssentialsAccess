@@ -6,17 +6,38 @@ module PokeAccess
   # boulders they move in Routes::Pushes), across water in route_water, the spoken route in Routes::Text.
   module Pathfinder
     # A route's key presses, with the transfers to another spot of the map it goes through: how many (rooms, 0 unset)
-    # and the presses, by index and in order, after which they land (warps).
+    # and the presses, by index and in order, after which they land (warps); and the option each press onto a menu's
+    # tile takes, press index => option index (choices, see Routes::Moves::Step#choice).
     class Route < Array
-      attr_writer :rooms, :warps
+      attr_writer :rooms, :warps, :choices
       def rooms; @rooms || 0; end
       def warps; @warps || []; end
+      def choices; @choices || {}; end
+
+      # Adds the presses of route way after its own, with way's transfers and choices.
+      def append(way)
+        n = length
+        concat(way)
+        return self unless way.respond_to?(:warps)
+        @warps = warps + way.warps.map { |w| w + n } unless way.warps.empty?
+        unless way.choices.empty?
+          @choices = choices.dup
+          way.choices.each { |i, k| @choices[i + n] = k }
+        end
+        self
+      end
     end
 
     # What one search operation carries, shared by its nested searches and dropped with the outermost: its budget
-    # (Routes::Limits), the nesting depth, the player's starting bridge level, whether bridge levels are live, and
-    # whether it is assisted (see route_gates).
-    SearchContext = Struct.new(:limits, :depth, :level, :levels_live, :assisting)
+    # (Routes::Limits), the nesting depth, the player's starting level, whether bridge levels are live, whether it is
+    # assisted (see route_gates), and the map's floor switch (Routes::Effects.level_switch), nil on a map without one.
+    SearchContext = Struct.new(:limits, :depth, :level, :levels_live, :assisting, :floor)
+
+    # A search level is the bridge height, plus FLOOR where the map's floor switch is on: on such a map the same tile is
+    # a different place on each floor, and the floor is part of the search's state.
+    FLOOR = 1024
+    # One level of each kind a state key tells apart: off and on a bridge, on either floor.
+    LEVELS = [0, 1, FLOOR, FLOOR + 1]
 
     @context = nil
 
@@ -72,12 +93,16 @@ module PokeAccess
           PokeAccess::World::Probe.session do
             begin
               c.levels_live = Routes::Effects.ramp_map?
+              c.floor = Routes::Effects.level_switch
               was = PokeAccess::World::Engine.bridge_height
-              c.level = was
+              PokeAccess::World::Floors.check if c.floor
+              c.level = was + (c.floor && PokeAccess::World::Floors.live?(c.floor) ? FLOOR : 0)
               yield
             ensure
               PokeAccess::World::Engine.set_bridge(was) if c.levels_live
+              PokeAccess::World::Floors.view(nil, nil) if c.floor
               c.levels_live = false
+              c.floor = nil
               c.level = nil
             end
           end
@@ -87,18 +112,58 @@ module PokeAccess
       end
     end
 
-    # The bridge level the player is on (0 off every bridge): inside a search, the one it started from, whatever level
-    # the search has since pointed the engine at.
+    # The level the player is on (see FLOOR; 0 off every bridge on the floor with the switch off): inside a search, the
+    # one it started from, whatever level the search has since pointed the engine at.
     def self.bridge_level
       c = @context
-      (c && c.level) || PokeAccess::World::Engine.bridge_height
+      (c && c.level) || level_now
     end
 
-    # Points the engine at a bridge level for the passability questions about to be asked. Only a map with a
-    # ramp is ever touched; with_level_kept puts the player's own level back.
+    # The player's level as the game stands: the bridge height, and the floor where the map has a floor switch.
+    def self.level_now
+      sw = Routes::Effects.level_switch
+      PokeAccess::World::Engine.bridge_height + (sw && PokeAccess::World::Floors.live?(sw) ? FLOOR : 0)
+    end
+
+    # The player's level as a route state keeps it: 1 on a bridge, else 0, plus FLOOR on the floor with the switch on.
+    def self.flat_level
+      lvl = bridge_level
+      (height(lvl) > 0 ? 1 : 0) + (floor?(lvl) ? FLOOR : 0)
+    end
+
+    # The bridge height of level lvl.
+    def self.height(lvl); lvl.to_i % FLOOR; end
+
+    # True when level lvl is on the floor with the map's floor switch on.
+    def self.floor?(lvl); lvl.to_i >= FLOOR; end
+
+    # Level lvl on the floor with the switch set to on, its bridge height kept.
+    def self.with_floor(lvl, on); height(lvl) + (on ? FLOOR : 0); end
+
+    # The levels a search from level lvl may be on: lvl and, on a map with a floor switch, lvl on the other floor.
+    def self.floor_levels(lvl)
+      c = @context
+      c && c.floor ? [lvl, with_floor(lvl, !floor?(lvl))] : [lvl]
+    end
+
+    # Points the engine at a level for the passability questions about to be asked: its bridge height on a map with a
+    # ramp, the events of its floor (World::Floors) on a floor-switch map; with_level_kept puts the player's level back.
     def self.use_level(lvl)
       c = @context
-      PokeAccess::World::Engine.set_bridge(lvl) if c && c.levels_live
+      return unless c
+      PokeAccess::World::Engine.set_bridge(height(lvl)) if c.levels_live
+      PokeAccess::World::Floors.view(c.floor, floor?(lvl)) if c.floor
+    end
+
+    # Runs the block with the engine pointed at level lvl, then back at level was (see use_level).
+    def self.on_level(lvl, was)
+      return yield if lvl == was
+      use_level(lvl)
+      begin
+        yield
+      ensure
+        use_level(was)
+      end
     end
 
     # The mode of Routes::Moves a search or a replay takes now: ledge hops when asked, a passable border tile as a step
@@ -160,9 +225,12 @@ module PokeAccess
     # The farthest a target can be, in Manhattan tiles, for a route to be searched (route_reach).
     def self.reach; (PokeAccess::Config.route_reach rescue 128).to_i; end
 
-    # Packs a search state -- a tile and whether the bridge is up -- into one key: on a bridge map the same
-    # tile is a floor on one level and a wall on the other, and the search must keep the two apart.
-    def self.skey(x, y, lvl); Routes.pkey(x, y) * 2 + (lvl.to_i > 0 ? 1 : 0); end
+    # Packs a search state -- a tile, whether the bridge is up and the floor -- into one key, the tile's key times four:
+    # the search must keep a tile's levels apart.
+    def self.skey(x, y, lvl)
+      l = lvl.to_i
+      Routes.pkey(x, y) * 4 + (l >= FLOOR ? (l > FLOOR ? 3 : 2) : (l > 0 ? 1 : 0))
+    end
 
     # The tiles (tx,ty) is acted on from, as the game allows it: each tile the event standing there covers (area_at),
     # the four beside each, and the tile across each counter beside one; its own tiles alone for an event the engine

@@ -3,9 +3,10 @@
 # redraw's dispatch, the reset of the dedup slots on entering and the grouped command windows.
 module PokeAccess
   module DexSearch
-    # Dispatches by the redraw's arity (both eras ship both screens): the grid keeps its scene and params for moved.
+    # Dispatches by the redraw's arity (both eras ship both screens): the grid keeps its scene and params for moved. A
+    # true or false second argument is the list's own flag for cutting in (Rejuvenation 14's), not the grid's.
     def self.refresh(scene, args)
-      if args.length >= 2
+      if args.length >= 2 && args[1] != true && args[1] != false
         @scene = scene
         @params = args[0]
         return main(scene, args[0], args[1])
@@ -20,20 +21,39 @@ module PokeAccess
       @param = nil
     end
 
+    # A row with the type icons the engine Reborn and Rejuvenation share paints (<icon=typeFIRE>) as the types' names.
+    def self.typed(row)
+      row.gsub(/<icon=type(\w+)>/) do
+        id = $1
+        name = (PokeAccess::Data.type_name(id.to_sym) rescue nil)
+        " #{name.nil? || name.to_s.empty? ? PokeAccess::Util.capitalized(id) : name} "
+      end
+    end
+
+    # One of the search's windows, in the scene's sprites or, where a fork keeps the Pokedex's apart (Rejuvenation 14),
+    # in its @pokedexSprites.
+    def self.sprite(scene, name)
+      PokeAccess.sprite(scene, name) || (PokeAccess.ivar(scene, :@pokedexSprites) || {})[name]
+    rescue StandardError => e
+      PokeAccess.swallowed(e)
+      nil
+    end
+
     # A filter's sub-screen opening: its dedup slots reset, those of the older screen's one sub-list window too, which
     # every filter shares and which reopens on the value it was left on.
     def self.sub_list_opened(scene)
       PokeAccess::Cursor.reset(scene, :dex_search_param)
-      aux = PokeAccess.sprite(scene, "auxlist")
+      aux = sprite(scene, "auxlist")
       PokeAccess::Cursor.reset(aux, :cmd_focus) if aux
     end
   end
 end
 
-# Any grouped command window ("category", [rows], ...): its flat index resolved by the window's own getText.
+# Any grouped command window ("category", [rows], ...): its flat index resolved by the window's own getText, its type
+# icons named.
 PokeAccess::Menus.def_extractor("Window_ComplexCommandPokemon") do |win, i|
   cmds = (win.commands rescue nil)
-  cmds ? win.getText(cmds, i).to_s : ""
+  cmds ? PokeAccess::DexSearch.typed(win.getText(cmds, i).to_s) : ""
 end
 
 # Entering the search or a filter sub-screen resets its dedup slots: both reopen on the same index and values.

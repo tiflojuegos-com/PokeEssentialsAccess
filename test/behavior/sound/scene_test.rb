@@ -271,6 +271,14 @@ class SceneTest < PokeAccessTest
     end
   end
 
+  test "sounds a walker of several tiles from its tile nearest the player" do
+    ev = World.event(:kind => :trainer, :id => 1, :x => 9, :y => 8, :name => "Spotlight size(3,3)")
+    ev.character_name = "spotlight"
+    ev.instance_variable_get(:@page).move_type = 1
+    Scene.scan(10, 5)
+    assert_equal [[10, 6]], heard(:npc), "a 3x3 walker at (9, 8), the player at (10, 5)"
+  end
+
   test "pings a puzzle's moving obstacle as a trap, and watches it though its own page stands still" do
     shark = person(4, 4, 5, "sharpedo")
     person(1, 6, 5, "ana")

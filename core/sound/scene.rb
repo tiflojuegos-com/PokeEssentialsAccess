@@ -170,9 +170,16 @@ module PokeAccess
         (PokeAccess::Locator.service_desk?(ev) rescue false)
       end
 
-      # Reads the emitters (events, marks and edge exits in range) from (px, py), in one session of the world's probe;
-      # in hide mode an emitter behind a wall is left out, save a near service desk. Notes where each event that walks
-      # stands (its page moves it, or it is a puzzle's moving obstacle) for moved?.
+      # The tile of event ev nearest (px, py) among those it covers (World::Events.tiles_of).
+      def self.nearest_tile(ev, px, py)
+        tiles = PokeAccess::World::Events.tiles_of(ev)
+        return [ev.x, ev.y] if tiles.length <= 1
+        tiles.min_by { |x, y| (x - px).abs + (y - py).abs }
+      end
+
+      # Reads the emitters in range from (px, py) in one session of the world's probe: an event of several tiles sounds
+      # from its nearest tile, and in hide mode an emitter behind a wall is left out, save a near service desk. Notes
+      # where each walking event stands (its page moves it, or it is a puzzle's moving obstacle) for moved?.
       def self.scan(px, py)
         PokeAccess::World::Probe.session do
           lists = {}
@@ -184,12 +191,13 @@ module PokeAccess
             ev = rec.ev
             next unless ev.x && ev.y
             watch.push([ev, ev.x, ev.y]) if pieces[ev.id] || PokeAccess::World::Events.mover?(rec)
-            d = (ev.x - px).abs + (ev.y - py).abs
+            x, y = nearest_tile(ev, px, py)
+            d = (x - px).abs + (y - py).abs
             next if d > r
             t = family_of(ev)
             next unless t
-            next if hide && !line_clear?(px, py, ev.x, ev.y) && !desk_bypass?(ev, d)
-            (lists[t] ||= []).push([ev.x, ev.y, d, (ev.character_name.to_s rescue "")])
+            next if hide && !line_clear?(px, py, x, y) && !desk_bypass?(ev, d)
+            (lists[t] ||= []).push([x, y, d, (ev.character_name.to_s rescue "")])
           end
           marks(px, py, r, hide).each { |e| (lists[:mark] ||= []).push(e) }
           exits(px, py, r, hide).each { |e| (lists[:exit] ||= []).push(e) }

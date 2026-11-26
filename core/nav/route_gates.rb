@@ -36,13 +36,16 @@ module PokeAccess
       nil
     end
 
-    # The first n presses of a route as a Route with the transfers among them: a slice is a plain Array from Ruby 3 on,
-    # and in 1.8.7 it keeps the class but not the transfers.
+    # The first n presses of a route as a Route with the transfers and the menu choices among them: a slice is a plain
+    # Array from Ruby 3 on, and in 1.8.7 it keeps the class but not the transfers.
     def self.head_of(path, n)
       head = Route.new.concat(path[0, n])
       kept = (path.respond_to?(:warps) ? path.warps : []).select { |w| w < n }
       head.warps = kept
       head.rooms = kept.length
+      picks = {}
+      Routes::Moves.picks_of(path).each { |i, k| picks[i] = k if i < n }
+      head.choices = picks
       head
     end
 

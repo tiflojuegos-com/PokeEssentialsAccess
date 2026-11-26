@@ -10,7 +10,8 @@ module PokeAccess
       #   :phases [{:when => ->, :title, :quiet, :entry_title, :hint,
       #             :progress => as a count,
       #             :values => [{:var, :label, :event, :words}], :sum, :spots, :hidden => {:events, :label, :assist},
-      #             :track => {:event, :label, :goal => [x0, y0, x1, y1], :goal_label}}]
+      #             :track => {:event, :label, :goal => [x0, y0, x1, y1], :goal_label, :with => {event => goal box}}}]
+      #           :with the events its pushes move along (Routes::Effects.push_twins), each with its own goal
       #   :info ->, :active ->, :solved ->, :solved_msg, :solved_quiet (the game says the win itself), :spots, :hint,
       #   :arrival_hint
       # Queues [:arrival_hint] and [:entered, phase], the phase open then, on the first frame; [:watch, i, value] as a

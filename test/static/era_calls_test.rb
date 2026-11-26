@@ -4,7 +4,7 @@ require "tmpdir"
 
 class EraCallsTest < PokeAccessTest
   CENSUS = File.join(File.dirname(__FILE__), "era_census.txt")
-  SOURCES = 37
+  SOURCES = 38
   KNOWN = {
     # Ladders: the gen-6 spelling is tried and the modern one follows (or the other way round).
     "pbIsImportantItem?" => "gen-6 bag predicate; GameData::Item#is_important? follows (menus.rb bag_hides_qty?)",
@@ -56,6 +56,7 @@ class EraCallsTest < PokeAccessTest
     "pbPushThis" => "the head of a script-text pattern for what an event pushes with no field move (routes/effects.rb PUSH_SCRIPTS)",
     "pbBridgeOn" => "script-text pattern for the height a bridge ramp's page sets (event_pages.rb ramp)",
     "pbBridgeOff" => "script-text pattern for a bridge ramp's page that lowers it (event_pages.rb ramp)",
+    "pbRockClimb" => "script-text pattern for a page that climbs within its map, read as the field move's check (event_pages.rb field_move)",
     # Absent from Desolation, Reborn and Rejuvenation, which have no Bug Catching Contest and no Triple Triad.
     "pbBugContestState" => "the contest status for the field key, rescued where the game has no contest (battle.rb field_event_text)",
     "pbBuyTriads" => "the Triple Triad card shop, wrapped by name where the minigame exists (minigame_text.rb)",

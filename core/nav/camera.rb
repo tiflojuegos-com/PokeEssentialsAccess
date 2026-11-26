@@ -231,14 +231,15 @@ module PokeAccess
 
     # The move the player would make pressing d from the camera's tile, or nil: the second half of a ledge hop taken
     # from its ledge, else the replay's moves, pushing off onto water where the player may surf (Pathfinder.may_surf?:
-    # afloat, from ground the camera has come ashore on), and off water on foot.
+    # afloat, from ground the camera has come ashore on), and off water on foot; nil for an exit.
     def self.opening(d)
       nx, ny = ahead(@x, @y, d)
       return @hop[2] if @hop && @hop[0] == nx && @hop[1] == ny
       moves = PokeAccess::Routes::Moves
       plain = PokeAccess::Pathfinder.replay_mode
       st = PokeAccess::Pathfinder.may_surf?(@x, @y) ? moves.try(@x, @y, @level, d, plain | moves::SURF_PLAN) : nil
-      st || moves.try(@x, @y, @level, d, plain)
+      st ||= moves.try(@x, @y, @level, d, plain)
+      st && st.kind == :exit ? nil : st
     end
 
     # Puts the camera on (x, y) at bridge level lvl, the listener with it before anything sounds there; with rec, the
@@ -254,8 +255,11 @@ module PokeAccess
       rec ? record(x, y, flat(lvl)) : nil
     end
 
-    # A bridge level as the guide keeps the player's: 1 on a bridge, whatever ramp step set it, else 0.
-    def self.flat(lvl); lvl.to_i > 0 ? 1 : 0; end
+    # A level as the guide keeps the player's: 1 on a bridge, whatever ramp step set it, else 0, plus its floor.
+    def self.flat(lvl)
+      pf = PokeAccess::Pathfinder
+      (pf.height(lvl) > 0 ? 1 : 0) + (pf.floor?(lvl) ? pf::FLOOR : 0)
+    end
 
     # The line of a step onto the camera's tile from the tile from, whose ground was prev, by the player's move st that
     # way (nil when crossed): what it does said once per landing.

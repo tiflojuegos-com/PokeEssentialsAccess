@@ -119,6 +119,7 @@ module PokeAccess
         @to = []
         @warp = []
         @moves = []
+        @picks = {}
         @entered = {}
         @head = 0
         @version = 0
@@ -174,7 +175,7 @@ module PokeAccess
         out = []
         @keys.each_index do |i|
           next unless rooms[find(i)]
-          t = @keys[i] >> 1
+          t = @keys[i] >> 2
           next if seen[t]
           seen[t] = true
           out.push([t / PKEY_STRIDE, t % PKEY_STRIDE])
@@ -220,7 +221,7 @@ module PokeAccess
         pf = PokeAccess::Pathfinder
         best = nil
         tiles.each do |x, y|
-          [0, 1].each do |l|
+          pf::LEVELS.each do |l|
             i = @id[pf.skey(x, y, l)]
             r = i && rooms[find(i)]
             best = r if r && (best.nil? || r < best)
@@ -262,7 +263,7 @@ module PokeAccess
         return true if @variant != :assist || Effects.boulder_index.empty?
         return @sure if @sure_version == @version
         @sure_version = @version
-        @sure = @keys.none? { |k| Moves.forcing?((k >> 1) / PKEY_STRIDE, (k >> 1) % PKEY_STRIDE) }
+        @sure = @keys.none? { |k| Moves.forcing?((k >> 2) / PKEY_STRIDE, (k >> 2) % PKEY_STRIDE) }
       end
 
       # Walks on within what a question may still spend (allowance); the states walked.
@@ -306,7 +307,7 @@ module PokeAccess
         walkers = Regions.lendable_walkers
         pf.with_level_kept do
           if @variant == :assist
-            rocks = fx.boulder_index.values.map { |b| b[0] }
+            rocks = fx.push_pieces.values.map { |b| b[0] }
             pf.with_gates_open { probe.lend_through(walkers + rocks) { walk(max, deadline) } }
           else
             probe.lend_through(walkers) { walk(max, deadline) }
@@ -318,7 +319,8 @@ module PokeAccess
       # step sets its bit in the state's mask and its target in @step (four slots a state), uniting both if it steps
       # back plainly too; any other move is an edge in @moves (from, to, direction, presses, and as bits a transfer (1)
       # and a move that puts the player down without a walk (2), see Moves.relocated?) for the router, and one that steps
-      # onto a tile and is taken on elsewhere is kept by that tile too (entering).
+      # onto a tile and is taken on elsewhere is kept by that tile too (entering). Each option of a menu stepped onto is
+      # a move of its own (Moves::Step#alts), its choice kept by the move's place in @moves (@picks).
       def walk(max, deadline)
         pf = PokeAccess::Pathfinder
         mv = Moves
@@ -333,29 +335,37 @@ module PokeAccess
           n += 1
           i = @head
           @head += 1
-          t = keys[i] >> 1
+          t = keys[i] >> 2
           x = t / PKEY_STRIDE
           y = t % PKEY_STRIDE
           l = @levels[i]
           pf.use_level(l)
           b = 0
-          while b < 4
-            dir = DIRS[b]
-            b += 1
-            f = mv.fast(x, y, dir, mode)
-            next if f.nil?
-            if f == true
+          alts = nil
+          while b < 4 || alts
+            if alts
+              s = alts.shift
+              alts = nil if alts.empty?
+            else
+              dir = DIRS[b]
+              b += 1
+              f = mv.fast(x, y, dir, mode)
+              next if f.nil?
+              s = f == true ? nil : mv.step(x, y, l, dir, mode)
+              next if f != true && s.nil?
+              alts = s.alts.dup if s && s.alts
+            end
+            if s.nil?
               nx = x + dir[0]; ny = y + dir[1]; nl = l; plain = true; warp = 0; entry = nil
             else
-              s = mv.step(x, y, l, dir, mode)
-              next if s.nil?
               nx = s.x; ny = s.y; nl = s.level; warp = s.warp ? 1 : 0; entry = s.entry
-              plain = (s.kind == :walk || s.kind == :surf) && s.presses == 1 && s.gate.nil? && warp == 0 && nl == l &&
-                      nx == x + dir[0] && ny == y + dir[1]
+              plain = s.choice.nil? && (s.kind == :walk || s.kind == :surf) && s.presses == 1 && s.gate.nil? &&
+                      warp == 0 && nl == l && nx == x + dir[0] && ny == y + dir[1]
             end
             nk = pf.skey(nx, ny, nl)
             j = id[nk] || add(nk, nl)
             ((@entered[entry] ||= {})[i] ||= []).push(b - 1, s.presses, j) if entry
+            @picks[@moves.length] = s.choice[0] if s && s.choice
             @moves.push(i, j, dir[2], s.presses, warp | (mv.relocated?(s) ? 2 : 0)) unless plain
             if plain
               mask[i] |= 1 << (b - 1)

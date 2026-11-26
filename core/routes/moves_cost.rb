@@ -44,7 +44,7 @@ module PokeAccess
       # a bridge tile above, where the ground below is not stepped on; a bridge tile below is asked each time.
       def self.tile_extra(x, y, lvl = 0)
         if (klass(x, y) & C_BRIDGE) != 0
-          return lvl.to_i > 0 ? 0 : tile_cost_now(x, y)
+          return PokeAccess::Pathfinder.height(lvl) > 0 ? 0 : tile_cost_now(x, y)
         end
         row = (@crows[y] ||= [])
         v = row[x]

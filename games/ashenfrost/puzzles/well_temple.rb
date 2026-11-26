@@ -1,12 +1,11 @@
-# Ashen Frost's Well Temple (map 686): twelve rocks pushed with pbPushThisSokoban, two to a pit and three pits to a wing. The game
-# moves one only onto RoughFloor, the pits' paved floor (003_Interpreter.rb), and its control event (EV61) waits for each on the
-# mark of its colour painted on that floor, the left wing first: the marks are in plain sight, so they are told without the puzzle
-# assist. Leaving the map puts the rocks back ($PokemonMap.clear), so no push is final. The pits are walled off from the rest of
-# the map, with only two doors of Morove Canyon (M689/E3 and E4) into them, so the puzzle speaks only there.
+# Ashen Frost's Well Temple (map 686): twelve rocks pushed (pbPushThisSokoban) onto RoughFloor, two to a pit, three pits
+# to a wing, each to the mark of its colour that EV61 waits for, left wing first. Marks are in plain sight; leaving
+# resets the rocks. The pits open only by M689/E3 and E4, so it speaks only there; the right wing drops EV64's Scroll.
 module PokeAccess
   module AshenWellTemple
     MAP = 686
     CONTROL = 61
+    BOX = 64
     # The part of the map the pits stand in, [x0, y0, x1, y1], and the column of the spikes (EV62, EV63) that part its wings until
     # EV61 has seen the left one done.
     PITS = [8, 59, 32, 77]
@@ -74,6 +73,11 @@ module PokeAccess
       $game_map.terrain_tag(x, y).id == :RoughFloor
     end
 
+    # Whether the box EV61 drops after the right wing still holds its item: its self switch B marks it taken.
+    def self.box_due?
+      $game_self_switches[[MAP, CONTROL, "B"]] && !$game_self_switches[[MAP, BOX, "B"]] ? true : false
+    end
+
     # The rock an event of this map is, or nil.
     def self.rock(ev)
       return nil unless $game_map.map_id == MAP
@@ -102,7 +106,9 @@ PokeAccess::Game.define("ashenfrost") do
 
   mechanic(:state, PokeAccess::AshenWellTemple::MAP) do
     arrival_hint lambda { PokeAccess::AshenWellTemple.rule }
-    solved(nil, :quiet => true) { PokeAccess::AshenWellTemple.wing.nil? }
+    solved(nil, :quiet => true) { PokeAccess::AshenWellTemple.wing.nil? && !PokeAccess::AshenWellTemple.box_due? }
+    phase lambda { PokeAccess::Puzzles.assist? && PokeAccess::AshenWellTemple.in_pits? && PokeAccess::AshenWellTemple.box_due? },
+          :hint => :afc_temple_box_hint
     phase lambda { PokeAccess::AshenWellTemple.cut_off? }
     (PokeAccess::AshenWellTemple::WINGS[0] + PokeAccess::AshenWellTemple::WINGS[1]).each do |rock|
       mark = PokeAccess::AshenWellTemple::MARK_LABELS[rock[1]]

@@ -1,11 +1,14 @@
 module PokeAccess
   module Routes
-    # What a search may end on: the tiles that count as getting there (on either bridge level), the least Manhattan
-    # distance to them, and the tile the route is for.
+    # What a search may end on: the tiles that count as getting there (on either bridge level, and on either floor
+    # unless the target is acted on from one alone), the least Manhattan distance to them, and the tile the route is
+    # for.
     class Goal
       # Its tiles, the target's tile and entry, the key of the target's own tile when it is one of the goal's (nil
       # otherwise): a move onto it whose touch event takes the player on elsewhere (Moves::Step#entry) gets there too.
       attr_reader :tiles, :tx, :ty, :entry
+      # The floor the goal is got to on, as the map's floor switch is set there (Pathfinder::FLOOR), nil for either.
+      attr_accessor :floor
 
       # Acting on (tx,ty): on it, beside it, or across a counter from it (Pathfinder.reach_tiles).
       def self.near(tx, ty); new(PokeAccess::Pathfinder.reach_tiles(tx, ty), tx, ty); end
@@ -13,8 +16,9 @@ module PokeAccess
       # Standing on (tx,ty) itself: a shore to push off from, a spot to dive at.
       def self.onto(tx, ty); new([[tx, ty]], tx, ty); end
 
-      # Standing on any of tiles, for the target at (tx,ty): the tiles a one-sided doorway is walked into from.
-      def initialize(tiles, tx, ty)
+      # Standing on any of tiles, for the target at (tx,ty): the tiles a doorway is walked into from, with presses
+      # ({ pkey => direction }) the press that acts on it from each of them (press).
+      def initialize(tiles, tx, ty, presses = nil)
         @tiles = tiles
         @tx = tx
         @ty = ty
@@ -24,10 +28,22 @@ module PokeAccess
         @entry = @hit.key?(own) ? own : nil
         @ring = tiles.include?([tx, ty]) && tiles.all? { |x, y| (x - tx).abs + (y - ty).abs <= 1 }
         @slack = tiles.length > 1 ? 1 : 0
+        @presses = presses
       end
 
-      # True when (x,y) is one of the goal's tiles; the boulders a push search moved (moved) do not matter to it.
-      def hit?(x, y, _moved = nil); @hit.key?(Routes.pkey(x, y)); end
+      # True when (x,y) is one of the goal's tiles, at level lvl on its floor where it has one and lvl is given; the
+      # boulders a push search moved (moved) do not matter to it.
+      def hit?(x, y, _moved = nil, lvl = nil)
+        @hit.key?(Routes.pkey(x, y)) && (lvl.nil? || floor_ok?(lvl))
+      end
+
+      # True when level lvl is on the goal's floor, or it has none.
+      def floor_ok?(lvl); @floor.nil? || PokeAccess::Pathfinder.floor?(lvl) == @floor; end
+
+      # The press that acts on the target from the goal's tile (x,y), or nil: through a doorway, or the action button
+      # facing it across a counter. A search prices it with the way and leaves it out of the route (Search.pressed); the
+      # plan ends with the doorway's (Planner.through).
+      def press(x, y); @presses && @presses[Routes.pkey(x, y)]; end
 
       # The least Manhattan distance from (x,y) to the goal's tiles: one less than to the target when they are the
       # target and tiles beside it, else the nearest of them.
@@ -253,17 +269,23 @@ module PokeAccess
 
       # The estimate a search toward goal with mode takes: 1 where a press covers one tile whichever way, a Bound by
       # the map's strides where a ledge hop covers two, and through the shortcuts on a map whose touch events move the
-      # player; nil where there is no telling (on a map with bridges or too many shortcuts, too).
+      # player, those of both floors on a map with a floor switch; nil where there is no telling (on a map with bridges
+      # or too many shortcuts, too).
       def self.bound_for(goal, mode)
+        pf = PokeAccess::Pathfinder
         strides = Moves.strides(mode)
         return nil unless strides
-        unless Moves.relocating?
-          return strides.plain? ? 1 : Bound.new(goal, strides)
+        lvl = pf.bridge_level
+        lvls = pf.floor_levels(lvl)
+        moving = lvls.any? { |l| pf.on_level(l, lvl) { Moves.relocating? } }
+        return strides.plain? ? 1 : Bound.new(goal, strides) unless moving
+        return nil if lvls.any? { |l| Moves.crowded?(l, mode) }
+        cuts = []
+        lvls.each do |l|
+          c = pf.on_level(l, lvl) { Moves.shortcuts(l, mode) }
+          return nil unless c
+          cuts.concat(c)
         end
-        lvl = PokeAccess::Pathfinder.bridge_level
-        return nil if Moves.crowded?(lvl, mode)
-        cuts = Moves.shortcuts(lvl, mode)
-        return nil unless cuts
         bound = Bound.for(goal, strides, cuts)
         Moves.crowd!(lvl, mode) unless bound
         bound
@@ -273,7 +295,8 @@ module PokeAccess
       # admissible); ties go to the costlier and the budget counts tiles. Routes past cap are dropped; with no goal it
       # floods to :exhausted or the budget, t kept to go on from; with :jps (shortest style, on foot, no tile that costs
       # more), jump points. It starts from the player, or from origin [x, y, bridge level]. A move onto the goal's entry
-      # ends a route of its own (entered), and a flood keeps one for every tile so stepped on and left.
+      # ends a route of its own (entered), as does a goal tile with a press through a doorway (pressed); a flood keeps
+      # one for every tile so stepped on and left.
       def self.run(goal, cost, mode, algo, est, cap = nil, t = nil, origin = nil)
         pf = PokeAccess::Pathfinder
         mv = Moves
@@ -283,7 +306,7 @@ module PokeAccess
         heaped = algo != :bfs && algo != :dfs
         priced = mv.costed?
         jumps = algo == :jps && goal && cost.style == :shortest && (mode & (Moves::ASSIST | Moves::SURF_PLAN)) == 0 &&
-                !priced
+                !priced && goal.floor.nil?
         scan = jumps ? Jumps.budget(pf.limits) : nil
         name = jumps ? :jps : ((algo == :jps || algo == :hpa || algo == :regions) ? :astar : algo)
         unit = cost.turn_unit
@@ -336,29 +359,43 @@ module PokeAccess
             settled[tile] = g
             first_of[tile] = cs if first_of
           end
-          return SearchResult.new(:found, path_to(came, cs), iter, name, g) if goal && goal.hit?(cx, cy)
-          pf.use_level(cl)
           from = cs % 5
+          if goal && goal.hit?(cx, cy, nil, cl)
+            d = goal.press(cx, cy)
+            return SearchResult.new(:found, path_to(came, cs), iter, name, g) unless d
+            pressed(t, goal, d, g, from, cs, cost, gw, cap, heaped, queue)
+          end
+          pf.use_level(cl)
           if jumps
             ways = Jumps.ways(cx, cy, from, mode)
             k = 0
-            while k < ways.length
-              i = ways[k]
-              k += 1
-              dir = DIRS[i]
-              f = mv.fast(cx, cy, dir, mode)
-              next if f.nil?
-              if f == true
-                j = Jumps.jump(cx, cy, i, mode, goal, scan)
-                if j == :over
-                  limits.cut!
-                  return SearchResult.new(:cut, nil, iter, name)
-                end
-                next if j.nil?
-                nx = j[0]; ny = j[1]; nl = cl; presses = j[2]; gate = nil; warp = false; arrive = i
+            alts = nil
+            while k < ways.length || alts
+              if alts
+                n = alts.shift
+                alts = nil if alts.empty?
               else
-                n = mv.step(cx, cy, cl, dir, mode)
-                next if n.nil?
+                i = ways[k]
+                k += 1
+                dir = DIRS[i]
+                f = mv.fast(cx, cy, dir, mode)
+                next if f.nil?
+                n = nil
+                if f == true
+                  j = Jumps.jump(cx, cy, i, mode, goal, scan)
+                  if j == :over
+                    limits.cut!
+                    return SearchResult.new(:cut, nil, iter, name)
+                  end
+                  next if j.nil?
+                  nx = j[0]; ny = j[1]; nl = cl; presses = j[2]; gate = nil; warp = false; arrive = i
+                else
+                  n = mv.step(cx, cy, cl, dir, mode)
+                  next if n.nil?
+                  alts = n.alts.dup if n.alts
+                end
+              end
+              if n
                 nx = n.x; ny = n.y; nl = n.level; presses = n.presses; gate = n.gate; warp = n.warp; arrive = 4
                 if n.entry && n.entry == aim
                   entered(t, aim, g + cost.step(presses, from != 4 && from != i, gate), [cs, dir[2], presses, false],
@@ -376,24 +413,31 @@ module PokeAccess
               h = estimate(goal, cost, est, nx, ny)
               next if cap && ng + h > cap
               least[ns] = ng
-              came[ns] = [cs, dir[2], presses, warp]
+              came[ns] = n && n.choice ? [cs, dir[2], presses, warp, n.choice[0]] : [cs, dir[2], presses, warp]
               pf.heap_push(heap, [gw * ng + hw * h, -ng, nx, ny, nl, ns])
             end
             next
           end
           i = first ? 0 : from
           last = first ? 4 : from + 1
-          while i < last
-            dir = DIRS[i]
-            i += 1
-            f = mv.fast(cx, cy, dir, mode)
-            next if f.nil?
-            if f == true
+          alts = nil
+          while i < last || alts
+            if alts
+              n = alts.shift
+              alts = nil if alts.empty?
+            else
+              dir = DIRS[i]
+              i += 1
+              f = mv.fast(cx, cy, dir, mode)
+              next if f.nil?
+              n = f == true ? nil : mv.step(cx, cy, cl, dir, mode)
+              next if f != true && n.nil?
+              alts = n.alts.dup if n && n.alts
+            end
+            if n.nil?
               nx = cx + dir[0]; ny = cy + dir[1]; nl = cl; presses = 1; gate = nil; warp = false
               extra = priced ? mv.tile_extra(nx, ny, nl) : 0
             else
-              n = mv.step(cx, cy, cl, dir, mode)
-              next if n.nil?
               nx = n.x; ny = n.y; nl = n.level; presses = n.presses; gate = n.gate; warp = n.warp
               extra = priced ? mv.crossed_extra(cx, cy, nx, ny, dir, nl, mv.relocated?(n)) : 0
               if n.entry && (goal.nil? || n.entry == aim)
@@ -412,7 +456,7 @@ module PokeAccess
             h = estimate(goal, cost, est, nx, ny)
             next if cap && ng + h > cap
             least[ns] = ng
-            came[ns] = [cs, dir[2], presses, warp]
+            came[ns] = n && n.choice ? [cs, dir[2], presses, warp, n.choice[0]] : [cs, dir[2], presses, warp]
             item = [gw * ng + hw * h, -ng, nx, ny, nl, ns]
             heaped ? pf.heap_push(heap, item) : queue.push(item)
           end
@@ -433,6 +477,15 @@ module PokeAccess
         heaped ? PokeAccess::Pathfinder.heap_push(t.heap, item) : queue.push(item)
       end
 
+      # Offers the end of a route at goal's tile reached in state cs (arriving from DIRS index from, 4 for none) at cost
+      # g, where the press d through the target's doorway follows (Goal#press): the end state of the target's tile
+      # (entered), at the cost with that press and its turn, its link pressing nothing, so the route stops on the tile.
+      def self.pressed(t, goal, d, g, from, cs, cost, gw, cap, heaped, queue)
+        i = Regions::DIR_INDEX[d]
+        ng = g + cost.step(1, from != 4 && from != i, nil)
+        entered(t, Routes.pkey(goal.tx, goal.ty), ng, [cs, d, 0, false], gw, cap, heaped, queue)
+      end
+
       # The search state that ends a route on a move onto entry's tile, below every state of a tile.
       def self.entry_state(entry); -1 - entry; end
 
@@ -444,19 +497,31 @@ module PokeAccess
         cost.least((goal.bound(x, y) + est - 1) / est)
       end
 
-      # The key presses of the search's route to state s, with the transfers on the way as its rooms and warps.
+      # The key presses of the search's route to state s, with the transfers on the way as its rooms and warps, and the
+      # options its moves onto a menu's tile take (a link's fifth, see Pathfinder::Route#choices).
       def self.path_to(came, s)
         path = PokeAccess::Pathfinder::Route.new
         tails = []
+        picks = []
         while (link = came[s])
-          p, d, presses, warp = link
+          p, d, presses, warp, pick = link
           tails.push(path.length) if warp
+          picks.push([path.length, pick]) if pick
           presses.times { path.unshift(d) }
           s = p
         end
         path.rooms = tails.length
         path.warps = tails.reverse.map { |tail| path.length - tail - 1 }
+        path.choices = Search.choices_at(picks, path.length) unless picks.empty?
         path
+      end
+
+      # The choices of a route of n presses built from its end (path_to): [[presses after the move, option], ...] as
+      # press index => option.
+      def self.choices_at(picks, n)
+        out = {}
+        picks.each { |tail, k| out[n - tail - 1] = k }
+        out
       end
     end
   end

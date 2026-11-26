@@ -27,21 +27,24 @@ module PokeAccess
         kept([:plan, tx, ty, onto]) { make(tx, ty, onto) }
       end
 
-      # The way on foot from (fx,fy) at bridge level lvl to act on (tx,ty), or to stand on it with onto, as a Plan (:walk,
-      # :none or :cut): one A* from that tile (from_tile), with no regions, floods or HPA*, which are the player's, no surf
-      # and no assisted steps. The free camera's route key asks it. Answered with no search when (fx,fy) is in the
-      # player's zone on foot and the target is not.
+      # The way on foot from (fx,fy) at bridge level lvl to act on (tx,ty), or to stand on it with onto, as a Plan
+      # (:walk, :none or :cut): one A* from that tile (from_tile), with no regions, floods or HPA*, no surf and no
+      # assisted steps, a walk ending with the press through a doorway (through). The free camera's route key asks it.
+      # Answered with no search when (fx,fy) is in the player's zone on foot and the target is not, and with no presses
+      # on the target's own tile.
       def self.plan_from(fx, fy, lvl, tx, ty, onto = false)
         kept([:from, fx, fy, lvl, tx, ty, onto]) do
           PokeAccess::Pathfinder.searching do
             goal = goal_for(tx, ty, onto)
-            if goal.hit?(fx, fy)
-              Plan.new(:walk, Pathfinder::Route.new)
-            elsif reach(Goal.onto(fx, fy), false)[0] == :yes && unreachable?(goal)
-              Plan.new(:none)
-            else
-              from_tile(goal, [fx, fy, lvl])
-            end
+            made = if goal.hit?(fx, fy, nil, lvl) || (fx == tx && fy == ty)
+                     Plan.new(:walk, Pathfinder::Route.new)
+                   elsif reach(Goal.onto(fx, fy), false)[0] == :yes && unreachable?(goal)
+                     Plan.new(:none)
+                   else
+                     from_tile(goal, [fx, fy, lvl])
+                   end
+            made.route = through(made.route, tx, ty, [fx, fy, lvl]) if made.kind == :walk && !onto
+            made
           end
         end
       end
@@ -85,7 +88,7 @@ module PokeAccess
           px = $game_player.x; py = $game_player.y
           goal = goal_for(tx, ty, onto)
           dist = (px - tx).abs + (py - ty).abs
-          if goal.hit?(px, py)
+          if goal.hit?(px, py, nil, pf.bridge_level)
             SearchResult.new(:found, Pathfinder::Route.new, 0, nil)
           elsif dist > pf.reach
             limits.cut!
@@ -112,11 +115,19 @@ module PokeAccess
         past
       end
 
-      # What a route to (tx,ty) ends on: the tiles a one-sided doorway or healing spot is entered from, the spot itself
-      # with onto, else the tiles it is acted on from.
+      # What a route to (tx,ty) ends on: the press into the sight of a watcher there that takes the player on (its line,
+      # its tile as the entry), the tiles a doorway is entered from with the press through it from each (door_goal), or
+      # a healing spot's, the spot itself with onto, else the tiles it is acted on from.
       def self.goal_for(tx, ty, onto)
-        sides = onto ? nil : (entered_from(tx, ty) || answering_sides(tx, ty))
-        sides ? Goal.new(sides, tx, ty) : (onto ? Goal.onto(tx, ty) : Goal.near(tx, ty))
+        return Goal.onto(tx, ty) if onto
+        line = Effects.sight_line(tx, ty)
+        return Goal.new(line + [[tx, ty]], tx, ty) if line
+        door = door_goal(tx, ty)
+        return door if door
+        sides = PokeAccess::HealingFloors.entries(tx, ty) || answering_sides(tx, ty)
+        goal = sides ? Goal.new(sides, tx, ty) : Goal.near(tx, ty)
+        goal.floor = Effects.target_floor(tx, ty)
+        goal
       end
 
       # The tiles an event that answers from some sides alone answers from, unless the player cannot get to any of them: the
@@ -147,7 +158,7 @@ module PokeAccess
         pf.searching do |limits|
           r = walk(tx, ty, onto)
           told = r.status != :found && unreachable?(goal_for(tx, ty, onto)) ? limits.cuts : 0
-          made = if r.status == :found then walked(r.route, tx, ty)
+          made = if r.status == :found then walked(r.route, tx, ty, onto)
                  elsif beyond?(tx, ty) then Plan.new(:far)
                  elsif r.status != :cut && (g = assisted(tx, ty, onto)) then Plan.new(:assisted, g[0], g[1])
                  elsif (c = through_controls(tx, ty, onto)) then Plan.new(:assisted, c[0], c[1])
@@ -161,13 +172,14 @@ module PokeAccess
         end
       end
 
-      # The plan of a route walked to (tx,ty): assisted when it leads to a thing only the Lens of Truth shows, used
-      # there (World::Lens.show_cut), or crosses what the lens opens once it is down again, used again there
-      # (World::Lens.renew_cut); else the walk.
-      def self.walked(route, tx, ty)
+      # The plan of a route walked to (tx,ty), or onto it with onto: assisted when it leads to a thing only the Lens of
+      # Truth shows (World::Lens.show_cut) or crosses what the lens opens once it is down again (World::Lens.renew_cut);
+      # else the walk, ending with the press through a doorway (through).
+      def self.walked(route, tx, ty, onto)
         lens = PokeAccess::World::Lens
         s = lens.show_cut(route, tx, ty) || lens.renew_cut(route)
-        s ? Plan.new(:assisted, s[0], s[1]) : Plan.new(:walk, route)
+        return Plan.new(:assisted, s[0], s[1]) if s
+        Plan.new(:walk, onto ? route : through(route, tx, ty))
       end
 
       # The route to (tx,ty) up to its first assisted step, as [steps, gate]: a search with the obstacles set aside,
@@ -175,27 +187,31 @@ module PokeAccess
       def self.assisted(tx, ty, onto = false)
         pf = PokeAccess::Pathfinder
         return nil unless pf.assist_possible?
-        goal = goal_for(tx, ty, onto)
+        goal = pf.with_gates_open { goal_for(tx, ty, onto) }
         relax = (PokeAccess::Config.edge_relax rescue false)
         return nil if !relax && Regions.assisted.status(goal.tiles, goal.entry)[0] == :no
         full = pf.with_gates_open do
           pf.searching { Search.route(goal, pf.moves_mode(true, relax), pf.path_algorithm).route }
         end
         cut = full && pf.cut_at_gate(full)
-        cut ? [cut[0], past(cut[1], full, cut[0].length)] : Pushes.route(goal)
+        cut ? [cut[0], past(cut[1], full, cut[0].length, onto ? nil : [tx, ty])] : Pushes.route(goal)
       rescue StandardError => e
         PokeAccess.log_once("route_assisted", e)
         nil
       end
 
-      # The gate of route full, at its press n, with the way past it when that way reaches the goal with nothing more
-      # to clear or use on it, and no tile of full changes the puzzle (kinds_past): :after, how many presses are left
-      # once the gate is passed, and :jumps and :slides, how many of them hop a ledge or slide, only when there are any.
-      def self.past(gate, full, n)
+      # The gate of route full, at its press n, with the way past it when that way reaches the goal with nothing more to
+      # clear or use and no tile of full changes the puzzle (kinds_past): :after, how many presses are left once the
+      # gate is passed, the press through the doorway at door [x, y] among them where full ends on a tile it goes from
+      # (door_press), and :jumps and :slides, how many hop a ledge or slide, only when there are any.
+      def self.past(gate, full, n, door = nil)
         pf = PokeAccess::Pathfinder
         start = [$game_player.x, $game_player.y, pf.bridge_level]
         left = pf.with_gates_open do
-          kinds_past(Moves.trace(start[0], start[1], start[2], full, pf.replay_mode), full, n, start)
+          pts = Moves.trace(start[0], start[1], start[2], full, pf.replay_mode)
+          kinds = kinds_past(pts, full, n, start)
+          e = pts[-1]
+          kinds && e && door && door_press(door[0], door[1], e.x, e.y, e.level) ? kinds.push(nil) : kinds
         end
         return gate if left.nil? || left.empty?
         jumps = left.select { |k| k == :jump }.length
@@ -216,7 +232,8 @@ module PokeAccess
         return nil if pts[0...-1].any? { |s| off[Routes.pkey(s.x, s.y)] }
         from = pts[n].kind == :assist ? n + 1 : n
         s = from > 0 ? pts[from - 1] : nil
-        Moves.one_way(s ? s.x : start[0], s ? s.y : start[1], s ? s.level : start[2], full[from..-1])
+        Moves.one_way(s ? s.x : start[0], s ? s.y : start[1], s ? s.level : start[2], full[from..-1],
+                      Moves.picks_of(full, from))
       end
 
       # With the puzzle assist, the way to the first control whose presses open the way to (tx,ty) (Controls); nil
@@ -229,18 +246,23 @@ module PokeAccess
         nil
       end
 
-      # The kept plan to push the boulder ev into the box [x0, y0, x1, y1], a puzzle's zone: :assisted up to its first
-      # push or pull, :walk with no steps once inside, :cut past the pushes' limits, else :none.
-      def self.carry(ev, box)
-        kept([:carry, ev.id, box]) { carried(ev, box) }
+      # The kept plan to push the boulder ev into the box [x0, y0, x1, y1], a puzzle's zone, with, as event id => box,
+      # the events its pushes move along (Effects.push_twins) in theirs: :assisted up to its first push or pull, :walk
+      # with no steps once all are inside, :cut past the pushes' limits, else :none.
+      def self.carry(ev, box, with = nil)
+        kept([:carry, ev.id, box, with]) { carried(ev, box, with) }
       end
 
       # The carry plan made afresh (see carry).
-      def self.carried(ev, box)
+      def self.carried(ev, box, with = nil)
         PokeAccess::Pathfinder.searching do |limits|
           key = Routes.pkey(ev.x, ev.y)
           info = Effects.boulder_index[key]
-          goal = info ? Pushes::RockGoal.new(key, ev.x, ev.y, box, info) : nil
+          others = (with || {}).map do |id, b|
+            tw = ($game_map.events[id] rescue nil)
+            tw ? [Routes.pkey(tw.x, tw.y), b, tw.x, tw.y] : nil
+          end
+          goal = info ? Pushes::RockGoal.new(key, ev.x, ev.y, box, info, others.compact) : nil
           if !goal then Plan.new(:none)
           elsif goal.hit?(0, 0, []) then Plan.new(:walk, PokeAccess::Pathfinder::Route.new)
           elsif (g = Pushes.route(goal)) then Plan.new(:assisted, g[0], g[1])
@@ -304,7 +326,7 @@ module PokeAccess
         mid = !PokeAccess::Engine.gamedata?
         px = $game_player.x
         py = $game_player.y
-        Moves.trace(px, py, pf.bridge_level, route.to_a, pf.replay_mode).each do |s|
+        Moves.trace(px, py, pf.bridge_level, route.to_a, pf.replay_mode, Moves.picks_of(route)).each do |s|
           tiles = mid && s.kind == :slide ? passed(px, py, s.x, s.y) : [[s.x, s.y]]
           return true if tiles.any? { |x, y| seen[Routes.pkey(x, y)] && !own[Routes.pkey(x, y)] }
           px = s.x
@@ -358,16 +380,151 @@ module PokeAccess
         Moves.with_closed(off, passing) { Search.fresh(goal, mode) }
       end
 
-      # The tiles a target at (tx,ty) works entered from alone: a one-sided doorway's (doorways) or a healing spot's
+      # The tiles a target at (tx,ty) works entered from alone: a doorway's (doorways) or a healing spot's
       # (HealingFloors.entries); nil for any other.
       def self.entered_from(tx, ty)
         doorways(tx, ty) || PokeAccess::HealingFloors.entries(tx, ty)
       end
 
-      # The tiles a one-sided doorway at (tx,ty) is walked into from, nil for any other target.
+      # The tiles a route to a doorway at (tx,ty) ends on (door_goal), nil for any other target.
       def self.doorways(tx, ty)
-        fs = Effects.door_facings(tx, ty)
-        fs && fs.map { |f| [tx - PokeAccess::DIR_DELTA[f][0], ty - PokeAccess::DIR_DELTA[f][1]] }
+        goal = door_goal(tx, ty)
+        goal && goal.tiles
+      end
+
+      # The Goal of a doorway at (tx,ty): the tiles a press from goes through it, each with that press (door_presses);
+      # for one bumped into, those across a counter too, each with the action button's facing; for one walked onto that
+      # takes the player on within the map, its own, stood on or entered by any move onto it (Goal#entry). With none, a
+      # one-sided doorway's tiles its facings are walked into from. nil for a target that is no doorway.
+      def self.door_goal(tx, ty)
+        presses = door_presses(tx, ty, PokeAccess::Pathfinder.bridge_level)
+        return nil unless presses
+        if presses.empty?
+          fs = Effects.door_facings(tx, ty)
+          return fs && Goal.new(fs.map { |f| [tx - PokeAccess::DIR_DELTA[f][0], ty - PokeAccess::DIR_DELTA[f][1]] }, tx, ty)
+        end
+        t = Effects.touch_index[Routes.pkey(tx, ty)]
+        presses += across_counters(tx, ty) if t && !t[0]
+        by_tile = {}
+        presses.each { |x, y, d| by_tile[Routes.pkey(x, y)] = d }
+        tiles = presses.map { |x, y, _d| [x, y] }
+        tiles.push([tx, ty]) if t && t[0] && t[1].values.any? { |e| e[0] == :warp }
+        Goal.new(tiles, tx, ty, by_tile)
+      end
+
+      # The tiles across a counter from the event at (tx,ty), as Pathfinder.reach_tiles has them, neither on its area
+      # nor beside it, each [x, y, the facing toward the event].
+      def self.across_counters(tx, ty)
+        area = PokeAccess::Pathfinder.area_at(tx, ty)
+        out = []
+        area.each do |ax, ay|
+          DIRS.each do |dx, dy, d|
+            x = ax - 2 * dx
+            y = ay - 2 * dy
+            next unless ($game_map.counter?(ax - dx, ay - dy) rescue false)
+            out.push([x, y, d]) if area.all? { |bx, by| (x - bx).abs + (y - by).abs > 1 }
+          end
+        end
+        out
+      end
+
+      # The presses that go through the doorway at (tx,ty) from the tiles beside its event (door_area), each [x, y,
+      # direction] in the order of DIRS, at bridge level lvl (transfer_press?); nil for a target that is no doorway.
+      def self.door_presses(tx, ty, lvl)
+        area = door_area(tx, ty)
+        return nil unless area
+        inside = {}
+        area.each { |x, y| inside[Routes.pkey(x, y)] = true }
+        out = []
+        PokeAccess::Pathfinder.searching do
+          area.each do |ax, ay|
+            DIRS.each do |dx, dy, d|
+              x = ax - dx
+              y = ay - dy
+              out.push([x, y, d]) if !inside[Routes.pkey(x, y)] && transfer_press?(x, y, lvl, d)
+            end
+          end
+        end
+        out
+      end
+
+      # The tiles of the event at (tx,ty) (Pathfinder.area_at) when touching one of them takes the player elsewhere for
+      # some facing, on or off the map; else nil.
+      def self.door_area(tx, ty)
+        area = PokeAccess::Pathfinder.area_at(tx, ty)
+        doors = area.any? do |x, y|
+          t = Effects.touch_index[Routes.pkey(x, y)]
+          t && t[1].values.any? { |e| e[0] == :exit || e[0] == :warp }
+        end
+        doors ? area : nil
+      end
+
+      # The direction of the press from (x,y) at bridge level lvl that goes through the doorway at (tx,ty), or nil.
+      def self.door_press(tx, ty, x, y, lvl)
+        press = (door_presses(tx, ty, lvl) || []).find { |px, py, _d| px == x && py == y }
+        press && press[2]
+      end
+
+      # route with the press through the doorway at (tx,ty) added where, walked from origin [x, y, bridge level] (the
+      # player's state when nil), it ends on a tile that press goes from (door_press), lending the walkers in the way
+      # where only so it gets there (as unfound finds it); else route as it is.
+      def self.through(route, tx, ty, origin = nil)
+        return route unless door_area(tx, ty)
+        at = route_end(route, origin)
+        walkers = at ? [] : Regions.lendable_walkers
+        at = PokeAccess::World::Probe.lend_through(walkers) { route_end(route, origin) } unless walkers.empty?
+        d = at && door_press(tx, ty, at[0], at[1], at[2])
+        d ? route.dup.push(d) : route
+      end
+
+      # The state [x, y, bridge level] route leaves the player in, walked from origin (the player's state when nil) as
+      # the guide replays it (Moves.trace); nil where it stops short.
+      def self.route_end(route, origin)
+        pf = PokeAccess::Pathfinder
+        at = origin || [$game_player.x, $game_player.y, pf.bridge_level]
+        return at if route.empty?
+        pts = Moves.trace(at[0], at[1], at[2], route, pf.replay_mode)
+        pts.length == route.length ? [pts[-1].x, pts[-1].y, pts[-1].level] : nil
+      end
+
+      # True when a press from (x,y) at bridge level lvl toward d goes through the doorway in front, as Moves.step plays
+      # it: the press stops on that tile and its event answers arriving facing d with a transfer, or bumps into it and
+      # the event answers a bump so (pressed_onto).
+      def self.transfer_press?(x, y, lvl, d)
+        dir = DIR_OF[d]
+        return false if dir.nil? || PokeAccess::World::Terrain.outside?(x + dir[0], y + dir[1])
+        pf = PokeAccess::Pathfinder
+        pf.searching do
+          pf.use_level(lvl)
+          on = pressed_onto(x, y, dir)
+          e = on.nil? ? nil : Effects.touch_at(x + dir[0], y + dir[1], d, on)
+          !e.nil? && (e[0] == :exit || e[0] == :warp)
+        end
+      end
+
+      # How a press from (x,y) toward dir meets the tile in front as Moves.step takes it: true when it stops there,
+      # false when it bumps into it, nil when it goes elsewhere (a run armed, a registered move, a ledge hopped, ice
+      # slid on).
+      def self.pressed_onto(x, y, dir)
+        d = dir[2]
+        fx = x + dir[0]
+        fy = y + dir[1]
+        return nil if Moves.run_from(x, y, d)
+        nbr = Moves.departure(x, y, dir)
+        if nbr.nil?
+          t = PokeAccess::World::Terrain
+          return nil if t.ledge?(fx, fy) || t.ice?(fx, fy)
+          return edge_step?(fx, fy) unless PokeAccess::World::Probe.step?(x, y, d)
+          nbr = Moves.arrive(fx, fy, d)
+        end
+        return false unless nbr
+        nbr[0] == fx && nbr[1] == fy ? true : nil
+      end
+
+      # True when the engine's closed step onto (x,y) is taken all the same: a passable border tile with edge_relax on.
+      def self.edge_step?(x, y)
+        relax = (PokeAccess::Pathfinder.replay_mode & Moves::RELAX) != 0
+        relax && Moves.border_tile?(x, y) && ($game_map.passable?(x, y, 0) rescue false) ? true : false
       end
 
       # True when (tx,ty) lies beyond reach of the player (route_reach), where nothing is searched.

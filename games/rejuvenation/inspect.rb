@@ -1,7 +1,7 @@
 module PokeAccess
   # Rejuvenation's Inspect report (pbShowBattleStats, read by rv_common's InspectRV) paints types as <icon=typeX> marks
   # and statuses as <img=...statusX>, worded in each row and in the whole report on the info key. Ctrl's team preview,
-  # the game's own ttsPartyPreview, is relayed.
+  # the game's own ttsPartyPreview, is relayed, and its key is hinted as an Inspect opens.
   module RejuvInspect
     TYPE_RUN = /(?:<icon=type(\w+)>\s*)+/
     TYPE_ICON = /<icon=type(\w+)>/
@@ -26,6 +26,19 @@ module PokeAccess
       (cmds.is_a?(Array) && cmds[i]) ? worded(cmds[i]) : nil
     end
 
+    # Notes whether a pbShowBattleStats call opens an Inspect (no battler inspected before it, not back from another
+    # screen), the one report the game hints Ctrl's team preview for.
+    def self.opening(args)
+      @preview_hint = args[1].nil? && !args[2]
+    end
+
+    # The team preview's hint, once, for the report that opens an Inspect.
+    def self.preview_hint
+      return [] unless @preview_hint
+      @preview_hint = false
+      [PokeAccess::I18n.t(:rj_inspect_preview, :key => "Ctrl")]
+    end
+
     # The whole report for the info key: the message above the list, then each row worded.
     def self.report_text(msgwindow, rows)
       head = (msgwindow.text rescue nil)
@@ -41,5 +54,10 @@ PokeAccess::Game.define("rejuvenation") do
     PokeAccess::RejuvInspect.report_text(args[0], args[1])
   end
 
+  override("PokeAccess::InspectRV", :button_hints) do |_mod, original, _args|
+    original.call + PokeAccess::RejuvInspect.preview_hint
+  end
+
+  kernel("pbShowBattleStats", :before) { |args, _r| PokeAccess::RejuvInspect.opening(args) }
   kernel("ttsPartyPreview", :around) { |_args, nxt| PokeAccess::OwnVoiceRV.relayed { nxt.call } }
 end

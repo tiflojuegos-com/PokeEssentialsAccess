@@ -223,6 +223,21 @@ sevii|pbRockSmash|0104_PField_HiddenMoves.rb:407|||ROCKSMASH
 sevii|pbStrength|0104_PField_HiddenMoves.rb:457|||STRENGTH
 sevii|pbSurf|0199_Following Pokémon.rb:871|||SURF,switch:Following_Activated_Switch
 sevii|pbWaterfall|0104_PField_HiddenMoves.rb:738|||WATERFALL
+slld_anime|pbCut|0244_Overworld_FieldMoves.rb:176|||CUT
+slld_anime|pbCut|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:134|||
+slld_anime|pbDive|0244_Overworld_FieldMoves.rb:277|||DIVE
+slld_anime|pbDive|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:883|||
+slld_anime|pbDive|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:55||__followingpkmn__pbDive|DIVE
+slld_anime|pbRockSmash|0244_Overworld_FieldMoves.rb:591|||ROCKSMASH
+slld_anime|pbRockSmash|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:87|||
+slld_anime|pbStrength|0244_Overworld_FieldMoves.rb:634|||STRENGTH
+slld_anime|pbStrength|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:333|||
+slld_anime|pbSurf|0244_Overworld_FieldMoves.rb:685|||SURF
+slld_anime|pbSurf|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:806|||
+slld_anime|pbSurf|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:6||__followingpkmn__pbSurf|SURF
+slld_anime|pbWaterfall|0244_Overworld_FieldMoves.rb:926|||WATERFALL
+slld_anime|pbWaterfall|_PluginScripts/Advanced Items - Field Moves/03_Item Handler.rb:1051|||
+slld_anime|pbWaterfall|_PluginScripts/Following Pokemon EX/Script Additions/Field Moves.rb:118||__followingpkmn__pbWaterfall|WATERFALL
 solarlight|pbCut|0116_PField_FieldMoves.rb:192|||CLIPPERS,CUT
 solarlight|pbDive|0116_PField_FieldMoves.rb:310|||DIVE,SNORKLE
 solarlight|pbRockSmash|0116_PField_FieldMoves.rb:648|||HAMMER,ROCKSMASH

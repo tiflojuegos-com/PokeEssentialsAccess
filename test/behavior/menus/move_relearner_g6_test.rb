@@ -118,6 +118,17 @@ class MoveRelearnerG6Test < PokeAccessTest
     end
   end
 
+  test "a detail right after a line said for it queues behind that line, and the next one cuts in again" do
+    with_move_info do
+      scene = stock_scene([11, 22], 0)
+      PokeAccess.speak("Sorted by name", true)
+      PokeAccess::Menus.queue_next_read(scene)
+      Relearner.detail(scene)
+      Relearner.detail(scene)
+    end
+    assert_equal [false, true], SpeakCapture.log[1, 2].map { |line| line[1] }
+  end
+
   test "with no focused move the detail says nothing" do
     with_move_info do
       Relearner.detail(stock_scene([11, 22], -1))

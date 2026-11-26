@@ -349,6 +349,18 @@
       "engine": "gen6"
     },
     {
+      "key": "slld_anime",
+      "display": "Pokémon SL & LD - Anime Chronicles",
+      "titles": [
+        "sl & ld - anime chronicles",
+        "sl&ld anime chronicles",
+        "slld anime chronicles"
+      ],
+      "detect": "anime.?chronicles",
+      "exes": [],
+      "engine": "gamedata"
+    },
+    {
       "key": "solarlight",
       "display": "Pokémon Solar Light & Lunar Dark",
       "titles": [

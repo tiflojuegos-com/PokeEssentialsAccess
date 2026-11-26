@@ -97,11 +97,13 @@ module PokeAccess
       p = $game_player
       return nil unless p && $game_map
       moves = PokeAccess::Routes::Moves
-      lvl = PokeAccess::Pathfinder.bridge_level.to_i > 0 ? 1 : 0
+      lvl = PokeAccess::Pathfinder.flat_level
       dirs = PokeAccess::Routes::DIRS
       steps = WAY_ORDER.map { |d| [d, moves.step(p.x, p.y, lvl, dirs.find { |v| v[2] == d }, moves::LEDGE)] }
       return nil unless steps.any? { |_d, s| s && (s.kind == :slide || s.kind == :carry) }
-      steps.map { |d, s| s ? way_line(d, s.x - p.x, s.y - p.y) : way_line(d, 0, 0, exit_way?(p.x, p.y, d)) }.join("; ")
+      steps.map do |d, s|
+        s && s.kind != :exit ? way_line(d, s.x - p.x, s.y - p.y) : way_line(d, 0, 0, exit_way?(p.x, p.y, lvl, d))
+      end.join("; ")
     rescue StandardError => e
       PokeAccess.swallowed(e)
       nil
@@ -119,14 +121,10 @@ module PokeAccess
       PokeAccess::I18n.t(:loc_way, :dir => text.dir(d), :to => to)
     end
 
-    # Whether a press from (x,y) toward d walks or bumps into a touch event that leaves the map (a door, stairs), or
-    # steps off it by an edge that leads on, which Routes::Moves.step answers as no move.
-    def self.exit_way?(x, y, d)
-      dd = PokeAccess::DIR_DELTA[d]
-      e = PokeAccess::Routes::Effects
-      fx = x + dd[0]; fy = y + dd[1]
-      t = e.touch_at(fx, fy, d, true) || e.touch_at(fx, fy, d, false)
-      (!t.nil? && t[0] == :exit) || edge_exit?(x, y, d)
+    # Whether a press from (x,y) at level lvl toward d goes through a doorway (Routes::Planner.transfer_press?) or
+    # off the map by an edge that leads on, which Routes::Moves.step answers as no move.
+    def self.exit_way?(x, y, lvl, d)
+      PokeAccess::Routes::Planner.transfer_press?(x, y, lvl, d) || edge_exit?(x, y, d)
     end
 
     # Whether a press from the border tile (x,y) toward d steps off the map by an edge that leads to another, the step

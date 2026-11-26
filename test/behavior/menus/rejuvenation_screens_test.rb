@@ -1,5 +1,6 @@
 # Rejuvenation's own screens (games/rejuvenation), each read from what it paints: the level-up stat window, its quest
-# journal, the CyberNav's achievements and Move Tutor, the passwords, and the Xen tower's blessings and Luck Swap.
+# journal, the CyberNav's achievements and Move Tutor, the passwords, and the Xen tower's blessings and Luck Swap; and
+# the sort keys of its bag, Pokedex and move relearner, said as the game's own reader says them.
 Harness.load_common("rv_common")
 
 # The game's stat window, painted beside the message of a level up or a vitamin.
@@ -141,6 +142,29 @@ end
 # The bag, whose pbPartyCanLearnThisMove? gives the tutor's marks.
 class PokemonBag; end
 
+# The bag's sort keys (Bag.rb:453), each sorting the pocket with a sound.
+class PokemonBag_Scene
+  def pbHandleSort(_pocket, sort_by); sort_by; end
+end
+
+# The Pokedex list's sort (PokedexScene.rb:549-555, 791-803), by number (0) or name (1), from a shortcut key or the
+# search, which puts the list's cursor back on its first row.
+class PokemonPokedexScene
+  def getSortMode; @sort_mode.to_i; end
+  def pbExecuteSort(mode, shortcut: false)
+    return if getSortMode == mode
+    @sort_mode = mode
+    @pokedexSprites["pokedex"].index = 0 if @pokedexSprites
+    shortcut
+  end
+end
+
+# The move relearner (MoveRelearner.rb:63, 300-306): its page's order is set before the list is rebuilt.
+class MoveRelearnerScene
+  def initialize(page); @page = page; end
+  def refreshMoves; @page; end
+end
+
 # The passwords menu: its rows as the command reader takes them, the bulk passwords' list opening inside the other.
 class PasswordEntry
   def entryForPasswords(bulklist)
@@ -152,7 +176,7 @@ end
 
 class RejuvenationScreensTest < PokeAccessTest
   # The profile files of these screens, in the manifest's order.
-  PROFILE_FILES = %w[level_up used_items quests achievements blessings luck_swap passwords move_tutor]
+  PROFILE_FILES = %w[level_up used_items quests achievements blessings luck_swap passwords list_sorts move_tutor]
   # The quest plugin's readers the profile overrides.
   QUEST_READERS = [:overview, :new_badge?, :other_lines]
 
@@ -590,11 +614,61 @@ class RejuvenationScreensTest < PokeAccessTest
   end
 
   test "X sorts the Move Tutor's list by name and A by type, each said as it is rebuilt" do
-    { Input::X => t(:rj_tutor_by_name), Input::A => t(:rj_tutor_by_type) }.each do |key, sort|
+    { Input::X => t(:rj_sorted_name), Input::A => t(:rj_sorted_type) }.each do |key, sort|
       SpeakCapture.clear
       with_tutor([:CUT], {}) { |scene| pressing(key) { scene.refreshMoveList } }
       assert_equal [[sort, true]], SpeakCapture.log, "key #{key}"
     end
+  end
+
+  test "each sort key of the bag says the order it set" do
+    { :name => :rj_sorted_name, :type => :rj_sorted_type, :number => :rj_sorted_number }.each do |order, key|
+      SpeakCapture.clear
+      PokemonBag_Scene.new.pbHandleSort(0, order)
+      assert_equal [[t(key), true]], SpeakCapture.log, order.inspect
+    end
+  end
+
+  test "a Pokedex sort shortcut says the order it set, and nothing when it changes nothing or comes from the search" do
+    dex = PokemonPokedexScene.new
+    said = [1, 1, 0].map do |mode|
+      SpeakCapture.clear
+      dex.pbExecuteSort(mode, shortcut: true)
+      SpeakCapture.lines
+    end
+    assert_equal [[t(:rj_sorted_name)], [], [t(:rj_sorted_number)]], said
+    dex.pbExecuteSort(1)
+    assert_equal 1, dex.getSortMode, "the search's sort runs, its keyword kept"
+    assert_equal [t(:rj_sorted_number)], SpeakCapture.lines
+  end
+
+  test "a Pokedex sort says its order, then the first row it puts the cursor on, queued" do
+    list = Window_DrawableCommand.new(["001 Bulbasaur", "002 Ivysaur", "003 Venusaur", "004 Charmander"])
+    list.active = true
+    list.index = 3
+    list.update
+    dex = PokemonPokedexScene.new
+    dex.instance_variable_set(:@pokedexSprites, { "pokedex" => list })
+    SpeakCapture.clear
+    dex.pbExecuteSort(1, shortcut: true)
+    list.update
+    assert_equal [[t(:rj_sorted_name), true], false], [SpeakCapture.log[0], SpeakCapture.log[1][1]]
+    assert_equal 2, SpeakCapture.log.length
+  end
+
+  test "the relearner's sort leaves the move it reads next queued behind the order" do
+    scene = MoveRelearnerScene.new(:tm)
+    with_relearner_sorting(:tm => :type) { pressing(Input::A) { scene.refreshMoves } }
+    assert PokeAccess::Menus.read_queued?(scene)
+  end
+
+  test "the relearner says the order its key set for the page, and nothing on a rebuild of another kind" do
+    with_relearner_sorting(:tm => :type) do
+      pressing(Input::A) { MoveRelearnerScene.new(:tm).refreshMoves }
+      pressing(Input::X) { MoveRelearnerScene.new(:tm).refreshMoves }
+      MoveRelearnerScene.new(:tm).refreshMoves
+    end
+    assert_equal [[t(:rj_sorted_type), true]], SpeakCapture.log
   end
 
   test "a move bought rebuilds the Move Tutor's list with no sort to say" do
@@ -699,6 +773,15 @@ class RejuvenationScreensTest < PokeAccessTest
   end
 
   # Runs the block with Input answering true for the given keys only, put back after.
+  # Runs the block with $PokemonGlobal keeping sorting as the relearner's order of each page.
+  def with_relearner_sorting(sorting)
+    had = $PokemonGlobal
+    $PokemonGlobal = Struct.new(:moveRelearnerSorting).new(sorting)
+    yield
+  ensure
+    $PokemonGlobal = had
+  end
+
   def pressing(*keys)
     trig = Input.method(:trigger?)
     Input.define_singleton_method(:trigger?) { |k| keys.include?(k) }

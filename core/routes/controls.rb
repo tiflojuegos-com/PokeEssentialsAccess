@@ -33,17 +33,19 @@ module PokeAccess
         return limits.cut! if limits.time_spent?
         floor = PokeAccess::World::Probe.lend_through(mech::Links.standing(inst)) { floor_from($game_player.x, $game_player.y) }
         return nil unless floor
-        seq = presses(inst, ctrls, floor, goal)
+        seq = presses(inst, ctrls, floor, goal, @slid)
         seq ? way_to(seq) : nil
       end
 
-      # The tiles walkable from (x, y) with every wall set aside, each with the tiles one step leads to and the step's
-      # entry (Moves::Step#entry): key => [[key, x, y, entry], ...] (nil past TILES); nil once the route limit's deadline
-      # passes, the stop counted. A tile on both levels of a bridge keeps the moves of the level reached first.
+      # The tiles walkable from (x, y) as the events stand, each with the tiles one step leads to and the step's entry
+      # (Moves::Step#entry): key => [[key, x, y, entry], ...] (nil past TILES); nil once the route limit's deadline
+      # passes, the stop counted. A tile on both levels of a bridge keeps the moves of the level reached first; @slid
+      # notes a slide.
       def self.floor_from(x, y)
         pf = PokeAccess::Pathfinder
         lim = pf.limits
         n = 0
+        @slid = false
         mode = pf.moves_mode(true, (PokeAccess::Config.edge_relax rescue false))
         floor = { Routes.pkey(x, y) => nil }
         queue = [[x, y, pf.bridge_level]]
@@ -54,6 +56,7 @@ module PokeAccess
           DIRS.each do |dir|
             t = step_at(cx, cy, lvl, dir, mode)
             next unless t
+            @slid = true if t.kind == :slide
             k = Routes.pkey(t.x, t.y)
             out.push([k, t.x, t.y, t.entry])
             next if floor.key?(k)
@@ -85,23 +88,25 @@ module PokeAccess
 
       # The fewest presses that open the way to goal (one of its tiles, or a move onto its entry), in turn, as [piece, key
       # of the tile it is pressed from] each; nil when the way is open already, when none within DEPTH opens it, or past
-      # VISITS tiles or the deadline (a cut).
-      def self.presses(inst, ctrls, floor, goal)
+      # VISITS tiles or the deadline (a cut). On a floor that slides (slides), see reach_from.
+      def self.presses(inst, ctrls, floor, goal, slides = false)
         links = PokeAccess::World::Mechanics::Links
         limits = PokeAccess::Pathfinder.limits
         aims = goal.tiles.map { |x, y| Routes.pkey(x, y) }
         stops = plates(inst)
+        deps = links.flags(inst)
+        floors = slides ? {} : nil
         queue = [[{}, Routes.pkey($game_player.x, $game_player.y), []]]
         seen = {}
         visits = 0
         (DEPTH + 1).times do
           later = []
           queue.each do |over, pos, done|
-            sig = [over.reject { |k, _v| k[0] == :self }.to_a.sort_by { |k, _v| k.inspect }, pos]
+            sig = [over.reject { |k, _v| k[0] == :self && !deps[k] }.to_a.sort_by { |k, _v| k.inspect }, pos]
             next if seen[sig]
             seen[sig] = true
             return limits.cut! if visits > VISITS || limits.time_spent?
-            reach = region(floor, pos, links.blocked(inst, over), stops, goal.entry)
+            reach = reach_from(inst, floor, floors, pos, over, stops, goal)
             visits += reach.size
             return (done.empty? ? nil : done) if aims.any? { |k| reach[k] }
             ctrls.each do |p|
@@ -113,6 +118,24 @@ module PokeAccess
           queue = later
         end
         nil
+      end
+
+      # The floor tiles reachable from key pos with the flags in over (region). With floors (a floor that slides, whose
+      # stops the walls change), the floor is read afresh from pos with the walls over opens aside and those it shuts
+      # closed, kept in floors.
+      def self.reach_from(inst, floor, floors, pos, over, stops, goal)
+        links = PokeAccess::World::Mechanics::Links
+        shut = links.blocked(inst, over)
+        return region(floor, pos, shut, stops, goal.entry) unless floors
+        open = links.standing(inst).reject { |ev| links.blocks?(links.live_page(ev, over)) }
+        key = [pos, open.map { |ev| ev.id }]
+        unless floors.key?(key)
+          floors[key] = PokeAccess::World::Probe.lend_through(open) do
+            Moves.with_closed(shut, :wall) { floor_from(pos / PKEY_STRIDE, pos % PKEY_STRIDE) }
+          end
+        end
+        own = floors[key]
+        own ? region(own, pos, shut, stops, goal.entry) : region(floor, pos, shut, stops, goal.entry)
       end
 
       # The flags after pressing control p from over, as its live page sets them (a flag back at its value now dropped);
@@ -215,7 +238,8 @@ module PokeAccess
         on = plates(inst)
         return true if on.empty?
         pf = PokeAccess::Pathfinder
-        steps = Moves.trace($game_player.x, $game_player.y, pf.bridge_level, route.to_a, pf.replay_mode)
+        steps = Moves.trace($game_player.x, $game_player.y, pf.bridge_level, route.to_a, pf.replay_mode,
+                            Moves.picks_of(route))
         keys = steps.map { |s| Routes.pkey(s.x, s.y) }
         over = {}
         keys[0...-1].each_with_index do |k, i|

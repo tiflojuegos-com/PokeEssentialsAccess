@@ -79,6 +79,18 @@ class MartSpecialRowsTest < PokeAccessTest
     assert_equal "ItemTOPHAT. Sombrero de fieltro.", said
   end
 
+  test "a buy adapter with no descriptions of its own gives the info key those of the mart's adapter it wraps" do
+    row(:TOPHAT, BuyOnly.new(ClothesAdapter.new("Un sombrero de copa.")))
+    assert_equal "ItemTOPHAT. Un sombrero de copa.", PokeAccess::Info.info_text
+  end
+
+  # Rejuvenation 14's BuyAdapter: names and prices through the mart's adapter it wraps, and no getDescription.
+  class BuyOnly
+    def initialize(adapter); @adapter = adapter; end
+    def getDisplayName(item); @adapter.getDisplayName(item); end
+    def getDisplayPrice(item); @adapter.getDisplayPrice(item); end
+  end
+
   private
 
   # The focused row of a mart window over the shop's stock, with the cursor on item (:CANCEL_ROW is past the stock).

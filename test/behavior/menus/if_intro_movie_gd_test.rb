@@ -1,89 +1,107 @@
 # Infinite Fusion's opening animation (games/infinitefusion_common/intro_movie.rb) over a stand-in shaped as its Movie:
-# @canStopEarly set by its fourth argument, playInViewPort the loop that shows its frames, left out.
+# playInViewPort's loop, which checks confirm once per picture before holding it through pbWait, a function the movie
+# inherits as it inherits the game's from Object, here from a stage class so no other test sees it.
 
-# The movie: its frames' path, music and length, and whether confirm may cut it short.
-class Movie
-  def initialize(framesPath, bgm, maxFrame = 1000, canStopEarly = false)
-    @framesPath = framesPath
-    @bgm = bgm
-    @maxFrame = maxFrame
-    @canStopEarly = canStopEarly
-  end
-  attr_accessor :waits
-  attr_reader :frames_after_wait
-
-  def playInViewPort(_viewport)
-    @currentFrame = 1
-    @frames_after_wait = []
-    @waits.to_i.times do
-      pbWait(1)
-      @frames_after_wait << @currentFrame
-      @currentFrame += 1
-      break if @currentFrame > @maxFrame
-    end
-    :played
-  end
-
+# The game's pbWait: as many frames of Graphics.update and Input.update as asked.
+class IfIntroMovieStage
   private
 
-  def pbWait(_frames); end
+  def pbWait(frames)
+    frames.times do
+      Graphics.update
+      Input.update
+    end
+  end
+end
+
+# The movie: its frames' path, music and length, and whether confirm may cut it short; shown lists the pictures it put up.
+class Movie < IfIntroMovieStage
+  attr_reader :shown, :finished
+
+  def initialize(framesPath, bgm, maxFrame = 1000, canStopEarly = false)
+    @currentFrame = 1
+    @maxFrame = maxFrame
+    @framesPath = framesPath
+    @bgm = bgm
+    @canStopEarly = canStopEarly
+    @finished = false
+  end
+
+  def playInViewPort(_viewport)
+    @finished = false
+    @currentFrame = 1
+    @shown = []
+    while @currentFrame <= @maxFrame
+      break if Input.trigger?(Input::C) && @canStopEarly
+      @shown << @currentFrame
+      pbWait(Graphics.frame_rate / 20)
+      @currentFrame += 1
+    end
+    @finished = true
+  end
 end
 
 class IfIntroMovieGdTest < PokeAccessTest
   PATH = File.join(Harness::ROOT, "games", "infinitefusion_common", "intro_movie.rb")
+  WAIT = Graphics.frame_rate / 20
 
-  test "the opening animation is named as it starts, queued, with the key that skips it" do
+  def setup
+    super
     self.class.bind
-    assert_equal :played, Movie.new("INTRO-%03d", "intro", 230, true).playInViewPort(nil)
+  end
+
+  test "the opening animation is named once as it starts, queued, with the key that skips it" do
+    movie = Movie.new("INTRO-%03d", "intro", 4, true)
+    with_confirm_on { movie.playInViewPort(nil) }
+    assert_equal [1, 2, 3, 4], movie.shown
     skip_hint = t(:if_intro_skip, :key => t(:key_enter))
     assert_equal [[PokeAccess::Verbosity.with_hint(t(:if_intro_movie), skip_hint), false]], SpeakCapture.log
   end
 
-  test "a movie that cannot be cut short is named without a key" do
-    self.class.bind
-    Movie.new("INTRO-%03d", "intro").playInViewPort(nil)
+  test "each showing of the movie is named again" do
+    with_confirm_on { 2.times { Movie.new("INTRO-%03d", "intro", 2).playInViewPort(nil) } }
+    assert_equal [[t(:if_intro_movie), false]] * 2, SpeakCapture.log
+  end
+
+  test "a movie that cannot be cut short is named without a key and plays on through confirm" do
+    movie = Movie.new("INTRO-%03d", "intro", 4)
+    with_confirm_on(1, WAIT + 1, WAIT * 2) { movie.playInViewPort(nil) }
+    assert_equal [1, 2, 3, 4], movie.shown
     assert_equal [[t(:if_intro_movie), false]], SpeakCapture.log
   end
 
   test "the key to skip it is left out while key hints are not said" do
-    self.class.bind
     PokeAccess::Config.verbosity = :brief
-    Movie.new("INTRO-%03d", "intro", 230, true).playInViewPort(nil)
+    with_confirm_on { Movie.new("INTRO-%03d", "intro", 2, true).playInViewPort(nil) }
     assert_equal [[t(:if_intro_movie), false]], SpeakCapture.log
   end
 
-  test "a held confirm ends a skippable movie through its normal loop even if the trigger is gone" do
-    self.class.bind
+  test "confirm pressed on a frame the movie's own check never reads ends it once that picture is done" do
     movie = Movie.new("INTRO-%03d", "intro", 10, true)
-    movie.waits = 4
-    with_confirm_states(false, true) { assert_equal :played, movie.playInViewPort(nil) }
-    assert_equal [10], movie.frames_after_wait
+    with_confirm_on(WAIT + 1) { movie.playInViewPort(nil) }
+    assert_equal [1, 2], movie.shown
+    assert movie.finished
   end
 
-  test "confirm held when the movie starts must be released before it can skip" do
-    self.class.bind
+  test "confirm pressed on the last frame of a wait ends it there as the movie's own check would" do
     movie = Movie.new("INTRO-%03d", "intro", 10, true)
-    movie.waits = 4
-    with_confirm_states(true, true, false, true) { movie.playInViewPort(nil) }
-    assert_equal [1, 2, 10], movie.frames_after_wait
-  end
-
-  test "a movie that cannot be skipped plays on when confirm is held" do
-    self.class.bind
-    movie = Movie.new("INTRO-%03d", "intro", 10)
-    movie.waits = 3
-    with_confirm_states(true, true, true, true) { movie.playInViewPort(nil) }
-    assert_equal [1, 2, 3], movie.frames_after_wait
+    with_confirm_on(WAIT) { movie.playInViewPort(nil) }
+    assert_equal [1], movie.shown
   end
 
   private
 
-  def with_confirm_states(*states)
-    original = Input.method(:press?)
-    Input.define_singleton_method(:press?) { |button| button == Input::C && states.shift }
+  # Runs the block with confirm newly pressed on the given frames alone, counted by Graphics.update from 1.
+  def with_confirm_on(*frames)
+    frame = 0
+    update = Graphics.method(:update)
+    trigger = Input.method(:trigger?)
+    Graphics.define_singleton_method(:update) { frame += 1 }
+    Input.define_singleton_method(:trigger?) { |button| button == Input::C && frames.include?(frame) }
     yield
   ensure
-    Input.define_singleton_method(:press?, original)
+    Graphics.define_singleton_method(:update, update)
+    Input.define_singleton_method(:trigger?, trigger)
   end
 
   def t(key, args = {})

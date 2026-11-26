@@ -175,6 +175,7 @@ the build's language (`GameLang`), never the player's ([Speech and languages](..
 | `hazard(pattern, label)` | regexp on the sprite name, i18n key | Names the event, files it as an object, cues it |
 | `teleporter(pattern)` | regexp on the sprite name | A transfer event wearing it is an exit, with the teleporter cue |
 | `transfer_script(pattern)` | regexp; optional block given the match, answers a map id or `[map, x, y]` | A script call that transfers the player |
+| `script_edges` | block given the map id; answers nil or the ways (2, 4, 6, 8) open now | Borders the game crosses by script, listed as exits |
 
 - `event_name` rules run newest first, after the player's own label. `event_category` rules run newest first, and
   the player's own category still wins. `name_mark` words come in registration order, none twice.
@@ -194,6 +195,11 @@ the build's language (`GameLang`), never the player's ([Speech and languages](..
   block reads the destination from the game's own constants or tables, and never runs the game's script. Without a
   block, a first group of digits is the map id. A call that names no map, as a way out that returns where the player
   came from, is still a door: it is said as an exit, and a route ends on it.
+- `script_edges` serves maps whose borders move the player with no connection and no event, as a step taken onto the
+  border toward the outside (Reminiscencia's dungeon rooms). The block answers, for the map, the sides that lead on
+  now. Each open side is one exit, on the tile just inside the border nearest its middle, named by its way ("exit to
+  the left") and numbered clockwise from the top. The arrival line says which way to step out. The list is built anew
+  on each question, since a game can redraw a room under the same map id.
 
 ## Field moves
 
@@ -347,8 +353,9 @@ block declares the puzzle with these verbs:
 - `hide(what, opts = {})`: leaves events out of the lists and the sonar; `:assist => true`, with the puzzle assist alone;
   `:when`, a test given the event for while they stay out (`false`: never).
 - `avoid(what, opts = {})`: events a walk keeps off while there is another way: floor that changes the puzzle when stepped
-  on, though no wall reads it. Every tile of a wide event is kept off. A walk that ends on one still goes. `:assist => true`,
-  with the puzzle assist alone.
+  on, though no wall reads it. Every tile of a wide event is kept off. A walk that ends on one still goes. `what` may be a
+  lambda given the event, asked as each walk is planned (floor that punishes at some values of a variable only).
+  `:assist => true`, with the puzzle assist alone.
 - `count(label, opts = {})`: a count said as "label: n of total" as it grows and in the info key's line: of `:value` (a lambda), `:var` (less
   `:from`), `:flags`, `:switches => ids` or `:selfs => [ids, letter, map]`, out of `:of` (by default, how many flags). As it
   falls, `:reset` is said with it (a line, or the core's; `false`, nothing). `:announce => false` leaves it to the info
@@ -366,7 +373,8 @@ block declares the puzzle with these verbs:
   not compare: a page that compares an entry with a fixed value says it by itself.
 - `right_choice(what, opts)`: the right option of the menus an event asks, a Show Command or a `\ch[...]` in its message, said
   with the assist alone as each opens, in the game's own words: the one whose branch does what `:takes` says and not what
-  `:avoids` says, each `{:var => id}`, `{:switch => id}`, `{:self => letter}`, `:transfer`, `:battle` or `:item` (`:takes`
+  `:avoids` says, each `{:var => id}`, `{:switch => id}` (`{:switch => id, :to => true}` for the branch that turns it on,
+  `false` off), `{:self => letter}`, `:transfer`, `:battle` or `:item` (`:takes`
   may be a lambda answering one of them as things stand, or nil when no branch is right); or sets a
   variable to a value, `{:var => id, :value => number or lambda}`, or to the one another event's page takes as right,
   `{:var => id, :compared_by => event}`: the first it compares it with or, with `:moving => var`, the first whose branch writes
@@ -380,7 +388,7 @@ block declares the puzzle with these verbs:
 - `arrival_hint(label, opts = {})`: a rule said queued on arriving at the map, when descriptions are on and the puzzle is not
   solved; a lambda is asked each time. With `:once => true`, just the first time this session it says something, for a
   room that reloads with each try: a rule that comes out empty does not spend it.
-- `spot(opts)`: a named point for the locator, `:at => [x, y]` or `:event => id`, with its `:label`. `:assist => true`,
+- `spot(opts)`: a named point for the locator, `:at => [x, y]` (or a lambda answering one as things stand) or `:event => id`, with its `:label`. `:assist => true`,
   with the puzzle assist alone; `:when`, a test for while it is listed; `:onto => true`, stood on rather than faced.
 - `info`: the block answers the info key's line.
 - `active`: the block answers whether the puzzle answers the info key.
